@@ -698,6 +698,10 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
     Route::get('/report/item-stock', [ReportingController::class, 'item_stock_report'])->middleware('permission:report.item.stock.view')->name('report.item_stock');
     Route::post('/report/item-stock-fetch', [ReportingController::class, 'fetchItemStock'])->middleware('permission:report.item.stock.view')->name('report.item_stock.fetch');
 
+    // ✅ Product Stock Movement Ledger (ERP Cardex)
+    Route::get('/report/product-ledger', [ReportingController::class, 'product_ledger'])->middleware('permission:report.product.ledger.view')->name('report.product_ledger');
+    Route::match(['get', 'post'], '/report/product-ledger/fetch', [ReportingController::class, 'fetch_product_ledger'])->middleware('permission:report.product.ledger.view')->name('report.product_ledger.fetch');
+
     Route::get('report/purchase', [ReportingController::class, 'purchase_report'])->middleware('permission:report.purchase.view')->name('report.purchase');
     Route::post('report/purchase/fetch', [ReportingController::class, 'fetchPurchaseReport'])->middleware('permission:report.purchase.view')->name('report.purchase.fetch');
 

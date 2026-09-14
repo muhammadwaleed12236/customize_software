@@ -15,6 +15,8 @@ use App\Models\SalesReturn;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Models\SalesOfficer;
+use App\Models\Vendor;
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -3026,6 +3028,622 @@ class ReportingController extends Controller
                 'total_paid' => (float)$results->sum('paid_amount'),
                 'total_due'  => (float)$results->sum('due_amount'),
             ]
+        ]);
+    }
+
+    /**
+     * ✅ Render Product Stock Movement Ledger (Cardex) View
+     */
+    public function product_ledger(Request $request)
+    {
+        $user = Auth::user();
+        $isSuperAdmin = $user && $user->hasRole('super admin');
+
+        $selectedBranchId = null;
+        if ($isSuperAdmin) {
+            $branches = Branch::orderBy('name')->get();
+            $selectedBranchId = $request->filled('branch_id') ? $request->branch_id : 'all';
+        } else {
+            $branches = $user->branch_id ? Branch::where('id', $user->branch_id)->get() : collect();
+            $selectedBranchId = $user->branch_id;
+        }
+
+        // Warehouses list
+        if ($selectedBranchId && $selectedBranchId !== 'all') {
+            $warehouses = Warehouse::whereHas('branches', function ($q) use ($selectedBranchId) {
+                $q->where('branches.id', $selectedBranchId);
+            })->orderBy('warehouse_name')->get();
+        } else {
+            $warehouses = Warehouse::orderBy('warehouse_name')->get();
+        }
+
+        // Products for searchable dropdown
+        $products = Product::with(['unit', 'brand', 'category_relation'])
+            ->orderBy('item_name')
+            ->get(['id', 'item_code', 'item_name', 'unit_id', 'brand_id', 'category_id', 'wholesale_price', 'price', 'initial_stock']);
+
+        return view('admin_panel.reporting.product_ledger', compact(
+            'branches',
+            'warehouses',
+            'products',
+            'selectedBranchId',
+            'isSuperAdmin'
+        ));
+    }
+
+    /**
+     * ✅ Fetch Product Stock Movement Ledger Data (AJAX)
+     * Full ERP Cardex: Opening Stock, Chronological Transactions, Running Balance & Valuation
+     */
+    public function fetch_product_ledger(Request $request)
+    {
+        $user = Auth::user();
+        $isSuperAdmin = $user && $user->hasRole('super admin');
+
+        $productId   = (int) $request->input('product_id');
+        $branchId    = $request->input('branch_id', 'all');
+        $warehouseId = $request->input('warehouse_id', 'all');
+        $startDate   = $request->input('start_date');
+        $endDate     = $request->input('end_date');
+
+        if (!$productId) {
+            return response()->json(['error' => 'Please select a valid product.'], 422);
+        }
+
+        if (!$startDate || !$endDate) {
+            return response()->json(['error' => 'Start Date and End Date are required.'], 422);
+        }
+
+        // Security / Branch isolation
+        if (!$isSuperAdmin) {
+            $branchId = (int) $user->branch_id;
+        }
+
+        $product = Product::with(['unit', 'brand', 'category_relation', 'sub_category_relation'])->find($productId);
+        if (!$product) {
+            return response()->json(['error' => 'Product not found.'], 404);
+        }
+
+        $costRate = (float) ($product->wholesale_price ?? 0);
+        $retailRate = (float) ($product->price ?? 0);
+        $startDt = $startDate . ' 00:00:00';
+        $endDt = $endDate . ' 23:59:59';
+
+        // ══════════════════════════════════════════════════════════════════
+        // 1. EXACT OPENING STOCK CALCULATION (Transactions before start_date)
+        // ══════════════════════════════════════════════════════════════════
+
+        // A. Initial Stock entries recorded before start date
+        $openQuery = DB::table('stock_movements')
+            ->where('product_id', $productId)
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+            ->where('created_at', '<', $startDt);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $openQuery->where('branch_id', $branchId);
+        }
+        $openingInitial = (float) $openQuery->sum('qty');
+
+        // Fallback: If no stock_movements exist at all, but product has initial_stock and created_at < startDt
+        if ($openingInitial == 0) {
+            $hasAnyMovement = DB::table('stock_movements')->where('product_id', $productId)->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])->exists();
+            if (!$hasAnyMovement && (float)$product->initial_stock > 0 && $product->created_at < $startDt) {
+                if ($branchId === 'all' || empty($branchId) || $product->branch_id == $branchId) {
+                    $openingInitial = (float) $product->initial_stock;
+                }
+            }
+        }
+
+        // B. Purchases before start_date
+        $purBeforeQuery = DB::table('purchase_items')
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->where('purchase_items.product_id', $productId)
+            ->whereNull('purchases.deleted_at')
+            ->where('purchases.created_at', '<', $startDt);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $purBeforeQuery->where('purchases.branch_id', $branchId);
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $purBeforeQuery->where(function ($q) use ($warehouseId) {
+                $q->where('purchase_items.warehouse_id', $warehouseId)
+                  ->orWhere('purchases.warehouse_id', $warehouseId);
+            });
+        }
+        $purchasesBefore = (float) $purBeforeQuery->sum('purchase_items.qty');
+
+        // C. Sales Returns before start_date
+        $saleReturnBeforeQuery = DB::table('sales_returns')
+            ->where('product_code', $product->item_code)
+            ->where('created_at', '<', $startDt);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $saleReturnBeforeQuery->whereExists(function ($sub) use ($branchId) {
+                $sub->select(DB::raw(1))
+                    ->from('sales')
+                    ->whereColumn('sales.id', 'sales_returns.sale_id')
+                    ->where('sales.branch_id', $branchId);
+            });
+        }
+        $saleReturnsBefore = (float) $saleReturnBeforeQuery->sum('qty');
+
+        // D. Stock Transfers In before start_date
+        $transInBefore = 0;
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $transInBefore = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('to_branch_id', $branchId)
+                ->where('status', 'approved')
+                ->where('created_at', '<', $startDt)
+                ->sum('quantity');
+        } elseif ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $transInBefore = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('to_warehouse_id', $warehouseId)
+                ->where('status', 'approved')
+                ->where('created_at', '<', $startDt)
+                ->sum('quantity');
+        }
+
+        // E. Sales before start_date
+        $saleBeforeQuery = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sale_items.product_id', $productId)
+            ->where('sales.status', '!=', 'cancelled')
+            ->where('sales.created_at', '<', $startDt);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $saleBeforeQuery->where('sales.branch_id', $branchId);
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $saleBeforeQuery->where('sale_items.warehouse_id', $warehouseId);
+        }
+        $salesBefore = (float) $saleBeforeQuery->sum('sale_items.sales_qty');
+
+        // F. Purchase Returns before start_date
+        $purReturnBeforeQuery = DB::table('purchase_return_items')
+            ->join('purchase_returns', 'purchase_return_items.purchase_return_id', '=', 'purchase_returns.id')
+            ->where('purchase_return_items.product_id', $productId)
+            ->where('purchase_returns.created_at', '<', $startDt);
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $purReturnBeforeQuery->where('purchase_returns.warehouse_id', $warehouseId);
+        }
+        $purReturnsBefore = (float) $purReturnBeforeQuery->sum('purchase_return_items.qty');
+
+        // G. Stock Transfers Out before start_date
+        $transOutBefore = 0;
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $transOutBefore = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('from_branch_id', $branchId)
+                ->where('status', 'approved')
+                ->where('created_at', '<', $startDt)
+                ->sum('quantity');
+        } elseif ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $transOutBefore = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('from_warehouse_id', $warehouseId)
+                ->where('status', 'approved')
+                ->where('created_at', '<', $startDt)
+                ->sum('quantity');
+        }
+
+        // H. Damaged Stocks before start_date
+        $damagedBeforeQuery = DB::table('damaged_stocks')
+            ->where('product_id', $productId)
+            ->where('created_at', '<', $startDt);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $damagedBeforeQuery->where('branch_id', $branchId);
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $damagedBeforeQuery->where('warehouse_id', $warehouseId);
+        }
+        $damagedBefore = (float) $damagedBeforeQuery->sum('quantity');
+
+        // Total Net Opening Stock Qty
+        $openingQty = ($openingInitial + $purchasesBefore + $saleReturnsBefore + $transInBefore)
+                    - ($salesBefore + $purReturnsBefore + $transOutBefore + $damagedBefore);
+        $openingValue = $openingQty * $costRate;
+
+        // ══════════════════════════════════════════════════════════════════
+        // 2. TRANSACTIONS WITHIN DATE RANGE [startDate, endDate]
+        // ══════════════════════════════════════════════════════════════════
+        $events = [];
+
+        // A. Opening entries in date range
+        $inRangeOpenQuery = DB::table('stock_movements')
+            ->where('product_id', $productId)
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+            ->whereBetween('created_at', [$startDt, $endDt]);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $inRangeOpenQuery->where('branch_id', $branchId);
+        }
+        foreach ($inRangeOpenQuery->get() as $op) {
+            $events[] = [
+                'datetime'      => $op->created_at,
+                'date'          => date('d-M-Y H:i', strtotime($op->created_at)),
+                'type'          => 'Opening Stock Entry',
+                'badge'         => 'badge-primary',
+                'icon'          => 'fa-hourglass-start',
+                'ref_no'        => 'OPENING',
+                'party'         => 'Opening Stock Allotment',
+                'warehouse'     => 'Main Store',
+                'in_qty'        => (float) $op->qty,
+                'in_price'      => $costRate,
+                'in_total'      => (float) $op->qty * $costRate,
+                'out_qty'       => 0,
+                'out_price'     => 0,
+                'out_total'     => 0,
+                'remarks'       => $op->note ?? 'Initial stock recorded',
+            ];
+        }
+
+        // B. Purchases in date range
+        $purRangeQuery = DB::table('purchase_items')
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->leftJoin('vendors', 'purchases.vendor_id', '=', 'vendors.id')
+            ->leftJoin('warehouses', 'purchase_items.warehouse_id', '=', 'warehouses.id')
+            ->where('purchase_items.product_id', $productId)
+            ->whereNull('purchases.deleted_at')
+            ->whereBetween('purchases.created_at', [$startDt, $endDt]);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $purRangeQuery->where('purchases.branch_id', $branchId);
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $purRangeQuery->where(function ($q) use ($warehouseId) {
+                $q->where('purchase_items.warehouse_id', $warehouseId)
+                  ->orWhere('purchases.warehouse_id', $warehouseId);
+            });
+        }
+        $purRangeQuery->select(
+            'purchases.created_at',
+            'purchases.invoice_no',
+            'purchases.vendor_name',
+            'vendors.name as vendor_db_name',
+            'warehouses.warehouse_name',
+            'purchase_items.qty',
+            'purchase_items.price',
+            'purchase_items.line_total',
+            'purchases.note'
+        );
+        foreach ($purRangeQuery->get() as $pur) {
+            $vName = !empty($pur->vendor_name) ? $pur->vendor_name : (!empty($pur->vendor_db_name) ? $pur->vendor_db_name : 'Supplier');
+            $whName = !empty($pur->warehouse_name) ? $pur->warehouse_name : 'Main Store';
+            $pQty = (float) $pur->qty;
+            $pPrice = (float) $pur->price;
+            $pTotal = (float) ($pur->line_total > 0 ? $pur->line_total : ($pQty * $pPrice));
+            $events[] = [
+                'datetime'      => $pur->created_at,
+                'date'          => date('d-M-Y H:i', strtotime($pur->created_at)),
+                'type'          => 'Purchase (Inward)',
+                'badge'         => 'badge-success',
+                'icon'          => 'fa-cart-plus',
+                'ref_no'        => $pur->invoice_no ?? 'PUR',
+                'party'         => $vName,
+                'warehouse'     => $whName,
+                'in_qty'        => $pQty,
+                'in_price'      => $pPrice,
+                'in_total'      => $pTotal,
+                'out_qty'       => 0,
+                'out_price'     => 0,
+                'out_total'     => 0,
+                'remarks'       => $pur->note ?? 'Received from Supplier',
+            ];
+        }
+
+        // C. Sales in date range
+        $saleRangeQuery = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->leftJoin('customers', 'sales.customer_id', '=', 'customers.id')
+            ->leftJoin('warehouses', 'sale_items.warehouse_id', '=', 'warehouses.id')
+            ->where('sale_items.product_id', $productId)
+            ->where('sales.status', '!=', 'cancelled')
+            ->whereBetween('sales.created_at', [$startDt, $endDt]);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $saleRangeQuery->where('sales.branch_id', $branchId);
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $saleRangeQuery->where('sale_items.warehouse_id', $warehouseId);
+        }
+        $saleRangeQuery->select(
+            'sales.created_at',
+            'sales.invoice_no',
+            'customers.customer_name',
+            'warehouses.warehouse_name',
+            'sale_items.sales_qty',
+            'sale_items.sales_price',
+            'sale_items.retail_price',
+            'sale_items.amount',
+            'sales.remarks'
+        );
+        foreach ($saleRangeQuery->get() as $sale) {
+            $cName = !empty($sale->customer_name) ? $sale->customer_name : 'Customer';
+            $whName = !empty($sale->warehouse_name) ? $sale->warehouse_name : 'Main Store';
+            $sQty = (float) $sale->sales_qty;
+            $sPrice = (float) $sale->retail_price > 0 ? (float) $sale->retail_price : ((float) $sale->sales_price > 0 ? (float) $sale->sales_price : ((float) $sale->amount / max(1, $sQty)));
+            $sTotal = (float) $sale->amount > 0 ? (float) $sale->amount : ($sQty * $sPrice);
+            $events[] = [
+                'datetime'      => $sale->created_at,
+                'date'          => date('d-M-Y H:i', strtotime($sale->created_at)),
+                'type'          => 'Sale Invoice',
+                'badge'         => 'badge-danger',
+                'icon'          => 'fa-file-invoice-dollar',
+                'ref_no'        => $sale->invoice_no ?? 'SALE',
+                'party'         => $cName,
+                'warehouse'     => $whName,
+                'in_qty'        => 0,
+                'in_price'      => 0,
+                'in_total'      => 0,
+                'out_qty'       => $sQty,
+                'out_price'     => $sPrice,
+                'out_total'     => $sTotal,
+                'remarks'       => $sale->remarks ?? 'Sold to Customer',
+            ];
+        }
+
+        // D. Sales Returns in date range
+        $saleReturnQuery = DB::table('sales_returns')
+            ->where('product_code', $product->item_code)
+            ->whereBetween('created_at', [$startDt, $endDt]);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $saleReturnQuery->whereExists(function ($sub) use ($branchId) {
+                $sub->select(DB::raw(1))
+                    ->from('sales')
+                    ->whereColumn('sales.id', 'sales_returns.sale_id')
+                    ->where('sales.branch_id', $branchId);
+            });
+        }
+        foreach ($saleReturnQuery->get() as $sr) {
+            $srQty = (float) $sr->qty;
+            $srPrice = (float) $sr->per_price;
+            $srTotal = (float) ($sr->per_total > 0 ? $sr->per_total : ($srQty * $srPrice));
+            $events[] = [
+                'datetime'      => $sr->created_at,
+                'date'          => date('d-M-Y H:i', strtotime($sr->created_at)),
+                'type'          => 'Sale Return',
+                'badge'         => 'badge-info',
+                'icon'          => 'fa-undo',
+                'ref_no'        => $sr->reference ?? 'SR',
+                'party'         => $sr->customer ?? 'Customer Return',
+                'warehouse'     => 'Main Store',
+                'in_qty'        => $srQty,
+                'in_price'      => $srPrice,
+                'in_total'      => $srTotal,
+                'out_qty'       => 0,
+                'out_price'     => 0,
+                'out_total'     => 0,
+                'remarks'       => $sr->return_note ?? 'Goods returned by Customer',
+            ];
+        }
+
+        // E. Purchase Returns in date range
+        $purReturnQuery = DB::table('purchase_return_items')
+            ->join('purchase_returns', 'purchase_return_items.purchase_return_id', '=', 'purchase_returns.id')
+            ->leftJoin('vendors', 'purchase_returns.vendor_id', '=', 'vendors.id')
+            ->leftJoin('warehouses', 'purchase_returns.warehouse_id', '=', 'warehouses.id')
+            ->where('purchase_return_items.product_id', $productId)
+            ->whereBetween('purchase_returns.created_at', [$startDt, $endDt]);
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $purReturnQuery->where('purchase_returns.warehouse_id', $warehouseId);
+        }
+        $purReturnQuery->select(
+            'purchase_returns.created_at',
+            'purchase_returns.return_invoice',
+            'vendors.name as vendor_name',
+            'warehouses.warehouse_name',
+            'purchase_return_items.qty',
+            'purchase_return_items.price',
+            'purchase_return_items.line_total',
+            'purchase_returns.remarks'
+        );
+        foreach ($purReturnQuery->get() as $pr) {
+            $prQty = (float) $pr->qty;
+            $prPrice = (float) $pr->price;
+            $prTotal = (float) ($pr->line_total > 0 ? $pr->line_total : ($prQty * $prPrice));
+            $events[] = [
+                'datetime'      => $pr->created_at,
+                'date'          => date('d-M-Y H:i', strtotime($pr->created_at)),
+                'type'          => 'Purchase Return',
+                'badge'         => 'badge-warning',
+                'icon'          => 'fa-reply',
+                'ref_no'        => $pr->return_invoice ?? 'PR',
+                'party'         => $pr->vendor_name ?? 'Vendor Return',
+                'warehouse'     => $pr->warehouse_name ?? 'Main Store',
+                'in_qty'        => 0,
+                'in_price'      => 0,
+                'in_total'      => 0,
+                'out_qty'       => $prQty,
+                'out_price'     => $prPrice,
+                'out_total'     => $prTotal,
+                'remarks'       => $pr->remarks ?? 'Returned to Vendor',
+            ];
+        }
+
+        // F. Stock Transfers in date range
+        $transQuery = DB::table('stock_transfers')
+            ->leftJoin('branches as fb', 'stock_transfers.from_branch_id', '=', 'fb.id')
+            ->leftJoin('branches as tb', 'stock_transfers.to_branch_id', '=', 'tb.id')
+            ->leftJoin('warehouses as fw', 'stock_transfers.from_warehouse_id', '=', 'fw.id')
+            ->leftJoin('warehouses as tw', 'stock_transfers.to_warehouse_id', '=', 'tw.id')
+            ->where('stock_transfers.product_id', $productId)
+            ->where('stock_transfers.status', 'approved')
+            ->whereBetween('stock_transfers.created_at', [$startDt, $endDt])
+            ->select(
+                'stock_transfers.*',
+                'fb.name as from_branch_name',
+                'tb.name as to_branch_name',
+                'fw.warehouse_name as from_wh_name',
+                'tw.warehouse_name as to_wh_name'
+            );
+        foreach ($transQuery->get() as $st) {
+            $qty = (float) $st->quantity;
+            $fromName = ($st->from_branch_name ? $st->from_branch_name . ' - ' : '') . ($st->from_wh_name ?? 'Shop/Branch');
+            $toName = ($st->to_branch_name ? $st->to_branch_name . ' - ' : '') . ($st->to_wh_name ?? 'Shop/Branch');
+
+            if ($branchId !== 'all' && !empty($branchId)) {
+                if ($st->from_branch_id == $branchId) {
+                    $events[] = [
+                        'datetime'      => $st->created_at,
+                        'date'          => date('d-M-Y H:i', strtotime($st->created_at)),
+                        'type'          => 'Transfer Out',
+                        'badge'         => 'badge-secondary',
+                        'icon'          => 'fa-arrow-right',
+                        'ref_no'        => 'TRF-' . $st->id,
+                        'party'         => 'To: ' . $toName,
+                        'warehouse'     => $fromName,
+                        'in_qty'        => 0,
+                        'in_price'      => 0,
+                        'in_total'      => 0,
+                        'out_qty'       => $qty,
+                        'out_price'     => $costRate,
+                        'out_total'     => $qty * $costRate,
+                        'remarks'       => $st->remarks ?? 'Transferred Out',
+                    ];
+                } elseif ($st->to_branch_id == $branchId) {
+                    $events[] = [
+                        'datetime'      => $st->created_at,
+                        'date'          => date('d-M-Y H:i', strtotime($st->created_at)),
+                        'type'          => 'Transfer In',
+                        'badge'         => 'badge-primary',
+                        'icon'          => 'fa-arrow-left',
+                        'ref_no'        => 'TRF-' . $st->id,
+                        'party'         => 'From: ' . $fromName,
+                        'warehouse'     => $toName,
+                        'in_qty'        => $qty,
+                        'in_price'      => $costRate,
+                        'in_total'      => $qty * $costRate,
+                        'out_qty'       => 0,
+                        'out_price'     => 0,
+                        'out_total'     => 0,
+                        'remarks'       => $st->remarks ?? 'Transferred In',
+                    ];
+                }
+            } else {
+                $events[] = [
+                    'datetime'      => $st->created_at,
+                    'date'          => date('d-M-Y H:i', strtotime($st->created_at)),
+                    'type'          => 'Internal Transfer',
+                    'badge'         => 'badge-secondary',
+                    'icon'          => 'fa-exchange-alt',
+                    'ref_no'        => 'TRF-' . $st->id,
+                    'party'         => "From: {$fromName} → To: {$toName}",
+                    'warehouse'     => $fromName,
+                    'in_qty'        => 0,
+                    'in_price'      => 0,
+                    'in_total'      => 0,
+                    'out_qty'       => 0,
+                    'out_price'     => 0,
+                    'out_total'     => 0,
+                    'remarks'       => ($st->remarks ?? '') . " [Transfer Qty: {$qty}]",
+                ];
+            }
+        }
+
+        // G. Damaged Stocks in date range
+        $damagedRangeQuery = DB::table('damaged_stocks')
+            ->leftJoin('warehouses', 'damaged_stocks.warehouse_id', '=', 'warehouses.id')
+            ->where('damaged_stocks.product_id', $productId)
+            ->whereBetween('damaged_stocks.created_at', [$startDt, $endDt]);
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $damagedRangeQuery->where('damaged_stocks.branch_id', $branchId);
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $damagedRangeQuery->where('damaged_stocks.warehouse_id', $warehouseId);
+        }
+        foreach ($damagedRangeQuery->get() as $dmg) {
+            $dQty = (float) $dmg->quantity;
+            $events[] = [
+                'datetime'      => $dmg->created_at,
+                'date'          => date('d-M-Y H:i', strtotime($dmg->created_at)),
+                'type'          => 'Damaged Stock',
+                'badge'         => 'badge-dark',
+                'icon'          => 'fa-dumpster',
+                'ref_no'        => 'DMG-' . $dmg->id,
+                'party'         => 'Damaged Stock Report',
+                'warehouse'     => $dmg->warehouse_name ?? 'Main Store',
+                'in_qty'        => 0,
+                'in_price'      => 0,
+                'in_total'      => 0,
+                'out_qty'       => $dQty,
+                'out_price'     => $costRate,
+                'out_total'     => $dQty * $costRate,
+                'remarks'       => 'Damaged / Scrapped items',
+            ];
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // 3. CHRONOLOGICAL SORTING & RUNNING BALANCE
+        // ══════════════════════════════════════════════════════════════════
+        usort($events, function ($a, $b) {
+            return strcmp($a['datetime'], $b['datetime']);
+        });
+
+        $runningBalance = $openingQty;
+        $totalInQty = 0;
+        $totalInValue = 0;
+        $totalOutQty = 0;
+        $totalOutValue = 0;
+
+        foreach ($events as &$ev) {
+            $inQ = (float) $ev['in_qty'];
+            $outQ = (float) $ev['out_qty'];
+
+            $runningBalance += ($inQ - $outQ);
+            $ev['balance_qty'] = $runningBalance;
+            $ev['valuation_rate'] = $costRate;
+            $ev['balance_value'] = $runningBalance * $costRate;
+
+            $totalInQty += $inQ;
+            $totalInValue += (float) $ev['in_total'];
+            $totalOutQty += $outQ;
+            $totalOutValue += (float) $ev['out_total'];
+        }
+
+        $closingQty = $runningBalance;
+        $closingValue = $closingQty * $costRate;
+
+        // Current Branch & Warehouse info for display
+        $branchName = 'All Branches (Consolidated)';
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $branchObj = Branch::find($branchId);
+            $branchName = $branchObj ? $branchObj->name : "Branch #{$branchId}";
+        }
+
+        $warehouseName = 'All Warehouses';
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $whObj = Warehouse::find($warehouseId);
+            $warehouseName = $whObj ? $whObj->warehouse_name : "Warehouse #{$warehouseId}";
+        }
+
+        return response()->json([
+            'success'   => true,
+            'product'   => [
+                'id'                => $product->id,
+                'item_code'         => $product->item_code,
+                'item_name'         => $product->item_name,
+                'category'          => $product->category_relation->name ?? '-',
+                'subcategory'       => $product->sub_category_relation->name ?? '-',
+                'brand'             => $product->brand->name ?? '-',
+                'unit'              => $product->unit->name ?? 'Pcs',
+                'wholesale_price'   => $costRate,
+                'retail_price'      => $retailRate,
+                'alert_quantity'    => $product->alert_quantity ?? 0,
+            ],
+            'filters'   => [
+                'branch_id'         => $branchId,
+                'branch_name'       => $branchName,
+                'warehouse_id'      => $warehouseId,
+                'warehouse_name'    => $warehouseName,
+                'start_date'        => date('d-M-Y', strtotime($startDate)),
+                'end_date'          => date('d-M-Y', strtotime($endDate)),
+            ],
+            'summary'   => [
+                'opening_qty'       => $openingQty,
+                'opening_value'     => $openingValue,
+                'total_in_qty'      => $totalInQty,
+                'total_in_value'    => $totalInValue,
+                'total_out_qty'     => $totalOutQty,
+                'total_out_value'   => $totalOutValue,
+                'closing_qty'       => $closingQty,
+                'closing_value'     => $closingValue,
+            ],
+            'events'    => $events,
         ]);
     }
 }

@@ -387,6 +387,7 @@ return [
         'cross_branch' => true,
         'permissions'  => [
             'report.item.stock.view'       => 'Item Stock',
+            'report.product.ledger.view'   => 'Product Ledger',
             'report.purchase.view'         => 'Purchase',
             'report.sale.view'             => 'Sale',
             'report.customer.ledger.view'  => 'Customer Ledger',
