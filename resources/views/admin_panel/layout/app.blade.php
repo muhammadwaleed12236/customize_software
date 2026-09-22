@@ -609,6 +609,15 @@
     <!-- html2pdf.js (required for reports) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
+    <!-- Global CSRF token setup for AJAX -->
+    <script>
+        $.ajaxSetup({
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+            }
+        });
+    </script>
+
     <!-- Navbar Hover Logic - Instant Tab Switching -->
     <script>
     $(document).ready(function() {

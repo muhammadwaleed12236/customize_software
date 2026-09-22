@@ -193,6 +193,7 @@ return [
             'booking.create'  => 'Create',
             'booking.edit'    => 'Edit',
             'booking.invoice' => 'Print Invoice',
+            'booking.receipt' => 'Print Receipt',
         ],
     ],
 

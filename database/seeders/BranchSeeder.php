@@ -15,10 +15,10 @@ class BranchSeeder extends Seeder
             [
 
                 'id' => 1,
-                'name' => 'amin$sons',
-                'address' => 'Main Market, Lahore',
+                'name' => 'ZAIN TRADERS',
+                'address' => '17th-Brandreth Road, Lahore, Pakistan.',
                 'status' => 'active',
-                'number' => '03001234567',
+                'number' => '0300-4235114',
             ],
             [
                 'id' => 2,

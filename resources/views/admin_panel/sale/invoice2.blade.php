@@ -1,154 +1,432 @@
-
-
-
 @extends('admin_panel.layout.app')
 
 @section('content')
-
 <style>
-body{
-    font-family: Arial, Helvetica, sans-serif;
-    background:#f1f3f5;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+
+body {
+    font-family: 'Inter', Arial, Helvetica, sans-serif;
+    background: #f4f6f9;
+    color: #000;
 }
 
-.invoice-wrapper{
-    background:#fff;
-    padding:35px 45px;
-    max-width:1100px;
-    margin:auto;
-    border-radius:6px;
-    box-shadow:0 0 8px rgba(0,0,0,0.08);
-}
-
-/* Increase most invoice text for better readability (exclude product rows) */
 .invoice-wrapper {
-    font-size:20px;
+    background: #fff;
+    padding: 30px 40px;
+    max-width: 950px;
+    margin: 20px auto;
+    border-radius: 4px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    color: #000;
 }
 
-/* HEADER */
-.invoice-header{
-    display:flex;
-    justify-content:space-between;
-    align-items:flex-start;
+.company-title {
+    font-size: 32px;
+    font-weight: 800;
+    color: #7A0000;
+    margin: 0;
+    line-height: 1.1;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
 }
 
-.company-name{
-    font-size:26px;
-    font-weight:700;
+.company-address {
+    font-size: 13.5px;
+    color: #333;
+    margin-top: 4px;
+    font-weight: 500;
 }
 
-.company-address{
-    font-size:13px;
-    color:#555;
-    margin-top:5px;
+.company-phones {
+    font-size: 14px;
+    color: #000;
+    font-weight: 700;
+    margin-top: 4px;
+    line-height: 1.35;
 }
 
-.invoice-meta{
-    text-align:right;
-    font-size:14px;
+.invoice-badge-box {
+    border: 2px solid #000;
+    border-radius: 18px;
+    padding: 8px 30px;
+    text-align: center;
+    min-width: 200px;
+    background: #fff;
 }
 
-.invoice-meta div{
-    margin-bottom:4px;
+.invoice-badge-title {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: #000;
+    line-height: 1.1;
 }
 
-hr{
-    border-top:2px solid #000;
-    margin:18px 0;
+.invoice-badge-inv {
+    font-size: 15px;
+    font-weight: 700;
+    color: #000;
+    margin-top: 3px;
 }
 
-/* INFO */
-.info-grid{
-    display:grid;
-    grid-template-columns:1fr 1fr;
-    gap:20px;
-    font-size:14px;
+.invoice-badge-date {
+    font-size: 14px;
+    font-weight: 600;
+    color: #222;
+    margin-top: 2px;
 }
 
-.info-box strong{
-    display:inline-block;
-    width:140px;
+.header-divider {
+    border-top: 1.5px dashed #000;
+    margin: 14px 0 16px 0;
 }
 
-/* TABLE */
-table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:25px;
-    font-size:14px;
+.pandi-box {
+    font-size: 16px;
+    font-weight: bold;
+    color: #000;
+    direction: rtl;
+    text-align: right;
 }
 
-table thead th{
-    padding:10px;
-    background:#f5f5f5;
-    border-bottom:2px solid #ddd;
+.pandi-label {
+    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
+    font-size: 19px;
+    margin-left: 8px;
 }
 
-table tbody td{
-    padding:10px;
-    border-bottom:1px solid #eee;
+.pandi-line {
+    border-bottom: 1px solid #000;
+    display: inline-block;
+    min-width: 260px;
+    padding-right: 10px;
+    font-weight: 600;
+    font-size: 14px;
+    text-align: right;
 }
 
-.text-end{
-    text-align:right;
+.customer-card-box {
+    border: 1px solid #000;
+    border-radius: 3px;
+    width: 360px;
+    border-collapse: collapse;
 }
 
-/* SUMMARY */
-.summary-box{
-    width:40%;
-    margin-left:auto;
-    margin-top:25px;
-    border:1px solid #ddd;
-    padding:15px;
+.customer-card-box table {
+    width: 100%;
+    border-collapse: collapse;
 }
 
-.summary-box table td{
-    padding:8px 5px;
+.customer-card-box td {
+    padding: 5px 12px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #000;
 }
 
-.summary-total{
-    font-weight:700;
-    border-top:2px solid #000;
+.customer-card-label {
+    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
+    font-size: 17px;
+    text-align: right;
+    width: 35%;
+    border-left: 1px solid #000;
+    background: #fafafa;
+    direction: rtl;
 }
 
-/* SIGN */
-.signatures{
-    display:flex;
-    justify-content:space-between;
-    margin-top:60px;
+.customer-card-val {
+    text-align: right;
+    width: 65%;
+    direction: rtl;
 }
 
-.signature-line{
-    width:220px;
-    border-top:1px solid #000;
-    text-align:center;
-    padding-top:6px;
-    font-size:14px;
+.invoice-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #000;
+    margin-top: 14px;
 }
 
-.invoice-title{
-    text-align:center;
-    font-size:24px;
-    font-weight:700;
-    color:#333;
-    margin:15px 0;
+.invoice-table th {
+    border: 1px solid #000;
+    padding: 6px 8px;
+    text-align: center;
+    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
+    font-size: 19px;
+    font-weight: 700;
+    background: #ffffff;
+    color: #000;
+    vertical-align: middle;
 }
 
-@media print{
-    .no-print{display:none!important;}
-    body{background:#fff;}
+.invoice-table td {
+    border: 1px solid #000;
+    padding: 6px 10px;
+    font-size: 14px;
+    color: #000;
+    vertical-align: middle;
+}
+
+.item-desc-eng {
+    font-weight: 700;
+    font-size: 13.5px;
+    color: #000;
+    line-height: 1.35;
+    letter-spacing: 0.2px;
+}
+
+.item-desc-urdu {
+    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #111;
+    text-align: right;
+    direction: rtl;
+    margin-top: 4px;
+    line-height: 1.45;
+}
+
+.summary-table {
+    width: 100%;
+    border-collapse: collapse;
+    border: 1px solid #000;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.summary-table td {
+    padding: 6px 12px;
+    border: 1px solid #000;
+}
+
+.payment-remarks-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #000;
+    margin-bottom: 4px;
+}
+
+.payment-remarks-line {
+    border-top: 1.5px solid #000;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.amount-in-words {
+    font-size: 14.5px;
+    font-weight: 700;
+    color: #000;
+    line-height: 1.4;
+}
+
+@media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; margin: 0; padding: 0; }
+    .invoice-wrapper {
+        box-shadow: none !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 15px 20px !important;
+        border: none !important;
+    }
+    tr { page-break-inside: avoid; }
 }
 </style>
 
-{{-- @php
-// echo"<pre>";
-//     print_r($booking->toArray());
-// echo"</pre>";
-//     dd();
-// @endphp --}}
-<div class="container-fluid mt-4">
+@php
+if (!function_exists('invoiceNumberToWords')) {
+    function invoiceNumberToWords($number) {
+        $number = (float) $number;
+        $fraction = round(($number - floor($number)) * 100);
+        $number = floor($number);
+        
+        $words = [
+            0 => 'Zero', 1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine',
+            10 => 'Ten', 11 => 'Eleven', 12 => 'Twelve', 13 => 'Thirteen', 14 => 'Fourteen', 15 => 'Fifteen', 16 => 'Sixteen', 17 => 'Seventeen', 18 => 'Eighteen', 19 => 'Nineteen',
+            20 => 'Twenty', 30 => 'Thirty', 40 => 'Forty', 50 => 'Fifty', 60 => 'Sixty', 70 => 'Seventy', 80 => 'Eighty', 90 => 'Ninety'
+        ];
 
-    {{-- PRINT BUTTON --}}
+        if ($number == 0) {
+            return 'Rs. Zero Only';
+        }
+
+        $convertThreeDigits = function($num) use ($words) {
+            $str = '';
+            if ($num >= 100) {
+                $hundreds = (int)($num / 100);
+                $str .= $words[$hundreds] . ' Hundred';
+                $num %= 100;
+                if ($num > 0) $str .= ' ';
+            }
+            if ($num > 0) {
+                if ($num < 20) {
+                    $str .= $words[$num];
+                } else {
+                    $tens = ((int)($num / 10)) * 10;
+                    $units = $num % 10;
+                    $str .= $words[$tens];
+                    if ($units > 0) $str .= ' ' . $words[$units];
+                }
+            }
+            return $str;
+        };
+
+        $res = '';
+        if ($number >= 10000000) {
+            $crores = (int)($number / 10000000);
+            $res .= $convertThreeDigits($crores) . ' Crore ';
+            $number %= 10000000;
+        }
+        if ($number >= 100000) {
+            $lakhs = (int)($number / 100000);
+            $res .= $convertThreeDigits($lakhs) . ' Lakh ';
+            $number %= 100000;
+        }
+        if ($number >= 1000) {
+            $thousands = (int)($number / 1000);
+            $res .= $convertThreeDigits($thousands) . ' Thousand ';
+            $number %= 1000;
+        }
+        if ($number > 0) {
+            $res .= $convertThreeDigits($number);
+        }
+
+        $res = trim($res);
+        if ($fraction > 0) {
+            $res .= ' and ' . $convertThreeDigits($fraction) . ' Cents';
+        }
+
+        return 'Rs. ' . $res . ' Only';
+    }
+}
+
+if (!function_exists('getUrduProductNameBooking')) {
+    function getUrduProductNameBooking($item) {
+        $product = $item->product ?? null;
+        if ($product) {
+            if (!empty($product->item_name_urdu)) return $product->item_name_urdu;
+            if (!empty($product->urdu_name)) return $product->urdu_name;
+            if (!empty($product->name_urdu)) return $product->name_urdu;
+        }
+        
+        $engName = strtoupper($product->item_name ?? $item->product_name ?? $item->item_name ?? '');
+        
+        $dictionary = [
+            'ARMATURE' => 'آر میچر',
+            'GRINDER'  => 'گرائنڈر',
+            'BOSCH'    => 'بوش',
+            'HITACHI'  => 'اٹہیچی',
+            'MAKITA'   => 'مکیٹا',
+            'DEWALT'   => 'ڈیوائلٹ',
+            'DEW'      => 'ڈیوائلٹ',
+            'SHENZHANG' => 'شنژنگ',
+            'AEG'      => 'AEG',
+            'SAW'      => 'آری',
+            'CIRCULAR' => 'سرکلر',
+            'HAMMER'   => 'ہیمر',
+            'ROUTER'   => 'روٹر',
+            'BATTERY'  => 'بیٹری',
+            'BLADE'    => 'بلیڈ',
+            'CHISEL'   => 'چھینی',
+            'CHUCK'    => 'چک',
+            'NUT'      => 'نٹ',
+            'CORE'     => 'کور',
+            'BIT'      => 'بٹ',
+            'FIELD'    => 'فیلڈ',
+            'FILTER'   => 'فلٹر',
+            'GEAR'     => 'گراری',
+            'HEAD'     => 'ہیڈ',
+            'CUP'      => 'کپ',
+            'SPRING'   => 'سپرنگ',
+            'JALIBI'   => 'جلیبی',
+            'SHAFT'    => 'شافٹ',
+            'STOCKER'  => 'سٹوکر',
+            'SWITCH'   => 'سوئچ',
+            'BLOWER'   => 'بلور',
+            'WASHER'   => 'واشر',
+            'MITRE'    => 'میٹر',
+            'TRIMMER'  => 'ٹریمر',
+            'NEW'      => 'نیا',
+            'MODEL'    => 'ماڈل',
+            'SMALL'    => 'چھوٹا',
+            'NORMAL'   => 'عام',
+            'SEGMENTED'=> 'جھرری',
+            'TESTING'  => 'ٹیسٹنگ',
+            'TEST'     => 'ٹیسٹ',
+        ];
+
+        $urduWords = [];
+        $words = explode(' ', $engName);
+        foreach ($words as $word) {
+            $cleanWord = trim($word, '()[]"\'*,.-');
+            if (isset($dictionary[$cleanWord])) {
+                $urduWords[] = $dictionary[$cleanWord];
+            } else if (preg_match('/^\d+["\']?$/', $cleanWord) || preg_match('/^[A-Z0-9\/]+$/i', $cleanWord)) {
+                $urduWords[] = $cleanWord;
+            }
+        }
+
+        if (!empty($urduWords)) {
+            return implode(' ', $urduWords);
+        }
+
+        return $engName;
+    }
+}
+
+// Calculations for Booking
+$grossTotal = 0;
+if(isset($booking->items)){
+    foreach($booking->items as $item){
+        $grossTotal += (float)($item->amount ?? 0);
+    }
+}
+if($grossTotal == 0 && isset($booking->sub_total1)){
+    $grossTotal = (float)$booking->sub_total1;
+}
+
+$orderLevelDiscount = (float)($booking->discount_amount ?? 0);
+$additionalDiscount = (float)($booking->additional_discount ?? 0);
+$extraCharges = (float)($booking->extra_charges ?? 0);
+
+$netTotal = $grossTotal - $orderLevelDiscount - $additionalDiscount + $extraCharges;
+$netTotal = max(0, $netTotal);
+
+$totalReceived = 0;
+if(isset($booking) && isset($booking->invoice_no)){
+    $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $booking->invoice_no)
+        ->where('type', 'SALE_RECEIPT')
+        ->get();
+    $totalReceived = (float) $receipts->sum('total_amount');
+}
+
+$displayPrevious = 0;
+$displayClosing = 0;
+$isCreditCustomer = ($booking->party_type ?? '') === 'credit';
+
+if($isCreditCustomer && isset($booking->customer)){
+    $ledgerData = \App\Models\CustomerLedger::where('customer_id', $booking->customer->id)
+        ->latest('id')
+        ->first();
+    
+    if($ledgerData){
+        $displayPrevious = floatval($ledgerData->previous_balance ?? 0);
+        $displayClosing = floatval($ledgerData->closing_balance ?? 0);
+    } else {
+        $displayPrevious = floatval($booking->customer->opening_balance ?? 0);
+        $displayClosing = $netTotal - $totalReceived + $displayPrevious;
+    }
+} else {
+    $displayClosing = max(0, $netTotal - $totalReceived);
+}
+
+$grandTotal = $netTotal + $displayPrevious;
+$balanceDue = $displayClosing;
+@endphp
+
+<div class="container-fluid mt-3">
+
     {{-- ACTION BUTTONS --}}
     <div class="text-end mb-3 no-print d-flex justify-content-end gap-2">
         <button type="button" onclick="shareWhatsApp()" class="btn btn-outline-success shadow-sm" style="border-color:#25D366; color:#25D366; background: #fff;">
@@ -167,196 +445,161 @@ table tbody td{
 
     <div class="invoice-wrapper" id="invoiceContent">
 
-        {{-- HEADER --}}
-        <div class="invoice-header">
+        {{-- HEADER SECTION --}}
+        <div class="d-flex justify-content-between align-items-start">
             <div>
-                <div class="company-name">Ameer & Sons</div>
+                <h1 class="company-title">
+                    {{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}
+                </h1>
                 <div class="company-address">
-                    Electronics & Home Appliences <br>
-                    Lahore <br>
-                    0300-0000000
+                    {{ $branch->address ?? '17th-Brandreth Road, Lahore, Pakistan.' }}
+                </div>
+                <div class="company-phones">
+                    @if(!empty($branch->mobile))
+                        {{ $branch->mobile }}
+                    @else
+                        0300-4235114 &nbsp; 0300-4235114
+                    @endif
+                    <br>
+                    @if(!empty($branch->phone))
+                        {{ $branch->phone }}
+                    @else
+                        042-37635383 &nbsp; 042-37651862
+                    @endif
                 </div>
             </div>
 
-            <div class="invoice-meta">
-                <div><strong>Invoice #:</strong> {{ $booking->invoice_no }}</div>
-                {{ $booking->created_at ? $booking->created_at->format('d-m-Y') : date('d-m-Y') }}  
-                <div><strong>Status:</strong> {{ ucfirst($booking->status) }}</div>
+            <div>
+                <div class="invoice-badge-box">
+                    <div class="invoice-badge-title">INVOICE</div>
+                    <div class="invoice-badge-inv">{{ $booking->invoice_no }}</div>
+                    <div class="invoice-badge-date">
+                        {{ $booking->created_at ? $booking->created_at->format('d M Y') : date('d M Y') }}
+                    </div>
+                </div>
             </div>
         </div>
 
-        {{-- BOOKING INVOICE HEADING --}}
-        <div class="invoice-title">📋 Sale Order</div>
+        {{-- DASHED DIVIDER --}}
+        <div class="header-divider"></div>
 
-        <hr>
-
-        {{-- CUSTOMER INFO --}}
-        <div class="info-grid">
-            <div class="info-box">
-                @if($booking->party_type == 'credit'||$booking->party_type == 'cash')
-                <div><strong>Customer Name:</strong> {{ $booking->customer->customer_name }}</div>
-                    @else
-                    <div><strong>Customer Name:</strong> {{ $booking->customer_name }}</div>
-                @endif
-                <div><strong>Customer Type:</strong> {{ $booking->party_type }}</div>
-                <div><strong>Mobile:</strong> {{ $booking->customer->mobile_2 ?? '-' }}</div>
+        {{-- INFO SECTION (PANDI & CUSTOMER DETAILS) --}}
+        <div class="d-flex justify-content-between align-items-end mb-2">
+            <div class="pandi-box">
+                <span class="pandi-label">پانڈی:</span>
+                <span class="pandi-line">
+                    {{ $booking->remarks ?? ($booking->address ?? '') }}
+                </span>
             </div>
 
-            <div class="info-box text-end">
-                <div><strong>Address:</strong> {{ $booking->address }}</div>
-                <div><strong>Remarks:</strong> {{ $booking->remarks ?? '-' }}</div>
+            <div class="customer-card-box">
+                <table>
+                    <tr style="border-bottom: 1px solid #000;">
+                        <td class="customer-card-val">
+                            {{ $booking->party_type === 'walking' ? ($booking->customer_name ?? 'N/A') : ($booking->customer->customer_name ?? 'N/A') }}
+                        </td>
+                        <td class="customer-card-label">
+                            نام خریدار
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="customer-card-val">
+                            {{ $booking->tel ?? ($booking->customer->mobile ?? 'N/A') }}
+                        </td>
+                        <td class="customer-card-label">
+                            فون نمبر
+                        </td>
+                    </tr>
+                </table>
             </div>
         </div>
 
-        {{-- ITEMS TABLE --}}
-        <table class="items-table">
+        {{-- MAIN ITEMS TABLE --}}
+        <table class="invoice-table">
             <thead>
                 <tr>
-                    <th>#</th>
-                    <th>Item Name</th>
-                    <th class="text-end">Qty</th>
-                    <th class="text-end">Rate</th>
-                    <th class="text-end">Disc Amt</th>
-                    <th class="text-end">Amount</th>
+                    <th style="width: 13%;">رقم</th>
+                    <th style="width: 11%;">قیمت</th>
+                    <th style="width: 11%;">ریٹ</th>
+                    <th style="width: 57%;">تفصیل</th>
+                    <th style="width: 8%;">تعداد</th>
                 </tr>
             </thead>
             <tbody>
+                @foreach($booking->items as $index => $item)
                 @php
-                    // Support both relationship-based and join-based item loading
-                    $itemsToDisplay = isset($items) ? $items : $booking->items;
+                    $qty = (float)($item->sales_qty ?? 0);
+                    $rate = (float)($item->retail_price ?? $item->sales_price ?? 0);
+                    $amt = (float)($item->amount ?? ($qty * $rate));
+                    $unitPrice = $qty > 0 ? ($amt / $qty) : $rate;
+                    
+                    $productEng = strtoupper($item->product->item_name ?? $item->product_name ?? 'N/A');
+                    $productUrdu = getUrduProductNameBooking($item);
                 @endphp
-                @foreach($itemsToDisplay as $index => $item)
                 <tr>
-                    <td>{{ $index + 1 }}</td>
+                    <td style="text-align: center; font-weight: 700; font-size: 15px;">
+                        {{ number_format($amt, 0) }}
+                    </td>
+                    <td style="text-align: center; font-size: 15px;">
+                        {{ number_format($unitPrice, 0) }}
+                    </td>
+                    <td style="text-align: center; font-size: 15px;">
+                        {{ number_format($rate, 0) }}
+                    </td>
                     <td>
-                        @if($item->item_name ?? null)
-                            {{ $item->item_name }}
-                        @elseif($item->product ?? null)
-                            {{ $item->product->item_name }}
+                        <div class="item-desc-eng">
+                            {{ $productEng }}
+                        </div>
+                        @if(!empty($productUrdu) && $productUrdu !== $productEng)
+                        <div class="item-desc-urdu">
+                            {{ $productUrdu }}
+                        </div>
                         @endif
                     </td>
-                    <td class="text-end">{{ number_format($item->sales_qty ?? $item->qty ?? 0, 2) }}</td>
-                    <td class="text-end">{{ number_format($item->retail_price ?? $item->price ?? 0, 2) }}</td>
-                    <td class="text-end">{{ number_format($item->discount_amount ?? $item->discount ?? 0, 2) }}</td>
-                    <td class="text-end">{{ number_format($item->amount ?? $item->total ?? 0, 2) }}</td>
+                    <td style="text-align: center; font-weight: 800; font-size: 16px;">
+                        {{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}
+                    </td>
                 </tr>
                 @endforeach
             </tbody>
         </table>
 
-        <style>
-            /* Keep product/item rows at a compact size */
-            .items-table tbody td { font-size:14px; }
-            .items-table thead th { font-size:14px; }
-        </style>
+        {{-- SUMMARY & REMARKS SECTION --}}
+        <div class="d-flex justify-content-between align-items-start mt-4" style="page-break-inside: avoid;">
+            {{-- LEFT: TOTALS TABLE --}}
+            <div style="width: 45%;">
+                <table class="summary-table">
+                    <tr>
+                        <td style="background: #fafafa; width: 45%;">Subtotal</td>
+                        <td style="text-align: right; width: 55%;">Rs. {{ number_format($netTotal, 2) }}</td>
+                    </tr>
+                    @if($displayPrevious != 0)
+                    <tr>
+                        <td style="background: #fafafa;">Previous Balance</td>
+                        <td style="text-align: right;">Rs. {{ number_format($displayPrevious, 2) }}</td>
+                    </tr>
+                    @endif
+                    <tr style="font-size: 15px; background: #fafafa;">
+                        <td>Grand Total</td>
+                        <td style="text-align: right; color: #000;">Rs. {{ number_format($grandTotal, 2) }}</td>
+                    </tr>
+                    <tr style="font-size: 15px;">
+                        <td>Balance Due</td>
+                        <td style="text-align: right; color: #000;">Rs. {{ number_format($balanceDue, 2) }}</td>
+                    </tr>
+                </table>
+            </div>
 
-        {{-- SUMMARY --}}
-        <div class="summary-box">
-            <table width="100%">
-                @php
-                    // 🔹 BUSINESS LOGIC - DISPLAY TOTALS FROM BOOKING & CUSTOMER LEDGER
-                    
-                    // Step 1: Get base amounts from booking
-                    $subTotal = (float)($item->amount ?? 0);              // Base amount
-                    $saleLineTotal = ($booking->sub_total2 ?? 0);         // Subtotal
-                    
-                     
-                    $orderLevelDiscount = ($booking->additional_discount ?? 0); // Add: discount
-                    //  echo "Debug: orderLevelDiscount = " . $orderLevelDiscount;
-                    $extraCharges = ($booking->extra_charges ?? 0);       // Extra charges
-                    $salePayableAmount = $subTotal - $orderLevelDiscount + $extraCharges;
-                    
-                    // Step 2: Calculate Net Total
-                    $netTotal = $saleLineTotal - $orderLevelDiscount;
-                    $payableAmount = $salePayableAmount;
-                    
-                    // Step 3: Get receipts from receipt vouchers
-                    $totalReceived = 0;
-                    if(isset($booking) && isset($booking->invoice_no)){
-                        $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $booking->invoice_no)
-                            ->where('type', 'SALE_RECEIPT')
-                            ->get();
-                        $totalReceived = $receipts->sum('amount');
-                    }
-                    
-                    // Step 4: Get customer ledger data (the source of truth for closing balance)
-                    $ledgerData = null;
-                    $displayPrevious = 0;
-                    $closingBalance = 0;
-                    $isCreditCustomer = ($booking->party_type ?? '') === 'credit';
-                    
-                    if($isCreditCustomer && isset($booking->customer)){
-                        // Get the LATEST ledger entry for this customer
-                        $ledgerData = \App\Models\CustomerLedger::where('customer_id', $booking->customer->id)
-                            ->latest('id')
-                            ->first();
-                        
-                        if($ledgerData){
-                            $displayPrevious = floatval($ledgerData->previous_balance ?? 0);
-                            $closingBalance = floatval($ledgerData->closing_balance ?? 0);  // Use ledger's closing balance
-                        } else {
-                            // Fallback: no ledger yet, calculate on the fly
-                            $displayPrevious = floatval($booking->customer->opening_balance ?? 0);
-                            $closingBalance = $payableAmount - $totalReceived + $displayPrevious;
-                        }
-                    } else {
-                        // Cash customer: calculate on the fly
-                        $closingBalance = $payableAmount - $totalReceived + $displayPrevious;
-                    }
-                @endphp
-                
-                <tr style="font-weight: bold;">
-                    <td>Total</td>
-                    <td class="text-end">{{ number_format($subTotal, 2) }}</td>
-                </tr>
-                
-                <tr style="background-color: #f5f5f5; font-weight: bold;">
-                    <td>Add Discount</td>
-                    <td class="text-end">{{ number_format($booking->additional_discount, 2) }}</td>
-                </tr>
-                <tr style="background-color: #f5f5f5; font-weight: bold;">
-                    <td>Extra Charges</td>
-                    <td class="text-end">{{ number_format($booking->extra_charges, 2) }}</td>
-                </tr>
-                <tr style="background-color: #f5f5f5; font-weight: bold;">
-                    <td>Net Total</td>
-                    <td class="text-end">{{ number_format($netTotal, 2) }}</td>
-                </tr>
-                @php
-// echo "<pre>";
-// print_r($booking->toArray());
-// echo "</pre>";
-// exit;
-@endphp
-                <tr class="summary-total" style="border-top: 2px solid #ddd; padding-top: 8px; margin-top: 8px; background-color: #fff3e0;">
-                    <td style="color: #e65100; font-weight: bold; font-size: 16px;">💰 TOTAL PAYABLE</td>
-                    <td class="text-end" style="color: #e65100; font-weight: bold; font-size: 16px;">{{ number_format($payableAmount, 2) }}</td>
-                </tr>
-                @if($booking->party_type === 'credit')
-                @if($totalReceived > 0)
-                <tr style="background-color: #e8f5e9; margin-top: 8px;">
-                    <td style="color: #388e3c; font-weight: bold;">Less: Received Amount</td>
-                    <td class="text-end" style="color: #388e3c; font-weight: bold;">-{{ number_format($totalReceived, 2) }}</td>
-                </tr>
-                @endif
-                
-                <tr>
-                    <td><strong>Previous Balance</strong></td>
-                    <td class="text-end"><strong>{{ number_format($displayPrevious, 2) }}</strong></td>
-                </tr>
-                
-                <tr class="summary-total" style="border-top: 2px solid #ddd; padding-top: 8px; margin-top: 8px; background-color: #f5f5f5;">
-                    <td style="color: #d32f2f;"><strong>Closing Balance</strong></td>
-                    <td class="text-end" style="color: #d32f2f;"><strong>{{ number_format($closingBalance, 2) }}</strong></td>
-                </tr>
-                @endif
-            </table>
-        </div>
-
-        {{-- SIGNATURES --}}
-        <div class="signatures">
-            <div class="signature-line">Receiver Signature</div>
-            <div class="signature-line">Authorized Signature</div>
+            {{-- RIGHT: PAYMENT REMARKS & AMOUNT IN WORDS --}}
+            <div style="width: 50%;">
+                <div class="payment-remarks-title">
+                    Payment Remarks:
+                </div>
+                <div class="payment-remarks-line"></div>
+                <div class="amount-in-words">
+                    {{ invoiceNumberToWords($grandTotal) }}
+                </div>
+            </div>
         </div>
 
     </div>
@@ -366,7 +609,6 @@ table tbody td{
 
 @section('js')
 <script>
-/* ---------- WhatsApp Share ---------- */
 window.shareWhatsApp = function() {
     Swal.fire({
         title: 'Preparing WhatsApp Share...',
@@ -377,8 +619,8 @@ window.shareWhatsApp = function() {
 
     var element = document.getElementById('invoiceContent');
     var opt = {
-      margin:       [0.3, 0.3, 0.3, 0.3],
-      filename:     'Sale_Order_{{ $booking->invoice_no }}.pdf',
+      margin:       [0.2, 0.2, 0.2, 0.2],
+      filename:     'Sale_Invoice_{{ $booking->invoice_no }}.pdf',
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
       jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
@@ -389,13 +631,12 @@ window.shareWhatsApp = function() {
         
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
             navigator.share({
-                title: 'Sale Order',
-                text: 'Please find the attached Sale Order #{{ $booking->invoice_no }}.',
+                title: 'Sale Invoice',
+                text: 'Please find attached Sale Invoice #{{ $booking->invoice_no }}.',
                 files: [file]
             }).then(() => {
                 Swal.close();
             }).catch((error) => {
-                console.log('Error sharing', error);
                 fallbackWaShare(pdfBlob, opt.filename);
             });
         } else {
@@ -408,7 +649,7 @@ function fallbackWaShare(pdfBlob, filename) {
     Swal.fire({
         icon: 'info',
         title: 'Share PDF via WhatsApp',
-        text: 'The PDF will be downloaded now. WhatsApp will open allowing you to choose any chat. Please attach the downloaded PDF manually.',
+        text: 'The PDF will be downloaded now. WhatsApp will open allowing you to choose any chat.',
         confirmButtonText: 'Download & Open WhatsApp'
     }).then(() => {
         var url = URL.createObjectURL(pdfBlob);
@@ -419,16 +660,15 @@ function fallbackWaShare(pdfBlob, filename) {
         a.click();
         document.body.removeChild(a);
         
-        var msg = "*Sale Order #{{ $booking->invoice_no }}*\nPlease find the attached PDF document.";
+        var msg = "*Sale Invoice #{{ $booking->invoice_no }}*\nPlease find attached PDF document.";
         var waUrl = "https://wa.me/?text=" + encodeURIComponent(msg);
         window.open(waUrl, '_blank');
     });
 }
 
-/* ---------- Export Options & PDF ---------- */
 window.showExportOptions = function() {
     Swal.fire({
-        title: 'Export Sale Order',
+        title: 'Export Sale Invoice',
         text: 'Choose your preferred export format:',
         icon: 'question',
         showCancelButton: true,
@@ -456,8 +696,8 @@ window.exportPDF = function() {
 
     var element = document.getElementById('invoiceContent');
     var opt = {
-      margin:       [0.3, 0.3, 0.3, 0.3],
-      filename:     'Sale_Order_{{ $booking->invoice_no }}.pdf',
+      margin:       [0.2, 0.2, 0.2, 0.2],
+      filename:     'Sale_Invoice_{{ $booking->invoice_no }}.pdf',
       image:        { type: 'jpeg', quality: 0.98 },
       html2canvas:  { scale: 2, useCORS: true },
       jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
@@ -469,28 +709,27 @@ window.exportPDF = function() {
 };
 
 window.exportCSV = function () {
-    var rows = [['#', 'Item Name', 'Qty', 'Rate', 'Disc Amt', 'Amount']];
+    var rows = [['رقم (Amount)', 'قیمت (Price)', 'ریٹ (Rate)', 'تفصیل (Details)', 'تعداد (Qty)']];
     
-    $('.items-table tbody tr').each(function () {
+    $('.invoice-table tbody tr').each(function () {
         var cells = [];
         $(this).find('td').each(function () {
-            var text = $(this).text().trim().replace(/"/g, '""');
+            var text = $(this).text().trim().replace(/\s+/g, ' ').replace(/"/g, '""');
             cells.push('"' + text + '"');
         });
         if (cells.length) rows.push(cells);
     });
     
     rows.push([]);
-    rows.push(['', 'Sub Total', '', '', '', '{{ number_format($booking->sub_total2, 2) }}']);
-    rows.push(['', 'Net Total', '', '', '', '{{ number_format($netTotal, 2) }}']);
-    rows.push(['', 'Total Payable', '', '', '', '{{ number_format($payableAmount, 2) }}']);
+    rows.push(['Grand Total', '', '', '', 'Rs. {{ number_format($grandTotal, 2) }}']);
+    rows.push(['Balance Due', '', '', '', 'Rs. {{ number_format($balanceDue, 2) }}']);
 
     var csv  = rows.map(function(r){return r.join(',');}).join('\n');
     var blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
     a.href   = url;
-    a.download = 'Sale_Order_{{ $booking->invoice_no }}.csv';
+    a.download = 'Sale_Invoice_{{ $booking->invoice_no }}.csv';
     a.click();
 };
 </script>

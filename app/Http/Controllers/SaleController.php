@@ -3689,7 +3689,14 @@ public function finddc($invoice)
         //     'booking' => $booking   
         // ]);
 
-        return view('admin_panel.sale.invoice2', compact('booking'));
+        $user = Auth::user();
+        if ($user && $user->hasRole('super admin')) {
+            $branch = Branch::find($booking->branch_id ?? 1) ?? Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS', 'address' => '17th-Brandreth Road, Lahore, Pakistan.', 'mobile' => '0300-4235114 0300-4235114', 'phone' => '042-37635383 042-37651862'];
+        } else {
+            $branch = ($user ? $user->branch : null) ?? (object)['name' => 'ZAIN TRADERS', 'address' => '17th-Brandreth Road, Lahore, Pakistan.', 'mobile' => '0300-4235114 0300-4235114', 'phone' => '042-37635383 042-37651862'];
+        }
+
+        return view('admin_panel.sale.invoice2', compact('booking', 'branch'));
     }
 
     /**
@@ -3707,10 +3714,10 @@ public function finddc($invoice)
         $user = Auth::user();
         if ($user->hasRole('super admin')) {
             // Super admin: show branch 1
-            $branch = Branch::find(1) ?? (object)['name' => 'AMEEN & SONS'];
+            $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS', 'address' => '17th-Brandreth Road, Lahore, Pakistan.', 'mobile' => '0300-4235114 0300-4235114', 'phone' => '042-37635383 042-37651862'];
         } else {
             // Regular user: show their branch
-            $branch = $user->branch ?? (object)['name' => 'AMEEN & SONS'];
+            $branch = $user->branch ?? (object)['name' => 'ZAIN TRADERS', 'address' => '17th-Brandreth Road, Lahore, Pakistan.', 'mobile' => '0300-4235114 0300-4235114', 'phone' => '042-37635383 042-37651862'];
         }
 
         return view('admin_panel.sale.invoicesale', compact('sale', 'branch'));
