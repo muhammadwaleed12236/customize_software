@@ -4,7 +4,7 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
     <style>
         /* ═══════════════════════════════════════════════════════════
-           AMEEN & SONS ERP — BRANCH MANAGEMENT
+           PROWAVE ERP — BRANCH MANAGEMENT
            ═══════════════════════════════════════════════════════════ */
         :root {
             --theme-navy: #1e3a5f;
@@ -369,7 +369,7 @@
 </div>
 
 {{-- ══════════════════════════════════════════════════
-     BRANCH ADD / EDIT MODAL (Ameen & Sons Theme)
+     BRANCH ADD / EDIT MODAL (Prowave Theme)
 ══════════════════════════════════════════════════ --}}
 <div class="modal fade" id="exampleModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">

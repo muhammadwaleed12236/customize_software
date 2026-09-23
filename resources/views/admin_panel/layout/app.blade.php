@@ -151,7 +151,7 @@
                         <a class="nav_logo rt_logo" href="{{ url('/') }}">
                             @if(Auth::user()->hasRole('super admin'))
                                 <i class="fas fa-crown"></i>
-                                <span>Ameen &amp; Sons</span>
+                                <span>PROWAVE</span>
                             @else
                                 <i class="fas fa-store"></i>
                                 <span>{{ Auth::user()->branch->name ?? 'Branch' }}</span>
@@ -547,7 +547,7 @@
 
         <footer>
             <div class="footer-area">
-                <p>&copy; {{ date('Y') }} Ameen &amp; Sons &mdash; All Rights Reserved. Powered by ERP System.</p>
+                <p>&copy; {{ date('Y') }} PROWAVE &mdash; All Rights Reserved. Powered by ERP System.</p>
             </div>
         </footer>
     </div>

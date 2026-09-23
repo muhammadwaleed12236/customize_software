@@ -209,7 +209,7 @@
             <!-- HEADER -->
             <div class="top-header">
                 <div class="company-details">
-                    <h3>{{ strtoupper($branch->name ?? 'AMEEN & SONS') }}</h3>
+                    <h3>{{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}</h3>
                     <p>Electronics & Glass Dealer</p>
                     <p>Main Road, City Name</p>
                     <p>Phone: 0300-0000000</p>

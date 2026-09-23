@@ -3733,9 +3733,9 @@ public function finddc($invoice)
         // Determine branch to display
         $user = Auth::user();
         if ($user->hasRole('super admin')) {
-            $branch = Branch::find(1) ?? (object)['name' => 'AMEEN & SONS'];
+            $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
         } else {
-            $branch = $user->branch ?? (object)['name' => 'AMEEN & SONS'];
+            $branch = $user->branch ?? (object)['name' => 'ZAIN TRADERS'];
         }
 
         return view('admin_panel.sale.prints.print2', compact('sale', 'branch'));
@@ -3769,9 +3769,9 @@ public function finddc($invoice)
                 // Determine branch to display
                 $user = Auth::user();
                 if ($user->hasRole('super admin')) {
-                    $branch = Branch::find(1) ?? (object)['name' => 'AMEEN & SONS'];
+                    $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
                 } else {
-                    $branch = $user->branch ?? Branch::find(1) ?? (object)['name' => 'AMEEN & SONS'];
+                    $branch = $user->branch ?? Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
                 }
 
                 // ✅ FIRST: Check if warehouse_orders already exist for this sale
@@ -3967,10 +3967,10 @@ public function finddc($invoice)
         $user = Auth::user();
         if ($user->hasRole('super admin')) {
             // Super admin: show branch 1
-            $branch = Branch::find(1) ?? (object)['name' => 'AMEEN & SONS'];
+            $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
         } else {
             // Regular user: show their branch
-            $branch = $user->branch ?? (object)['name' => 'AMEEN & SONS'];
+            $branch = $user->branch ?? (object)['name' => 'ZAIN TRADERS'];
         }
 
     $groupedItems = $sale->saleItems->groupBy('warehouse_id');

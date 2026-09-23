@@ -391,7 +391,7 @@ class ComplaintController extends Controller
         $mobile      = $complaint->customer_mobile ?? '-';
         $date        = $complaint->complaint_date->format('d M Y');
 
-        $msg  = "*Complaint Registered - Ameen & Sons*\n\n";
+        $msg  = "*Complaint Registered - Prowave*\n\n";
         $msg .= "Complaint No: {$complaint->complaint_no}\n";
         $msg .= "Date: {$date}\n";
         $msg .= "Customer: {$complaint->customer_name}\n";

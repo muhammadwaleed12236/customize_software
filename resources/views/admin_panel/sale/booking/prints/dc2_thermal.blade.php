@@ -110,7 +110,7 @@
         @foreach($dcData as $dc)
             <div id="dc-block-{{ $dc['warehouse_id'] }}">
                 <div class="center">
-                    <div class="company">{{ strtoupper($branch->name ?? 'AMEEN & SONS') }}</div>
+                    <div class="company">{{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}</div>
                     <div class="muted">Electronics &amp; Glass Dealer</div>
                     <div class="muted tiny">Main Road, City Name | Phone: 0300-0000000</div>
                 </div>

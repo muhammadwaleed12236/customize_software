@@ -93,7 +93,7 @@ echo "<pre>";
     <div class="dc-box">
 
         {{-- ================= HEADER ================= --}}
-        <div class="dc-title">AMEER & SONS</div>
+        <div class="dc-title">ZAIN TRADERS</div>
         <div class="dc-sub">DELIVERY CHALLAN</div>
         <hr>
 

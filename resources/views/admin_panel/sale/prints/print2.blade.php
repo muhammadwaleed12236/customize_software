@@ -194,7 +194,7 @@
         {{-- HEADER --}}
         <div class="header">
             <div class="header-title">SALE INVOICE</div>
-            <div class="company-name">{{ strtoupper($branch->name ?? 'AMEEN & SONS') }}</div>
+            <div class="company-name">{{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}</div>
             <div class="company-details">
                 Electronics & Home Appliances<br>
                 Lahore<br>

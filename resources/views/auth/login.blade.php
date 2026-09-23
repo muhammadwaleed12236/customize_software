@@ -6,7 +6,7 @@
             <div class="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-gradient-to-br from-navy-900 to-navy-800 text-gold-500 shadow-lg border border-gold-500/30 mb-3">
                 <i class="fas fa-building-columns text-2xl" style="color: #c8973a;"></i>
             </div>
-            <h2 class="text-2xl font-black text-slate-900 tracking-tight">AMEEN & SONS</h2>
+            <h2 class="text-2xl font-black text-slate-900 tracking-tight">PROWAVE</h2>
             <p class="text-xs font-bold uppercase tracking-widest mt-0.5" style="color: #b28128;">Corporate ERP Management</p>
             <p class="text-xs text-slate-500 mt-2">Sign in with your registered credentials</p>
         </div>
