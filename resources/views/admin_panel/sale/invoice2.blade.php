@@ -12,77 +12,53 @@ body {
 
 .invoice-wrapper {
     background: #fff;
-    padding: 30px 40px;
+    padding: 8px 14px;
     max-width: 950px;
-    margin: 20px auto;
+    margin: 8px auto;
     border-radius: 4px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     color: #000;
 }
 
-.company-title {
-    font-size: 32px;
-    font-weight: 800;
-    color: #7A0000;
-    margin: 0;
-    line-height: 1.1;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-}
-
-.company-address {
-    font-size: 13.5px;
-    color: #333;
-    margin-top: 4px;
-    font-weight: 500;
-}
-
-.company-phones {
-    font-size: 14px;
-    color: #000;
-    font-weight: 700;
-    margin-top: 4px;
-    line-height: 1.35;
-}
-
 .invoice-badge-box {
-    border: 2px solid #000;
-    border-radius: 18px;
-    padding: 8px 30px;
+    border: 1.5px solid #000;
+    border-radius: 6px;
+    padding: 1px 10px;
     text-align: center;
-    min-width: 200px;
     background: #fff;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .invoice-badge-title {
-    font-size: 26px;
+    font-size: 17px;
     font-weight: 800;
     letter-spacing: 1px;
     color: #000;
-    line-height: 1.1;
+    line-height: 1;
+    text-transform: uppercase;
 }
 
 .invoice-badge-inv {
-    font-size: 15px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 800;
     color: #000;
-    margin-top: 3px;
 }
 
 .invoice-badge-date {
-    font-size: 14px;
-    font-weight: 600;
-    color: #222;
-    margin-top: 2px;
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #000;
 }
 
 .header-divider {
     border-top: 1.5px dashed #000;
-    margin: 14px 0 16px 0;
+    margin: 3px 0 4px 0;
 }
 
 .pandi-box {
-    font-size: 16px;
+    font-size: 12px;
     font-weight: bold;
     color: #000;
     direction: rtl;
@@ -91,132 +67,125 @@ body {
 
 .pandi-label {
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 19px;
-    margin-left: 8px;
+    font-size: 13px;
+    margin-left: 3px;
+    font-weight: 700;
 }
 
 .pandi-line {
     border-bottom: 1px solid #000;
     display: inline-block;
-    min-width: 260px;
-    padding-right: 10px;
-    font-weight: 600;
-    font-size: 14px;
+    min-width: 150px;
+    padding-right: 4px;
+    font-weight: 700;
+    font-size: 11.5px;
     text-align: right;
 }
 
-.customer-card-box {
+.customer-info-line {
     border: 1px solid #000;
     border-radius: 3px;
-    width: 360px;
-    border-collapse: collapse;
-}
-
-.customer-card-box table {
-    width: 100%;
-    border-collapse: collapse;
-}
-
-.customer-card-box td {
-    padding: 5px 12px;
-    font-size: 14px;
-    font-weight: 700;
+    padding: 1px 6px;
+    font-size: 11.5px;
+    font-weight: 800;
     color: #000;
+    background: #fff;
+    direction: rtl;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
-.customer-card-label {
+.customer-info-label {
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 17px;
-    text-align: right;
-    width: 35%;
-    border-left: 1px solid #000;
-    background: #fafafa;
-    direction: rtl;
-}
-
-.customer-card-val {
-    text-align: right;
-    width: 65%;
-    direction: rtl;
+    font-size: 12.5px;
+    font-weight: 700;
 }
 
 .invoice-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #000;
-    margin-top: 14px;
+    border: 1.5px solid #000;
+    margin-top: 3px;
 }
 
 .invoice-table th {
     border: 1px solid #000;
-    padding: 6px 8px;
+    padding: 1.5px 3px;
     text-align: center;
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 19px;
-    font-weight: 700;
+    font-size: 12px;
+    font-weight: 800;
     background: #ffffff;
     color: #000;
     vertical-align: middle;
+    line-height: 1.0;
 }
 
 .invoice-table td {
     border: 1px solid #000;
-    padding: 6px 10px;
-    font-size: 14px;
+    padding: 1px 3px;
+    font-size: 11px;
     color: #000;
     vertical-align: middle;
+    line-height: 1.0;
+}
+
+.num-bold {
+    font-weight: 800 !important;
+    color: #000 !important;
 }
 
 .item-desc-eng {
     font-weight: 700;
-    font-size: 13.5px;
+    font-size: 10.5px;
     color: #000;
-    line-height: 1.35;
-    letter-spacing: 0.2px;
+    line-height: 1.0;
+    letter-spacing: 0.1px;
 }
 
 .item-desc-urdu {
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 15px;
+    font-size: 11px;
     font-weight: 700;
-    color: #111;
+    color: #000;
     text-align: right;
     direction: rtl;
-    margin-top: 4px;
-    line-height: 1.45;
+    margin-top: 0px;
+    line-height: 1.0;
 }
 
 .summary-table {
     width: 100%;
     border-collapse: collapse;
     border: 1px solid #000;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 700;
 }
 
 .summary-table td {
-    padding: 6px 12px;
+    padding: 1.5px 5px;
     border: 1px solid #000;
 }
 
 .payment-remarks-title {
-    font-size: 18px;
+    font-size: 12px;
     font-weight: 800;
     color: #000;
-    margin-bottom: 4px;
+    margin-bottom: 1px;
 }
 
 .payment-remarks-line {
     border-top: 1.5px solid #000;
-    margin-bottom: 12px;
+    margin-bottom: 3px;
     width: 100%;
 }
 
 .amount-in-words {
-    font-size: 14.5px;
-    font-weight: 700;
+    font-size: 11px;
+    font-weight: 800;
     color: #000;
-    line-height: 1.4;
+    line-height: 1.1;
 }
 
 @media print {
@@ -227,8 +196,30 @@ body {
         max-width: 100% !important;
         width: 100% !important;
         margin: 0 !important;
-        padding: 15px 20px !important;
+        padding: 3px 5px !important;
         border: none !important;
+    }
+    @page {
+        size: A4 portrait;
+        margin: 2.5mm 4mm;
+    }
+    .invoice-table th {
+        padding: 1px 2px !important;
+        font-size: 11.5px !important;
+        line-height: 1.0 !important;
+    }
+    .invoice-table td {
+        padding: 0.5px 2px !important;
+        font-size: 10.5px !important;
+        line-height: 1.0 !important;
+    }
+    .item-desc-eng {
+        font-size: 10px !important;
+        line-height: 1.0 !important;
+    }
+    .item-desc-urdu {
+        font-size: 10px !important;
+        line-height: 1.0 !important;
     }
     tr { page-break-inside: avoid; }
 }
@@ -445,72 +436,45 @@ $balanceDue = $displayClosing;
 
     <div class="invoice-wrapper" id="invoiceContent">
 
-        {{-- HEADER SECTION --}}
-        <div class="d-flex justify-content-between align-items-start">
-            <div>
-                <h1 class="company-title">
-                    {{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}
-                </h1>
-                <div class="company-address">
-                    {{ $branch->address ?? '17th-Brandreth Road, Lahore, Pakistan.' }}
-                </div>
-                <div class="company-phones">
-                    @if(!empty($branch->mobile))
-                        {{ $branch->mobile }}
-                    @else
-                        0300-4235114 &nbsp; 0300-4235114
-                    @endif
-                    <br>
-                    @if(!empty($branch->phone))
-                        {{ $branch->phone }}
-                    @else
-                        042-37635383 &nbsp; 042-37651862
-                    @endif
-                </div>
+        {{-- HEADER SECTION (Company details removed) --}}
+        <div class="d-flex justify-content-between align-items-center">
+            <div class="invoice-badge-title">
+                INVOICE
             </div>
-
-            <div>
-                <div class="invoice-badge-box">
-                    <div class="invoice-badge-title">INVOICE</div>
-                    <div class="invoice-badge-inv">{{ $booking->invoice_no }}</div>
-                    <div class="invoice-badge-date">
-                        {{ $booking->created_at ? $booking->created_at->format('d M Y') : date('d M Y') }}
-                    </div>
-                </div>
+            <div class="invoice-badge-box">
+                <span class="invoice-badge-inv">INV #: {{ $booking->invoice_no }}</span>
+                <span style="border-right: 1px solid #000; height: 14px; display: inline-block;"></span>
+                <span class="invoice-badge-date">DATE: {{ $booking->created_at ? $booking->created_at->format('d M Y') : date('d M Y') }}</span>
             </div>
         </div>
 
         {{-- DASHED DIVIDER --}}
         <div class="header-divider"></div>
 
-        {{-- INFO SECTION (PANDI & CUSTOMER DETAILS) --}}
-        <div class="d-flex justify-content-between align-items-end mb-2">
+        {{-- INFO SECTION (ADDA & CUSTOMER DETAILS IN A SINGLE COMPACT LINE) --}}
+        @php
+            $custUrdu = $booking->customer->customer_name_ur ?? $booking->customer->name_urdu ?? $booking->customer_name_ur ?? '';
+            $custEng = $booking->party_type === 'walking' ? ($booking->customer_name ?? 'N/A') : ($booking->customer->customer_name ?? 'N/A');
+            $custDisplay = !empty($custUrdu) ? ($custUrdu . ($custEng !== 'N/A' && $custEng !== $custUrdu ? ' (' . $custEng . ')' : '')) : $custEng;
+        @endphp
+        <div class="d-flex justify-content-between align-items-center mb-1">
             <div class="pandi-box">
-                <span class="pandi-label">پانڈی:</span>
+                <span class="pandi-label">اڈا:</span>
                 <span class="pandi-line">
                     {{ $booking->remarks ?? ($booking->address ?? '') }}
                 </span>
             </div>
 
-            <div class="customer-card-box">
-                <table>
-                    <tr style="border-bottom: 1px solid #000;">
-                        <td class="customer-card-val">
-                            {{ $booking->party_type === 'walking' ? ($booking->customer_name ?? 'N/A') : ($booking->customer->customer_name ?? 'N/A') }}
-                        </td>
-                        <td class="customer-card-label">
-                            نام خریدار
-                        </td>
-                    </tr>
-                    <tr>
-                        <td class="customer-card-val">
-                            {{ $booking->tel ?? ($booking->customer->mobile ?? 'N/A') }}
-                        </td>
-                        <td class="customer-card-label">
-                            فون نمبر
-                        </td>
-                    </tr>
-                </table>
+            <div class="customer-info-line">
+                <span class="customer-info-label">نام خریدار:</span>
+                <span style="font-weight: 800; color: #000; margin-left: 2px; margin-right: 6px; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Inter', sans-serif;">
+                    {{ $custDisplay }}
+                </span>
+                <span style="border-right: 1.5px solid #000; height: 12px; display: inline-block; margin: 0 4px;"></span>
+                <span class="customer-info-label">فون نمبر:</span>
+                <span style="font-weight: 800; color: #000; margin-left: 2px;">
+                    {{ $booking->tel ?? ($booking->customer->mobile ?? 'N/A') }}
+                </span>
             </div>
         </div>
 
@@ -537,13 +501,13 @@ $balanceDue = $displayClosing;
                     $productUrdu = getUrduProductNameBooking($item);
                 @endphp
                 <tr>
-                    <td style="text-align: center; font-weight: 700; font-size: 15px;">
+                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
                         {{ number_format($amt, 0) }}
                     </td>
-                    <td style="text-align: center; font-size: 15px;">
+                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
                         {{ number_format($unitPrice, 0) }}
                     </td>
-                    <td style="text-align: center; font-size: 15px;">
+                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
                         {{ number_format($rate, 0) }}
                     </td>
                     <td>
@@ -556,7 +520,7 @@ $balanceDue = $displayClosing;
                         </div>
                         @endif
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 16px;">
+                    <td style="text-align: center; font-weight: 800; font-size: 11.5px; color: #000;">
                         {{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}
                     </td>
                 </tr>
@@ -565,27 +529,27 @@ $balanceDue = $displayClosing;
         </table>
 
         {{-- SUMMARY & REMARKS SECTION --}}
-        <div class="d-flex justify-content-between align-items-start mt-4" style="page-break-inside: avoid;">
+        <div class="d-flex justify-content-between align-items-start mt-2" style="page-break-inside: avoid;">
             {{-- LEFT: TOTALS TABLE --}}
             <div style="width: 45%;">
                 <table class="summary-table">
                     <tr>
                         <td style="background: #fafafa; width: 45%;">Subtotal</td>
-                        <td style="text-align: right; width: 55%;">Rs. {{ number_format($netTotal, 2) }}</td>
+                        <td style="text-align: right; width: 55%; font-weight: 800; color: #000;">Rs. {{ number_format($netTotal, 2) }}</td>
                     </tr>
                     @if($displayPrevious != 0)
                     <tr>
                         <td style="background: #fafafa;">Previous Balance</td>
-                        <td style="text-align: right;">Rs. {{ number_format($displayPrevious, 2) }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($displayPrevious, 2) }}</td>
                     </tr>
                     @endif
-                    <tr style="font-size: 15px; background: #fafafa;">
+                    <tr style="font-size: 12px; background: #fafafa;">
                         <td>Grand Total</td>
-                        <td style="text-align: right; color: #000;">Rs. {{ number_format($grandTotal, 2) }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($grandTotal, 2) }}</td>
                     </tr>
-                    <tr style="font-size: 15px;">
+                    <tr style="font-size: 12px;">
                         <td>Balance Due</td>
-                        <td style="text-align: right; color: #000;">Rs. {{ number_format($balanceDue, 2) }}</td>
+                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($balanceDue, 2) }}</td>
                     </tr>
                 </table>
             </div>
