@@ -158,10 +158,12 @@ use App\Http\Controllers\ComplaintController;
     route::get('/Brand', [BrandController::class, 'index'])->middleware('permission:brand.view')->name('Brand.home');
     Route::get('/Brand/delete/{id}', [BrandController::class, 'delete'])->middleware('permission:brand.delete')->name('delete.Brand');
     route::post('/Brand/stote', [BrandController::class, 'store'])->middleware('permission:brand.create|brand.edit')->name('store.Brand');
+    route::post('/Brand/store', [BrandController::class, 'store'])->middleware('permission:brand.create|brand.edit')->name('store.brand');
 
     route::get('/Unit', [UnitController::class, 'index'])->middleware('permission:unit.view')->name('Unit.home');
     Route::get('/Unit/delete/{id}', [UnitController::class, 'delete'])->middleware('permission:unit.delete')->name('delete.Unit');
     route::post('/Unit/stote', [UnitController::class, 'store'])->middleware('permission:unit.create|unit.edit')->name('store.Unit');
+    route::post('/Unit/store', [UnitController::class, 'store'])->middleware('permission:unit.create|unit.edit')->name('store.unit');
     Route::get('/get-units', [UnitController::class, 'getUnits'])->name('get-units');
 
     route::get('/subcategory', [SubcategoryController::class, 'index'])->middleware('permission:subcategory.view')->name('subcategory.home');

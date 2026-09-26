@@ -1008,12 +1008,12 @@
                     <button type="button" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm" id="btnSave" style="background:#2563eb !important; border-color:#2563eb !important;">
                         <i class="fas fa-file-invoice"></i> Save Booking (Draft)
                     </button>
-                    <button type="button" class="btn btn-outline-primary px-3 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2" id="btnPosted" disabled>
-                        <i class="fas fa-warehouse"></i> Warehouse Sale
-                    </button>
-                    <button type="button" class="btn btn-success px-4 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm" id="btnPosted2" style="background:#16a34a !important; border-color:#16a34a !important;" disabled>
+
+                    <button type="button" class="btn btn-success px-5 py-2.5 rounded-3 fw-bold fs-6 d-inline-flex align-items-center gap-2 shadow-sm" id="btnPosted2" style="background:#16a34a !important; border-color:#16a34a !important;" disabled>
                         <i class="fas fa-shopping-cart"></i> Process Sale / POS
                     </button>
+
+                    {{-- 
                     <button type="button" class="btn btn-indigo px-4 py-2 rounded-3 fw-semibold text-white d-inline-flex align-items-center gap-2 shadow-sm" id="btnPosted3" style="background:#4f46e5 !important; border-color:#4f46e5 !important;">
                         <i class="fas fa-check-double"></i> Post & Print
                     </button>
@@ -1026,6 +1026,7 @@
                     <button type="button" class="btn btn-light border px-3 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2 text-dark" id="btnExit">
                         <i class="fas fa-times-circle"></i> Exit
                     </button>
+                    --}}
                 </div>
             </form>
         </div>

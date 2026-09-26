@@ -985,6 +985,7 @@ public function searchProductsForSalebypagination(Request $request)
                 'category_id'     => $request->category_id,
                 'sub_category_id' => $request->sub_category_id,
                 'type_id'         => $request->type_id,
+                'item_code'       => $request->item_code ?? Product::where('id', $id)->value('item_code'),
                 'item_name'       => $request->product_name,
                 'item_name_urdu'  => $request->item_name_urdu ?? $request->product_name_urdu,
                 'barcode_path'    => $request->barcode_path ?? rand(100000000000, 999999999999),
@@ -992,7 +993,7 @@ public function searchProductsForSalebypagination(Request $request)
                 'brand_id'        => $request->brand_id,
                 'model'           => $request->model,
                 'hs_code'         => $request->hs_code,
-                'pack_type'       => $request->packing_type,
+                'pack_type'       => $request->packing_type ?? 'Standard',
                 'pack_qty'        => (float) ($request->packing_qty ?? 0),
                 'piece_per_pack'  => (float) ($request->piece_per_pack ?? 0),
                 'loose_piece'     => (float) ($request->loose_piece ?? 0),
@@ -1033,7 +1034,7 @@ public function searchProductsForSalebypagination(Request $request)
             }
         });
 
-        return redirect()->back()->with('success', 'Product updated successfully');
+        return redirect()->route('product')->with('success', 'Product updated successfully');
     }
 
     // ===== Edit view =====
@@ -1042,19 +1043,29 @@ public function searchProductsForSalebypagination(Request $request)
         $product = Product::with('category_relation', 'sub_category_relation', 'unit', 'brand','stock')->findOrFail($id);
         
         // ✅ OWNERSHIP CHECK: Prevent non-owners from editing
-        $userBranchId = Auth::check() ? Auth::user()->branch_id : null;
+        $user = Auth::user();
+        $userBranchId = $user ? $user->branch_id : null;
         $isOwner = ($userBranchId && $product->branch_id == $userBranchId);
-        $isSuperAdmin = Auth::check() && Auth::user()->hasRole('super admin');
+        $isSuperAdmin = $user && $user->hasRole('super admin');
         
         if (!$isOwner && !$isSuperAdmin) {
             abort(403, 'You can only edit products from your own branch');
+        }
+
+        if ($isSuperAdmin) {
+            $branches = Branch::all();
+        } else {
+            $userBranch = $user->branch_id ? Branch::find($user->branch_id) : null;
+            $branches = $userBranch ? collect([$userBranch]) : collect();
         }
         
         $categories    = Category::all();
         $subcategories = SubCategory::all();
         $brands        = Brand::all();
         $units         = Unit::select('id', 'name')->get();
-        return view('admin_panel.product.edit', compact('product', 'categories', 'subcategories', 'brands', 'units'));
+        $types         = \App\Models\ProductType::all();
+
+        return view('admin_panel.product.edit', compact('product', 'categories', 'subcategories', 'brands', 'units', 'types', 'branches', 'isSuperAdmin', 'user'));
     }
 
     // ===== Barcode view =====
