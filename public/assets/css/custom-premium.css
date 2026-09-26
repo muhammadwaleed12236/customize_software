@@ -1156,14 +1156,33 @@ footer .footer-area p {
     vertical-align: middle !important;
 }
 
-.sales-table .product-col  { width: 34% !important; min-width: 230px !important; }
-.sales-table .stock-col    { width: 8% !important; min-width: 60px !important; }
-.sales-table .qty-col      { width: 9% !important; min-width: 65px !important; }
-.sales-table .price-col    { width: 12% !important; min-width: 85px !important; }
-.sales-table .disc-col     { width: 14% !important; min-width: 100px !important; }
-.sales-table .discamt-col  { width: 10% !important; min-width: 80px !important; }
-.sales-table .amount-col   { width: 10% !important; min-width: 85px !important; }
-.sales-table .action-col   { width: 3% !important; min-width: 40px !important; text-align: center !important; }
+.sales-table .product-col   { width: 25% !important; min-width: 180px !important; }
+.sales-table .warehouse-col { width: 18% !important; min-width: 140px !important; }
+.sales-table .stock-col     { width: 8% !important; min-width: 60px !important; }
+.sales-table .qty-col       { width: 8% !important; min-width: 60px !important; }
+.sales-table .price-col     { width: 11% !important; min-width: 80px !important; }
+.sales-table .disc-col      { width: 12% !important; min-width: 90px !important; }
+.sales-table .discamt-col   { width: 8% !important; min-width: 70px !important; }
+.sales-table .amount-col    { width: 7% !important; min-width: 75px !important; }
+.sales-table .action-col    { width: 3% !important; min-width: 35px !important; text-align: center !important; }
+
+/* Warehouse select dropdown styling */
+.sales-table .warehouse-select {
+    height: 36px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    color: #1e293b !important;
+    border-radius: 6px !important;
+    border: 1.5px solid #cbd5e1 !important;
+    background-color: #f8fafc !important;
+    padding: 2px 6px !important;
+}
+
+.sales-table .warehouse-select:focus {
+    border-color: #3b82f6 !important;
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2) !important;
+}
 
 /* Select2 Truncation & Height Fix inside Sales Table */
 .sales-table .select2-container {
@@ -1225,4 +1244,21 @@ footer .footer-area p {
     border-left: none !important;
     background: #f1f5f9 !important;
     color: #475569 !important;
+}
+
+/* ─── GLOBAL PRINT STYLES ────────────────────────────────────── */
+@media print {
+    nav.rt_nav_header,
+    .rt_nav_header,
+    .top_nav,
+    .nav-bottom,
+    footer,
+    .footer-area,
+    .no-print,
+    .navbar-toggler,
+    .navbar-dropdown {
+        display: none !important;
+        height: 0 !important;
+        visibility: hidden !important;
+    }
 }

@@ -475,15 +475,15 @@
                             <label class="form-label fw-bold mb-1 d-block">Type</label>
                             <div class="btn-group" role="group" id="partyTypeGroup">
                                 <input type="radio" class="btn-check" name="partyType" id="typeCustomers"
-                                    value="credit" {{ $partyType === 'credit' ? 'checked' : '' }}>
+                                    value="credit" {{ ($partyType ?? $sale->partyType ?? $sale->party_type ?? 'credit') === 'credit' ? 'checked' : '' }}>
                                 <label class="btn btn-outline-primary btn-sm" for="typeCustomers">Credit</label>
 
                                 <input type="radio" class="btn-check" name="partyType" id="typeWalkin"
-                                    value="cash" {{ $partyType === 'cash' ? 'checked' : '' }}>
+                                    value="cash" {{ ($partyType ?? $sale->partyType ?? $sale->party_type ?? 'credit') === 'cash' ? 'checked' : '' }}>
                                 <label class="btn btn-outline-primary btn-sm" for="typeWalkin">Cash</label>
 
                                 <input type="radio" class="btn-check" name="partyType" id="typewalking" 
-                                    value="walking" {{ $partyType === 'walking' ? 'checked' : '' }}>
+                                    value="walking" {{ ($partyType ?? $sale->partyType ?? $sale->party_type ?? 'credit') === 'walking' ? 'checked' : '' }}>
                                 <label class="btn btn-outline-primary btn-sm" for="typewalking">Walking</label>
                             </div>
                         </div>

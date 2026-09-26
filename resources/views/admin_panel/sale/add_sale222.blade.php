@@ -53,15 +53,14 @@
             border-radius: 3px;
         }
 
-        /* Further increased row height and cell padding so helper text fits comfortably */
         .sales-table td {
-            padding-top: 1.2rem;
-            padding-bottom: 1.4rem;
-            vertical-align: middle;
+            padding: 3px 4px !important;
+            vertical-align: middle !important;
         }
 
         .sales-table tbody tr {
-            min-height: 86px;
+            min-height: 32px !important;
+            height: 32px !important;
         }
 
         /* 🔹 INPUT – NOT TOO SMALL */
@@ -379,9 +378,8 @@
             background: #eef2ff;
             color: #3730a3;
         }
-    </style>
-    <style>
-        /* ===== Sales Table UI Fix ===== */
+
+        /* ===== Excel-Like Compact Grid UI Overrides ===== */
         .sales-table {
             table-layout: fixed !important;
             width: 100% !important;
@@ -390,65 +388,97 @@
         }
 
         .sales-table th {
-            background: #f8fafc !important;
-            color: #475569 !important;
+            background: #f1f5f9 !important;
+            color: #334155 !important;
             font-size: 11px !important;
             font-weight: 700 !important;
             text-transform: uppercase !important;
-            letter-spacing: 0.5px !important;
-            padding: 10px 8px !important;
-            border-bottom: 2px solid #e2e8f0 !important;
+            letter-spacing: 0.4px !important;
+            padding: 5px 6px !important;
+            border: 1px solid #cbd5e1 !important;
             white-space: nowrap !important;
         }
 
         .sales-table td {
-            padding: 6px 6px !important;
+            padding: 2px 4px !important;
             vertical-align: middle !important;
+            border: 1px solid #e2e8f0 !important;
+            height: 32px !important;
         }
 
-        .sales-table .product-col  { width: 34% !important; min-width: 230px !important; }
-        .sales-table .stock-col    { width: 8% !important; min-width: 60px !important; }
-        .sales-table .qty-col      { width: 9% !important; min-width: 65px !important; }
-        .sales-table .price-col    { width: 12% !important; min-width: 85px !important; }
-        .sales-table .disc-col     { width: 14% !important; min-width: 100px !important; }
-        .sales-table .discamt-col  { width: 10% !important; min-width: 80px !important; }
-        .sales-table .amount-col   { width: 10% !important; min-width: 85px !important; }
-        .sales-table .action-col   { width: 3% !important; min-width: 40px !important; text-align: center !important; }
+        .sales-table tbody tr {
+            height: 32px !important;
+        }
+
+        .sales-table .index-col     { width: 3%  !important; min-width: 35px  !important; text-align: center !important; }
+        .sales-table .product-col   { width: 25% !important; min-width: 180px !important; }
+        .sales-table .warehouse-col { width: 17% !important; min-width: 140px !important; }
+        .sales-table .qty-col       { width: 7%  !important; min-width: 60px  !important; }
+        .sales-table .unit-col      { width: 6%  !important; min-width: 50px  !important; }
+        .sales-table .price-col     { width: 11% !important; min-width: 80px  !important; }
+        .sales-table .disc-col      { width: 10% !important; min-width: 80px  !important; }
+        .sales-table .discamt-col   { width: 7%  !important; min-width: 60px  !important; }
+        .sales-table .amount-col    { width: 11% !important; min-width: 85px  !important; }
+        .sales-table .action-col    { width: 3%  !important; min-width: 35px  !important; text-align: center !important; }
 
         /* Select2 Truncation & Height Fix */
+        .sales-table td {
+            position: relative;
+        }
+
         .sales-table .select2-container {
             width: 100% !important;
             max-width: 100% !important;
+            display: block !important;
         }
 
         .sales-table .select2-container .select2-selection--single {
-            height: 36px !important;
+            height: 28px !important;
+            min-height: 28px !important;
             display: flex !important;
             align-items: center !important;
-            border-radius: 6px !important;
-            border: 1.5px solid #cbd5e1 !important;
+            border-radius: 4px !important;
+            border: 1px solid #cbd5e1 !important;
             background: #ffffff !important;
         }
 
         .sales-table .select2-container .select2-selection__rendered {
-            line-height: 34px !important;
+            line-height: 26px !important;
             white-space: nowrap !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             display: block !important;
-            padding-right: 22px !important;
-            font-size: 12.5px !important;
+            padding-right: 18px !important;
+            padding-left: 4px !important;
+            font-size: 12px !important;
             font-weight: 500 !important;
-            color: #1e293b !important;
+            color: #0f172a !important;
+        }
+
+        .sales-table .select2-container .select2-selection__arrow {
+            height: 26px !important;
+            top: 1px !important;
         }
 
         /* Inputs in Sales Table */
-        .sales-table .form-control {
-            height: 36px !important;
-            font-size: 12.5px !important;
-            padding: 4px 8px !important;
-            border-radius: 6px !important;
-            border: 1.5px solid #cbd5e1 !important;
+        .sales-table .form-control,
+        .sales-table .form-select {
+            height: 28px !important;
+            min-height: 28px !important;
+            font-size: 12px !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
+        }
+
+        .sales-table .input-group-sm > .form-control,
+        .sales-table .input-group-sm > .input-group-text,
+        .sales-table .input-group-sm > .btn {
+            height: 28px !important;
+            padding: 2px 6px !important;
+            font-size: 11px !important;
+            border-radius: 4px !important;
         }
 
         .sales-table .discount-wrapper {
@@ -465,13 +495,13 @@
         }
 
         .sales-table .discount-wrapper .discount-toggle {
-            height: 36px !important;
-            padding: 0 7px !important;
+            height: 28px !important;
+            padding: 0 6px !important;
             font-size: 11px !important;
             font-weight: 700 !important;
             border-top-left-radius: 0 !important;
             border-bottom-left-radius: 0 !important;
-            border: 1.5px solid #cbd5e1 !important;
+            border: 1px solid #cbd5e1 !important;
             border-left: none !important;
             background: #f1f5f9 !important;
             color: #475569 !important;
@@ -488,12 +518,36 @@
             }
         }
 
-        /* Select2 dropdown height + scroll */
+        /* Select2 dropdown height + scroll & soft modern hover styling */
         .select2-results__options {
-            max-height: 200px;
-            /* yahan height set karo */
+            max-height: 250px;
             overflow-y: auto;
-            /* 🔥 scroll enable */
+        }
+
+        .select2-container--default .select2-results__option {
+            padding: 6px 10px !important;
+            border-bottom: 1px solid #f1f5f9;
+        }
+
+        .select2-container--default .select2-results__option--highlighted[aria-selected] {
+            background-color: #eff6ff !important;
+            color: #0f172a !important;
+        }
+
+        .select2-container--default .select2-results__option--highlighted[aria-selected] .product-title {
+            color: #2563eb !important;
+        }
+
+        .select2-search--dropdown {
+            padding: 6px !important;
+            background-color: #f8fafc;
+        }
+
+        .select2-search--dropdown .select2-search__field {
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            padding: 5px 10px !important;
+            font-size: 12.5px !important;
         }
 
         /* ✅ MODAL STYLING - Ensure Modal is Fully Interactive */
@@ -547,16 +601,96 @@
         #branchSelectionModal {
             z-index: 1050;
         }
+
+        /* ===== CUSTOMER TOOLBAR UI FIXES & POLISH ===== */
+        .customer-card-toolbar {
+            background: #ffffff !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 8px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03) !important;
+        }
+
+        /* Fix Select2 inside .customer-card-toolbar */
+        .customer-card-toolbar .select2-container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        .customer-card-toolbar .select2-container .select2-selection--single {
+            height: 31px !important;
+            min-height: 31px !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            display: flex !important;
+            align-items: center !important;
+            background-color: #ffffff !important;
+        }
+
+        .customer-card-toolbar .select2-container .select2-selection__rendered {
+            line-height: 29px !important;
+            font-size: 12px !important;
+            padding-left: 8px !important;
+            padding-right: 20px !important;
+            color: #1e293b !important;
+            font-weight: 500 !important;
+            display: block !important;
+        }
+
+        .customer-card-toolbar .select2-container .select2-selection__arrow {
+            height: 29px !important;
+            top: 1px !important;
+        }
+
+        .customer-card-toolbar .form-control,
+        .customer-card-toolbar .form-select {
+            height: 31px !important;
+            min-height: 31px !important;
+            font-size: 12px !important;
+            border-color: #cbd5e1 !important;
+            border-radius: 6px !important;
+            padding: 3px 8px !important;
+        }
+
+        .customer-card-toolbar .input-group-sm > .form-control {
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+        }
+
+        .customer-card-toolbar .input-group-text {
+            height: 31px !important;
+            font-size: 11px !important;
+            background-color: #f8fafc !important;
+            border-color: #cbd5e1 !important;
+            color: #64748b !important;
+            border-top-left-radius: 6px !important;
+            border-bottom-left-radius: 6px !important;
+        }
+
+        /* Modern Radio Buttons */
+        #partyTypeGroup .btn-outline-primary {
+            color: #475569 !important;
+            border-color: #cbd5e1 !important;
+            background-color: #f8fafc !important;
+            font-weight: 600 !important;
+            font-size: 11px !important;
+            padding: 2px 10px !important;
+            transition: all 0.15s ease-in-out !important;
+        }
+
+        #partyTypeGroup .btn-check:checked + .btn-outline-primary {
+            color: #ffffff !important;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;
+            border-color: #2563eb !important;
+            box-shadow: 0 2px 5px rgba(37, 99, 235, 0.3) !important;
+        }
     </style>
 
 
 
-    <div class="container-fluid py-4">
-        <div class="main-container bg-white border shadow-sm mx-auto p-3 rounded-3">
+    <div class="container-fluid px-2 py-2 font-sans">
+        <div class="main-container bg-white border border-0 shadow-sm mx-auto p-3 rounded-3" style="background: #f8fafc;">
 
-            {{-- <div id="alertBox" class="alert d-none mb-3" role="alert"></div> --}}
-            <div id="alertBox" class="alert d-none mb-3" role="alert"></div>
-
+            <div id="alertBox" class="alert d-none mb-2" role="alert"></div>
 
             <form id="saleForm" autocomplete="off">
                 @csrf
@@ -565,285 +699,333 @@
                 <input type="hidden" id="is_posted" name="is_posted" value="0">
                 <input type="hidden" id="is_finalized" name="is_finalized" value="0">
 
-                {{-- HEADER --}}
-                <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
-                    <div>
-                        <small class="text-secondary" id="entryDateTime">Entry Date_Time: --</small> <br>
-                        <a href="{{ route('sale.index') }}" target="_blank" rel="noopener"
-                            class="btn btn-sm btn-outline-secondary" title="Sales List (opens new tab)">
-                            Sales List
+                {{-- 1. TOP HEADER BAR --}}
+                <div class="d-flex flex-wrap justify-content-between align-items-center bg-white p-2 px-3 rounded-3 shadow-sm mb-3 border">
+                    <div class="d-flex align-items-center gap-3">
+                        <a href="{{ route('sale.index') }}" class="btn btn-outline-secondary rounded-pill px-3 py-1 btn-sm fw-semibold d-inline-flex align-items-center gap-2 text-dark border-secondary-subtle">
+                            <i class="fas fa-arrow-left"></i> Back
                         </a>
+                        <div class="bg-primary text-white rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;">
+                            <i class="fas fa-shopping-cart fs-6"></i>
+                        </div>
+                        <div>
+                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.3px;">New Sale / Booking</h5>
+                            <p class="text-muted small mb-0 fw-medium" style="font-size: 11px;">Executive order generation, instant booking ledger, and multi-format dispatch invoicing</p>
+                        </div>
                     </div>
 
-
-                    <h2 class="header-text text-secondary fw-bold mb-0">Sales</h2>
-
-
-                    {{-- <div class="d-flex align-items-center gap-2">
-                        <small class="text-secondary me-2" id="entryDate">Date: --</small>
-                        <button type="button" class="btn btn-sm btn-light border" id="btnHeaderPosted"
-                            disabled>Posted</button>
-                    </div> --}}
+                    <div class="d-flex align-items-center gap-2 mt-2 mt-md-0">
+                        <small class="text-muted fw-semibold me-2" id="entryDateTime"><i class="far fa-clock me-1 text-primary"></i> Entry: --</small>
+                        <a href="{{ route('sale.settings.index') }}" target="_blank" class="btn btn-sm btn-outline-secondary border rounded-pill px-3 py-1 text-dark fw-semibold">
+                            <i class="fas fa-cog me-1 text-warning"></i> Settings
+                        </a>
+                        <a href="{{ route('sale.index') }}" target="_blank" rel="noopener" class="btn btn-sm btn-light border rounded-pill px-3 py-1 text-secondary fw-semibold">
+                            <i class="fas fa-list me-1"></i> Sales List
+                        </a>
+                    </div>
                 </div>
 
-                <div class="d-flex gap-3 align-items-start border-bottom py-3">
-                    {{-- LEFT: Invoice & Customer --}}
-                    <div class="p-3 border rounded-3 minw-350">
-                        <div class="section-title mb-3">Invoice & Customer</div>
+                {{-- 2. CUSTOMER TOOLBAR (SINGLE LINE LAYOUT) --}}
+                <div class="customer-card-toolbar p-3 mb-3">
+                    <input type="hidden" name="Invoice_date" id="Invoice_date" value="{{ date('Y-m-d') }}">
+                    <input type="hidden" name="estimated_delivery_date" id="estimated_delivery_date" value="{{ date('Y-m-d', strtotime('+15 days')) }}">
+                    <input type="hidden" name="Invoice_no" id="Invoice_no" value="{{ $nextInvoiceNumber }}">
 
-                        <div class="mb-2 d-flex align-items-center gap-2">
-                            <label class="form-label fw-bold mb-0">Invoice No.</label>
-                            <input type="text" class="form-control input-readonly" name="Invoice_no" id="Invoice_no" style="width:150px"
-                                value="{{ $nextInvoiceNumber }}" readonly>
-                            <label class="form-label fw-bold mb-0">M. Inv#</label>
-                            <input type="text" class="form-control" name="Invoice_main" placeholder="Manual invoice">
-                        </div>
-
-                        {{-- Type toggle --}}
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1 d-block">Type</label>
-                            <div class="btn-group" role="group" id="partyTypeGroup">
-                                <input type="radio" class="btn-check" name="partyType" id="typeCustomers" value="credit"
-                                    checked>
-                                <label class="btn btn-outline-primary btn-sm" for="typeCustomers">Credit</label>
-
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
+                        <div class="d-flex align-items-center gap-3">
+                            <label class="form-label fw-bold text-uppercase small text-primary mb-0 me-1" style="letter-spacing: 0.5px;">
+                                <i class="fas fa-user-circle me-1"></i> Customer
+                            </label>
+                            <div class="btn-group btn-group-sm" role="group" id="partyTypeGroup">
+                                <input type="radio" class="btn-check" name="partyType" id="typeCustomers" value="credit" checked>
+                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeCustomers">Credit</label>
                                 <input type="radio" class="btn-check" name="partyType" id="typeWalkin" value="cash">
-                                <label class="btn btn-outline-primary btn-sm" for="typeWalkin">Cash</label>
-
+                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeWalkin">Cash</label>
                                 <input type="radio" class="btn-check" name="partyType" id="typewalking" value="walking">
-                                <label class="btn btn-outline-primary btn-sm" for="typewalking">Walking</label>
+                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typewalking">Walking</label>
                             </div>
                         </div>
 
-                        {{-- BRANCH SELECT (super-admin only) --}}
-                        @if (Auth::user() && Auth::user()->hasRole('super admin'))
-                            <div class="mb-2">
-                                <label class="form-label fw-bold mb-1">Select Branch</label>
-                                <select class="form-select" name="branch_id" id="branch_id">
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge bg-light text-dark border py-1 px-2">Inv#: <strong class="text-primary" id="invoiceNoText">{{ $nextInvoiceNumber }}</strong></span>
+                            <button id="clearCustomerData" type="button" class="btn btn-sm btn-light border text-danger py-0 px-2 fw-semibold">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- CUSTOMER SELECT / WALKING INPUT & SINGLE-LINE SUMMARY --}}
+                    <div class="row g-2 align-items-center">
+                        {{-- CUSTOMER SEARCH DROPDOWN --}}
+                        <div class="col-lg-3 col-md-3 col-12 position-relative" id="customerSelectWrapper">
+                            <div class="d-flex align-items-center gap-1">
+                                <div class="flex-grow-1 position-relative" style="min-width: 0;">
+                                    <select class="form-select js-customer border-primary-subtle rounded-3" id="customerSelect" style="width: 100%;">
+                                        <option selected disabled>Search Customer...</option>
+                                    </select>
+                                </div>
+                                <button type="button" id="btnOpenAddCustomerModal" class="btn btn-primary btn-sm px-2.5 fw-semibold rounded-3 text-white d-inline-flex align-items-center justify-content-center shadow-sm" style="background:#2563eb !important; border-color:#2563eb !important; text-decoration: none; height: 31px; white-space: nowrap;">
+                                    <i class="fas fa-plus me-1"></i> Add
+                                </button>
+                            </div>
+                            <small class="text-muted position-absolute" id="customerCountHint" style="font-size: 10px; top: 100%; left: 0; line-height: 1; margin-top: 2px; z-index: 5;"></small>
+                        </div>
+
+                        {{-- VISIBLE / EDITABLE CUSTOMER NAME INPUT --}}
+                        <div class="col-lg-3 col-md-3 col-12" id="customerDisplayWrapper" style="display: none;">
+                            <input type="text" class="form-control form-control-sm border-primary-subtle fw-bold text-dark rounded-3" id="customerDisplay" name="customer_display" placeholder="Walking Customer Name" value="Walking Customer">
+                        </div>
+
+                        <input type="hidden" id="customer_id" name="customer_id" value="">
+                        <input type="hidden" id="customer" name="customer" value="">
+
+                        {{-- PHONE # --}}
+                        <div class="col-lg-2 col-md-2 col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light text-muted"><i class="fas fa-phone small"></i></span>
+                                <input type="text" class="form-control form-control-sm" id="tel" name="tel" placeholder="Phone #">
+                            </div>
+                        </div>
+
+                        {{-- ADDRESS --}}
+                        <div class="col-lg-4 col-md-4 col-6">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text bg-light text-muted"><i class="fas fa-map-marker-alt small"></i></span>
+                                <input type="text" class="form-control form-control-sm" id="address" name="address" placeholder="Address">
+                            </div>
+                        </div>
+
+                        {{-- PREV BALANCE & CREDIT LIMIT (SINGLE LINE) --}}
+                        <div class="col-lg-3 col-md-3 col-12 ms-auto" id="balanceFieldsContainer">
+                            <div class="d-flex align-items-center justify-content-end gap-1">
+                                <span class="small text-muted fw-bold">Prev Bal:</span>
+                                <input type="text" class="form-control form-control-sm text-end fw-bold text-danger rounded-3" id="previousBalance" value="0" style="width: 80px;" readonly>
+
+                                <span class="small text-muted fw-bold ms-1">Limit:</span>
+                                <input type="text" class="form-control form-control-sm text-end fw-bold text-primary rounded-3" id="creditLimit" value="0" style="width: 75px;" readonly>
+                                <small id="noCreditLimitMsg" class="text-success fw-bold ms-1" style="display:none;">Infinite</small>
+                                <input type="hidden" id="noCreditLimit" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- SECONDARY ROW (Manual Inv#, Branch, Salesman, Remarks) --}}
+                    <div class="mt-2 pt-2 border-top">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-md-2 col-6">
+                                <input type="text" class="form-control form-control-sm" name="Invoice_main" placeholder="Manual Inv#">
+                            </div>
+                            @if (Auth::user() && Auth::user()->hasRole('super admin'))
+                            <div class="col-md-2 col-6">
+                                <select class="form-select form-select-sm" name="branch_id" id="branch_id">
                                     @foreach($branches as $b)
                                         <option value="{{ $b->id }}">{{ $b->branch_name ?? $b->name ?? 'Branch ' . $b->id }}</option>
                                     @endforeach
                                 </select>
                             </div>
-                        @else
-                            <input type="hidden" name="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
-                        @endif
-
-                        <!-- CUSTOMER SELECT -->
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1">Select Customer</label>
-                            <select class="form-select js-customer" id="customerSelect">
-                                <option selected disabled>Loading…</option>
-                            </select>
-                            <small class="text-muted" id="customerCountHint"></small>
-                        </div>
-                        {{-- ///////////////////// --}}
-                        <div class="mb-2">
-                            <label class="form-label fw-bold mb-1">Customer</label>
-                            <input type="hidden" id="customer_id" name="customer_id" value="">
-                            <input type="hidden" id="customer" name="customer" value="">
-                            <input type="text" class="form-control" id="customerDisplay" name="customer_display"
-                                value="" readonly>
-                            <small class="text-muted" id="customerCountHint"></small>
-                        </div>
-
-
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Address</label>
-                            <textarea class="form-control" id="address" name="address"></textarea>
-                        </div>
-
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Phone #</label>
-                            <input type="text" class="form-control" id="tel" name="tel">
-                        </div>
-
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Salesman (Optional)</label>
-                            <select class="form-select select2" name="salesman_id" id="salesman_id">
-                                <option value="">Select Salesman</option>
-                                @foreach($salesmen as $sm)
-                                    <option value="{{ $sm->id }}" {{ (isset($booking) && $booking->salesman_id == $sm->id) ? 'selected' : '' }}>
-                                        {{ $sm->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="mb-2">
-                            <label class="form-label fw-bold">Remarks</label>
-                            <textarea class="form-control" id="remarks" name="remarks"></textarea>
-                        </div>
-
-                        <div id="balanceFieldsContainer">
-                            <div class="mb-2 d-flex justify-content-between">
-                                <span>Previous Balance</span>
-                                <input type="text" class="form-control text-end" id="previousBalance" value="0"
-                                    style="width: 80px;">
-                            </div>
-                            <div class="mb-2 d-flex justify-content-between align-items-center">
-                                <span>Credit Limit</span>
-                                <div class="d-flex flex-column align-items-end">
-                                    <input type="text" class="form-control text-end" id="creditLimit" value="0"
-                                        style="width: 80px;">
-                                    <small id="noCreditLimitMsg" class="text-success fw-bold"
-                                        style="display:none;">Infinite Credit Limit</small>
-                                </div>
-                            </div>
-                            <input type="hidden" id="noCreditLimit" value="0">
-                        </div>
-
-                        <div class="text-end mt-3">
-                            <button id="clearCustomerData" type="button" class="btn btn-sm btn-secondary" style="color:#ffffff !important;"><i class="fas fa-eraser"></i> Clear</button>
-                        </div>
-                    </div>
-
-                    {{-- RIGHT: Items --}}
-                    <div class="flex-grow-1 items-panel">
-
-                        <!-- <div class="flex-grow-1" style="border:2px solid red;"> -->
-                        <div class="d-flex justify-content-between align-items-center mb-2">
-                            <div class="section-title mb-0">Items</div>
-                            <button type="button" class="btn btn-sm btn-primary" id="btnAdd">Add Row</button>
-                        </div>
-
-                        <div class="table-responsive">
-                            <table class="table table-bordered sales-table mb-0">
-
-                                <thead>
-                                    <tr>
-                                        <th class="product-col">Product</th>
-                                        <th class="stock-col">Stock</th>
-                                        <th class="qty-col">Qty</th>
-                                        <th class="price-col">Retail Price</th>
-                                        <th class="disc-col">Disc %</th>
-                                        <th class="discamt-col">Disc Amt</th>
-                                        <th class="amount-col">Amount</th>
-                                        <th class="action-col"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="salesTableBody">
-
-                                </tbody>
-                                <tfoot>
-                                    <tr>
-                                        <td colspan="6" class="text-end fw-bold">Total:</td>
-                                        <td class="text-end fw-bold"><span id="totalAmount">0.00</span></td>
-                                        <td></td>
-                                    </tr>
-                                </tfoot>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                {{-- Totals + Receipts --}}
-                <div class="row g-3 mt-3">
-                    <div class="col-lg-7">
-                        <div class="section-title mb-2">Receipt Vouchers</div>
-                        <div id="rvWrapper" class="border rounded-3 p-2">
-                            <div class="d-flex gap-2 align-items-center mb-2 rv-row">
-                                <select class="form-select rv-account" name="receipt_account_id[]"
-                                    style="max-width: 320px">
-                                    @foreach ($accounts as $acc)
-                                        <option value="" disabled>Select account</option>
-                                        <option value="{{ $acc->id }}">{{ $acc->title }}</option>
+                            @else
+                                <input type="hidden" name="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
+                            @endif
+                            <div class="col-md-3 col-6">
+                                <select class="form-select form-select-sm select2" name="salesman_id" id="salesman_id">
+                                    <option value="">Select Salesman</option>
+                                    @foreach($salesmen as $sm)
+                                        <option value="{{ $sm->id }}" {{ (isset($booking) && $booking->salesman_id == $sm->id) ? 'selected' : '' }}>
+                                            {{ $sm->name }}
+                                        </option>
                                     @endforeach
                                 </select>
-                                <input type="text" class="form-control text-end rv-amount" name="receipt_amount[]"
-                                    placeholder="0.00" style="max-width:160px">
-                                <button type="button" class="btn btn-outline-primary btn-sm" id="btnAddRV">Add
-                                    more</button>
                             </div>
-                            <div class="text-end">
-                                <span class="me-2">Receipts Total:</span>
-                                <span class="fw-bold" id="receiptsTotal">0.00</span>
+                            <div class="col-md-5 col-12">
+                                <input type="text" class="form-control form-control-sm" id="remarks" name="remarks" placeholder="Order Remarks / Notes">
                             </div>
-                        </div>
-                    </div>
-
-                    <div class="col-lg-5">
-                        <div class="section-title mb-2">Totals</div>
-                        <div class="totals-card p-3">
-                            <div class="row py-1">
-                                <div class="col-7 text-muted">Total Qty</div>
-                                <div class="col-5 text-end"><span id="tQty">0</span></div>
-                            </div>
-                            <div class="row py-1">
-                                <div class="col-7 text-muted">Invoice Gross (Σ Sales Price × Qty)</div>
-                                <div class="col-5 text-end"><span id="tGross">0.00</span></div>
-                            </div>
-                            <div class="row py-1">
-                                <div class="col-7 text-muted">Line Discount (on Retail)</div>
-                                <div class="col-5 text-end"><span id="tLineDisc">0.00</span></div>
-                            </div>
-
-                            <div class="row py-1">
-                                <div class="col-7 fw-semibold">Sub-Total</div>
-                                <div class="col-5 text-end fw-semibold"><span id="tSub">0.00</span></div>
-                            </div>
-                            <div class="row py-1">
-                                <div class="col-7">Aditional Discount</div>
-                                <div class="col-5 text-end d-flex justify-content-end align-items-center">
-                                    <input type="text" class="form-control text-end me-2" name="additional_discount"
-                                        id="discountPercent" value="0" style="max-width:120px;">
-                                    <button type="button" id="orderDiscountToggle"
-                                        class="btn btn-outline-secondary btn-sm" data-type="pkr">PKR</button>
-                                </div>
-                            </div>
-                            <div class="row py-1">
-                                <div class="col-7 text-muted">Aditional Discount Rs</div>
-                                <div class="col-5 text-end"><span id="tOrderDisc">0.00</span></div>
-                            </div>
-                           
-                            <div class="row py-1">
-                                <div class="col-7">Extra Charges (Fread charges)</div>
-                                <div class="col-5 text-end d-flex justify-content-end align-items-center">
-                                    <input type="text" class="form-control text-end " name="extra_charges" id="echarges"
-                                        value="0" style="max-width:120px;">
-                                    {{-- <button type="button" id="orderDiscountToggle" class="btn btn-outline-secondary btn-sm"
-                                        data-type="pkr">PKR</button> --}}
-                                </div>
-                            </div>
-                            <div class="row py-1">
-                                <div class="col-7 text-danger">Previous Balance</div>
-                                <div class="col-5 text-end text-danger"><span id="tPrev">0.00</span></div>
-                            </div>
-                            <div class="row py-2">
-                                <div class="col-7 fw-bold text-primary">Payable / Total Balance</div>
-                                <div class="col-5 text-end fw-bold text-primary"><span id="tPayable">0.00</span></div>
-                            </div>
-
-                            {{-- Notify Me (optional days) --}}
-                            <div class="row py-2 border-top mt-2">
-                                <div class="col-7 text-muted medium">Notify Me (Days - Optional)</div>
-                                <div class="col-5">
-                                    <input type="number" name="notify_me" id="notify_me"
-                                        class="form-control form-control-sm" placeholder="Enter payment Expected days"
-                                        min="0" max="365" value="">
-                                </div>
-                            </div>
-
-                            {{-- hidden mirrors for backend --}}
-                            <input type="hidden" name="subTotal1" id="subTotal1" value="0">
-                            <input type="hidden" name="subTotal2" id="subTotal2" value="0">
-                            <input type="hidden" name="discountAmount" id="discountAmount" value="0">
-                            <input type="hidden" name="totalBalance" id="totalBalance" value="0">
                         </div>
                     </div>
                 </div>
 
-                {{-- Buttons --}}
-                <div class="d-flex flex-wrap align-items-center justify-content-center p-3 mt-3 border-top" style="gap:10px !important;">
-                    <button type="button" class="btn btn-sm btn-success btn-action" id="btnSave"><i class="fas fa-file-invoice"></i> Sale Order</button>
-                    <button type="button" class="btn btn-sm btn-outline-success btn-action" id="btnPosted" disabled><i class="fas fa-warehouse"></i> Warehouse Sale</button>
-                    <button type="button" class="btn btn-sm btn-outline-success btn-action" id="btnPosted2" disabled><i class="fas fa-shopping-cart"></i> Sale</button>
-                    <button type="button" class="btn btn-sm btn-outline-success btn-action" id="btnPosted3"><i class="fas fa-check-double"></i> Post</button>
+                {{-- 3. MAIN SECTION: ORDER ITEMS (FULL WIDTH 100%) --}}
+                <div class="bg-white p-3 rounded-4 shadow-sm border mb-4">
+                    {{-- PANEL HEADER --}}
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
+                        <div class="d-flex align-items-center">
+                            <span class="bg-primary rounded-pill me-2" style="width: 4px; height: 20px; display: inline-block;"></span>
+                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.3px;">
+                                ORDER ITEMS <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-1 fs-6" id="itemsCountBadge">(1)</span>
+                            </h5>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold d-inline-flex align-items-center gap-1" id="btnQuickProductsModal" data-bs-toggle="modal" data-bs-target="#productSearchModal">
+                                <i class="fas fa-th"></i> Quick Products Panel
+                            </button>
+                            <button type="button" class="btn btn-outline-warning text-dark btn-sm rounded-pill px-3 fw-semibold d-inline-flex align-items-center gap-1" id="btnCreateProduct">
+                                <i class="fas fa-bolt text-warning"></i> Create Product
+                            </button>
+                            <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 fw-semibold d-inline-flex align-items-center gap-1" id="btnAdd" style="background:#2563eb !important; border-color:#2563eb !important;">
+                                <i class="fas fa-plus"></i> Add Row
+                            </button>
+                        </div>
+                    </div>
 
-                    <button type="button" class="btn btn-sm btn-secondary btn-action" id="btnPrint"><i class="fas fa-print"></i> Booking Invoice</button>
+                    {{-- ITEMS TABLE --}}
+                    <div class="table-responsive rounded-3 border" style="max-height: 480px; overflow-y: auto;">
+                        <table class="table table-hover align-middle sales-table mb-0">
+                            <thead style="background: #f1f5f9; position: sticky; top: 0; z-index: 10;">
+                                <tr class="text-uppercase small fw-bold text-secondary">
+                                    <th class="index-col text-center" style="width: 35px;">#</th>
+                                    <th class="product-col">PRODUCT</th>
+                                    <th class="warehouse-col">WAREHOUSE</th>
+                                    <th class="qty-col text-center">QTY</th>
+                                    <th class="unit-col text-center">UNIT</th>
+                                    <th class="price-col text-end">PRICE</th>
+                                    <th class="disc-col text-center" @if(isset($saleSettings) && !$saleSettings->show_line_discount) style="display: none;" @endif>DISCOUNT</th>
+                                    <th class="discamt-col text-end" @if(isset($saleSettings) && !$saleSettings->show_gst) style="display: none;" @endif>GST %</th>
+                                    <th class="amount-col text-end">AMOUNT</th>
+                                    <th class="action-col text-center" style="width: 35px;">×</th>
+                                </tr>
+                            </thead>
+                            <tbody id="salesTableBody">
+                                {{-- Dynamically populated rows --}}
+                            </tbody>
+                        </table>
+                    </div>
 
-                    <button type="button" class="btn btn-sm btn-danger btn-action" id="btnDelete"><i class="fas fa-trash-alt"></i> Delete</button>
-                    <button type="button" class="btn btn-sm btn-dark btn-action" id="btnExit"><i class="fas fa-times-circle"></i> Exit</button>
+                    {{-- TABLE FOOTER SUMMARY BAR --}}
+                    <div class="d-flex justify-content-end align-items-center pt-3 mt-2 border-top">
+                        <div class="bg-light px-4 py-2 rounded-3 border d-flex align-items-center gap-3">
+                            <span class="fw-bold text-uppercase text-secondary small">INVOICE TOTAL:</span>
+                            <span class="fs-5 fw-bold text-primary" id="totalAmount">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- 4. BOTTOM SECTION: ADVANCE PAYMENT & ORDER SUMMARY (BELOW TABLE) --}}
+                <div class="row g-4 mb-4">
+                    {{-- ADVANCE / PAYMENT CARD --}}
+                    <div class="col-lg-6 col-md-12">
+                        <div class="bg-white p-4 rounded-4 shadow-sm border h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                                    <i class="fas fa-wallet text-success"></i> Advance / Payment
+                                </h5>
+                                <div class="d-flex align-items-center gap-1">
+                                    <button type="button" class="btn btn-outline-primary btn-sm rounded-pill py-0 px-2 fw-semibold" id="btnAddRV">
+                                        <i class="fas fa-plus"></i> Add Account
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill py-0 px-2 fw-semibold" id="btnSplitPayment">
+                                        <i class="fas fa-layer-group"></i> Split
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div id="rvWrapper" class="d-flex flex-column gap-2 mb-3">
+                                <div class="d-flex gap-2 align-items-center rv-row">
+                                    <select class="form-select form-select-sm rv-account rounded-3 border-secondary-subtle" name="receipt_account_id[]">
+                                        @foreach ($accounts as $acc)
+                                            <option value="" disabled selected>Select Account</option>
+                                            <option value="{{ $acc->id }}">{{ $acc->title }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input type="text" class="form-control form-control-sm text-end rv-amount rounded-3 border-secondary-subtle fw-semibold" name="receipt_amount[]" placeholder="0.00" style="max-width:140px">
+                                </div>
+                            </div>
+
+                            {{-- ADDITIONAL CHARGES & EXPECTED DAYS --}}
+                            <div class="pt-3 border-top d-flex flex-column gap-2">
+                                <div class="d-flex justify-content-between align-items-center" id="overall_discount_wrapper" @if(isset($saleSettings) && !$saleSettings->show_overall_discount) style="display: none !important;" @endif>
+                                    <span class="small text-muted fw-bold">Additional Disc</span>
+                                    <div class="d-flex align-items-center gap-1">
+                                        <input type="text" class="form-control form-control-sm text-end rounded-3" name="additional_discount" id="discountPercent" value="0" style="width: 100px;">
+                                        <button type="button" id="orderDiscountToggle" class="btn btn-outline-secondary btn-sm py-0 px-2" data-type="pkr">PKR</button>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="small text-muted fw-bold">Extra Charges</span>
+                                    <input type="text" class="form-control form-control-sm text-end rounded-3" name="extra_charges" id="echarges" value="0" style="width: 100px;">
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="small text-muted fw-bold">Expected Days</span>
+                                    <input type="number" name="notify_me" id="notify_me" class="form-control form-control-sm rounded-3 text-end" placeholder="Days" min="0" max="365" style="width: 100px;">
+                                </div>
+
+                                {{-- HIDDEN MIRRORS --}}
+                                <input type="hidden" name="subTotal1" id="subTotal1" value="0">
+                                <input type="hidden" name="subTotal2" id="subTotal2" value="0">
+                                <input type="hidden" name="discountAmount" id="discountAmount" value="0">
+                                <input type="hidden" name="totalBalance" id="totalBalance" value="0">
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- ORDER SUMMARY CARD --}}
+                    <div class="col-lg-6 col-md-12">
+                        <div class="bg-white p-4 rounded-4 shadow-sm border h-100">
+                            <div class="d-flex justify-content-between align-items-center mb-3 pb-2 border-bottom">
+                                <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                                    <i class="fas fa-calculator text-primary"></i> Order Summary
+                                </h5>
+                                <span class="badge rounded-pill bg-primary-subtle text-primary fw-semibold px-3 py-1 border border-primary-subtle">
+                                    <i class="fas fa-circle me-1 small" style="font-size: 8px;"></i> Live
+                                </span>
+                            </div>
+
+                            <div class="d-flex flex-column gap-2">
+                                <div class="d-flex justify-content-between align-items-center py-1">
+                                    <span class="text-secondary fw-medium">Invoice Total</span>
+                                    <span class="fw-bold text-dark" id="tGross">0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center py-1" id="summary_line_disc_row" @if(isset($saleSettings) && !$saleSettings->show_line_discount) style="display: none !important;" @endif>
+                                    <span class="text-secondary fw-medium">Discount</span>
+                                    <span class="fw-bold text-danger" id="tLineDisc">0.00</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center py-1" id="summary_gst_row" @if(isset($saleSettings) && !$saleSettings->show_gst) style="display: none !important;" @endif>
+                                    <span class="text-secondary fw-medium">GST / Tax</span>
+                                    <span class="fw-bold text-success" id="tOrderDisc">0.00</span>
+                                </div>
+
+                                {{-- NET TOTAL BLUE HIGHLIGHT BOX --}}
+                                <div class="bg-primary-subtle p-3 rounded-3 border border-primary-subtle my-2 d-flex justify-content-between align-items-center" style="background-color: #eff6ff !important; border-color: #bfdbfe !important;">
+                                    <span class="fw-bold text-primary fs-6">Net Total</span>
+                                    <span class="fw-bold text-primary fs-4" id="tSub">0.00</span>
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center py-1">
+                                    <span class="text-secondary fw-medium">Advance Payment</span>
+                                    <span class="fw-bold text-success" id="receiptsTotal">0.00</span>
+                                </div>
+
+                                {{-- BALANCE AMOUNT SOFT PINK HIGHLIGHT BOX --}}
+                                <div class="bg-danger-subtle p-3 rounded-3 border border-danger-subtle my-1 d-flex justify-content-between align-items-center" style="background-color: #fff1f2 !important; border-color: #fecdd3 !important;">
+                                    <span class="fw-bold text-danger fs-6">Balance Amount</span>
+                                    <span class="fw-bold text-danger fs-4" id="tPayable">0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- 4. BOTTOM ACTION BUTTONS BAR --}}
+                <div class="bg-white p-3 rounded-4 shadow-sm border mt-4 d-flex flex-wrap align-items-center justify-content-end gap-2">
+                    <button type="button" class="btn btn-primary px-4 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm" id="btnSave" style="background:#2563eb !important; border-color:#2563eb !important;">
+                        <i class="fas fa-file-invoice"></i> Save Booking (Draft)
+                    </button>
+                    <button type="button" class="btn btn-outline-primary px-3 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2" id="btnPosted" disabled>
+                        <i class="fas fa-warehouse"></i> Warehouse Sale
+                    </button>
+                    <button type="button" class="btn btn-success px-4 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2 shadow-sm" id="btnPosted2" style="background:#16a34a !important; border-color:#16a34a !important;" disabled>
+                        <i class="fas fa-shopping-cart"></i> Process Sale / POS
+                    </button>
+                    <button type="button" class="btn btn-indigo px-4 py-2 rounded-3 fw-semibold text-white d-inline-flex align-items-center gap-2 shadow-sm" id="btnPosted3" style="background:#4f46e5 !important; border-color:#4f46e5 !important;">
+                        <i class="fas fa-check-double"></i> Post & Print
+                    </button>
+                    <button type="button" class="btn btn-secondary px-3 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2" id="btnPrint">
+                        <i class="fas fa-print"></i> Booking Invoice
+                    </button>
+                    <button type="button" class="btn btn-outline-danger px-3 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2" id="btnDelete">
+                        <i class="fas fa-trash-alt"></i> Delete
+                    </button>
+                    <button type="button" class="btn btn-light border px-3 py-2 rounded-3 fw-semibold d-inline-flex align-items-center gap-2 text-dark" id="btnExit">
+                        <i class="fas fa-times-circle"></i> Exit
+                    </button>
                 </div>
             </form>
         </div>
@@ -1123,6 +1305,12 @@
         window.WAREHOUSE_STOCKS = @json($warehouseStocks ?? []);
         // Check if current user is admin
         window.IS_ADMIN = {{ Auth::user() && Auth::user()->hasRole('super admin') ? 'true' : 'false' }};
+        // Sale Screen display settings
+        window.saleSettings = {
+            show_gst: {{ (isset($saleSettings) && $saleSettings->show_gst) ? 'true' : 'false' }},
+            show_line_discount: {{ (isset($saleSettings) && $saleSettings->show_line_discount) ? 'true' : 'false' }},
+            show_overall_discount: {{ (isset($saleSettings) && $saleSettings->show_overall_discount) ? 'true' : 'false' }}
+        };
         // Current user's branch ID
         window.USER_BRANCH_ID = {{ Auth::user()->branch_id ?? 1 }};
         
@@ -1401,6 +1589,9 @@
             // 🔹 Change customer type (radio)
             $(document).on('change', 'input[name="partyType"]', function() {
                 $('#customerSelect').val('');
+                if ($('#customerSelect').hasClass('select2-hidden-accessible')) {
+                    $('#customerSelect').val(null).trigger('change');
+                }
                 $('#address,#tel,#remarks').val('');
                 $('#previousBalance').val('0');
                 $('#creditLimit').val('0');
@@ -1411,21 +1602,25 @@
                 if (this.value === 'cash') {
                     // CASH CUSTOMER: Same as credit but NO balance fields
                     $('#balanceFieldsContainer').hide();
-                    $('#customerSelect').show();
+                    $('#customerSelectWrapper').show();
+                    $('#customerDisplayWrapper').hide();
                     $('#customerDisplay').val('').prop('readonly', true);
                     loadCustomersByType(this.value);
                     refreshPostedState();
                 } else if (this.value === 'walking') {
                     // WALKING CUSTOMER: Manual entry, no balance fields
                     $('#balanceFieldsContainer').hide();
-                    $('#customerSelect').hide();
-                    $('#customerDisplay').val('').prop('readonly', false);
+                    $('#customerSelectWrapper').hide();
+                    $('#customerDisplayWrapper').show();
+                    $('#customerDisplay').val('Walking Customer').prop('readonly', false);
+                    $('#customer').val('Walking Customer');
                     loadCustomersByType('walking'); // Clear any previous selections
                     refreshPostedState();
                 } else {
                     // CREDIT CUSTOMER: Full details with balance fields
                     $('#balanceFieldsContainer').show();
-                    $('#customerSelect').show();
+                    $('#customerSelectWrapper').show();
+                    $('#customerDisplayWrapper').hide();
                     $('#customerDisplay').val('').prop('readonly', true);
                     loadCustomersByType(this.value);
                     refreshPostedState();
@@ -1440,8 +1635,24 @@
             });
 
             // 🔹 Initialize on page load
-            if ($('input[name="partyType"]:checked').val() === 'cash') {
+            const initialPartyType = $('input[name="partyType"]:checked').val() || 'credit';
+            if (initialPartyType === 'walking') {
                 $('#balanceFieldsContainer').hide();
+                $('#customerSelectWrapper').hide();
+                $('#customerDisplayWrapper').show();
+                if (!$('#customerDisplay').val()) {
+                    $('#customerDisplay').val('Walking Customer');
+                }
+                $('#customerDisplay').prop('readonly', false);
+                $('#customer').val($('#customerDisplay').val() || 'Walking Customer');
+            } else if (initialPartyType === 'cash') {
+                $('#balanceFieldsContainer').hide();
+                $('#customerSelectWrapper').show();
+                $('#customerDisplayWrapper').hide();
+            } else {
+                $('#balanceFieldsContainer').show();
+                $('#customerSelectWrapper').show();
+                $('#customerDisplayWrapper').hide();
             }
 
             // 🔹 Load customers list
@@ -1764,67 +1975,81 @@
             }
         });
 
+        function updateRowIndexNumbers() {
+            $('#salesTableBody tr').each(function(index) {
+                $(this).find('.row-index').text(index + 1);
+            });
+            const totalItems = $('#salesTableBody tr').length;
+            $('#itemsCountBadge').text(`(${totalItems})`);
+        }
+
         function addNewRow() {
+            const rowCount = $('#salesTableBody tr').length + 1;
             $('#salesTableBody').append(`
       <tr>
-        <!-- hidden warehouse -->
-    <input type="hidden"  class="warehouse-id" >
+        <!-- hidden warehouse id -->
+        <input type="hidden" class="warehouse-id" name="warehouse_id[]" value="">
+
+        <!-- INDEX -->
+        <td class="text-center text-muted fw-bold row-index small align-middle">${rowCount}</td>
 
         <!-- PRODUCT -->
-    <td class="product-col">
-      <div class="input-group">
+        <td class="product-col">
+          <select class="form-select product-select rounded-3" name="product_id[]" style="width:100%">
+            <option value="">Search product (Item Code / Name / Brand / Model)...</option>
+          </select>
+        </td>
 
-
-       <select class="form-select product-select" name="product_id[]" style="width:100%">
-    <option value="">Search product...</option>
-</select>
-
-      </div>
-    </td>
-
-
-
-
-
-
-
-        <!-- STOCK -->
-        <td class="stock-col">
-          <input type="text" class="form-control stock text-center input-readonly" readonly data-available-stock="0" style="cursor: help;" title="Hover to see warehouse stock breakdown">
+        <!-- WAREHOUSE -->
+        <td class="warehouse-col">
+          <select class="form-select warehouse-select rounded-3" name="warehouse_select_display[]" style="width:100%; font-size: 12px;">
+            <option value="">Select product first</option>
+          </select>
         </td>
 
         <!-- QTY -->
         <td class="qty-col">
-          <input type="text" class="form-control sales-qty text-end" id="sales-qty" name="sales_qty[]" data-available-stock="0">
+          <input type="text" class="form-control sales-qty text-center fw-bold rounded-3" name="sales_qty[]" data-available-stock="0" placeholder="1" value="1">
+        </td>
+
+        <!-- UNIT -->
+        <td class="unit-col text-center align-middle">
+          <span class="badge bg-light text-secondary border rounded-2 px-2 py-1 unit-label">Pcs</span>
         </td>
 
         <!-- RETAIL PRICE -->
         <td class="price-col">
-          <input type="text" class="form-control retail-price text-end" value="0" name="retail_price[]">
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control retail-price text-end rounded-start-3" value="0.00" name="retail_price[]">
+            <span class="input-group-text bg-light text-muted px-1" style="font-size: 11px;">Rs</span>
+          </div>
         </td>
 
         <!-- DISCOUNT -->
-        <td class="disc-col">
-          <div class="discount-wrapper">
-            <input type="text" class="form-control discount-value text-end" placeholder="" name="discount_percentage[]" >
+        <td class="disc-col" ${(!window.saleSettings || !window.saleSettings.show_line_discount) ? 'style="display:none;"' : ''}>
+          <div class="discount-wrapper input-group input-group-sm">
+            <input type="text" class="form-control discount-value text-end" placeholder="0" name="discount_percentage[]">
             <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="percent">%</button>
             <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
           </div>
         </td>
 
-        <!-- DISCOUNT AMOUNT -->
-        <td class="discamt-col">
-          <input type="text" class="form-control discount-amount text-end" name="discount_amount[]">
+        <!-- DISCOUNT AMOUNT / GST % -->
+        <td class="discamt-col" ${(!window.saleSettings || !window.saleSettings.show_gst) ? 'style="display:none;"' : ''}>
+          <div class="input-group input-group-sm">
+            <input type="text" class="form-control discount-amount text-end rounded-start-3" name="discount_amount[]" placeholder="0">
+            <span class="input-group-text bg-light text-success px-1" style="font-size: 11px;">%</span>
+          </div>
         </td>
 
         <!-- NET AMOUNT -->
         <td class="amount-col">
-          <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="0" readonly>
+          <input type="text" class="form-control sales-amount text-end input-readonly rounded-3" name="sales_amount[]" value="0.00" readonly style="font-weight:700; color:#2563eb; background-color:#f8fafc;">
         </td>
 
         <!-- ACTION -->
-        <td class="action-col">
-          <button type="button" class="btn btn-sm btn-outline-danger del-row">&times;</button>
+        <td class="action-col text-center align-middle">
+          <button type="button" class="btn btn-sm btn-outline-danger del-row rounded-2 px-2 py-1">&times;</button>
         </td>
       </tr>
       `);
@@ -1833,6 +2058,7 @@
             initProductSelect2('#salesTableBody tr:last-child .product-select', '/search-products-sale',
             '/search_products');
 
+            updateRowIndexNumbers();
         }
 
 
@@ -2687,12 +2913,18 @@
 
             // 🔹 Safe discount value (never negative)
             const $discInput = $row.find('.discount-value');
-            const rawDisc = Math.max(0, $discInput.val());
+            let rawDisc = Math.max(0, $discInput.val());
+            if (window.saleSettings && window.saleSettings.show_line_discount === false) {
+                rawDisc = 0;
+            }
             let discValue = rawDisc;
 
             const discType = $row.find('.discount-toggle').data('type'); // percent | pkr
             console.log("percent discount:", discType);
             let dam = toNum($row.find('.discount-amount').val());
+            if (window.saleSettings && window.saleSettings.show_gst === false) {
+                dam = 0;
+            }
 
             // 🔹 GROSS
             const gross = rp * qty;
@@ -2809,6 +3041,7 @@
             const $tbody = $('#salesTableBody');
             if ($tbody.find('tr').length > 1) {
                 $tr.remove();
+                updateRowIndexNumbers();
                 updateGrandTotals();
                 refreshPostedState();
             }
@@ -2840,10 +3073,12 @@
             });
 
             // ===== ORDER LEVEL =====
-            const orderRaw = toNum($('#discountPercent').val());
+            const orderRaw = (window.saleSettings && window.saleSettings.show_overall_discount === false) ? 0 : toNum($('#discountPercent').val());
             const orderType = $('#orderDiscountToggle').data('type') || 'percent'; // percent | pkr
             let orderDisc = 0;
-            if (orderType === 'percent') {
+            if (window.saleSettings && window.saleSettings.show_overall_discount === false) {
+                orderDisc = 0;
+            } else if (orderType === 'percent') {
                 orderDisc = (tNet * orderRaw) / 100;
             } else {
                 // treat input as absolute PKR amount
@@ -3461,18 +3696,23 @@
                     processResults: function(data, params) {
                         params.page = params.page || 1;
                         let results = [];
+                        const mapProduct = function(p) {
+                            const ownershipBadge = p.is_owner ? '' : ' [SECONDARY]';
+                            return {
+                                id: p.id,
+                                text: (p.item_name || '') + ownershipBadge,
+                                item_code: p.item_code,
+                                item_name: p.item_name,
+                                brand_name: p.brand_name,
+                                stock: p.stock,
+                                price: p.retail_price || p.price,
+                                is_owner: p.is_owner,
+                                branch_id: p.branch_id
+                            };
+                        };
+
                         if (Array.isArray(data)) {
-                            results = data.map(function(p) {
-                                const ownershipBadge = p.is_owner ? '' : ' [SECONDARY]';
-                                return {
-                                    id: p.id,
-                                    text: p.item_name + ownershipBadge,
-                                    stock: p.stock,
-                                    price: p.retail_price || p.price,
-                                    is_owner: p.is_owner,
-                                    branch_id: p.branch_id
-                                };
-                            });
+                            results = data.map(mapProduct);
                             return {
                                 results: results,
                                 pagination: {
@@ -3481,17 +3721,7 @@
                             };
                         }
 
-                        results = (data.products || []).map(function(p) {
-                            const ownershipBadge = p.is_owner ? '' : ' [SECONDARY]';
-                            return {
-                                id: p.id,
-                                text: p.item_name + ownershipBadge,
-                                stock: p.stock,
-                                price: p.retail_price || p.price,
-                                is_owner: p.is_owner,
-                                branch_id: p.branch_id
-                            };
-                        });
+                        results = (data.products || []).map(mapProduct);
 
                         return {
                             results: results,
@@ -3502,10 +3732,26 @@
                     },
                     cache: true
                 },
+                templateResult: function(p) {
+                    if (!p.id) return p.text;
+                    const stockBadge = '<span class="badge bg-light text-primary border" style="font-size: 10.5px; padding: 2px 7px;">Stock: ' + (p.stock || 0) + '</span>';
+                    return $(
+                        '<div class="d-flex justify-content-between align-items-center w-100 py-0.5">' +
+                            '<span class="fw-bold product-title" style="font-size: 13px;">' + (p.item_name || p.text) + '</span>' +
+                            '<div class="ms-2 flex-shrink-0">' +
+                                stockBadge +
+                            '</div>' +
+                        '</div>'
+                    );
+                },
+                templateSelection: function(p) {
+                    if (!p.id) return p.text;
+                    return p.item_name || p.text;
+                },
                 minimumInputLength: 0,
-                placeholder: 'Search product...',
+                placeholder: 'Search Product (Item Code / Name / Brand / Model)...',
                 allowClear: true,
-                width: 'resolve'
+                width: '100%'
             });
         }
 
@@ -3513,39 +3759,89 @@
 
         $(document).ready(function() {
             initProductSelect2('.product-select', '/search-products-sale', '/search_products');
-            // Log selected product id on selection
+
+            // 1. Warehouse Selection Change Handler
+            $(document).on('change', '.warehouse-select', function() {
+                const $row = $(this).closest('tr');
+                const $selectedOpt = $(this).find('option:selected');
+                const whId = $(this).val();
+                const stockQty = parseFloat($selectedOpt.data('stock') || 0);
+                const productId = $row.find('.product-select').val();
+
+                // Update hidden warehouse-id input & form field name
+                $row.find('.warehouse-id').val(whId);
+                if (productId) {
+                    $row.find('.warehouse-id').attr('name', `warehouse_id[${productId}]`);
+                }
+
+                // Update stock input & available-stock data attribute
+                $row.find('.stock').val(stockQty).data('available-stock', stockQty);
+                $row.find('.sales-qty').data('available-stock', stockQty);
+
+                // Recompute row & totals
+                computeRow($row);
+                updateGrandTotals();
+                refreshPostedState();
+            });
+
+            // 2. Product Select Handler
             $(document).on('select2:select', '.product-select', function(e) {
                 if (e && e.params && e.params.data && e.params.data.id) {
                     const branchId = $('#branch_id').val() || $('[name="branch_id"]').val() || window.USER_BRANCH_ID || '';
                     $.get('/get-product-details/' + e.params.data.id, { branch_id: branchId }, function(data) {
                         const $row = $(e.target).closest('tr');
-                        // console.log('Product details loaded:', data);
                         if (data && data.product) {
-                            // price field may be `price` or `retail_price` depending on model
                             const price = parseFloat(data.product.retail_price ?? data.product.price ?? 0).toFixed(2);
-                            
-                            // Use calculated branch-specific available stock
-                            const stockQty = data.available_stock !== undefined ? data.available_stock : 
+                            const totalBranchStock = data.available_stock !== undefined ? data.available_stock : 
                                             ((data.product.stock && (data.product.stock.qty ?? data.product.stock)) || 0);
 
-                            // Build Warehouse breakdown tooltip text
-                            let breakdownText = 'Warehouse Stock Breakdown:\n-------------------------\n';
+                            // Build Warehouse breakdown dropdown options for this row
+                            const $whSelect = $row.find('.warehouse-select');
+                            $whSelect.empty();
+
+                            let selectedStock = totalBranchStock;
+                            let selectedWhId = '';
+
                             if (data.warehouse_breakdown && data.warehouse_breakdown.length > 0) {
                                 data.warehouse_breakdown.forEach(function(wb) {
-                                    breakdownText += `• ${wb.warehouse_name}: ${wb.quantity}\n`;
+                                    const wid = wb.warehouse_id || '';
+                                    const wname = wb.warehouse_name || 'Warehouse';
+                                    const wqty = parseFloat(wb.quantity || 0);
+                                    
+                                    $whSelect.append(`<option value="${wid}" data-stock="${wqty}">🏬 ${wname} (${wqty})</option>`);
                                 });
-                                breakdownText += `-------------------------\nTotal Branch Stock: ${stockQty}`;
+
+                                // Add All / Shop Stock option
+                                $whSelect.prepend(`<option value="" data-stock="${totalBranchStock}">🏢 All / Shop Stock (${totalBranchStock})</option>`);
+
+                                // Auto-select first warehouse with stock if available
+                                const $firstWhWithStock = $whSelect.find('option[value!=""]').filter(function() {
+                                    return parseFloat($(this).data('stock')) > 0;
+                                }).first();
+
+                                if ($firstWhWithStock.length) {
+                                    $firstWhWithStock.prop('selected', true);
+                                    selectedWhId = $firstWhWithStock.val();
+                                    selectedStock = parseFloat($firstWhWithStock.data('stock'));
+                                } else {
+                                    $whSelect.find('option:first').prop('selected', true);
+                                    selectedWhId = $whSelect.val();
+                                    selectedStock = parseFloat($whSelect.find('option:selected').data('stock') || totalBranchStock);
+                                }
                             } else {
-                                breakdownText += `Total Branch Stock: ${stockQty}`;
+                                $whSelect.append(`<option value="" data-stock="${totalBranchStock}">🏢 General Branch Stock (${totalBranchStock})</option>`);
                             }
 
-                            $row.find('.retail-price').val(price);
-                            const $stockInput = $row.find('.stock');
-                            $stockInput.val(stockQty).data('available-stock', stockQty).attr('title', breakdownText);
+                            // Set hidden warehouse-id input
+                            $row.find('.warehouse-id')
+                                .attr('name', `warehouse_id[${data.product.id}]`)
+                                .val(selectedWhId);
 
-                            $row.find('.sales-qty').data('available-stock', stockQty);
-                            // set the underlying select value (product-select) so validation/serialize picks it up
+                            $row.find('.retail-price').val(price);
+                            $row.find('.stock').val(selectedStock).data('available-stock', selectedStock);
+                            $row.find('.sales-qty').data('available-stock', selectedStock);
                             $row.find('.product-select').val(data.product.id).trigger('change');
+
                             // Recompute row and totals
                             computeRow($row);
                             updateGrandTotals();
@@ -3790,6 +4086,149 @@
             setTimeout(function() {
                 restorePosted3StateIfExists();
             }, 100);
+
+            // 🔹 Open Quick Add Customer Modal when clicking + Add button
+            $(document).on('click', '#btnOpenAddCustomerModal', function(e) {
+                e.preventDefault();
+                $('#quickCustomerForm')[0].reset();
+                $('#quickCustomerAlert').addClass('d-none').removeClass('alert-danger alert-success').text('');
+
+                const branchId = $('#branch_id').val() || $('[name="branch_id"]').val() || '1';
+                const partyType = $('input[name="partyType"]:checked').val() || 'credit';
+
+                $('#qc_branch_id').val(branchId);
+                $('#qc_customer_type').val(partyType === 'cash' ? 'cash' : 'credit');
+
+                // Fetch Next Customer ID
+                $.ajax({
+                    url: '{{ route('customers.nextId') }}',
+                    type: 'GET',
+                    data: { branch_id: branchId },
+                    success: function(resp) {
+                        if (resp && resp.customer_id) {
+                            $('#qc_customer_id').val(resp.customer_id);
+                        }
+                    },
+                    error: function() {
+                        $('#qc_customer_id').val('CUST-' + Date.now().toString().slice(-4));
+                    }
+                });
+
+                const modalEl = document.getElementById('quickAddCustomerModal');
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+
+                modalEl.addEventListener('shown.bs.modal', function () {
+                    $('#qc_customer_name').focus();
+                }, { once: true });
+            });
+
+            // 🔹 Save Quick Add Customer Form via AJAX
+            $(document).on('submit', '#quickCustomerForm', function(e) {
+                e.preventDefault();
+                const $btn = $('#btnSaveQuickCustomer');
+                const origText = $btn.html();
+
+                $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
+                $('#quickCustomerAlert').addClass('d-none');
+
+                $.ajax({
+                    url: '{{ route('customers.store') }}',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    dataType: 'json',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    success: function(res) {
+                        $btn.prop('disabled', false).html(origText);
+                        if (res.success && res.customer) {
+                            const newCust = res.customer;
+                            const modalInstance = bootstrap.Modal.getInstance(document.getElementById('quickAddCustomerModal'));
+                            if (modalInstance) modalInstance.hide();
+
+                            showAlert('success', 'Customer "' + (newCust.customer_name || newCust.customer_id) + '" created successfully!');
+
+                            // Reload customer dropdown and auto select
+                            const cType = $('input[name="partyType"]:checked').val() || 'credit';
+                            loadCustomersByType(cType, newCust.id);
+                        } else {
+                            $('#quickCustomerAlert').removeClass('d-none').addClass('alert-danger').text(res.message || 'Error saving customer.');
+                        }
+                    },
+                    error: function(xhr) {
+                        $btn.prop('disabled', false).html(origText);
+                        let errStr = 'Failed to save customer.';
+                        if (xhr.responseJSON && xhr.responseJSON.errors) {
+                            const errs = Object.values(xhr.responseJSON.errors).flat();
+                            errStr = errs.join('<br>');
+                        } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                            errStr = xhr.responseJSON.message;
+                        }
+                        $('#quickCustomerAlert').removeClass('d-none').addClass('alert-danger').html(errStr);
+                    }
+                });
+            });
         });
     </script>
+
+    <!-- QUICK ADD CUSTOMER MODAL -->
+    <div class="modal fade" id="quickAddCustomerModal" tabindex="-1" aria-labelledby="quickAddCustomerModalLabel" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header text-white py-2.5 px-3 rounded-top-4" style="background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;">
+                    <h6 class="modal-title fw-bold text-white mb-0" id="quickAddCustomerModalLabel">
+                        <i class="fas fa-user-plus me-1.5"></i> Add New Customer
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="quickCustomerForm" autocomplete="off">
+                    @csrf
+                    <div class="modal-body p-3">
+                        <div id="quickCustomerAlert" class="alert d-none py-1.5 px-2.5 small mb-2"></div>
+
+                        <input type="hidden" name="branch_id" id="qc_branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
+
+                        <div class="row g-2">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Customer Code / ID</label>
+                                <input type="text" class="form-control form-control-sm bg-light" name="customer_id" id="qc_customer_id" readonly required placeholder="Auto-generated">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Customer Type</label>
+                                <select class="form-select form-select-sm" name="customer_type" id="qc_customer_type">
+                                    <option value="credit" selected>Credit</option>
+                                    <option value="cash">Cash</option>
+                                </select>
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold mb-1">Customer Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control form-control-sm fw-semibold" name="customer_name" id="qc_customer_name" required placeholder="Enter customer full name">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Mobile / Phone #</label>
+                                <input type="text" class="form-control form-control-sm" name="mobile" id="qc_mobile" placeholder="03xx-xxxxxxx">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Credit Limit (Rs.)</label>
+                                <input type="number" step="any" min="0" class="form-control form-control-sm" name="credit_limit" id="qc_credit_limit" value="0">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-bold mb-1">Address</label>
+                                <input type="text" class="form-control form-control-sm" name="address" id="qc_address" placeholder="Customer address / location">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Opening Balance (Dr)</label>
+                                <input type="number" step="any" min="0" class="form-control form-control-sm" name="opening_balance" id="qc_opening_balance" value="0">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer bg-light py-2 px-3 rounded-bottom-4 justify-content-between">
+                        <button type="button" class="btn btn-sm btn-outline-secondary px-3" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-sm btn-primary px-3 fw-semibold" id="btnSaveQuickCustomer" style="background:#2563eb !important; border-color:#2563eb !important;">
+                            <i class="fas fa-check me-1"></i> Save & Select
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 @endsection

@@ -291,6 +291,14 @@ class CustomerController extends Controller
             ]);
         }
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success'  => true,
+                'message'  => 'Customer created successfully.',
+                'customer' => $customer
+            ]);
+        }
+
         return redirect()->route('customers.index')->with('success', 'Customer created successfully.');
     }
 

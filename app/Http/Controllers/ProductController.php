@@ -233,11 +233,22 @@ class ProductController extends Controller
              $query->whereRaw('1=0');
          }
      }
- 
-     $products = $query
+      $products = $query
          ->where(function ($query) use ($q) {
              $query->where('item_name', 'like', "%{$q}%")
-                   ->orWhere('item_code', 'like', "%{$q}%");
+                   ->orWhere('item_name_urdu', 'like', "%{$q}%")
+                   ->orWhere('item_code', 'like', "%{$q}%")
+                   ->orWhere('barcode_path', 'like', "%{$q}%")
+                   ->orWhere('model', 'like', "%{$q}%")
+                   ->orWhereHas('brand', function ($bQuery) use ($q) {
+                       $bQuery->where('name', 'like', "%{$q}%");
+                   })
+                   ->orWhereHas('category_relation', function ($cQuery) use ($q) {
+                       $cQuery->where('name', 'like', "%{$q}%");
+                   })
+                   ->orWhereHas('sub_category_relation', function ($scQuery) use ($q) {
+                       $scQuery->where('name', 'like', "%{$q}%");
+                   });
          })
          ->limit(20)
          ->get()
@@ -264,7 +275,7 @@ class ProductController extends Controller
                  'is_primary'   => $isPrimary,
              ];
          });
- 
+
      return response()->json($products);
  }
 
@@ -275,20 +286,32 @@ public function searchProductsForSalebypagination(Request $request)
     $page = max(1, (int) $request->get('page', 1));
     $perPage = 10;
 
-    // Allow searching by product name or code
+    // Allow searching by product name, code, brand, category, etc.
     $q = trim((string) $request->get('q', ''));
     $branchId = $request->get('branch_id') ?: (Auth::check() ? Auth::user()->branch_id : null);
 
     // ✅ GLOBAL PRODUCTS - Show all products from all branches
     // But mark Primary/Secondary based on login branch stock
-    $query = Product::with(['brand', 'unit']);
+    $query = Product::with(['brand', 'unit', 'category_relation', 'sub_category_relation']);
 
     // NO branch restriction - products are GLOBAL
 
     if ($q !== '') {
         $query->where(function ($builder) use ($q) {
             $builder->where('item_name', 'like', "%{$q}%")
-                    ->orWhere('item_code', 'like', "%{$q}%");
+                    ->orWhere('item_name_urdu', 'like', "%{$q}%")
+                    ->orWhere('item_code', 'like', "%{$q}%")
+                    ->orWhere('barcode_path', 'like', "%{$q}%")
+                    ->orWhere('model', 'like', "%{$q}%")
+                    ->orWhereHas('brand', function ($bQuery) use ($q) {
+                        $bQuery->where('name', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('category_relation', function ($cQuery) use ($q) {
+                        $cQuery->where('name', 'like', "%{$q}%");
+                    })
+                    ->orWhereHas('sub_category_relation', function ($scQuery) use ($q) {
+                        $scQuery->where('name', 'like', "%{$q}%");
+                    });
         });
     }
 
@@ -530,14 +553,15 @@ public function searchProductsForSalebypagination(Request $request)
         $types      = \App\Models\ProductType::all();
         $warehouses = Warehouse::with('branches')->get();
         
-        // ✅ ERP STANDARD: Sequential Barcode Generation
+        // ✅ ERP STANDARD: Sequential Barcode & Item Code Generation
         $maxId = \App\Models\Product::max('id') ?? 0;
         // Prefix with '100' and pad to 5 digits (e.g., 10000001, 10000002)
         $nextBarcode = '100' . str_pad($maxId + 1, 5, '0', STR_PAD_LEFT);
+        $nextItemCode = 'ITEM-' . str_pad($maxId + 1, 4, '0', STR_PAD_LEFT);
         
         return view('admin_panel.product.create', compact(
             'categories', 'units', 'brands', 'types', 'branches', 'warehouses',
-            'isSuperAdmin', 'user', 'nextBarcode'
+            'isSuperAdmin', 'user', 'nextBarcode', 'nextItemCode'
         ));
     }
 
@@ -660,7 +684,7 @@ public function searchProductsForSalebypagination(Request $request)
                 'category_id'     => $request->category_id,
                 'sub_category_id' => $request->sub_category_id,
                 'type_id'         => $request->type_id,
-                'item_code'       => $nextCode,
+                'item_code'       => $request->filled('item_code') ? $request->item_code : $nextCode,
                 'item_name'       => $request->product_name,
                 'item_name_urdu'  => $request->item_name_urdu ?? $request->product_name_urdu,
                 'barcode_path'    => $request->barcode_path ?? rand(100000000000, 999999999999),

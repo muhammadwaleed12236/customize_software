@@ -52,15 +52,14 @@
             border-radius: 3px;
         }
 
-        /* Further increased row height and cell padding so helper text fits comfortably */
         .sales-table td {
-            padding-top: 1.2rem;
-            padding-bottom: 1.4rem;
-            vertical-align: middle;
+            padding: 3px 4px !important;
+            vertical-align: middle !important;
         }
 
         .sales-table tbody tr {
-            min-height: 86px;
+            min-height: 32px !important;
+            height: 32px !important;
         }
 
         /* 🔹 INPUT – NOT TOO SMALL */
@@ -380,25 +379,91 @@
         }
     </style>
     <style>
-        /* ===== Sales Table UI Fix ===== */
-        .sales-table td.product-col {
-            min-width: 180px;
+        /* ===== Excel-Like Compact Grid UI Overrides ===== */
+        .sales-table {
+            table-layout: fixed !important;
+            width: 100% !important;
+            min-width: 860px !important;
+            border-collapse: collapse !important;
         }
 
-        /* .sales-table td.warehouse-col {
-          min-width: 170px;
-      } */
-        .sales-table td.small-col {
-            width: 110px;
+        .sales-table th {
+            background: #f1f5f9 !important;
+            color: #334155 !important;
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.4px !important;
+            padding: 5px 6px !important;
+            border: 1px solid #cbd5e1 !important;
+            white-space: nowrap !important;
         }
 
-        .sales-table td.medium-col {
-            width: 120px;
+        .sales-table td {
+            padding: 2px 4px !important;
+            vertical-align: middle !important;
+            border: 1px solid #e2e8f0 !important;
+            height: 32px !important;
         }
 
-        .sales-table td.action-col {
-            width: 100px;
-            text-align: center;
+        .sales-table tbody tr {
+            height: 32px !important;
+        }
+
+        .sales-table .product-col   { width: 30% !important; min-width: 220px !important; }
+        .sales-table .warehouse-col { width: 16% !important; min-width: 140px !important; }
+        .sales-table .qty-col       { width: 7%  !important; min-width: 60px  !important; }
+        .sales-table .unit-col      { width: 6%  !important; min-width: 50px  !important; }
+        .sales-table .price-col     { width: 11% !important; min-width: 80px  !important; }
+        .sales-table .disc-col      { width: 11% !important; min-width: 90px  !important; }
+        .sales-table .discamt-col   { width: 8%  !important; min-width: 70px  !important; }
+        .sales-table .amount-col    { width: 11% !important; min-width: 85px  !important; }
+        .sales-table .action-col    { width: 3%  !important; min-width: 35px  !important; text-align: center !important; }
+
+        /* Select2 Truncation & Height Fix */
+        .sales-table .select2-container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+
+        .sales-table .select2-container .select2-selection--single {
+            height: 28px !important;
+            min-height: 28px !important;
+            display: flex !important;
+            align-items: center !important;
+            border-radius: 4px !important;
+            border: 1px solid #cbd5e1 !important;
+            background: #ffffff !important;
+        }
+
+        .sales-table .select2-container .select2-selection__rendered {
+            line-height: 26px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            display: block !important;
+            padding-right: 18px !important;
+            padding-left: 4px !important;
+            font-size: 12px !important;
+            font-weight: 500 !important;
+            color: #0f172a !important;
+        }
+
+        .sales-table .select2-container .select2-selection__arrow {
+            height: 26px !important;
+            top: 1px !important;
+        }
+
+        /* Inputs in Sales Table */
+        .sales-table .form-control,
+        .sales-table .form-select {
+            height: 28px !important;
+            min-height: 28px !important;
+            font-size: 12px !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            border: 1px solid #cbd5e1 !important;
+            box-shadow: none !important;
         }
 
         .input-readonly {
@@ -565,6 +630,7 @@
                                 <thead>
                                     <tr>
                                         <th class="product-col">Product</th>
+                                        <th class="warehouse-col">Warehouse</th>
                                         <th class="stock-col">Stock</th>
                                         <th class="qty-col">Qty</th>
                                         <th class="price-col">Retail Price</th>
@@ -579,7 +645,7 @@
                                 </tbody>
                                 <tfoot>
                                     <tr>
-                                        <td colspan="6" class="text-end fw-bold">Total:</td>
+                                        <td colspan="7" class="text-end fw-bold">Total:</td>
                                         <td class="text-end fw-bold"><span id="totalAmount">0.00</span></td>
                                         <td></td>
                                     </tr>
@@ -1360,80 +1426,68 @@
         function addNewRow() {
             $('#salesTableBody').append(`
       <tr>
-        <!-- hidden warehouse -->
-    <input type="hidden"  class="warehouse-id" >
+        <!-- hidden warehouse id -->
+        <input type="hidden" class="warehouse-id" name="warehouse_id[]" value="">
 
         <!-- PRODUCT -->
-    <td class="product-col">
-      <div class="input-group">
-
-
-       <select class="form-select product-select" name="product_id[]" style="width:100%">
-    <option value="">Search product...</option>
-</select>
-
-      </div>
-    </td>
-
-
-
-
-
-
-
-        <!-- STOCK -->
-        <td class="small-col">
-          <input type="text"  class="form-control stock text-center input-readonly" readonly>
+        <td class="product-col">
+          <div class="input-group">
+            <select class="form-select product-select" name="product_id[]" style="width:100%">
+              <option value="">Search product...</option>
+            </select>
+          </div>
         </td>
 
+        <!-- WAREHOUSE -->
+        <td class="warehouse-col">
+          <select class="form-select warehouse-select" name="warehouse_select_display[]" style="width:100%; font-size: 12px;">
+            <option value="">Select product first</option>
+          </select>
+        </td>
 
+        <!-- STOCK -->
+        <td class="stock-col">
+          <input type="text" class="form-control stock text-center input-readonly" readonly data-available-stock="0" style="font-weight:700; background-color:#f1f5f9; color:#1e293b;" title="Stock available in selected warehouse">
+        </td>
 
         <!-- QTY -->
-        <td class="small-col">
-          <input type="text" class="form-control sales-qty text-end" id="sales-qty" name="sales_qty[]">
+        <td class="qty-col">
+          <input type="text" class="form-control sales-qty text-end" name="sales_qty[]" data-available-stock="0" placeholder="0">
         </td>
 
         <!-- RETAIL PRICE -->
-        <td class="medium-col">
-          <input type="text" id="retail-price" class="form-control retail-price text-end input-readonly" value="0" readonly name="retail_price[]">
+        <td class="price-col">
+          <input type="text" class="form-control retail-price text-end" value="0.00" name="retail_price[]">
         </td>
 
-    <!-- DISCOUNT -->
-    <!-- DISCOUNT % / PKR -->
-    <td class="large-col">
-      <div class="discount-wrapper">
-        <input type="text"
-               class="form-control discount-value text-end"
-               placeholder="" name="discount_percentage[]" >
-        <input type="hidden" class="discount-type-hidden" name="discount_type[]" value="percent">
-        <button type="button"
-                class="btn btn-outline-secondary discount-toggle"
-                data-type="percent">%</button>
-      </div>
-    </td>
-
-
+        <!-- DISCOUNT -->
+        <td class="disc-col">
+          <div class="discount-wrapper">
+            <input type="text" class="form-control discount-value text-end" placeholder="0" name="discount_percentage[]">
+            <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="percent">%</button>
+            <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
+          </div>
+        </td>
 
         <!-- DISCOUNT AMOUNT -->
-        <td class="medium-col">
+        <td class="discamt-col">
           <input type="text" class="form-control discount-amount text-end" name="discount_amount[]">
         </td>
 
         <!-- NET AMOUNT -->
-        <td class="medium-col">
-          <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="0" readonly>
+        <td class="amount-col">
+          <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="0.00" readonly style="font-weight:700; color:#2563eb;">
         </td>
 
         <!-- ACTION -->
-        <td class="action-col">
+        <td class="action-col text-center">
           <button type="button" class="btn btn-sm btn-outline-danger del-row">&times;</button>
         </td>
       </tr>
       `);
 
-                        // initialize select2 on the newly appended product-select
-                        initProductSelect2('#salesTableBody tr:last-child .product-select', '/search-products-sale', '/search_products');
-
+            // initialize select2 on the newly appended product-select
+            initProductSelect2('#salesTableBody tr:last-child .product-select', '/search-products-sale', '/search_products');
         }
 
 

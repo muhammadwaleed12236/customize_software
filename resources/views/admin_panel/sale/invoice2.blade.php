@@ -193,44 +193,90 @@ body {
 }
 
 @media print {
-    .no-print { display: none !important; }
-    body { background: #fff !important; margin: 0; padding: 0; }
+    /* Hide top app navbar, header, footer, & action buttons */
+    nav.rt_nav_header,
+    .rt_nav_header,
+    .top_nav,
+    .nav-bottom,
+    footer,
+    .footer-area,
+    .no-print,
+    .navbar,
+    .header,
+    .sidebar,
+    .navbar-toggler {
+        display: none !important;
+        height: 0 !important;
+        visibility: hidden !important;
+    }
+    
+    body {
+        background: #ffffff !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .container-scroller,
+    .main-content,
+    .main-content-inner,
+    .content-wrapper,
+    .container-fluid {
+        padding: 0 !important;
+        margin: 0 !important;
+        background: #ffffff !important;
+    }
+
     .invoice-wrapper {
         box-shadow: none !important;
         max-width: 100% !important;
         width: 100% !important;
-        margin: 0 !important;
-        padding: 2px 4px !important;
+        margin: 0 auto !important;
+        padding: 10px 14px !important;
         border: none !important;
     }
+
     @page {
         size: A4 portrait;
-        margin: 2mm 3mm;
+        margin: 8mm 8mm;
     }
+
     .invoice-table th {
-        padding: 1px 2px !important;
-        font-size: 12.5px !important;
-        line-height: 1.0 !important;
+        padding: 3px 5px !important;
+        font-size: 13px !important;
+        line-height: 1.1 !important;
+        background-color: #ffffff !important;
+        color: #000000 !important;
+        border: 1px solid #000000 !important;
     }
+
     .invoice-table td {
-        padding: 0px 2px !important;
-        font-size: 10px !important;
-        line-height: 1.0 !important;
+        padding: 3px 5px !important;
+        font-size: 11.5px !important;
+        line-height: 1.1 !important;
+        color: #000000 !important;
+        border: 1px solid #000000 !important;
     }
+
     .item-desc-eng {
-        font-size: 10.5px !important;
-        font-weight: 800 !important;
-        line-height: 1.0 !important;
-    }
-    .item-desc-urdu {
-        font-size: 10.5px !important;
+        font-size: 11px !important;
         font-weight: 700 !important;
-        line-height: 1.0 !important;
+        color: #000000 !important;
     }
+
+    .item-desc-urdu {
+        font-size: 11.5px !important;
+        font-weight: 700 !important;
+        color: #000000 !important;
+    }
+
     .summary-table td {
-        padding: 0px 2px !important;
-        line-height: 1.0 !important;
+        padding: 3px 5px !important;
+        font-size: 11.5px !important;
+        line-height: 1.1 !important;
+        color: #000000 !important;
+        border: 1px solid #000000 !important;
     }
+
     tr { page-break-inside: avoid; }
 }
 </style>

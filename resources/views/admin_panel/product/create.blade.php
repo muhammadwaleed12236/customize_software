@@ -5,65 +5,66 @@
         @section('css')
         <style>
             /* Layout Matching User's Image */
-            .main-content-inner { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
-            .form-section { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
-            .image-col { width: 320px; flex-shrink: 0; }
+            .main-content-inner { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            .form-section { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+            .image-col { width: 240px; flex-shrink: 0; }
             .fields-col { flex: 1; min-width: 0; }
             
             /* Field Styling */
-            .field-group { margin-bottom: 20px; flex: 1; min-width: 0; }
-            .field-label { display: block; font-weight: 600; color: #444; margin-bottom: 8px; font-size: 14px; }
-            .field-label i { color: #4e73df; margin-right: 5px; }
+            .field-group { margin-bottom: 16px; flex: 1; min-width: 0; }
+            .field-label { display: block; font-weight: 600; color: #334155; margin-bottom: 6px; font-size: 13px; }
+            .field-label i { color: #2563eb; margin-right: 5px; }
             
             .custom-input, .custom-select {
                 width: 100%;
-                border: 1px solid #ddd !important; /* Explicit border for all fields */
-                border-radius: 4px;
+                border: 1px solid #cbd5e1 !important;
+                border-radius: 6px;
                 padding: 6px 12px;
-                height: 40px;
-                font-size: 14px;
+                height: 38px;
+                font-size: 13px;
                 background-color: #fff;
-                transition: border-color 0.2s;
+                transition: all 0.2s;
             }
-            .custom-input:focus, .custom-select:focus { border-color: #2563eb !important; outline: none; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
+            .custom-input:focus, .custom-select:focus { border-color: #2563eb !important; outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
             
             /* Action Buttons (+ and Gen) */
             .btn-plus-sm, .btn-plus-inline { 
-                background: #2563eb; color: #fff; border: none; width: 38px; height: 40px; 
-                border-radius: 0 4px 4px 0 !important; display: flex; align-items: center; justify-content: center; 
-                cursor: pointer; font-size: 16px; font-weight: bold; flex-shrink: 0; transition: 0.2s; margin: 0 !important;
+                background: #2563eb; color: #fff; border: none; width: 36px; height: 38px; 
+                border-radius: 0 6px 6px 0 !important; display: flex; align-items: center; justify-content: center; 
+                cursor: pointer; font-size: 15px; font-weight: bold; flex-shrink: 0; transition: 0.2s; margin: 0 !important;
             }
             .btn-plus-sm:hover, .btn-plus-inline:hover { background: #1d4ed8; }
             
             .btn-gen { 
-                background: #2563eb; color: #fff; border: none; padding: 0 15px; 
-                border-radius: 0 4px 4px 0 !important; height: 40px; cursor: pointer; font-size: 13px;
+                background: #2563eb; color: #fff; border: none; padding: 0 14px; 
+                border-radius: 0 6px 6px 0 !important; height: 38px; cursor: pointer; font-size: 12px;
                 transition: 0.2s; font-weight: 600; flex-shrink: 0;
             }
             .btn-gen:hover { background: #1d4ed8; }
             
             /* Row Layout */
-            .field-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 5px; }
+            .field-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 0; }
             
-            /* Image Preview Area */
+            /* Image Preview Area - Relaxed styling without harsh dashed border */
             .image-box { 
-                width: 100%; height: 320px; background: #fff; 
-                border: 2px dashed #ddd; border-radius: 12px; 
+                width: 100%; height: 220px; background: #f8fafc; 
+                border: 1px solid #e2e8f0; border-radius: 12px; 
                 position: relative; overflow: hidden; display: flex; 
-                align-items: center; justify-content: center; margin-bottom: 15px;
+                align-items: center; justify-content: center; margin-bottom: 12px;
+                box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
             }
-            #preview { max-width: 100%; max-height: 100%; object-fit: contain; }
+            #preview { max-width: 90%; max-height: 90%; object-fit: contain; }
             .close-img { 
-                position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); 
-                color: #fff; width: 28px; height: 28px; border-radius: 50%; 
+                position: absolute; top: 10px; right: 10px; background: rgba(15, 23, 42, 0.7); 
+                color: #fff; width: 26px; height: 26px; border-radius: 50%; 
                 display: flex; align-items: center; justify-content: center; cursor: pointer; border: none;
-                transition: 0.2s;
+                transition: 0.2s; font-size: 14px;
             }
             .close-img:hover { background: #ef4444; }
 
             /* Select2 Customization */
             .select2-container { width: 100% !important; }
-            .select2-container--default .select2-selection--multiple { border: 1px solid #ddd !important; min-height: 40px; border-radius: 4px; }
+            .select2-container--default .select2-selection--multiple { border: 1px solid #cbd5e1 !important; min-height: 38px; border-radius: 6px; }
             .select2-container--default.select2-container--focus .select2-selection--multiple { border-color: #2563eb !important; }
             
             /* Add arrow to multi-select as requested */
@@ -88,34 +89,35 @@
             .btn-bom:disabled { border-color: #ccc; color: #ccc; cursor: not-allowed; }
             
             .btn-save-main {
-                background: #2563eb; color: #fff; border: none; padding: 12px 60px;
-                border-radius: 6px; font-weight: 700; font-size: 16px; 
-                cursor: pointer; transition: 0.3s; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+                background: #2563eb; color: #fff; border: none;
+                border-radius: 6px; font-weight: 700; font-size: 14px; 
+                cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+                display: flex; align-items: center; justify-content: center;
             }
-            .btn-save-main:hover { background: #1d4ed8; transform: translateY(-1px); }
+            .btn-save-main:hover { background: #1d4ed8; }
 
             /* Mobile Responsiveness */
             @media (max-width: 1200px) {
-                .field-row { grid-template-columns: repeat(2, 1fr); gap: 15px; }
+                .field-row { grid-template-columns: repeat(2, 1fr); gap: 14px; }
             }
 
             @media (max-width: 768px) {
                 .main-content-inner { padding: 15px; }
                 .form-section { flex-direction: column; gap: 20px; }
                 .image-col { width: 100%; flex-shrink: 1; }
-                .image-box { height: 240px; }
+                .image-box { height: 200px; }
                 .fields-col { width: 100%; min-width: 100%; }
                 .field-row { grid-template-columns: 1fr; gap: 12px; }
-                .btn-save-main { width: 100%; padding: 14px 20px; }
+                .btn-save-main { width: 100%; height: 42px !important; }
                 .check-row { flex-wrap: wrap; gap: 8px; }
                 .btn-bom { margin-left: 0; width: 100%; margin-top: 5px; }
             }
 
             @media (max-width: 480px) {
                 .main-content-inner { padding: 10px; }
-                .field-label { font-size: 13px; margin-bottom: 4px; }
-                .custom-input, .custom-select { font-size: 13px; height: 38px; }
-                .btn-plus-inline, .btn-gen { height: 38px; width: 36px; }
+                .field-label { font-size: 12.5px; margin-bottom: 4px; }
+                .custom-input, .custom-select { font-size: 12.5px; height: 36px; }
+                .btn-plus-inline, .btn-gen { height: 36px; width: 34px; }
             }
         </style>
         @endsection
@@ -207,7 +209,7 @@
                                 </div>
                             </div>
 
-                            <!-- Row 2: Brand, Barcode, Item Description, Item Name (Urdu) -->
+                            <!-- Row 2: Brand, Item Code, Barcode / SKU, Unit -->
                             <div class="field-row mt-3">
                                 <div class="field-group">
                                     <label class="field-label">Brand</label>
@@ -223,46 +225,16 @@
                                 </div>
 
                                 <div class="field-group">
+                                    <label class="field-label">🏷️ Item Code</label>
+                                    <input type="text" id="item_code" name="item_code" class="custom-input fw-bold text-primary" value="{{ $nextItemCode ?? '' }}" placeholder="Item Code (e.g. ITEM-0001)">
+                                </div>
+
+                                <div class="field-group">
                                     <label class="field-label">Barcode / SKU</label>
                                     <div class="d-flex align-items-center">
                                         <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $nextBarcode ?? '' }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
                                         <button class="btn-gen" type="button" id="generateBarcodeBtn" title="Generate Custom SKU">Gen</button>
                                     </div>
-                                </div>
-
-                                <div class="field-group">
-                                    <label class="field-label">Item Description (English)</label>
-                                    <input type="text" id="product_name" name="product_name" class="custom-input" placeholder="Product Name" required>
-                                </div>
-
-                                <div class="field-group">
-                                    <label class="field-label">Item Name (Urdu) / اردو نام</label>
-                                    <input type="text" id="item_name_urdu" name="item_name_urdu" class="custom-input" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ" style="direction: rtl; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;">
-                                </div>
-                            </div>
-
-                            <!-- Row 3: Model, HS Code, Color, Unit -->
-                            <div class="field-row mt-3">
-                                <div class="field-group">
-                                    <label class="field-label">Model</label>
-                                    <input type="text" id="model" name="model" class="custom-input" placeholder="Model No.">
-                                </div>
-
-                                <div class="field-group">
-                                    <label class="field-label">HS Code</label>
-                                    <input type="text" id="hs_code" name="hs_code" class="custom-input" placeholder="HS Code" required>
-                                </div>
-
-                                <div class="field-group">
-                                    <label class="field-label">Color</label>
-                                    <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
-                                        <option value="Black">Black</option>
-                                        <option value="White">White</option>
-                                        <option value="Red">Red</option>
-                                        <option value="Blue">Blue</option>
-                                        <option value="Silver">Silver</option>
-                                        <option value="Golden">Golden</option>
-                                    </select>
                                 </div>
 
                                 <div class="field-group">
@@ -279,7 +251,52 @@
                                 </div>
                             </div>
 
-                            <!-- Toggles Section -->
+                            <!-- Row 3: Item Description, Item Name (Urdu), Model, HS Code -->
+                            <div class="field-row mt-3">
+                                <div class="field-group">
+                                    <label class="field-label">Item Description (English)</label>
+                                    <input type="text" id="product_name" name="product_name" class="custom-input" placeholder="Product Name" required>
+                                </div>
+
+                                <div class="field-group">
+                                    <label class="field-label">Item Name (Urdu) / اردو نام</label>
+                                    <input type="text" id="item_name_urdu" name="item_name_urdu" class="custom-input" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ" style="direction: rtl; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;">
+                                </div>
+
+                                <div class="field-group">
+                                    <label class="field-label">Model</label>
+                                    <input type="text" id="model" name="model" class="custom-input" placeholder="Model No.">
+                                </div>
+
+                                <div class="field-group">
+                                    <label class="field-label">HS Code</label>
+                                    <input type="text" id="hs_code" name="hs_code" class="custom-input" placeholder="HS Code" required>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Color & Inline Save Button -->
+                            <div class="field-row mt-3 align-items-end">
+                                <div class="field-group mb-0">
+                                    <label class="field-label">Color</label>
+                                    <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
+                                        <option value="Black">Black</option>
+                                        <option value="White">White</option>
+                                        <option value="Red">Red</option>
+                                        <option value="Blue">Blue</option>
+                                        <option value="Silver">Silver</option>
+                                        <option value="Golden">Golden</option>
+                                    </select>
+                                </div>
+
+                                <div class="field-group mb-0" style="grid-column: span 3;">
+                                    <button type="submit" class="btn-save-main w-100" style="height: 40px; padding: 0; line-height: 40px;">
+                                        <i class="fas fa-save me-2"></i> SAVE PRODUCT
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Commented out Part / Assembly checkboxes as requested --}}
+                            {{-- 
                             <div class="check-group mt-4">
                                 <div class="check-row">
                                     <input type="checkbox" id="isPart" name="is_part" value="1">
@@ -288,15 +305,11 @@
                                 <div class="check-row">
                                     <input type="checkbox" id="isAssembled" name="is_assembled" value="1">
                                     <label for="isAssembled" class="m-0">This product is assembled from parts?</label>
-                                    <button type="button" class="btn-bom" id="openPartsModal" disabled>Define Parts (BOM)</button>
-                                    <span class="badge badge-secondary ml-2 d-none" id="bomBadge">0 parts</span>
                                 </div>
                             </div>
-
-                            <!-- Form Submit -->
-                            <div class="mt-5 pt-4 border-top text-center">
-                                <button type="submit" class="btn-save-main">SAVE PRODUCT</button>
-                            </div>
+                            --}}
+                            <input type="hidden" name="is_part" value="0">
+                            <input type="hidden" name="is_assembled" value="0">
                         </div>
                     </div>
                 </form>

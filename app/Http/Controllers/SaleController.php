@@ -29,6 +29,7 @@ use App\Services\StockAlertService;
 use Illuminate\Support\Facades\Auth;
 use App\Models\Branch;
 use App\Models\SalesOfficer;
+use App\Models\SaleSetting;
 
 
 class SaleController extends Controller
@@ -1859,7 +1860,9 @@ public function finddc($invoice)
         // Get warehouse_stocks for client-side validation
         $warehouseStocks = WarehouseStock::all()->toArray();
 
-        return view('admin_panel.sale.add_sale222', compact('warehouse', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen'));
+        $saleSettings = SaleSetting::getSettings();
+
+        return view('admin_panel.sale.add_sale222', compact('warehouse', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings'));
     }
 
     public function getBranchSalesmen($branchId)
@@ -3236,6 +3239,7 @@ public function finddc($invoice)
         }
 
         $salesmen = SalesOfficer::all();
+        $partyType = $sale->partyType ?? $sale->party_type ?? 'credit';
 
         return view('admin_panel.sale.saleedit', [
             'sale'      => $sale,
@@ -3244,6 +3248,7 @@ public function finddc($invoice)
             'accounts'  => $accounts,
             'receipts'  => $receipts,
             'salesmen'  => $salesmen,
+            'partyType' => $partyType,
         ]);
     }
 

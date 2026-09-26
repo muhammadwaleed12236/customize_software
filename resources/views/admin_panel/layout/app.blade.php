@@ -537,6 +537,9 @@
                                     @can('sales.officer.view')
                                     <li><a href="{{ route('sales.officer.index') }}"><i class="fas fa-user-tie"></i> Salesmen (Officers)</a></li>
                                     @endcan
+                                    @can('sale.create')
+                                    <li><a href="{{ route('sale.settings.index') }}"><i class="fas fa-cog text-warning"></i> Sale Screen Settings</a></li>
+                                    @endcan
 
                                     <li style="border-top: 1px solid #eee; margin: 4px 0; padding: 0;"></li>
 
