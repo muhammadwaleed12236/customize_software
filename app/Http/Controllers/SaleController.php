@@ -3190,6 +3190,8 @@ public function finddc($invoice)
                 $product = $saleItem->product;
                 $items[] = [
                     'product_id' => $saleItem->product_id,
+                    'item_name'  => $product->item_name ?? '',
+                    'item_code'  => $product->item_code ?? '',
                     'brand'      => $product->brand ? $product->brand->name : '',
                     'unit'       => $product->unit ?? '',
                     'price'      => floatval($saleItem->retail_price ?? 0),
@@ -3240,15 +3242,17 @@ public function finddc($invoice)
 
         $salesmen = SalesOfficer::all();
         $partyType = $sale->partyType ?? $sale->party_type ?? 'credit';
+        $saleSettings = \App\Models\SaleSetting::getSettings();
 
         return view('admin_panel.sale.saleedit', [
-            'sale'      => $sale,
-            'Customer'  => $customers,
-            'saleItems' => $items,
-            'accounts'  => $accounts,
-            'receipts'  => $receipts,
-            'salesmen'  => $salesmen,
-            'partyType' => $partyType,
+            'sale'         => $sale,
+            'Customer'     => $customers,
+            'saleItems'    => $items,
+            'accounts'     => $accounts,
+            'receipts'     => $receipts,
+            'salesmen'     => $salesmen,
+            'partyType'    => $partyType,
+            'saleSettings' => $saleSettings,
         ]);
     }
 

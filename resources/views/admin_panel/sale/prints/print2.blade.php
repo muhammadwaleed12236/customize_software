@@ -241,9 +241,13 @@
             </div>
 
             @foreach($sale->saleItems as $item)
+            @php
+                $productUrdu = $item->product->item_name_urdu ?? $item->product->urdu_name ?? null;
+                $productName = !empty($productUrdu) ? $productUrdu : ($item->product->item_name ?? $item->product->product_name ?? 'N/A');
+            @endphp
             <div class="item-row">
                 <div class="item-name">
-                    {{ $item->product ? ($item->product->item_name ?? $item->product->product_name ?? 'N/A') : 'N/A' }}
+                    {{ $productName }}
                 </div>
                 <div class="item-qty">{{ number_format($item->sales_qty ?? 0, 2) }}</div>
                 <div class="item-rate">{{ number_format($item->retail_price ?? $item->sales_price ?? 0, 2) }}</div>

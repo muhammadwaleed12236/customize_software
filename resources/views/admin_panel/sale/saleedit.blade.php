@@ -768,42 +768,122 @@
         setTimeout(() => el.addClass('d-none'), 2500);
     }
 
+    function initProductSelect2(selector = '.product-select', url = '/search-products-sale', searchUrl = '/search_products') {
+        $(selector).select2({
+            ajax: {
+                transport: function(params, success, failure) {
+                    let term = (params.data && (params.data.term || params.data.q)) || '';
+                    let page = (params.data && (params.data.page || 1)) || 1;
+                    let branchId = $('#branch_id').val() || $('[name="branch_id"]').val() || '';
+                    let ajaxUrl = term && term.length > 0 ? searchUrl : url;
+                    $.ajax({
+                        url: ajaxUrl,
+                        data: { q: term, page: page, branch_id: branchId },
+                        dataType: 'json',
+                        success: function(data) { success(data); },
+                        error: failure
+                    });
+                },
+                delay: 250,
+                data: function(params) {
+                    return {
+                        q: params.term || '',
+                        page: params.page || 1,
+                        branch_id: $('#branch_id').val() || $('[name="branch_id"]').val() || ''
+                    };
+                },
+                processResults: function(data, params) {
+                    params.page = params.page || 1;
+                    let results = [];
+                    const mapProduct = function(p) {
+                        return {
+                            id: p.id,
+                            text: p.item_name || '',
+                            item_code: p.item_code,
+                            item_name: p.item_name,
+                            brand_name: p.brand_name,
+                            stock: p.stock,
+                            price: p.retail_price || p.price
+                        };
+                    };
+                    if (Array.isArray(data)) {
+                        results = data.map(mapProduct);
+                        return { results: results, pagination: { more: false } };
+                    }
+                    results = (data.products || []).map(mapProduct);
+                    return { results: results, pagination: { more: !!data.has_more } };
+                },
+                cache: true
+            },
+            templateResult: function(p) {
+                if (!p.id) return p.text;
+                const stockBadge = '<span class="badge bg-light text-primary border" style="font-size: 10.5px; padding: 2px 7px;">Stock: ' + (p.stock || 0) + '</span>';
+                return $(
+                    '<div class="d-flex justify-content-between align-items-center w-100 py-0.5">' +
+                        '<span class="fw-bold product-title" style="font-size: 13px;">' + (p.item_name || p.text) + '</span>' +
+                        '<div class="ms-2 flex-shrink-0">' + stockBadge + '</div>' +
+                    '</div>'
+                );
+            },
+            templateSelection: function(p) {
+                if (!p.id) return p.text;
+                return p.item_name || p.text;
+            },
+            minimumInputLength: 0,
+            placeholder: 'Search Product (Item Code / Name / Brand / Model)...',
+            allowClear: true,
+            width: '100%'
+        });
+    }
+
+    $(document).on('select2:select', '.product-select', function(e) {
+        const data = e.params.data;
+        const $row = $(this).closest('tr');
+        $row.find('.product-id').val(data.id);
+        $row.find('.stock').val(data.stock || 0);
+        $row.find('.retail-price').val(parseFloat(data.price || 0).toFixed(2));
+        if (!$row.find('.sales-qty').val() || toNum($row.find('.sales-qty').val()) <= 0) {
+            $row.find('.sales-qty').val(1);
+        }
+        computeRow($row);
+        updateGrandTotals();
+    });
+
     function addNewRow() {
-        $('#salesTableBody').append(`
+        const $newRow = $(`
       <tr>
         <input type="hidden" class="product-id" name="product_id[]">
         <input type="hidden" class="warehouse-id" name="warehouse_id[]">
 
         <td class="product-col">
-          <input type="text" class="form-control product-search" placeholder="Search product..." autocomplete="off">
-          <ul class="searchResults list-group mt-1"></ul>
+          <select class="form-select product-select rounded-3" name="product_id[]" style="width:100%"></select>
         </td>
 
         <td class="small-col">
-          <input type="text" class="form-control stock text-center input-readonly" readonly>
+          <input type="text" class="form-control stock text-center input-readonly" readonly value="0">
         </td>
 
         <td class="small-col">
-          <input type="text" class="form-control sales-qty text-end" name="sales_qty[]">
+          <input type="text" class="form-control sales-qty text-end" name="sales_qty[]" value="1">
         </td>
 
         <td class="medium-col">
-          <input type="text" class="form-control retail-price text-end input-readonly" value="0" readonly name="retail_price[]">
+          <input type="text" class="form-control retail-price text-end input-readonly" value="0.00" readonly name="retail_price[]">
         </td>
 
         <td class="large-col">
           <div class="discount-wrapper">
-            <input type="text" class="form-control discount-value text-end" placeholder="0.00" name="discount_percentage[]">
+            <input type="text" class="form-control discount-value text-end" placeholder="0.00" name="discount_percentage[]" value="0">
             <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="percent">%</button>
           </div>
         </td>
 
         <td class="medium-col">
-          <input type="text" class="form-control discount-amount text-end" name="discount_amount[]">
+          <input type="text" class="form-control discount-amount text-end" name="discount_amount[]" value="0.00">
         </td>
 
         <td class="medium-col">
-          <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="0" readonly>
+          <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="0.00" readonly>
         </td>
 
         <td class="action-col">
@@ -811,6 +891,8 @@
         </td>
       </tr>
       `);
+        $('#salesTableBody').append($newRow);
+        initProductSelect2('#salesTableBody tr:last-child .product-select', '/search-products-sale', '/search_products');
     }
 
     function computeRow($row) {
@@ -1357,24 +1439,32 @@ function storeOriginalReceiptData() {
 
   function loadSaleItems() {
     const saleItems = @json($saleItems);
-    saleItems.forEach(item => {
-        addNewRow();
-        const $row = $('#salesTableBody tr:last');
-        $row.find('.product-id').val(item.product_id);
-        $row.find('.product-search').val(item.item_name);
-        $row.find('.stock').val(item.onhand_qty || '0');
-        $row.find('.sales-qty').val(item.qty);
-        $row.find('.retail-price').val(item.price.toFixed(2));
-        $row.find('[name="discount_percentage[]"]').val(item.discount_percent || '0');
-        $row.find('[name="discount_amount[]"]').val(item.discount_amount || '0');
-        $row.find('.sales-amount').val(item.total.toFixed(2));
-        computeRow($row);
-    });
-    updateGrandTotals();
+    $('#salesTableBody').empty();
+    if (saleItems && saleItems.length > 0) {
+        saleItems.forEach(item => {
+            addNewRow();
+            const $row = $('#salesTableBody tr:last-child');
+            $row.find('.product-id').val(item.product_id);
 
-    // ✅ yahan storeOriginalData call karein
+            const $select = $row.find('.product-select');
+            const displayText = item.item_name || (item.item_code ? (item.item_code + ' - ' + item.brand) : ('Product #' + item.product_id));
+            const option = new Option(displayText, item.product_id, true, true);
+            $select.append(option).trigger('change');
+
+            $row.find('.stock').val(item.onhand_qty || '0');
+            $row.find('.sales-qty').val(item.qty);
+            $row.find('.retail-price').val(item.price ? item.price.toFixed(2) : '0.00');
+            $row.find('[name="discount_percentage[]"]').val(item.discount_percent || '0');
+            $row.find('[name="discount_amount[]"]').val(item.discount || item.discount_amount || '0');
+            $row.find('.sales-amount').val(item.total ? item.total.toFixed(2) : '0.00');
+            computeRow($row);
+        });
+    } else {
+        addNewRow();
+    }
+    updateGrandTotals();
     storeOriginalData();
-}
+  }
 
     function loadReceipts() {
         const receipts = @json($receipts ?? []);

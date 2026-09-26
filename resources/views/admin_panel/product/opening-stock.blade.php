@@ -298,6 +298,26 @@
                 border-color: #dc2626 !important;
                 box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.1) !important;
             }
+
+            @media (max-width: 767.98px) {
+                .main-content { padding: 0.75rem; }
+                .command-card { flex-direction: column !important; }
+                .product-side-panel { width: 100% !important; border-radius: 12px 12px 0 0 !important; }
+                .input-grid { grid-template-columns: 1fr !important; gap: 0.8rem !important; }
+                .allocation-row-header { display: none !important; }
+                .allocation-row {
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 8px !important;
+                    position: relative;
+                    padding-right: 48px !important;
+                }
+                .btn-delete-row {
+                    position: absolute;
+                    top: 10px;
+                    right: 10px;
+                }
+            }
         </style>
 
         <div class="main-content">

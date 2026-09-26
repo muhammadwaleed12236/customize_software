@@ -649,10 +649,7 @@ $balanceDue = $displayClosing;
                         {{ number_format($rate, 0) }}
                     </td>
                     <td style="direction: rtl; text-align: right; padding: 0px 3px;">
-                        @if(!empty($productUrdu) && $productUrdu !== $productEng)
-                            <span class="item-desc-urdu" style="display: inline; margin-left: 5px;">{{ $productUrdu }}</span>
-                        @endif
-                        <span class="item-desc-eng" style="display: inline;">{{ $productEng }}</span>
+                        <span class="item-desc-urdu" style="display: inline; font-size: 13px; font-weight: 700;">{{ !empty($productUrdu) ? $productUrdu : $productEng }}</span>
                     </td>
                     <td style="text-align: center; font-weight: 800; font-size: 11.5px; color: #000;">
                         {{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}
