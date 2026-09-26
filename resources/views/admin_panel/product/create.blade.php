@@ -8,10 +8,10 @@
             .main-content-inner { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.05); }
             .form-section { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
             .image-col { width: 320px; flex-shrink: 0; }
-            .fields-col { flex: 1; min-width: 600px; }
+            .fields-col { flex: 1; min-width: 0; }
             
             /* Field Styling */
-            .field-group { margin-bottom: 20px; flex: 1; }
+            .field-group { margin-bottom: 20px; flex: 1; min-width: 0; }
             .field-label { display: block; font-weight: 600; color: #444; margin-bottom: 8px; font-size: 14px; }
             .field-label i { color: #4e73df; margin-right: 5px; }
             
@@ -28,23 +28,17 @@
             .custom-input:focus, .custom-select:focus { border-color: #2563eb !important; outline: none; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
             
             /* Action Buttons (+ and Gen) */
-            .btn-plus-sm { 
-                background: #2563eb; color: #fff; border: none; width: 32px; height: 24px; 
-                border-radius: 4px; display: flex; align-items: center; justify-content: center; 
-                margin-top: 5px; cursor: pointer; font-size: 12px; transition: 0.2s;
+            .btn-plus-sm, .btn-plus-inline { 
+                background: #2563eb; color: #fff; border: none; width: 38px; height: 40px; 
+                border-radius: 0 4px 4px 0 !important; display: flex; align-items: center; justify-content: center; 
+                cursor: pointer; font-size: 16px; font-weight: bold; flex-shrink: 0; transition: 0.2s; margin: 0 !important;
             }
-            .btn-plus-sm:hover { background: #1d4ed8; }
-            
-            .btn-plus-inline {
-                background: #2563eb; color: #fff; border: none; width: 40px; height: 40px; 
-                border-radius: 4px; display: flex; align-items: center; justify-content: center; 
-                cursor: pointer; font-size: 14px; margin-left: 5px; flex-shrink: 0;
-            }
+            .btn-plus-sm:hover, .btn-plus-inline:hover { background: #1d4ed8; }
             
             .btn-gen { 
                 background: #2563eb; color: #fff; border: none; padding: 0 15px; 
-                border-radius: 0 4px 4px 0; height: 40px; cursor: pointer; font-size: 13px;
-                transition: 0.2s;
+                border-radius: 0 4px 4px 0 !important; height: 40px; cursor: pointer; font-size: 13px;
+                transition: 0.2s; font-weight: 600; flex-shrink: 0;
             }
             .btn-gen:hover { background: #1d4ed8; }
             
@@ -68,6 +62,7 @@
             .close-img:hover { background: #ef4444; }
 
             /* Select2 Customization */
+            .select2-container { width: 100% !important; }
             .select2-container--default .select2-selection--multiple { border: 1px solid #ddd !important; min-height: 40px; border-radius: 4px; }
             .select2-container--default.select2-container--focus .select2-selection--multiple { border-color: #2563eb !important; }
             
@@ -98,6 +93,30 @@
                 cursor: pointer; transition: 0.3s; box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
             }
             .btn-save-main:hover { background: #1d4ed8; transform: translateY(-1px); }
+
+            /* Mobile Responsiveness */
+            @media (max-width: 1200px) {
+                .field-row { grid-template-columns: repeat(2, 1fr); gap: 15px; }
+            }
+
+            @media (max-width: 768px) {
+                .main-content-inner { padding: 15px; }
+                .form-section { flex-direction: column; gap: 20px; }
+                .image-col { width: 100%; flex-shrink: 1; }
+                .image-box { height: 240px; }
+                .fields-col { width: 100%; min-width: 100%; }
+                .field-row { grid-template-columns: 1fr; gap: 12px; }
+                .btn-save-main { width: 100%; padding: 14px 20px; }
+                .check-row { flex-wrap: wrap; gap: 8px; }
+                .btn-bom { margin-left: 0; width: 100%; margin-top: 5px; }
+            }
+
+            @media (max-width: 480px) {
+                .main-content-inner { padding: 10px; }
+                .field-label { font-size: 13px; margin-bottom: 4px; }
+                .custom-input, .custom-select { font-size: 13px; height: 38px; }
+                .btn-plus-inline, .btn-gen { height: 38px; width: 36px; }
+            }
         </style>
         @endsection
 
@@ -117,6 +136,7 @@
                 <form id="productForm" action="{{ route('store-product') }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     <input type="hidden" name="phase" value="phase1">
+                    <input type="hidden" name="packing_type" value="Standard">
 
                     <div class="form-section">
                         <!-- Left: Image Area -->
@@ -147,78 +167,87 @@
                                         <input type="text" class="custom-input bg-light" value="{{ $branches->first()?->name ?? 'Default Branch' }}" readonly>
                                         <input type="hidden" name="branch_id" value="{{ $user->branch_id ?? 1 }}">
                                     @endif
-                                    <p class="small text-danger mt-1 mb-0" style="font-size: 11px;">📌 Select the branch this product belongs to</p>
+                                    <p class="text-danger mt-1 mb-0" style="font-size: 10.5px; line-height: 1.2;">📌 Select the branch this product belongs to</p>
                                 </div>
 
                                 <div class="field-group">
                                     <label class="field-label">Category</label>
-                                    <select id="category-dropdown" name="category_id" class="custom-select" required>
-                                        <option value="">Select Category</option>
-                                        @foreach ($categories as $cat)
-                                            <option value="{{ $cat->id }}">{{ $cat->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    <button type="button" class="btn-plus-sm" data-toggle="modal" data-target="#categoryModal">+</button>
+                                    <div class="d-flex align-items-center">
+                                        <select id="category-dropdown" name="category_id" class="custom-select" style="border-radius: 4px 0 0 4px !important;" required>
+                                            <option value="">Select Category</option>
+                                            @foreach ($categories as $cat)
+                                                <option value="{{ $cat->id }}">{{ $cat->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#categoryModal" title="Add Category">+</button>
+                                    </div>
                                 </div>
 
                                 <div class="field-group">
                                     <label class="field-label">Sub Category</label>
-                                    <select id="subcategory-dropdown" name="sub_category_id" class="custom-select" required>
-                                        <option value="">Select Sub category</option>
-                                    </select>
-                                    <button type="button" class="btn-plus-sm" data-toggle="modal" data-target="#subcategoryModal">+</button>
+                                    <div class="d-flex align-items-center">
+                                        <select id="subcategory-dropdown" name="sub_category_id" class="custom-select" style="border-radius: 4px 0 0 4px !important;" required>
+                                            <option value="">Select Sub category</option>
+                                        </select>
+                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#subcategoryModal" title="Add Sub Category">+</button>
+                                    </div>
                                 </div>
 
                                 <div class="field-group">
                                     <label class="field-label">Type</label>
                                     <div class="d-flex align-items-center">
-                                        <select name="type_id" class="custom-select">
+                                        <select name="type_id" class="custom-select" style="border-radius: 4px 0 0 4px !important;">
                                             <option value="">Select Type</option>
                                             @foreach ($types as $type)
                                                 <option value="{{ $type->id }}">{{ $type->name }}</option>
                                             @endforeach
                                         </select>
-                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#typeModal">+</button>
+                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#typeModal" title="Add Type">+</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Row 2: Brand, Barcode, Item Description, Model -->
+                            <!-- Row 2: Brand, Barcode, Item Description, Item Name (Urdu) -->
                             <div class="field-row mt-3">
                                 <div class="field-group">
                                     <label class="field-label">Brand</label>
                                     <div class="d-flex align-items-center">
-                                        <select name="brand_id" class="custom-select">
+                                        <select name="brand_id" class="custom-select" style="border-radius: 4px 0 0 4px !important;">
                                             <option value="">Select One</option>
                                             @foreach ($brands as $brand)
                                                 <option value="{{ $brand->id }}">{{ $brand->name }}</option>
                                             @endforeach
                                         </select>
-                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#brandcategoryModal">+</button>
+                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#brandcategoryModal" title="Add Brand">+</button>
                                     </div>
                                 </div>
 
                                 <div class="field-group">
-                                    <label class="field-label">Barcode</label>
+                                    <label class="field-label">Barcode / SKU</label>
                                     <div class="d-flex align-items-center">
                                         <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $nextBarcode ?? '' }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
                                         <button class="btn-gen" type="button" id="generateBarcodeBtn" title="Generate Custom SKU">Gen</button>
                                     </div>
                                 </div>
 
-                                <div class="field-group" style="grid-column: span 1;">
-                                    <label class="field-label">Item Description</label>
+                                <div class="field-group">
+                                    <label class="field-label">Item Description (English)</label>
                                     <input type="text" id="product_name" name="product_name" class="custom-input" placeholder="Product Name" required>
                                 </div>
 
                                 <div class="field-group">
-                                    <label class="field-label">Model</label>
-                                    <input type="text" id="model" name="model" class="custom-input" placeholder="Model No.">
+                                    <label class="field-label">Item Name (Urdu) / اردو نام</label>
+                                    <input type="text" id="item_name_urdu" name="item_name_urdu" class="custom-input" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ" style="direction: rtl; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;">
                                 </div>
                             </div>
 
-                            <!-- Row 3: HS Code, Color, Packaging Type -->
+                            <!-- Row 3: Model, HS Code, Color, Unit -->
                             <div class="field-row mt-3">
+                                <div class="field-group">
+                                    <label class="field-label">Model</label>
+                                    <input type="text" id="model" name="model" class="custom-input" placeholder="Model No.">
+                                </div>
+
                                 <div class="field-group">
                                     <label class="field-label">HS Code</label>
                                     <input type="text" id="hs_code" name="hs_code" class="custom-input" placeholder="HS Code" required>
@@ -237,45 +266,17 @@
                                 </div>
 
                                 <div class="field-group">
-                                    <label class="field-label">Packaging Type</label>
-                                    <select id="packing_type" name="packing_type" class="custom-select" required>
-                                        <option value="">Select Packaging Type</option>
-                                        <option value="Standard">Standard</option>
-                                        <option value="Customize">Customize</option>
-                                    </select>
-                                </div>
-
-                                <div class="field-group" id="unitSection" style="display: none;">
                                     <label class="field-label">Unit</label>
                                     <div class="d-flex align-items-center">
-                                        <input type="text" id="unit_readonly" class="custom-input bg-light" value="Piece" readonly style="display:none;">
-                                        <input type="hidden" name="unit" id="unit_hidden" disabled>
-                                        <select id="unit_select" name="unit" class="custom-select">
+                                        <select id="unit_select" name="unit" class="custom-select" style="border-radius: 4px 0 0 4px !important;" required>
                                             <option value="">Select Unit</option>
                                             @foreach ($units as $u)
                                                 <option value="{{ $u->id }}">{{ $u->name }}</option>
                                             @endforeach
                                         </select>
-                                        <button type="button" class="btn-plus-inline" id="unit_add_btn" data-toggle="modal" data-target="#unitModal">+</button>
+                                        <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#unitModal" title="Add Unit">+</button>
                                     </div>
                                 </div>
-                            </div>
-
-                            <!-- Row 4: Advanced Packing (Hidden by default) -->
-                            <div class="field-row mt-3" id="advancedPackingRow" style="display: none;">
-                                <div class="field-group">
-                                    <label class="field-label">Pack Qty</label>
-                                    <input type="number" id="packing_qty" name="packing_qty" class="custom-input">
-                                </div>
-                                <div class="field-group">
-                                    <label class="field-label">Unit/Pack</label>
-                                    <input type="number" id="piece_per_pack" name="piece_per_pack" class="custom-input">
-                                </div>
-                                <div class="field-group">
-                                    <label class="field-label">Loose Pcs</label>
-                                    <input type="number" id="loose_piece" name="loose_piece" class="custom-input">
-                                </div>
-                                <div class="field-group"></div>
                             </div>
 
                             <!-- Toggles Section -->
@@ -295,7 +296,6 @@
                             <!-- Form Submit -->
                             <div class="mt-5 pt-4 border-top text-center">
                                 <button type="submit" class="btn-save-main">SAVE PRODUCT</button>
-                                <p class="text-muted small mt-2">Next step: Setup opening stock and pricing</p>
                             </div>
                         </div>
                     </div>
@@ -466,12 +466,10 @@
 
             // 2. SKU / Barcode Gen
             $('#generateBarcodeBtn').on('click', function() {
-                // Generate sequential barcode if clicked manually
                 const nextBarcode = "{{ $nextBarcode ?? '' }}";
                 if(nextBarcode) {
                     $('#barcodeInput').val(nextBarcode);
                 } else {
-                    // Fallback just in case
                     const rand = Math.floor(1000000 + Math.random() * 9000000);
                     $('#barcodeInput').val(`100${rand}`);
                 }
@@ -495,31 +493,7 @@
                 }
             });
 
-            // 4. Packaging Toggles
-            $('#packing_type').on('change', function () {
-                const type = $(this).val();
-                if (type === 'Standard') {
-                    $('#unitSection').show();
-                    $('#advancedPackingRow').hide();
-                    const pieceId = $('#unit_select option').filter(function() { 
-                        const t = $(this).text().toLowerCase(); return t.includes('piece') || t.includes('pcs'); 
-                    }).val();
-                    $('#unit_readonly').show();
-                    $('#unit_hidden').val(pieceId).prop('disabled', false);
-                    $('#unit_select').hide().prop('disabled', true);
-                    $('#unit_add_btn').hide();
-                } else if (type === 'Customize') {
-                    $('#unitSection, #advancedPackingRow').show();
-                    $('#unit_readonly').hide();
-                    $('#unit_hidden').prop('disabled', true);
-                    $('#unit_select').show().prop('disabled', false);
-                    $('#unit_add_btn').show();
-                } else {
-                    $('#unitSection, #advancedPackingRow').hide();
-                }
-            });
-
-            // 5. Initialize Select2
+            // 4. Initialize Select2
             $(document).ready(function () {
                 $('#color-select').select2({
                     tags: true,
@@ -530,7 +504,7 @@
                 $('[data-toggle="tooltip"]').tooltip();
             });
 
-            // 6. BOM (Bill of Materials) Logic
+            // 5. BOM (Bill of Materials) Logic
             let bomItems = [];
             const num = n => isNaN(parseFloat(n)) ? 0 : parseFloat(n);
 
@@ -628,18 +602,23 @@
                 $('#partsModal').modal('hide');
             });
 
-            // 7. Form Submission
+            // 6. Form Submission Validation
             $('#productForm').on('submit', function (e) {
                 e.preventDefault();
                 const name = $('#product_name').val().trim();
                 const cat = $('#category-dropdown').val();
                 const hsCode = $('#hs_code').val() ? $('#hs_code').val().trim() : '';
+                const unit = $('#unit_select').val();
                 if (!name || !cat) {
                     Swal.fire({ icon: 'warning', title: 'Missing Info', text: 'Product name and category are required.' });
                     return false;
                 }
                 if (!hsCode) {
                     Swal.fire({ icon: 'warning', title: 'Missing HS Code', text: 'Product cannot be stored without HS Code.' });
+                    return false;
+                }
+                if (!unit) {
+                    Swal.fire({ icon: 'warning', title: 'Missing Unit', text: 'Please select product unit.' });
                     return false;
                 }
                 this.submit();
@@ -652,3 +631,4 @@
         </div>
     @endcan
 @endsection
+

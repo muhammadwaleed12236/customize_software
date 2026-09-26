@@ -89,40 +89,209 @@
         .modal-backdrop { z-index: 1040; }
         .modal.show    { z-index: 1050; }
 
-        /* ─── Navbar wrapping fix ─── */
-        .nav.page-navigation {
-            display: flex !important;
-            flex-wrap: nowrap !important;
-            width: 100% !important;
-            justify-content: center !important;
-        }
-        .nav.page-navigation .nav-item {
-            flex: 0 0 auto !important;
-            position: relative !important;
-        }
-        .nav.page-navigation .nav-item:hover {
-            z-index: 1000 !important;
-        }
-
-        /* ─── Submenu gap bridge fix ─── */
-        .nav.page-navigation .nav-item .submenu {
-            top: 100% !important;
-            margin-top: -2px !important;
-            padding-top: 10px !important;
-            transition: none !important;
-            z-index: 999 !important;
-        }
-
-        /* ─── Responsive ─── */
-        @media (max-width: 1200px) {
-            .nav-bottom .container { max-width: 100% !important; }
+        /* ─── Desktop Navbar Layout (min-width: 992px) ─── */
+        @media (min-width: 992px) {
             .nav.page-navigation {
-                overflow-x: auto !important;
-                padding-bottom: 5px;
-                -ms-overflow-style: none;
-                scrollbar-width: none;
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                width: 100% !important;
+                justify-content: center !important;
             }
-            .nav.page-navigation::-webkit-scrollbar { display: none; }
+            .nav.page-navigation .nav-item {
+                flex: 0 0 auto !important;
+                position: relative !important;
+            }
+            .nav.page-navigation .nav-item:hover {
+                z-index: 1000 !important;
+            }
+
+            /* Submenu gap bridge fix */
+            .nav.page-navigation .nav-item .submenu {
+                top: 100% !important;
+                margin-top: -2px !important;
+                padding-top: 10px !important;
+                transition: none !important;
+                z-index: 999 !important;
+            }
+        }
+
+        /* ─── Mobile Navbar & Header Layout (max-width: 991px) ─── */
+        .rt_nav_header { position: relative !important; }
+        .nav-profile { position: relative !important; }
+        .nav-profile .dropdown-menu.show {
+            display: block !important;
+            position: absolute !important;
+            top: 100% !important;
+            right: 0 !important;
+            left: auto !important;
+            z-index: 1060 !important;
+        }
+
+        @media (max-width: 991px) {
+            .main-content-inner, .content-wrapper {
+                padding: 10px 6px !important;
+            }
+            .container-fluid {
+                padding-left: 0 !important;
+                padding-right: 0 !important;
+            }
+            .row {
+                margin-left: -5px !important;
+                margin-right: -5px !important;
+            }
+            .row > [class*="col-"] {
+                padding-left: 5px !important;
+                padding-right: 5px !important;
+            }
+
+            .top_nav {
+                min-height: 54px !important;
+            }
+            .top_nav .container {
+                padding: 0 10px !important;
+            }
+            .rt_nav_wrapper {
+                min-height: auto !important;
+            }
+            .nav_logo.rt_logo {
+                padding: 4px 8px !important;
+                font-size: 0.9rem !important;
+                max-width: 140px !important;
+                white-space: nowrap !important;
+                overflow: hidden !important;
+                text-overflow: ellipsis !important;
+            }
+            .nav_logo.rt_logo i {
+                font-size: 1rem !important;
+            }
+            .nav_wrapper_main {
+                width: auto !important;
+            }
+            
+            /* Profile button compact mobile styling */
+            .nav-profile .nav-link {
+                padding: 4px 8px !important;
+            }
+
+            /* Mobile Navigation Drawer */
+            .nav-bottom {
+                display: none;
+                position: absolute !important;
+                top: 100% !important;
+                left: 0 !important;
+                right: 0 !important;
+                width: 100% !important;
+                background: #ffffff !important;
+                box-shadow: 0 12px 30px rgba(0,0,0,0.2) !important;
+                z-index: 99999 !important;
+                border-bottom: 3px solid var(--brand-primary) !important;
+            }
+
+            .nav-bottom.header-toggled {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                max-height: calc(100vh - 65px) !important;
+                overflow-y: auto !important;
+            }
+
+            .nav-bottom .container {
+                padding: 0 !important;
+                max-width: 100% !important;
+            }
+
+            .nav.page-navigation {
+                display: flex !important;
+                flex-direction: column !important;
+                flex-wrap: wrap !important;
+                width: 100% !important;
+                padding: 8px 10px !important;
+                gap: 4px !important;
+                overflow: visible !important;
+            }
+
+            .nav.page-navigation .nav-item {
+                width: 100% !important;
+                display: block !important;
+                border-bottom: 1px solid #f1f5f9 !important;
+            }
+            .nav.page-navigation .nav-item:last-child {
+                border-bottom: none !important;
+            }
+
+            .nav.page-navigation .nav-item .nav-link {
+                padding: 12px 14px !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: space-between !important;
+                font-size: 13.5px !important;
+                font-weight: 600 !important;
+                color: #1e293b !important;
+                border-radius: 8px !important;
+                border-bottom: none !important;
+                cursor: pointer !important;
+            }
+
+            .nav.page-navigation .nav-item .nav-link:hover,
+            .nav.page-navigation .nav-item.show-submenu > .nav-link,
+            .nav.page-navigation .nav-item.show > .nav-link {
+                background: #f8fafc !important;
+                color: var(--brand-primary) !important;
+            }
+
+            /* Submenu in Mobile */
+            .nav.page-navigation .nav-item .submenu {
+                display: none;
+                position: static !important;
+                box-shadow: none !important;
+                border: 1px solid #e2e8f0 !important;
+                background: #f8fafc !important;
+                border-radius: 8px !important;
+                margin: 4px 2px 10px 2px !important;
+                padding: 8px 12px !important;
+                width: auto !important;
+                min-width: unset !important;
+                opacity: 1 !important;
+                visibility: visible !important;
+            }
+
+            .nav.page-navigation .nav-item.show-submenu .submenu,
+            .nav.page-navigation .nav-item.show .submenu {
+                display: block !important;
+            }
+
+            /* Multi-column submenus reset for mobile vertical layout */
+            .nav.page-navigation .submenu-item[style*="display: flex"],
+            .nav.page-navigation .submenu .submenu-item {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 4px !important;
+                padding: 0 !important;
+            }
+
+            .nav.page-navigation .submenu-item li[style*="flex: 1"],
+            .nav.page-navigation .submenu .submenu-item li {
+                flex: none !important;
+                width: 100% !important;
+                border-left: none !important;
+                padding-left: 0 !important;
+                margin-bottom: 4px !important;
+            }
+
+            .nav.page-navigation .submenu .submenu-item li a {
+                padding: 8px 10px !important;
+                font-size: 13px !important;
+                border-radius: 6px !important;
+            }
+
+            /* Chevron arrow animation on mobile */
+            .nav.page-navigation .nav-item .menu-arrow {
+                transition: transform 0.25s ease !important;
+            }
+            .nav.page-navigation .nav-item.show-submenu > .nav-link .menu-arrow,
+            .nav.page-navigation .nav-item.show > .nav-link .menu-arrow {
+                transform: rotate(180deg) !important;
+            }
         }
     </style>
 
@@ -168,11 +337,11 @@
 
                             {{-- User Profile --}}
                             <li class="nav-item nav-profile dropdown">
-                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-toggle="dropdown" id="profileDropdown" style="gap:8px; padding:6px 12px; border-radius:8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);">
-                                    <span style="width:30px; height:30px; background:rgba(200,151,58,0.25); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
+                                <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" data-toggle="dropdown" id="profileDropdown" style="gap:6px; padding:5px 10px; border-radius:8px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.15);">
+                                    <span style="width:28px; height:28px; background:rgba(200,151,58,0.25); border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0;">
                                         <i class="fas fa-user" style="font-size:12px; color:#f0c050;"></i>
                                     </span>
-                                    <span class="profile_name">{{ Auth::user()->name }}</span>
+                                    <span class="profile_name d-none d-sm-inline-block">{{ Auth::user()->name }}</span>
                                     <i class="fas fa-chevron-down" style="font-size:10px; color:rgba(255,255,255,0.6);"></i>
                                 </a>
                                 <div class="dropdown-menu dropdown-menu-right navbar-dropdown" aria-labelledby="profileDropdown" style="min-width:200px; margin-top:8px;">
@@ -194,8 +363,8 @@
                         </ul>
 
                         {{-- Mobile hamburger --}}
-                        <button class="navbar-toggler align-self-center" type="button" data-toggle="minimize" style="border:none; background:rgba(255,255,255,0.1); border-radius:6px; padding:6px 10px;">
-                            <span class="feather ft-menu text-white"></span>
+                        <button class="navbar-toggler align-self-center d-lg-none" type="button" id="mobileNavToggler" style="border:none; background:rgba(255,255,255,0.12); border-radius:6px; padding:6px 10px; cursor:pointer;">
+                            <span class="feather ft-menu text-white" style="font-size: 18px; display: flex; align-items: center;"></span>
                         </button>
                     </div>
                 </div>
@@ -618,21 +787,80 @@
         });
     </script>
 
-    <!-- Navbar Hover Logic - Instant Tab Switching -->
+    <!-- Navbar Navigation Logic (Mobile Drawer + Accordion Submenus + Desktop Hover) -->
     <script>
     $(document).ready(function() {
-        var $navItems = $('.nav.page-navigation .nav-item');
-        
-        $navItems.on('mouseenter', function() {
-            // When entering a new tab, immediately hide all other submenus
-            // This allows the current one to show without waiting for CSS transitions or delays
-            $navItems.not(this).removeClass('show').find('.submenu').hide();
-            $(this).addClass('show').find('.submenu').show();
+        // 1. Mobile Hamburger Toggle (stopImmediatePropagation to prevent double-toggling from theme scripts)
+        $(document).on('click', '#mobileNavToggler, .rt_nav_header .navbar-toggler', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            $('.nav-bottom').toggleClass('header-toggled');
         });
 
-        // Optional: Hide when leaving the whole navigation area to be safe
-        $('.nav.page-navigation').on('mouseleave', function() {
-             // Let the default CSS handle the final close or force it here if needed
+        // 2. Profile Dropdown Fallback Toggle
+        $(document).on('click', '#profileDropdown', function(e) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            $(this).next('.dropdown-menu').toggleClass('show');
+        });
+
+        // 3. Close drawer & dropdowns when clicking outside
+        $(document).on('click touchstart', function(e) {
+            if (!$(e.target).closest('.nav-profile').length) {
+                $('.nav-profile .dropdown-menu').removeClass('show');
+            }
+            if ($(window).width() <= 991) {
+                if (!$(e.target).closest('.rt_nav_header').length) {
+                    $('.nav-bottom').removeClass('header-toggled');
+                }
+            }
+        });
+
+        var $navItems = $('.nav.page-navigation > .nav-item');
+
+        // 4. Mobile Navigation Click Handler for submenus
+        $navItems.on('click', function(e) {
+            if ($(window).width() <= 991) {
+                var $item = $(this);
+                var $submenu = $item.find('.submenu');
+
+                if ($submenu.length > 0) {
+                    if ($(e.target).closest('.submenu a').length > 0) {
+                        return true;
+                    }
+
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    var isCurrentlyOpen = $item.hasClass('show-submenu') || $item.hasClass('show');
+
+                    // Close other submenus
+                    $navItems.not($item).removeClass('show-submenu show').find('.submenu').slideUp(150);
+
+                    // Toggle clicked submenu
+                    if (!isCurrentlyOpen) {
+                        $item.addClass('show-submenu show');
+                        $submenu.stop(true, true).slideDown(200);
+                    } else {
+                        $item.removeClass('show-submenu show');
+                        $submenu.stop(true, true).slideUp(150);
+                    }
+                }
+            }
+        });
+
+        // 5. Desktop Hover Logic
+        $navItems.on('mouseenter', function() {
+            if ($(window).width() > 991) {
+                $navItems.not(this).removeClass('show show-submenu').find('.submenu').hide();
+                $(this).addClass('show').find('.submenu').show();
+            }
+        });
+
+        $('.nav-bottom').on('mouseleave', function() {
+            if ($(window).width() > 991) {
+                $navItems.removeClass('show show-submenu').find('.submenu').hide();
+            }
         });
     });
     </script>

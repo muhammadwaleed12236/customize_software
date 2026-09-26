@@ -54,20 +54,21 @@ body {
 
 .header-divider {
     border-top: 1.5px dashed #000;
-    margin: 3px 0 4px 0;
+    margin: 1px 0 2px 0;
 }
 
 .pandi-box {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: bold;
     color: #000;
     direction: rtl;
     text-align: right;
+    padding: 1px 4px;
 }
 
 .pandi-label {
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 13px;
+    font-size: 13.5px;
     margin-left: 3px;
     font-weight: 700;
 }
@@ -78,7 +79,7 @@ body {
     min-width: 150px;
     padding-right: 4px;
     font-weight: 700;
-    font-size: 11.5px;
+    font-size: 12px;
     text-align: right;
 }
 
@@ -86,7 +87,7 @@ body {
     border: 1px solid #000;
     border-radius: 3px;
     padding: 1px 6px;
-    font-size: 11.5px;
+    font-size: 12px;
     font-weight: 800;
     color: #000;
     background: #fff;
@@ -98,7 +99,7 @@ body {
 
 .customer-info-label {
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 12.5px;
+    font-size: 13px;
     font-weight: 700;
 }
 
@@ -106,15 +107,15 @@ body {
     width: 100%;
     border-collapse: collapse;
     border: 1.5px solid #000;
-    margin-top: 3px;
+    margin-top: 2px;
 }
 
 .invoice-table th {
     border: 1px solid #000;
-    padding: 1.5px 3px;
+    padding: 1px 3px;
     text-align: center;
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 12px;
+    font-size: 13.5px;
     font-weight: 800;
     background: #ffffff;
     color: #000;
@@ -124,8 +125,8 @@ body {
 
 .invoice-table td {
     border: 1px solid #000;
-    padding: 1px 3px;
-    font-size: 11px;
+    padding: 0px 2px;
+    font-size: 10.5px;
     color: #000;
     vertical-align: middle;
     line-height: 1.0;
@@ -138,17 +139,19 @@ body {
 
 .item-desc-eng {
     font-weight: 700;
-    font-size: 10.5px;
+    font-size: 10px;
     color: #000;
+    display: inline;
     line-height: 1.0;
     letter-spacing: 0.1px;
 }
 
 .item-desc-urdu {
     font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
     color: #000;
+    display: inline;
     text-align: right;
     direction: rtl;
     margin-top: 0px;
@@ -159,17 +162,18 @@ body {
     width: 100%;
     border-collapse: collapse;
     border: 1px solid #000;
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 700;
 }
 
 .summary-table td {
-    padding: 1.5px 5px;
+    padding: 0px 3px;
     border: 1px solid #000;
+    line-height: 1.0;
 }
 
 .payment-remarks-title {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 800;
     color: #000;
     margin-bottom: 1px;
@@ -177,15 +181,15 @@ body {
 
 .payment-remarks-line {
     border-top: 1.5px solid #000;
-    margin-bottom: 3px;
+    margin-bottom: 2px;
     width: 100%;
 }
 
 .amount-in-words {
-    font-size: 11px;
+    font-size: 10.5px;
     font-weight: 800;
     color: #000;
-    line-height: 1.1;
+    line-height: 1.0;
 }
 
 @media print {
@@ -196,29 +200,35 @@ body {
         max-width: 100% !important;
         width: 100% !important;
         margin: 0 !important;
-        padding: 3px 5px !important;
+        padding: 2px 4px !important;
         border: none !important;
     }
     @page {
         size: A4 portrait;
-        margin: 2.5mm 4mm;
+        margin: 2mm 3mm;
     }
     .invoice-table th {
         padding: 1px 2px !important;
-        font-size: 11.5px !important;
+        font-size: 12.5px !important;
         line-height: 1.0 !important;
     }
     .invoice-table td {
-        padding: 0.5px 2px !important;
-        font-size: 10.5px !important;
+        padding: 0px 2px !important;
+        font-size: 10px !important;
         line-height: 1.0 !important;
     }
     .item-desc-eng {
-        font-size: 10px !important;
+        font-size: 10.5px !important;
+        font-weight: 800 !important;
         line-height: 1.0 !important;
     }
     .item-desc-urdu {
-        font-size: 10px !important;
+        font-size: 10.5px !important;
+        font-weight: 700 !important;
+        line-height: 1.0 !important;
+    }
+    .summary-table td {
+        padding: 0px 2px !important;
         line-height: 1.0 !important;
     }
     tr { page-break-inside: avoid; }
@@ -300,59 +310,140 @@ if (!function_exists('getUrduProductNameBooking')) {
             if (!empty($product->urdu_name)) return $product->urdu_name;
             if (!empty($product->name_urdu)) return $product->name_urdu;
         }
+        if (!empty($item->item_name_urdu)) return $item->item_name_urdu;
+        if (!empty($item->product_name_urdu)) return $item->product_name_urdu;
         
-        $engName = strtoupper($product->item_name ?? $item->product_name ?? $item->item_name ?? '');
-        
+        $engName = strtoupper(trim($product->item_name ?? $item->product_name ?? $item->item_name ?? ''));
+        if (empty($engName)) return '';
+
         $dictionary = [
-            'ARMATURE' => 'آر میچر',
-            'GRINDER'  => 'گرائنڈر',
-            'BOSCH'    => 'بوش',
-            'HITACHI'  => 'اٹہیچی',
-            'MAKITA'   => 'مکیٹا',
-            'DEWALT'   => 'ڈیوائلٹ',
-            'DEW'      => 'ڈیوائلٹ',
+            'RING'      => 'رنگ',
+            'RINGS'     => 'رنگ',
+            'NTR'       => 'این ٹی آر',
+            'ARMATURE'  => 'آر میچر',
+            'GRINDER'   => 'گرائنڈر',
+            'BOSCH'     => 'بوش',
+            'HITACHI'   => 'اٹہیچی',
+            'MAKITA'    => 'مکیٹا',
+            'DEWALT'    => 'ڈیوائلٹ',
+            'DEW'       => 'ڈیوائلٹ',
             'SHENZHANG' => 'شنژنگ',
-            'AEG'      => 'AEG',
-            'SAW'      => 'آری',
-            'CIRCULAR' => 'سرکلر',
-            'HAMMER'   => 'ہیمر',
-            'ROUTER'   => 'روٹر',
-            'BATTERY'  => 'بیٹری',
-            'BLADE'    => 'بلیڈ',
-            'CHISEL'   => 'چھینی',
-            'CHUCK'    => 'چک',
-            'NUT'      => 'نٹ',
-            'CORE'     => 'کور',
-            'BIT'      => 'بٹ',
-            'FIELD'    => 'فیلڈ',
-            'FILTER'   => 'فلٹر',
-            'GEAR'     => 'گراری',
-            'HEAD'     => 'ہیڈ',
-            'CUP'      => 'کپ',
-            'SPRING'   => 'سپرنگ',
-            'JALIBI'   => 'جلیبی',
-            'SHAFT'    => 'شافٹ',
-            'STOCKER'  => 'سٹوکر',
-            'SWITCH'   => 'سوئچ',
-            'BLOWER'   => 'بلور',
-            'WASHER'   => 'واشر',
-            'MITRE'    => 'میٹر',
-            'TRIMMER'  => 'ٹریمر',
-            'NEW'      => 'نیا',
-            'MODEL'    => 'ماڈل',
-            'SMALL'    => 'چھوٹا',
-            'NORMAL'   => 'عام',
-            'SEGMENTED'=> 'جھرری',
-            'TESTING'  => 'ٹیسٹنگ',
-            'TEST'     => 'ٹیسٹ',
+            'AEG'       => 'AEG',
+            'SAW'       => 'آری',
+            'CIRCULAR'  => 'سرکلر',
+            'HAMMER'    => 'ہیمر',
+            'ROUTER'    => 'روٹر',
+            'BATTERY'   => 'بیٹری',
+            'BLADE'     => 'بلیڈ',
+            'CHISEL'    => 'چھینی',
+            'CHUCK'     => 'چک',
+            'NUT'       => 'نٹ',
+            'CORE'      => 'کور',
+            'BIT'       => 'بٹ',
+            'FIELD'     => 'فیلڈ',
+            'FILTER'    => 'فلٹر',
+            'GEAR'      => 'گراری',
+            'HEAD'      => 'ہیڈ',
+            'CUP'       => 'کپ',
+            'SPRING'    => 'سپرنگ',
+            'JALIBI'    => 'جلیبی',
+            'SHAFT'     => 'شافٹ',
+            'STOCKER'   => 'سٹوکر',
+            'SWITCH'    => 'سوئچ',
+            'BLOWER'    => 'بلور',
+            'WASHER'    => 'واشر',
+            'MITRE'     => 'میٹر',
+            'TRIMMER'   => 'ٹریمر',
+            'NEW'       => 'نیا',
+            'MODEL'     => 'ماڈل',
+            'SMALL'     => 'چھوٹا',
+            'NORMAL'    => 'عام',
+            'SEGMENTED' => 'جھرری',
+            'TESTING'   => 'ٹیسٹنگ',
+            'TEST'      => 'ٹیسٹ',
+            'BEARING'   => 'بیرنگ',
+            'BUSH'      => 'بش',
+            'PIN'       => 'پن',
+            'OIL'       => 'ائل',
+            'SEAL'      => 'سیل',
+            'GASKET'    => 'گاسکٹ',
+            'PUMP'      => 'پمپ',
+            'VALVE'     => 'والو',
+            'PLUG'      => 'پلگ',
+            'PADI'      => 'پانڈی',
+            'PLATE'     => 'پلیٹ',
+            'ROD'       => 'راڈ',
+            'DISC'      => 'ڈسک',
+            'CLUTCH'    => 'کلچ',
+            'PAD'       => 'پیڈ',
+            'COVER'     => 'کور',
+            'BODY'      => 'باڈی',
+            'LEVER'     => 'لیور',
+            'ARM'       => 'آرم',
+            'FAN'       => 'فین',
+            'CABLE'     => 'کیبل',
+            'WIRE'      => 'وائر',
+            'HOSE'      => 'ہوز',
+            'PIPE'      => 'پائپ',
+            'WHEEL'     => 'ویہل',
+            'LOCK'      => 'لاک',
+            'KEY'       => 'کی',
+            'SCREW'     => 'سکرو',
+            'BOLT'      => 'بولٹ',
+            'KIT'       => 'کِٹ',
+            'ASSY'      => 'اسمبلی',
+            'SET'       => 'سیٹ',
+            'STD'       => 'سٹینڈرڈ',
+            'STANDARD'  => 'سٹینڈرڈ',
+            'BIG'       => 'بڑا',
+            'HEAVY'     => 'ہیوی',
+            'DUTY'      => 'ڈیوٹی',
+            'SPECIAL'   => 'سپیشل',
+            'SUPER'     => 'سپر',
+            'AUTO'      => 'آٹو',
+            'GENUINE'   => 'جینوئن',
+            'ORIGINAL'  => 'اورجنل',
+            'JAPAN'     => 'جاپان',
+            'CHINA'     => 'چائنا',
+            'TAIWAN'    => 'تائیوان',
+            'KOREA'     => 'کوریا',
+            'GERMANY'   => 'جرمنی',
+            'HONDA'     => 'ہونڈا',
+            'YAMAHA'    => 'یا مہا',
+            'SUZUKI'    => 'سوزوکی',
+            'TOYOTA'    => 'ٹویوٹا',
+            'CROWN'     => 'کراؤن',
+            'LIFAN'     => 'لیفان',
+        ];
+
+        $letterAbbr = [
+            'A' => 'اے', 'B' => 'بی', 'C' => 'سی', 'D' => 'ڈی', 'E' => 'ای',
+            'F' => 'ایف', 'G' => 'جی', 'H' => 'ایچ', 'I' => 'آئی', 'J' => 'جے',
+            'K' => 'کے', 'L' => 'ایل', 'M' => 'ایم', 'N' => 'این', 'O' => 'او',
+            'P' => 'پی', 'Q' => 'کیو', 'R' => 'آر', 'S' => 'ایس', 'T' => 'ٹی',
+            'U' => 'یو', 'V' => 'وی', 'W' => 'ڈبلیو', 'X' => 'ایکس', 'Y' => 'وائے', 'Z' => 'زیڈ'
         ];
 
         $urduWords = [];
         $words = explode(' ', $engName);
         foreach ($words as $word) {
             $cleanWord = trim($word, '()[]"\'*,.-');
+            if (empty($cleanWord)) continue;
+
             if (isset($dictionary[$cleanWord])) {
                 $urduWords[] = $dictionary[$cleanWord];
+            } else if (preg_match('/^[A-Z]{2,4}$/', $cleanWord)) {
+                $letters = str_split($cleanWord);
+                $abbrArr = [];
+                foreach ($letters as $l) {
+                    $abbrArr[] = $letterAbbr[$l] ?? $l;
+                }
+                $urduWords[] = implode(' ', $abbrArr);
+            } else if (preg_match('/^([A-Z])(\d+)$/i', $cleanWord, $m)) {
+                $let = strtoupper($m[1]);
+                $num = $m[2];
+                $letUrdu = $letterAbbr[$let] ?? $let;
+                $urduWords[] = $letUrdu . ' ' . $num;
             } else if (preg_match('/^\d+["\']?$/', $cleanWord) || preg_match('/^[A-Z0-9\/]+$/i', $cleanWord)) {
                 $urduWords[] = $cleanWord;
             }
@@ -457,7 +548,7 @@ $balanceDue = $displayClosing;
             $custEng = $booking->party_type === 'walking' ? ($booking->customer_name ?? 'N/A') : ($booking->customer->customer_name ?? 'N/A');
             $custDisplay = !empty($custUrdu) ? ($custUrdu . ($custEng !== 'N/A' && $custEng !== $custUrdu ? ' (' . $custEng . ')' : '')) : $custEng;
         @endphp
-        <div class="d-flex justify-content-between align-items-center mb-1">
+        <div class="d-flex justify-content-between align-items-center my-1">
             <div class="pandi-box">
                 <span class="pandi-label">اڈا:</span>
                 <span class="pandi-line">
@@ -485,8 +576,9 @@ $balanceDue = $displayClosing;
                     <th style="width: 13%;">رقم</th>
                     <th style="width: 11%;">قیمت</th>
                     <th style="width: 11%;">ریٹ</th>
-                    <th style="width: 57%;">تفصیل</th>
+                    <th style="width: 52%;">تفصیل</th>
                     <th style="width: 8%;">تعداد</th>
+                    <th style="width: 5%;">سیریل</th>
                 </tr>
             </thead>
             <tbody>
@@ -510,18 +602,17 @@ $balanceDue = $displayClosing;
                     <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
                         {{ number_format($rate, 0) }}
                     </td>
-                    <td>
-                        <div class="item-desc-eng">
-                            {{ $productEng }}
-                        </div>
+                    <td style="direction: rtl; text-align: right; padding: 0px 3px;">
                         @if(!empty($productUrdu) && $productUrdu !== $productEng)
-                        <div class="item-desc-urdu">
-                            {{ $productUrdu }}
-                        </div>
+                            <span class="item-desc-urdu" style="display: inline; margin-left: 5px;">{{ $productUrdu }}</span>
                         @endif
+                        <span class="item-desc-eng" style="display: inline;">{{ $productEng }}</span>
                     </td>
                     <td style="text-align: center; font-weight: 800; font-size: 11.5px; color: #000;">
                         {{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}
+                    </td>
+                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
+                        {{ $index + 1 }}
                     </td>
                 </tr>
                 @endforeach

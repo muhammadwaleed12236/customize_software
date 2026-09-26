@@ -4,40 +4,48 @@
     .notification-icon-container {
         position: relative;
         display: inline-block;
-        margin: 0 15px;
+        margin: 0 4px;
     }
 
     .notification-icon {
         cursor: pointer;
-        font-size: 20px;
-        color: #6c757d;
-        transition: all 0.3s ease;
+        font-size: 15px;
+        color: rgba(255, 255, 255, 0.9);
+        transition: all 0.2s ease;
         position: relative;
+        padding: 6px 10px;
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .notification-icon:hover {
-        color: #28a745;
-        transform: scale(1.1);
+        color: #ffffff;
+        background: rgba(255, 255, 255, 0.2);
     }
 
     /* Badge (Red Circle with Number) */
     .notification-badge {
         position: absolute;
-        top: -8px;
-        right: -8px;
+        top: -6px;
+        right: -6px;
         background-color: #dc3545;
         color: white;
         border-radius: 50%;
-        width: 24px;
-        height: 24px;
+        width: 18px;
+        height: 18px;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 12px;
+        font-size: 10px;
         font-weight: bold;
-        border: 2px solid white;
+        border: 2px solid #1e3a5f;
         box-shadow: 0 2px 4px rgba(220, 53, 69, 0.5);
         transition: all 0.3s ease;
+        z-index: 5;
     }
 
     .notification-badge.hidden {

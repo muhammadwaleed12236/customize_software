@@ -319,10 +319,17 @@
                                                     </div>
 
                                                     <div class="col-sm-4">
-                                                        <label class="form-label">Item Description</label>
+                                                        <label class="form-label">Item Description (English)</label>
                                                         <input type="text" id="product_name"
                                                             value="{{ $product->item_name }}" name="product_name"
                                                             class="form-control" required>
+                                                    </div>
+
+                                                    <div class="col-sm-4">
+                                                        <label class="form-label">Item Name (Urdu) / اردو نام</label>
+                                                        <input type="text" id="item_name_urdu"
+                                                            value="{{ $product->item_name_urdu ?? $product->urdu_name ?? '' }}" name="item_name_urdu"
+                                                            class="form-control" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ" style="direction: rtl; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;">
                                                     </div>
 
                                                     <div class="col-sm-4">
