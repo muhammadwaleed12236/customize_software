@@ -4,78 +4,304 @@
 @can('purchase.edit')
 <style>
     :root {
-        --primary-gradient: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-        --accent-color: #f59e0b;
-        --success-color: #10b981;
-        --danger-color: #ef4444;
-        --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+        --coa-navy: #1e3a5f;
+        --coa-navy-dark: #0f1f38;
+        --coa-navy-light: #2c5282;
+        --coa-gold: #c8973a;
+        --coa-emerald: #059669;
+        --coa-border: #cbd5e1;
     }
 
-    .main-content { background-color: #f8fafc; min-height: 100vh; padding: 1.5rem 0.75rem; }
-    .premium-card { border: none; border-radius: 1.5rem; box-shadow: var(--card-shadow); background: white; overflow: hidden; margin-bottom: 2rem; width: 100%; }
-    .card-header-gradient { background: var(--primary-gradient); padding: 1.5rem 2rem; border: none; }
-    .card-title-premium { color: white; font-weight: 800; font-size: 1.5rem; margin: 0; display: flex; align-items: center; gap: 0.75rem; }
+    .main-content { background-color: #f8fafc; min-height: 100vh; padding: 10px 0 40px 0; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
     
-    .section-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 0.75rem; display: block; }
-    .fi { width: 100%; padding: 0.75rem 1rem; border: 1.5px solid #e2e8f0; border-radius: 0.75rem; font-size: 0.95rem; transition: all 0.2s; background-color: #f8fafc; }
-    .fi:focus { outline: none; border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1); background-color: white; }
-    .fi[readonly] { background-color: #f1f5f9; color: #475569; cursor: not-allowed; }
+    .f-label {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        color: #475569;
+        letter-spacing: 0.04em;
+        margin-bottom: 5px;
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
+    }
 
-    .table-premium { border-collapse: separate; border-spacing: 0 0.5rem; width: 100% !important; }
-    .table-premium thead th { background: #f1f5f9; color: #475569; font-weight: 700; text-transform: uppercase; font-size: 0.7rem; padding: 0.75rem 0.5rem; border: none; }
-    .table-premium tbody tr { transition: transform 0.2s, box-shadow 0.2s; }
-    .table-premium tbody td { padding: 0.75rem 0.5rem; vertical-align: middle; background: white; border-top: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9; }
-    .table-premium tbody td:first-child { border-left: 1px solid #f1f5f9; border-top-left-radius: 0.75rem; border-bottom-left-radius: 0.75rem; }
-    .table-premium tbody td:last-child { border-right: 1px solid #f1f5f9; border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; }
+    .fi {
+        width: 100%;
+        height: 38px;
+        padding: 6px 12px;
+        border: 1.5px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 13px;
+        transition: all 0.2s;
+        background-color: #ffffff;
+    }
 
-    /* Compact inputs inside premium table */
-    .table-premium .fi { padding: 0.4rem 0.4rem !important; font-size: 0.8rem !important; border-radius: 0.5rem !important; }
-    .table-premium .select2-container--default .select2-selection--single { height: 32px !important; border-radius: 0.5rem !important; }
-    .table-premium .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 30px !important; padding-left: 10px !important; font-size: 0.8rem !important; }
-    .table-premium .select2-container--default .select2-selection--single .select2-selection__arrow { height: 30px !important; }
-    .table-premium .input-group-text { padding: 0.25rem 0.5rem !important; font-size: 0.8rem !important; border-radius: 0.5rem 0 0 0.5rem !important; }
-    .table-premium .btn { padding: 0.25rem 0.5rem !important; font-size: 0.8rem !important; }
-    .table-premium .disc-type-toggle { border-radius: 0 0.5rem 0.5rem 0 !important; height: 32px !important; }
+    .fi:focus {
+        outline: none;
+        border-color: var(--coa-navy);
+        box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.1);
+    }
 
-    /* Advanced input-group alignment inside table cells */
-    .table-premium .input-group { flex-wrap: nowrap !important; }
-    .table-premium .input-group .fi { flex: 1 1 auto !important; width: 1% !important; }
-    .table-premium .input-group-text + .fi { border-top-left-radius: 0 !important; border-bottom-left-radius: 0 !important; border-top-right-radius: 0.5rem !important; border-bottom-right-radius: 0.5rem !important; }
-    .table-premium .fi:first-child { border-top-left-radius: 0.5rem !important; border-bottom-left-radius: 0.5rem !important; border-top-right-radius: 0 !important; border-bottom-right-radius: 0 !important; }
+    .fi[readonly] {
+        background-color: #f1f5f9;
+        color: #475569;
+    }
 
-    .summary-card { background: #f8fafc; border-radius: 1rem; padding: 1.5rem; border: 1.5px dashed #cbd5e1; }
-    .summary-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-    .summary-label { font-weight: 600; color: #64748b; }
-    .summary-value { font-weight: 800; color: #1e293b; font-size: 1.1rem; }
-    .summary-total { margin-top: 1rem; padding-top: 1rem; border-top: 2px solid #e2e8f0; }
-    .summary-total .summary-value { font-size: 1.5rem; color: #4f46e5; }
+    /* Excel Grid Theme */
+    .excel-grid-wrapper {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        background: #ffffff;
+    }
 
-    .btn-premium { padding: 1rem 2rem; border-radius: 0.75rem; font-weight: 700; transition: all 0.2s; border: none; display: flex; align-items: center; justify-content: center; gap: 0.5rem; }
-    .btn-submit { background: var(--primary-gradient); color: white; box-shadow: 0 4px 14px 0 rgba(79, 70, 229, 0.39); width: 100%; margin-top: 1.5rem; }
-    .btn-submit:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(79, 70, 229, 0.23); }
+    #itemsTable {
+        border-collapse: collapse !important;
+        width: 100%;
+        margin-bottom: 0 !important;
+    }
 
-    .payment-badge { padding: 0.5rem 1rem; border-radius: 2rem; cursor: pointer; transition: all 0.2s; font-weight: 600; border: 2px solid transparent; background: #f1f5f9; color: #64748b; }
-    .payment-badge.active { background: #eef2ff; color: #4f46e5; border-color: #4f46e5; }
+    #itemsTable thead th {
+        background: #0f1f38 !important;
+        color: #ffffff !important;
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 8px 6px !important;
+        border: 1px solid #1e3a5f !important;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
 
-    /* Select2 Custom Styling */
-    .select2-container--default .select2-selection--single { height: 45px; border-radius: 0.75rem; border: 1.5px solid #e2e8f0; background: #f8fafc; }
-    .select2-container--default .select2-selection--single .select2-selection__rendered { line-height: 43px; padding-left: 15px; }
-    .select2-container--default .select2-selection--single .select2-selection__arrow { height: 43px; }
+    #itemsTable tbody td {
+        padding: 4px 5px !important;
+        vertical-align: middle;
+        border: 1px solid #cbd5e1 !important;
+        background: #ffffff;
+    }
+
+    #itemsTable tbody tr:hover td {
+        background-color: #f8fafc;
+    }
+
+    /* Excel Cell Inputs */
+    #itemsTable .fi {
+        height: 32px !important;
+        padding: 3px 6px !important;
+        font-size: 12.5px !important;
+        border-radius: 4px !important;
+        border: 1px solid #cbd5e1 !important;
+        background-color: #ffffff;
+        box-shadow: none;
+    }
+
+    #itemsTable .fi:focus {
+        outline: none !important;
+        border: 2px solid #2563eb !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+        background-color: #ffffff !important;
+    }
+
+    #itemsTable .fi[readonly] {
+        background-color: #f1f5f9 !important;
+        color: #475569 !important;
+        border-color: #e2e8f0 !important;
+        font-weight: 600;
+    }
+
+    .summary-card {
+        background: #ffffff;
+        border-radius: 9px;
+        padding: 18px;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+    }
+
+    .summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .summary-label {
+        font-size: 12.5px;
+        font-weight: 700;
+        color: #64748b;
+    }
+
+    .summary-value {
+        font-weight: 800;
+        color: var(--coa-navy-dark);
+        font-size: 14px;
+        font-family: monospace;
+    }
+
+    .summary-total {
+        margin-top: 14px;
+        padding-top: 14px;
+        border-top: 2px dashed #cbd5e1;
+    }
+
+    .summary-total .summary-value {
+        font-size: 18px;
+        color: #047857;
+    }
+
+    .btn-submit-pur {
+        background: linear-gradient(135deg, #059669 0%, #047857 100%);
+        color: white;
+        border: none;
+        border-radius: 7px;
+        padding: 11px 20px;
+        font-weight: 800;
+        font-size: 13.5px;
+        width: 100%;
+        box-shadow: 0 4px 12px rgba(5, 150, 105, 0.25);
+        transition: all 0.2s;
+    }
+
+    .btn-submit-pur:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(5, 150, 105, 0.35);
+        color: #ffffff;
+    }
+
+    .payment-badge {
+        padding: 6px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 700;
+        font-size: 12px;
+        border: 1.5px solid #cbd5e1;
+        background: #f8fafc;
+        color: #64748b;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .payment-badge.active {
+        background: #e0f2fe;
+        color: #0369a1;
+        border-color: #0284c7;
+    }
+
+    /* Select2 Tweaks */
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        padding: 0 10px !important;
+        font-size: 12.5px !important;
+        background-color: #ffffff !important;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__rendered {
+        color: #1e293b !important;
+        line-height: 36px !important;
+        padding-left: 0 !important;
+    }
+
+    .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 36px !important;
+        right: 8px !important;
+    }
+
+    #itemsTable .select2-container .select2-selection--single {
+        height: 32px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 4px !important;
+        background-color: #ffffff !important;
+    }
+
+    #itemsTable .select2-container--default .select2-selection--single .select2-selection__rendered {
+        line-height: 30px !important;
+        padding-left: 6px !important;
+        font-size: 12.5px !important;
+        font-weight: 600;
+        color: #1e293b !important;
+    }
+
+    #itemsTable .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 30px !important;
+        right: 4px !important;
+    }
+
+    #itemsTable .select2-container--focus .select2-selection--single,
+    #itemsTable .select2-container--open .select2-selection--single {
+        border: 2px solid #2563eb !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+    }
+
+    #itemsTable .input-group-text {
+        height: 32px !important;
+        padding: 0 6px !important;
+        font-size: 11px !important;
+        font-weight: 700;
+        border-color: #cbd5e1 !important;
+        background-color: #f8fafc !important;
+    }
+
+    #itemsTable .disc-type-toggle {
+        height: 32px !important;
+        padding: 0 6px !important;
+        font-size: 11px !important;
+        font-weight: 700;
+        border-color: #cbd5e1 !important;
+        background-color: #f8fafc !important;
+    }
+
+    .remove-row {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.15s ease;
+    }
+
+    .remove-row:hover {
+        background-color: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
+    }
 </style>
 
 <div class="main-content">
     <div class="container-fluid px-2">
+
+        {{-- Compact Top Action Bar --}}
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-edit text-primary mr-2"></i>Edit Purchase Invoice #{{ $purchase->invoice_no }}</h5>
+            <div class="d-flex gap-2">
+                <a href="{{ route('Purchase.home') }}" class="btn btn-sm btn-outline-secondary fw-bold">
+                    <i class="fas fa-arrow-left mr-1"></i> Back to Purchases
+                </a>
+            </div>
+        </div>
+
         <form action="{{ route('purchase.update', $purchase->id) }}" method="POST" id="purchaseForm">
             @csrf
             @method('PUT')
             
             @if ($errors->any())
-                <div class="alert alert-danger alert-dismissible fade show mb-4 border-0 shadow-sm" role="alert" style="border-radius: 1rem;">
+                <div class="alert alert-danger alert-dismissible fade show mb-3 border-0 shadow-sm" role="alert" style="border-radius: 8px;">
                     <div class="d-flex align-items-center">
-                        <i class="bi bi-exclamation-triangle-fill fs-4 me-3"></i>
+                        <i class="fas fa-exclamation-triangle mr-2"></i>
                         <div>
-                            <h6 class="alert-heading fw-bold mb-1">Please fix the following errors:</h6>
-                            <ul class="mb-0 small">
+                            <strong class="mb-1">Please fix the following errors:</strong>
+                            <ul class="mb-0 small pl-3">
                                 @foreach ($errors->all() as $error)
                                     <li>{{ $error }}</li>
                                 @endforeach
@@ -89,30 +315,21 @@
             @endif
 
             @if (session('error'))
-                <div class="alert alert-danger alert-dismissible fade show mb-4 border-0 shadow-sm" role="alert" style="border-radius: 1rem;">
-                    <div class="d-flex align-items-center">
-                        <i class="bi bi-exclamation-circle-fill fs-4 me-3"></i>
-                        <div>{{ session('error') }}</div>
-                    </div>
+                <div class="alert alert-warning alert-dismissible fade show mb-3 border-0 shadow-sm" role="alert" style="border-radius: 8px;">
+                    <i class="fas fa-exclamation-circle mr-2"></i> {{ session('error') }}
                     <button type="button" class="close" data-dismiss="alert" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
                 </div>
             @endif
 
-            <div class="premium-card">
-                <div class="card-header-gradient d-flex justify-content-between align-items-center">
-                    <h2 class="card-title-premium">
-                        <i class="fas fa-edit"></i> Edit Purchase Invoice
-                    </h2>
-                    <div class="text-white opacity-75 fw-bold">Invoice Ref: {{ $purchase->formatted_invoice }}</div>
-                </div>
-
+            <div class="card shadow-sm border-0 mb-3" style="border-radius: 9px; border: 1px solid var(--coa-border) !important;">
                 <div class="card-body p-3 p-lg-4">
-                    <!-- Header Info -->
-                    <div class="row g-3 mb-4">
+
+                    <!-- Single Compact Header Row: Vendor, Branch, Warehouse & Date -->
+                    <div class="row align-items-end g-2 mb-3">
                         <div class="col-md-3">
-                            <label class="section-label">Vendor / Supplier <span class="text-danger">*</span></label>
+                            <label class="f-label mb-1"><i class="fas fa-building mr-1 text-muted"></i> Vendor <span class="text-danger">*</span></label>
                             <select name="vendor_id" id="vendor_id" class="fi select2" required>
                                 <option value="">Select Vendor</option>
                                 @foreach($Vendor as $v)
@@ -120,10 +337,25 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label class="section-label">Warehouse (Header)</label>
+
+                        {{-- BRANCH (Shown ONLY to Super Admin) --}}
+                        @if($isSuperAdmin)
+                            <div class="col-md-3">
+                                <label class="f-label mb-1"><i class="fas fa-code-branch mr-1 text-muted"></i> Branch <span class="text-danger">*</span></label>
+                                <select name="branch_id" id="branch_id" class="fi select2" required>
+                                    @foreach($Branch as $b)
+                                        <option value="{{ $b->id }}" {{ $b->id == $purchase->branch_id ? 'selected' : '' }}>{{ $b->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @else
+                            <input type="hidden" name="branch_id" value="{{ $purchase->branch_id }}">
+                        @endif
+
+                        <div class="{{ $isSuperAdmin ? 'col-md-3' : 'col-md-4' }}">
+                            <label class="f-label mb-1" title="Warehouse / Destination"><i class="fas fa-warehouse mr-1 text-muted"></i> Warehouse <span class="text-danger">*</span></label>
                             <select name="warehouse_id" id="warehouse_id" class="fi select2">
-                                <option value="">🏢 Direct to Shop (Branch Display)</option>
+                                <option value="">🏢 Direct to Shop</option>
                                 @foreach($Warehouse as $w)
                                     <option value="{{ $w->id }}" {{ $w->id == $purchase->warehouse_id ? 'selected' : '' }}>
                                         [{{ $w->branches->first()->name ?? 'Global' }}] - {{ $w->warehouse_name }}
@@ -131,39 +363,27 @@
                                 @endforeach
                             </select>
                         </div>
-                        <div class="col-md-3">
-                            <label class="section-label">Branch <span class="text-danger">*</span></label>
-                            @if($isSuperAdmin)
-                                <select name="branch_id" id="branch_id" class="fi select2" required>
-                                    @foreach($Branch as $b)
-                                        <option value="{{ $b->id }}" {{ $b->id == $purchase->branch_id ? 'selected' : '' }}>{{ $b->name }}</option>
-                                    @endforeach
-                                </select>
-                            @else
-                                <input type="text" class="fi" value="{{ $purchase->branch->name ?? 'N/A' }}" readonly>
-                                <input type="hidden" name="branch_id" value="{{ $purchase->branch_id }}">
-                            @endif
-                        </div>
-                        <div class="col-md-3">
-                            <label class="section-label">Invoice Date</label>
+
+                        <div class="{{ $isSuperAdmin ? 'col-md-3' : 'col-md-5' }}">
+                            <label class="f-label mb-1"><i class="fas fa-calendar-alt mr-1 text-muted"></i> Date <span class="text-danger">*</span></label>
                             <input type="date" name="purchase_date" class="fi" value="{{ $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : '' }}" required>
                         </div>
                     </div>
 
-                    <!-- Items Table -->
-                    <div class="table-responsive mb-4">
-                        <table class="table table-premium" id="itemsTable">
+                    <!-- Items Table (Excel Grid) -->
+                    <div class="table-responsive mb-1 excel-grid-wrapper">
+                        <table class="table table-bordered align-middle mb-0" id="itemsTable">
                             <thead>
                                 <tr>
-                                    <th style="width: 20%;">Product Details <span class="text-danger">*</span></th>
+                                    <th style="width: 24%;">Product Details <span class="text-danger">*</span></th>
                                     <th style="width: 10%;">Packing Type</th>
                                     <th style="width: 20%; text-align: center;">Packing Details</th>
-                                    <th style="width: 8%; text-align: center;">Total Qty <span class="text-danger">*</span></th>
-                                    <th style="width: 12%;">Cost Price <span class="text-danger">*</span></th>
+                                    <th style="width: 9%; text-align: center;">Total Qty <span class="text-danger">*</span></th>
+                                    <th style="width: 12%; text-align: right;">Cost Price <span class="text-danger">*</span></th>
                                     <th style="width: 10%;">Disc</th>
-                                    <th style="width: 8%;">Disc Amt</th>
-                                    <th style="width: 13%; text-align: right;">Line Total</th>
-                                    <th style="width: 4%;"></th>
+                                    <th style="width: 8%; text-align: right;">Disc Amt</th>
+                                    <th style="width: 12%; text-align: right;">Line Total</th>
+                                    <th style="width: 3%; text-align: center;"></th>
                                 </tr>
                             </thead>
                             <tbody id="itemsList">
@@ -180,15 +400,13 @@
                                                 <option value="{{ $p->id }}" 
                                                     data-price="{{ $p->last_purchase_price }}" 
                                                     data-unit="{{ $p->unit->name ?? 'unit' }}"
+                                                    data-code="{{ $p->item_code }}"
                                                     {{ $p->id == $item->product_id ? 'selected' : '' }}>
-                                                    {{ $p->item_name }} ({{ $p->item_code }})
+                                                    {{ $p->item_name }}
                                                 </option>
                                             @endforeach
                                         </select>
                                         <input type="hidden" name="unit[]" class="unit-input" value="{{ $unitName }}">
-                                        <div class="mt-2">
-                                            <input type="text" name="color[]" class="fi color-input" placeholder="Color (optional)" value="{{ $item->color }}" style="height: 30px; font-size: 0.8rem; padding: 4px 8px;">
-                                        </div>
                                     </td>
                                     
                                     <!-- PACKING TYPE -->
@@ -203,63 +421,59 @@
                                     <td>
                                         <!-- Standard View -->
                                         <div class="standard-packing-view text-center" style="{{ strtolower($item->packing_type ?? 'standard') === 'standard' ? '' : 'display: none;' }}">
-                                            <input type="text" class="fi text-center" value="{{ $unitName }}" readonly style="background-color: #f1f5f9;">
+                                            <input type="text" class="fi text-center" value="{{ $unitName }}" readonly style="background-color: #f1f5f9; font-size: 11.5px;">
                                         </div>
                                         <!-- Customize View -->
-                                        <div class="customize-packing-view gap-2 {{ strtolower($item->packing_type ?? 'standard') === 'customize' ? 'd-flex' : '' }}" style="{{ strtolower($item->packing_type ?? 'standard') === 'customize' ? '' : 'display: none;' }}">
+                                        <div class="customize-packing-view gap-1 {{ strtolower($item->packing_type ?? 'standard') === 'customize' ? 'd-flex' : '' }}" style="{{ strtolower($item->packing_type ?? 'standard') === 'customize' ? '' : 'display: none;' }}">
                                             <div class="flex-grow-1 text-center" style="width: 33%;">
-                                                <div style="font-size: 0.6rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Packs</div>
+                                                <div style="font-size: 9.5px; color: #64748b; font-weight: 700; text-transform: uppercase;">Packs</div>
                                                 <input type="number" name="packing_qty[]" class="fi text-center pack-qty-input" step="1" min="0" value="{{ $item->packing_qty ?? 0 }}" placeholder="Packs">
                                             </div>
                                             <div class="flex-grow-1 text-center" style="width: 33%;">
-                                                <div style="font-size: 0.6rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Pcs/Pk</div>
+                                                <div style="font-size: 9.5px; color: #64748b; font-weight: 700; text-transform: uppercase;">Pcs/Pk</div>
                                                 <input type="number" name="item_per_piece[]" class="fi text-center ipp-input" step="1" min="0" value="{{ $item->item_per_piece ?? 0 }}" placeholder="Pcs/Pack">
                                             </div>
                                             <div class="flex-grow-1 text-center" style="width: 33%;">
-                                                <div style="font-size: 0.6rem; color: #64748b; font-weight: 700; text-transform: uppercase; margin-bottom: 2px;">Loose</div>
+                                                <div style="font-size: 9.5px; color: #64748b; font-weight: 700; text-transform: uppercase;">Loose</div>
                                                 <input type="number" name="loose_piece[]" class="fi text-center loose-pcs-input" step="1" min="0" value="{{ $item->loose_piece ?? 0 }}" placeholder="Loose">
                                             </div>
                                         </div>
                                     </td>
                                     
                                     <td class="text-center">
-                                        <input type="number" name="qty[]" class="fi text-center qty-input fw-bold text-primary" value="{{ $item->qty }}" min="1" step="0.01" required {{ strtolower($item->packing_type ?? 'standard') === 'customize' ? 'readonly' : '' }} style="{{ strtolower($item->packing_type ?? 'standard') === 'customize' ? 'background-color: #eef2ff;' : '' }}">
+                                        <input type="number" name="qty[]" class="fi text-center qty-input font-weight-bold" style="font-family: monospace;" value="{{ $item->qty }}" min="1" step="0.01" required {{ strtolower($item->packing_type ?? 'standard') === 'customize' ? 'readonly' : '' }}>
                                     </td>
                                     <td>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-white border-end-0"><i class="fas fa-tag text-primary"></i></span>
-                                            <input type="number" name="price[]" class="fi price-input border-start-0" style="border-left: none; background:#fff; color:#1e293b; cursor:text;" step="0.01" min="0" value="{{ $item->price }}" required placeholder="Enter price">
-                                        </div>
+                                        <input type="number" name="price[]" class="fi price-input text-end font-weight-bold" style="font-family: monospace;" step="0.01" min="0" value="{{ $item->price }}" required placeholder="0.00">
                                     </td>
                                     <td>
                                         <div class="input-group" style="flex-wrap: nowrap;">
-                                            <input type="number" class="fi form-control disc-input-visual" style="border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0;" step="0.01" min="0" value="{{ $item->item_discount }}">
-                                            <button class="btn btn-outline-secondary disc-type-toggle" type="button" data-type="amount" style="border-top-right-radius: 0.75rem; border-bottom-right-radius: 0.75rem; border: 1.5px solid #e2e8f0; border-left: 1px solid #cbd5e1; background: #f8fafc; font-weight: bold; width: 45px; color: #4f46e5; transition: all 0.2s;">Rs</button>
+                                            <input type="number" class="fi form-control disc-input-visual text-end" style="border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: 0;" step="0.01" min="0" value="{{ $item->item_discount }}">
+                                            <button class="btn btn-outline-secondary disc-type-toggle" type="button" data-type="amount" style="border-top-right-radius: 5px; border-bottom-right-radius: 5px; border: 1.5px solid #cbd5e1; border-left: 1px solid #cbd5e1; background: #f8fafc; font-weight: bold; font-size: 11px; width: 36px; padding: 0;">Rs</button>
                                             <input type="hidden" class="disc-type-input" value="amount">
                                             <input type="hidden" name="item_discount[]" class="disc-input-hidden" value="{{ $item->item_discount }}">
                                         </div>
                                     </td>
                                     <td>
-                                        <input type="text" class="fi text-end fw-bold disc-amt-display" value="{{ number_format($item->item_discount, 2, '.', '') }}" readonly style="background:#f8fafc; color:#64748b; font-size:0.85rem;">
+                                        <input type="text" class="fi text-end font-weight-bold disc-amt-display" value="{{ number_format($item->item_discount, 2, '.', '') }}" readonly style="background:#f8fafc; color:#64748b; font-family: monospace;">
                                     </td>
                                     <td class="text-end">
-                                        <input type="text" class="fi text-end fw-bold line-total" value="{{ number_format($item->line_total, 2, '.', '') }}" readonly style="background:#f0fdf4; color:#15803d; font-size:0.85rem;">
+                                        <input type="text" class="fi text-end font-weight-bold line-total text-success" value="{{ number_format($item->line_total, 2, '.', '') }}" readonly style="background:#f0fdf4; font-family: monospace;">
                                     </td>
                                     
                                     <input type="hidden" name="line_warehouse_id[]" class="line-warehouse-input" value="{{ $item->warehouse_id }}">
                                     
                                     <td class="text-center">
-                                        <button type="button" class="btn btn-sm btn-outline-danger remove-row" style="border-radius: 8px; margin-top: 5px;"><i class="fa fa-trash"></i></button>
+                                        <button type="button" class="btn btn-sm btn-outline-danger remove-row" style="padding: 2px 6px; border-radius: 5px;"><i class="fas fa-trash-alt"></i></button>
                                     </td>
                                 </tr>
                                 @endforeach
                             </tbody>
                         </table>
                     </div>
-
-                    <button type="button" class="btn btn-outline-primary btn-sm fw-bold mb-5" id="addRow">
-                        <i class="fa fa-plus me-1"></i> ADD ANOTHER ITEM
-                    </button>
+                    <small class="text-muted d-block mb-3" style="font-size: 11.5px;">
+                        <i class="fas fa-keyboard text-primary mr-1"></i> <strong>Excel Auto-Row:</strong> Press <strong>Enter</strong> key anywhere in the row to automatically add a new line.
+                    </small>on>
 
                     <!-- Footer Section -->
                     <div class="row g-4">
@@ -369,8 +583,8 @@
                                 </div>
                             </div>
 
-                            <button type="submit" class="btn-premium btn-submit mt-4">
-                                <i class="bi bi-check2-circle"></i> Update Purchase Invoice
+                            <button type="submit" class="btn btn-submit-pur mt-3">
+                                <i class="fas fa-check-double mr-2"></i> UPDATE PURCHASE INVOICE
                             </button>
                         </div>
                     </div>
@@ -392,34 +606,52 @@ $(document).ready(function() {
     // --- Select2 Initialization ---
     function initSelect2() {
         if($.fn.select2) {
+            $('#vendor_id, #warehouse_id, #branch_id').select2({
+                width: '100%'
+            });
+
             $('.product-select').select2({
                 placeholder: "Select Product",
-                width: '100%'
+                width: '100%',
+                matcher: function(params, data) {
+                    if ($.trim(params.term) === '') {
+                        return data;
+                    }
+                    if (typeof data.text === 'undefined') {
+                        return null;
+                    }
+                    var term = params.term.toLowerCase();
+                    var text = data.text.toLowerCase();
+                    var code = $(data.element).data('code') ? $(data.element).data('code').toString().toLowerCase() : '';
+                    
+                    if (text.indexOf(term) > -1 || code.indexOf(term) > -1) {
+                        return data;
+                    }
+                    return null;
+                }
             });
         }
     }
     
     // Initial load
     initSelect2();
-    if($.fn.select2) {
-        $('#vendor_id, #warehouse_id, #branch_id').select2({
-            width: '100%'
-        });
-    }
 
-    // Add Row
-    $('#addRow').click(function() {
+    // ===== EXCEL GRID AUTO ROW ADDITION & ENTER KEY NAVIGATION =====
+    function addNewRow() {
         var newRow = $('.item-row:first').clone();
         
         // Reset inputs
         newRow.find('input').not('.disc-type-input, .disc-input-hidden, .unit-input, .standard-packing-view input').val(0);
         newRow.find('.qty-input').val(1);
+        newRow.find('.price-input').val(0);
         newRow.find('.line-total').val('0.00');
         newRow.find('.disc-amt-display').val('0.00');
         newRow.find('.unit-input').val('Piece');
-        newRow.find('.color-input').val('');
         newRow.find('.line-warehouse-input').val('');
         
+        // Reset product dropdown
+        newRow.find('.product-select').val('');
+
         // Reset packing type to Standard and clear customize inputs
         newRow.find('.packing-type-select').val('Standard');
         newRow.find('.standard-packing-view').show();
@@ -437,6 +669,64 @@ $(document).ready(function() {
         $('#itemsList').append(newRow);
         initSelect2();
         recalc();
+
+        // Focus & open product select of newly added row
+        setTimeout(function() {
+            var $newSelect = newRow.find('.product-select');
+            if ($.fn.select2) {
+                $newSelect.select2('open');
+            } else {
+                $newSelect.focus();
+            }
+        }, 100);
+
+        return newRow;
+    }
+
+    // Auto focus Qty when Product is selected via Select2
+    $(document).on('select2:select', '.product-select', function() {
+        var $row = $(this).closest('tr.item-row');
+        setTimeout(function() {
+            if ($row.find('.packing-type-select').val().toLowerCase() === 'customize') {
+                $row.find('.pack-qty-input').focus().select();
+            } else {
+                $row.find('.qty-input').focus().select();
+            }
+        }, 100);
+    });
+
+    // Handle Enter Key Navigation across cells & auto-add row on last field/row
+    $(document).on('keydown', '#itemsTable input, #itemsTable select', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault(); // Prevent default form submit
+            var $currentRow = $(this).closest('tr.item-row');
+            var isLastRow = $currentRow.is(':last-child');
+
+            if ($(this).hasClass('qty-input')) {
+                $currentRow.find('.price-input').focus().select();
+            } else if ($(this).hasClass('price-input')) {
+                $currentRow.find('.disc-input-visual').focus().select();
+            } else if ($(this).hasClass('disc-input-visual') || $(this).hasClass('packing-type-select') || $(this).hasClass('pack-qty-input') || $(this).hasClass('ipp-input') || $(this).hasClass('loose-pcs-input')) {
+                if (isLastRow) {
+                    addNewRow();
+                } else {
+                    var $nextRow = $currentRow.next('tr.item-row');
+                    var $nextSelect = $nextRow.find('.product-select');
+                    if ($nextSelect.length && $.fn.select2) {
+                        $nextSelect.select2('open');
+                    } else {
+                        $nextRow.find('.qty-input').focus().select();
+                    }
+                }
+            } else {
+                if (isLastRow) {
+                    addNewRow();
+                } else {
+                    var $nextRow = $currentRow.next('tr.item-row');
+                    $nextRow.find('.qty-input').focus().select();
+                }
+            }
+        }
     });
 
     // Remove Row
@@ -448,7 +738,7 @@ $(document).ready(function() {
             Swal.fire({
                 icon: 'warning',
                 title: 'Cannot delete!',
-                text: 'Invoice me kam se kam ek product hona zarori hai.'
+                text: 'Invoice mein kam se kam ek product hona zarori hai.'
             });
         }
     });
@@ -460,7 +750,7 @@ $(document).ready(function() {
         $(this).closest('tr').find('.price-input').val(price);
         $(this).closest('tr').find('.unit-input').val(unit);
         
-        // Also update standard packing view "Piece" text to the actual unit
+        // Also update standard packing view text to the actual unit
         $(this).closest('tr').find('.standard-packing-view input').val(unit);
         recalc();
     });
@@ -673,6 +963,33 @@ $(document).ready(function() {
         updateBalances();
     });
 
+    // Dynamic Warehouse Loading by Branch
+    $('#branch_id').on('change', function() {
+        const branchId = $(this).val();
+        if (!branchId) return;
+
+        const $warehouseSelect = $('#warehouse_id');
+        $warehouseSelect.prop('disabled', true);
+        
+        $.ajax({
+            url: "{{ route('warehouses-by-branch') }}",
+            type: "GET",
+            data: { branch_id: branchId },
+            success: function(res) {
+                let html = '<option value="">🏢 Direct to Shop (Branch Display)</option>';
+                if (res && res.length > 0) {
+                    res.forEach(function(w) {
+                        html += `<option value="${w.id}">🏢 ${w.warehouse_name}</option>`;
+                    });
+                }
+                $warehouseSelect.html(html).prop('disabled', false).trigger('change');
+            },
+            error: function() {
+                $warehouseSelect.prop('disabled', false);
+            }
+        });
+    });
+
     // Initialize accounts dropdown and balances
     $('.rv-account').each(function() { loadAccountsInto($(this)); });
     updateBalances();
@@ -681,9 +998,9 @@ $(document).ready(function() {
     // Trigger initial calculation
     recalc();
 
-    // Prevent enter key submission in form inputs
+    // Prevent enter key submission in form inputs globally outside row auto addition
     $('#purchaseForm').on('keydown', 'input', function(e) {
-        if(e.key === 'Enter') {
+        if(e.key === 'Enter' || e.keyCode === 13) {
             e.preventDefault();
         }
     });

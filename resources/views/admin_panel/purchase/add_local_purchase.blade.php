@@ -65,8 +65,12 @@
         text-transform: uppercase;
         color: #475569;
         letter-spacing: 0.04em;
-        margin-bottom: 6px;
+        margin-bottom: 5px;
         display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        line-height: 1.2;
     }
 
     .fi {
@@ -118,10 +122,19 @@
         border-color: #0284c7;
     }
 
-    /* Table Styling */
+    /* Excel Grid Theme */
+    .excel-grid-wrapper {
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        overflow: hidden;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        background: #ffffff;
+    }
+
     #itemsTable {
-        border-collapse: collapse;
+        border-collapse: collapse !important;
         width: 100%;
+        margin-bottom: 0 !important;
     }
 
     #itemsTable thead th {
@@ -130,23 +143,47 @@
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.04em;
-        padding: 10px 8px;
-        border: 1px solid #1e3a5f;
+        letter-spacing: 0.05em;
+        padding: 8px 6px !important;
+        border: 1px solid #1e3a5f !important;
+        vertical-align: middle;
+        white-space: nowrap;
     }
 
     #itemsTable tbody td {
-        padding: 6px 8px;
+        padding: 4px 5px !important;
         vertical-align: middle;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #cbd5e1 !important;
         background: #ffffff;
     }
 
+    #itemsTable tbody tr:hover td {
+        background-color: #f8fafc;
+    }
+
+    /* Excel Cell Inputs */
     #itemsTable .fi {
-        height: 34px !important;
-        padding: 4px 8px !important;
+        height: 32px !important;
+        padding: 3px 6px !important;
         font-size: 12.5px !important;
-        border-radius: 5px !important;
+        border-radius: 4px !important;
+        border: 1px solid #cbd5e1 !important;
+        background-color: #ffffff;
+        box-shadow: none;
+    }
+
+    #itemsTable .fi:focus {
+        outline: none !important;
+        border: 2px solid #2563eb !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+        background-color: #ffffff !important;
+    }
+
+    #itemsTable .fi[readonly] {
+        background-color: #f1f5f9 !important;
+        color: #475569 !important;
+        border-color: #e2e8f0 !important;
+        font-weight: 600;
     }
 
     .summary-card {
@@ -231,16 +268,64 @@
     }
 
     #itemsTable .select2-container .select2-selection--single {
-        height: 34px !important;
-        border-radius: 5px !important;
+        height: 32px !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 4px !important;
+        background-color: #ffffff !important;
     }
 
     #itemsTable .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 32px !important;
+        line-height: 30px !important;
+        padding-left: 6px !important;
+        font-size: 12.5px !important;
+        font-weight: 600;
+        color: #1e293b !important;
     }
 
     #itemsTable .select2-container--default .select2-selection--single .select2-selection__arrow {
+        height: 30px !important;
+        right: 4px !important;
+    }
+
+    #itemsTable .select2-container--focus .select2-selection--single,
+    #itemsTable .select2-container--open .select2-selection--single {
+        border: 2px solid #2563eb !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2) !important;
+    }
+
+    #itemsTable .input-group-text {
         height: 32px !important;
+        padding: 0 6px !important;
+        font-size: 11px !important;
+        font-weight: 700;
+        border-color: #cbd5e1 !important;
+        background-color: #f8fafc !important;
+    }
+
+    #itemsTable .disc-type-toggle {
+        height: 32px !important;
+        padding: 0 6px !important;
+        font-size: 11px !important;
+        font-weight: 700;
+        border-color: #cbd5e1 !important;
+        background-color: #f8fafc !important;
+    }
+
+    .remove-row {
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        transition: all 0.15s ease;
+    }
+
+    .remove-row:hover {
+        background-color: #fee2e2;
+        color: #dc2626;
+        border-color: #fca5a5;
     }
 </style>
 @endsection
@@ -250,24 +335,14 @@
     <div class="pur-wrapper">
         <div class="container-fluid px-2">
 
-            {{-- 1. Corporate Header Bar --}}
-            <div class="pur-header-bar">
-                <div class="d-flex align-items-center gap-3">
-                    <div class="pur-header-icon">
-                        <i class="fas fa-store"></i>
-                    </div>
-                    <div>
-                        <h4 class="pur-header-title">Local Market Purchase</h4>
-                        <div class="pur-header-sub">
-                            <span><i class="fas fa-receipt mr-1" style="color: var(--coa-gold);"></i> Direct Market Purchases & Spot Stock Addition &mdash; Ameen & Sons Corporate ERP</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <a href="{{ route('store') }}" class="btn btn-sm btn-light font-weight-bold text-dark border">
-                        <i class="fas fa-plus mr-1 text-primary"></i> Create Item
+            {{-- Compact Top Action Bar --}}
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="fw-bold mb-0 text-dark"><i class="fas fa-shopping-cart text-primary mr-2"></i>Purchase Invoice</h5>
+                <div class="d-flex gap-2">
+                    <a href="{{ route('store') }}" class="btn btn-sm btn-outline-primary fw-bold">
+                        <i class="fas fa-plus mr-1"></i> Create Item
                     </a>
-                    <a href="{{ route('Purchase.home') }}" class="btn btn-sm btn-outline-light font-weight-bold">
+                    <a href="{{ route('Purchase.home') }}" class="btn btn-sm btn-outline-secondary fw-bold">
                         <i class="fas fa-arrow-left mr-1"></i> Back to Purchases
                     </a>
                 </div>
@@ -309,33 +384,33 @@
                 <div class="card shadow-sm border-0 mb-3" style="border-radius: 9px; border: 1px solid var(--coa-border) !important;">
                     <div class="card-body p-3 p-lg-4">
 
-                        <!-- Header Row: Purchase From & Metadata -->
-                        <div class="row g-3 mb-3">
+                        <!-- Single Compact Header Row: Purchase Source, Vendor, Branch, Warehouse & Date -->
+                        <div class="row align-items-end g-2 mb-3">
                             {{-- ===== VENDOR SOURCE TOGGLE ===== --}}
-                            <div class="col-12 mb-2">
-                                <label class="f-label">Purchase From Source</label>
-                                <div class="d-flex gap-2">
-                                    <label class="payment-badge active" id="badgeLocalMarket">
-                                        <input type="radio" name="_vendor_mode" value="local" class="d-none" checked>
-                                        <i class="fas fa-store mr-1 text-success"></i> Local Market (Walk-In Shop)
+                            <div class="col-md-3">
+                                <label class="f-label mb-1">Purchase Source</label>
+                                <div class="d-flex gap-1" style="height: 38px; align-items: center;">
+                                    <label class="payment-badge flex-fill text-center px-2 py-2 m-0" id="badgeLocalMarket" style="font-size: 11px; height: 38px; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
+                                        <input type="radio" name="_vendor_mode" value="local" class="d-none">
+                                        <i class="fas fa-store mr-1 text-success"></i> Local Market
                                     </label>
-                                    <label class="payment-badge" id="badgeRegisteredVendor">
-                                        <input type="radio" name="_vendor_mode" value="vendor" class="d-none">
-                                        <i class="fas fa-building mr-1 text-primary"></i> Registered Vendor (Ledger Update)
+                                    <label class="payment-badge active flex-fill text-center px-2 py-2 m-0" id="badgeRegisteredVendor" style="font-size: 11px; height: 38px; display: flex; align-items: center; justify-content: center; white-space: nowrap;">
+                                        <input type="radio" name="_vendor_mode" value="vendor" class="d-none" checked>
+                                        <i class="fas fa-building mr-1 text-primary"></i> Registered
                                     </label>
                                 </div>
                             </div>
 
                             {{-- LOCAL MARKET: free-text shop name --}}
-                            <div class="col-md-3" id="localMarketField">
-                                <label class="f-label"><i class="fas fa-store mr-1 text-muted"></i> Vendor / Supplier / Shop <span class="text-danger">*</span></label>
-                                <input type="text" name="local_vendor_name" id="vendor_name_text" class="fi" placeholder="Enter Local Market Shop Name">
+                            <div class="col-md-3" id="localMarketField" style="display:none;">
+                                <label class="f-label mb-1"><i class="fas fa-store mr-1 text-muted"></i> Vendor / Shop <span class="text-danger">*</span></label>
+                                <input type="text" name="local_vendor_name" id="vendor_name_text" class="fi" placeholder="Enter Shop Name">
                             </div>
 
                             {{-- REGISTERED VENDOR: select2 dropdown --}}
-                            <div class="col-md-3" id="registeredVendorField" style="display:none;">
-                                <label class="f-label"><i class="fas fa-building mr-1 text-muted"></i> Select Registered Vendor <span class="text-danger">*</span></label>
-                                <select name="vendor_id_select" id="vendor_id_select" class="fi select2">
+                            <div class="col-md-3" id="registeredVendorField">
+                                <label class="f-label mb-1"><i class="fas fa-building mr-1 text-muted"></i> Vendor <span class="text-danger">*</span></label>
+                                <select name="vendor_id_select" id="vendor_id_select" class="fi select2" required>
                                     <option value="">— Select Vendor —</option>
                                     @foreach($Vendor as $v)
                                         <option value="{{ $v->id }}"
@@ -345,29 +420,27 @@
                                         </option>
                                     @endforeach
                                 </select>
-                                <small class="text-muted d-block mt-1" style="font-size: 11px;">
-                                    <i class="fas fa-info-circle mr-1"></i> Vendor ledger will be credited automatically
-                                </small>
                             </div>
 
-                            <div class="col-md-3">
-                                <label class="f-label"><i class="fas fa-code-branch mr-1 text-muted"></i> Branch <span class="text-danger">*</span></label>
-                                @if($isSuperAdmin)
+                            {{-- BRANCH (Shown ONLY to Super Admin) --}}
+                            @if($isSuperAdmin)
+                                <div class="col-md-2">
+                                    <label class="f-label mb-1"><i class="fas fa-code-branch mr-1 text-muted"></i> Branch <span class="text-danger">*</span></label>
                                     <select name="branch_id" id="branch_id" class="fi select2" required>
                                         @foreach($Branch as $b)
                                             <option value="{{ $b->id }}" {{ $currentBranch == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
                                         @endforeach
                                     </select>
-                                @else
-                                    <input type="text" class="fi" value="{{ Auth::user()->branch->name ?? 'N/A' }}" readonly>
-                                    <input type="hidden" name="branch_id" value="{{ $currentBranch }}">
-                                @endif
-                            </div>
+                                </div>
+                            @else
+                                <input type="hidden" name="branch_id" value="{{ $currentBranch }}">
+                            @endif
 
-                            <div class="col-md-3">
-                                <label class="f-label"><i class="fas fa-warehouse mr-1 text-muted"></i> Warehouse / Destination <span class="text-danger">*</span></label>
+                            {{-- WAREHOUSE / DESTINATION --}}
+                            <div class="{{ $isSuperAdmin ? 'col-md-2' : 'col-md-3' }}">
+                                <label class="f-label mb-1" title="Warehouse / Destination"><i class="fas fa-warehouse mr-1 text-muted"></i> Warehouse <span class="text-danger">*</span></label>
                                 <select name="warehouse_id" id="warehouse_id" class="fi select2">
-                                    <option value="">🏢 Direct to Shop (Branch Display)</option>
+                                    <option value="">🏢 Direct to Shop</option>
                                     @foreach($Warehouse as $w)
                                         <option value="{{ $w->id }}">
                                             @php $br = $w->branches->first(); @endphp
@@ -377,26 +450,27 @@
                                 </select>
                             </div>
 
-                            <div class="col-md-3">
-                                <label class="f-label"><i class="fas fa-calendar-alt mr-1 text-muted"></i> Invoice Date</label>
+                            {{-- INVOICE DATE --}}
+                            <div class="{{ $isSuperAdmin ? 'col-md-2' : 'col-md-3' }}">
+                                <label class="f-label mb-1"><i class="fas fa-calendar-alt mr-1 text-muted"></i> Date <span class="text-danger">*</span></label>
                                 <input type="date" name="purchase_date" class="fi" value="{{ date('Y-m-d') }}" required>
                             </div>
                         </div>
 
-                        <!-- Items Table -->
-                        <div class="table-responsive mb-3">
+                        <!-- Items Table (Excel Grid) -->
+                        <div class="table-responsive mb-1 excel-grid-wrapper">
                             <table class="table table-bordered align-middle mb-0" id="itemsTable">
                                 <thead>
                                     <tr>
-                                        <th style="width: 22%;">Product Details <span class="text-danger">*</span></th>
-                                        <th style="width: 11%;">Packing Type</th>
+                                        <th style="width: 24%;">Product Details <span class="text-danger">*</span></th>
+                                        <th style="width: 10%;">Packing Type</th>
                                         <th style="width: 20%; text-align: center;">Packing Details</th>
                                         <th style="width: 9%; text-align: center;">Total Qty <span class="text-danger">*</span></th>
                                         <th style="width: 12%; text-align: right;">Cost Price <span class="text-danger">*</span></th>
                                         <th style="width: 10%;">Disc</th>
-                                        <th style="width: 9%; text-align: right;">Disc Amt</th>
-                                        <th style="width: 13%; text-align: right;">Line Total</th>
-                                        <th style="width: 4%; text-align: center;"></th>
+                                        <th style="width: 8%; text-align: right;">Disc Amt</th>
+                                        <th style="width: 12%; text-align: right;">Line Total</th>
+                                        <th style="width: 3%; text-align: center;"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="itemsList">
@@ -405,7 +479,7 @@
                                             <select name="product_id[]" class="fi select2 product-select" required>
                                                 <option value="">Select Product</option>
                                                 @foreach($Products as $p)
-                                                    <option value="{{ $p->id }}" data-price="{{ $p->last_purchase_price }}" data-unit="{{ $p->unit->name ?? 'unit' }}">{{ $p->item_name }} ({{ $p->item_code }})</option>
+                                                    <option value="{{ $p->id }}" data-price="{{ $p->last_purchase_price }}" data-unit="{{ $p->unit->name ?? 'unit' }}" data-code="{{ $p->item_code }}">{{ $p->item_name }}</option>
                                                 @endforeach
                                             </select>
                                             <input type="hidden" name="unit[]" class="unit-input" value="unit">
@@ -446,10 +520,7 @@
                                             <input type="number" name="qty[]" class="fi text-center qty-input font-weight-bold" style="font-family: monospace;" value="1" min="1" step="0.01" required>
                                         </td>
                                         <td>
-                                            <div class="input-group">
-                                                <span class="input-group-text bg-light border-end-0" style="padding: 2px 6px; font-size: 11px;">Rs.</span>
-                                                <input type="number" name="price[]" class="fi price-input border-start-0 text-end font-weight-bold" style="font-family: monospace;" step="0.01" min="0" value="0" required placeholder="0.00">
-                                            </div>
+                                            <input type="number" name="price[]" class="fi price-input text-end font-weight-bold" style="font-family: monospace;" step="0.01" min="0" value="0" required placeholder="0.00">
                                         </td>
                                         <td>
                                             <div class="input-group" style="flex-wrap: nowrap;">
@@ -472,10 +543,9 @@
                                 </tbody>
                             </table>
                         </div>
-                        
-                        <button type="button" class="btn btn-outline-primary btn-sm font-weight-bold mb-4" id="addRow" style="border-radius: 6px;">
-                            <i class="fas fa-plus mr-1"></i> ADD ANOTHER ITEM
-                        </button>
+                        <small class="text-muted d-block mb-3" style="font-size: 11.5px;">
+                            <i class="fas fa-keyboard text-primary mr-1"></i> <strong>Excel Auto-Row:</strong> Press <strong>Enter</strong> key anywhere in the row to automatically add a new line.
+                        </small>
 
                         <div class="row g-4">
                             <!-- Left: Notes & Payment -->
@@ -579,7 +649,26 @@
 $(document).ready(function() {
     function initSelect2() {
         if ($.fn.select2) {
-            $('.select2').select2({ width: '100%' });
+            $('.select2').not('.product-select').select2({ width: '100%' });
+            $('.product-select').select2({
+                width: '100%',
+                matcher: function(params, data) {
+                    if ($.trim(params.term) === '') {
+                        return data;
+                    }
+                    if (typeof data.text === 'undefined') {
+                        return null;
+                    }
+                    var term = params.term.toLowerCase();
+                    var text = data.text.toLowerCase();
+                    var code = $(data.element).data('code') ? $(data.element).data('code').toString().toLowerCase() : '';
+                    
+                    if (text.indexOf(term) > -1 || code.indexOf(term) > -1) {
+                        return data;
+                    }
+                    return null;
+                }
+            });
         }
     }
     initSelect2();
@@ -599,6 +688,9 @@ $(document).ready(function() {
         }
     }
 
+    // Initialize vendor mode on load
+    switchVendorMode($('input[name="_vendor_mode"]:checked').val() || 'vendor');
+
     $('#badgeLocalMarket').click(function() {
         $('input[name="_vendor_mode"][value="local"]').prop('checked', true);
         $(this).addClass('active');
@@ -613,13 +705,17 @@ $(document).ready(function() {
         switchVendorMode('vendor');
     });
 
-    $('#addRow').click(function() {
+    // ===== EXCEL GRID AUTO ROW ADDITION & ENTER KEY NAVIGATION =====
+    function addNewRow() {
         var newRow = $('.item-row:first').clone();
         newRow.find('input').not('.disc-type-input, .disc-input-hidden, .unit-input, .standard-packing-view input').val(0);
         newRow.find('.qty-input').val(1);
         newRow.find('.line-total').val('0.00');
         newRow.find('.disc-amt-display').val('0.00');
         newRow.find('.unit-input').val('unit');
+        
+        // Reset product dropdown
+        newRow.find('.product-select').val('');
         
         // Reset packing type to Standard and clear customize inputs
         newRow.find('.packing-type-select').val('Standard');
@@ -636,6 +732,60 @@ $(document).ready(function() {
         newRow.find('.select2-container').remove();
         $('#itemsList').append(newRow);
         initSelect2();
+
+        // Focus & open product select of newly added row
+        setTimeout(function() {
+            var $newSelect = newRow.find('.product-select');
+            if ($.fn.select2) {
+                $newSelect.select2('open');
+            } else {
+                $newSelect.focus();
+            }
+        }, 100);
+
+        return newRow;
+    }
+
+    // Auto focus Qty when Product is selected via Select2
+    $(document).on('select2:select', '.product-select', function() {
+        var $row = $(this).closest('tr.item-row');
+        setTimeout(function() {
+            $row.find('.qty-input').focus().select();
+        }, 100);
+    });
+
+    // Handle Enter Key Navigation across cells & auto-add row on last field/row
+    $(document).on('keydown', '#itemsTable input, #itemsTable select', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault(); // Prevent default form submit
+            var $currentRow = $(this).closest('tr.item-row');
+            var isLastRow = $currentRow.is(':last-child');
+
+            if ($(this).hasClass('qty-input')) {
+                $currentRow.find('.price-input').focus().select();
+            } else if ($(this).hasClass('price-input')) {
+                $currentRow.find('.disc-input-visual').focus().select();
+            } else if ($(this).hasClass('disc-input-visual') || $(this).hasClass('packing-type-select') || $(this).hasClass('pack-qty-input') || $(this).hasClass('ipp-input') || $(this).hasClass('loose-pcs-input')) {
+                if (isLastRow) {
+                    addNewRow();
+                } else {
+                    var $nextRow = $currentRow.next('tr.item-row');
+                    var $nextSelect = $nextRow.find('.product-select');
+                    if ($nextSelect.length && $.fn.select2) {
+                        $nextSelect.select2('open');
+                    } else {
+                        $nextRow.find('.qty-input').focus().select();
+                    }
+                }
+            } else {
+                if (isLastRow) {
+                    addNewRow();
+                } else {
+                    var $nextRow = $currentRow.next('tr.item-row');
+                    $nextRow.find('.qty-input').focus().select();
+                }
+            }
+        }
     });
 
     // Remove Row

@@ -89,7 +89,7 @@
                 <h4 class="fw-bold mb-0">Purchase Inventory</h4>
                 <small class="text-muted">Manage your stock acquisitions and vendor payments</small>
             </div>
-            <a href="{{ route('add_purchase') }}" class="btn btn-primary px-4 fw-bold shadow-sm">
+            <a href="{{ route('purchase.addLocal') }}" class="btn btn-primary px-4 fw-bold shadow-sm">
                 <i class="fa fa-plus me-2"></i> ADD PURCHASE
             </a>
         </div>

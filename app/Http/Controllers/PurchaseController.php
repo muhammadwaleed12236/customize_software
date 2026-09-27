@@ -261,16 +261,16 @@ class PurchaseController extends Controller
 
     public function add_purchase()
     {
-        // $userId = Auth::id();
+        // Direct redirect to Local Purchase screen (/add/LocalPurchase)
+        return redirect()->route('purchase.addLocal');
+
+        /*
         $currentBranch = Auth::user()->branch_id ?? 1;
         $Purchase = Purchase::where('branch_id', $currentBranch)->get();
         $Vendor = Vendor::where('branch_id', $currentBranch)->get();
         
-        // ✅ ERP STANDARD: Filter warehouses by current user's branch
         $isSuperAdmin = Auth::user() && Auth::user()->hasRole('super admin');
         
-        // For simple users: Filter to their branch warehouses only
-        // For super admin: Get all warehouses (will show all in dropdown)
         if ($isSuperAdmin) {
             $Warehouse = Warehouse::get();
         } else {
@@ -279,29 +279,24 @@ class PurchaseController extends Controller
             })->get();
         }
         
-        $Branch = Branch::all();  // ✅ Get all branches for super admin selection
+        $Branch = Branch::all();
         
-        // ✅ Calculate NEXT purchase invoice using branch counter (ERP Standard)
-        // Same pattern as Sales: P-INV-0001, P-INV-0002, etc. per branch
         $branch = Branch::find($currentBranch);
         $nextPurchaseNumber = ((int)($branch->purchase_counter ?? 0)) + 1;
         $nextInvoice = 'P-INV-' . str_pad($nextPurchaseNumber, 4, '0', STR_PAD_LEFT);
         
-        // ✅ Get all Debit accounts (Bank, Cash) for payment selection
         $bankAccountsQuery = \App\Models\Account::with('head')
             ->where('status', 'active')
             ->whereHas('head', function ($q) {
                 $q->whereIn('title', ['Bank', 'Cash', 'Asset']);
             });
 
-        // ✅ If simple user, only show accounts for their branch. Super Admin gets all to allow JS filtering.
         if (!$isSuperAdmin) {
             $bankAccountsQuery->where('branch_id', $currentBranch);
         }
 
         $bankAccounts = $bankAccountsQuery->get();
         
-        // Fallback: if no accounts found for the heads, get all active accounts (respecting branch filter)
         if ($bankAccounts->isEmpty()) {
             $fallbackQuery = \App\Models\Account::with('head')->where('status', 'active');
             if (!$isSuperAdmin) {
@@ -310,14 +305,13 @@ class PurchaseController extends Controller
             $bankAccounts = $fallbackQuery->get();
         }
         
-        // Fetch inward gatepasses for the dropdown
-        // InwardGatepass with items, vendor
         $inwardGatepasses = \App\Models\InwardGatepass::with('vendor')
             ->whereNull('purchase_id')
             ->orderBy('id', 'desc')
             ->get();
         
         return view('admin_panel.purchase.add_purchase', compact('Vendor', "Warehouse", 'Purchase', 'bankAccounts', 'nextInvoice', 'currentBranch', 'Branch', 'isSuperAdmin', 'inwardGatepasses'));
+        */
     }
     public function store(Request $request, $gatepassId = null)
     {

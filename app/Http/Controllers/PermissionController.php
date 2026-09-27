@@ -14,12 +14,19 @@ class PermissionController extends Controller
 {
          public function index()
     {
-            
-    $modules = module::all();
-    $permissions = Permission::all();
-            // return response()->json(['permissions' => $permissions]);
+        $modules = module::all();
+        $permissions = Permission::all();
+        $roles = Role::with('permissions')->orderBy('name')->get();
+        $permissionModules = config('permissions', []);
+        $allBranches = \App\Models\Branch::orderBy('name')->get(['id', 'name']);
 
-            return view('admin_panel.permissions.permission2', compact('permissions', 'modules'));
+        return view('admin_panel.permissions.permission2', compact(
+            'permissions',
+            'modules',
+            'roles',
+            'permissionModules',
+            'allBranches'
+        ));
     }
 
     public function store(Request $request)

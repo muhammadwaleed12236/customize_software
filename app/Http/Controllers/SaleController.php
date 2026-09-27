@@ -659,7 +659,7 @@ class SaleController extends Controller
                 ]);
 
                 /* ================= CREATE NOTIFICATION IF NOTIFY_ME IS SET ================= */
-                if ($booking->notify_me !== null && $booking->notify_me !== '') {
+                if (!empty($booking->notify_me) && (int)$booking->notify_me > 0) {
                     $notificationDate = Carbon::today()->addDays($booking->notify_me);
                     
                     Notification::create([
@@ -1141,7 +1141,7 @@ class SaleController extends Controller
                 ]);
 
                 /* ================= CREATE NOTIFICATION IF NOTIFY_ME IS SET ================= */
-                if ($booking->notify_me !== null && $booking->notify_me !== '') {
+                if (!empty($booking->notify_me) && (int)$booking->notify_me > 0) {
                     $notificationDate = Carbon::today()->addDays($booking->notify_me);
                     
                     Notification::create([

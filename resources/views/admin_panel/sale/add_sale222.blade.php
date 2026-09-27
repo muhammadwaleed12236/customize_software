@@ -2323,9 +2323,17 @@
                         $('#is_posted').val('1'); // Mark sale as posted
                         refreshPostedState();
 
+                        $('.modal').modal('hide');
+                        $('.modal-backdrop').remove();
+                        $('body').removeClass('modal-open').css('padding-right', '');
+
                         if (res.invoice_url) {
                             window.open(res.invoice_url, '_blank');
                         }
+
+                        setTimeout(function() {
+                            window.location.href = '{{ route('sale.add') }}';
+                        }, 500);
                     } else {
                         $('#btnPosted, #btnHeaderPosted').prop('disabled', false);
                         showAlert('danger', res.msg || 'Post failed');
@@ -2663,11 +2671,17 @@
                         if (res && res.ok) {
                             showAlert('success', 'Sale completed using Branch Stock');
                             $('#is_posted').val('1'); // Mark sale as posted
+                            
+                            $('.modal').modal('hide');
+                            $('.modal-backdrop').remove();
+                            $('body').removeClass('modal-open').css('padding-right', '');
+
                             // Open invoice in new tab
                             if (res.invoice_url) window.open(res.invoice_url, '_blank');
-                            // mark posted state & refresh UI
-                            $('#booking_id').val(bookingId);
-                            refreshPostedState();
+                            
+                            setTimeout(function() {
+                                window.location.href = '{{ route('sale.add') }}';
+                            }, 500);
                         } else {
                             showAlert('danger', (res && res.error) ? res.error : 'Unknown response');
                         }
@@ -3490,9 +3504,23 @@
 
             const payable = parseFloat($('#totalBalance').val() || $('#tPayable').text() || 0) || 0;
 
+            function saveBookingAndOpenInvoice() {
+                ensureSaved().then(function(bookingId) {
+                    if (bookingId) {
+                        const bookingInvoiceUrl = '{{ url('booking/invoice') }}/' + bookingId;
+                        window.open(bookingInvoiceUrl, '_blank');
+                        setTimeout(function() {
+                            window.location.href = '{{ route('sale.add') }}';
+                        }, 500);
+                    }
+                }).catch(function(err) {
+                    console.error('Booking save error:', err);
+                });
+            }
+
             // For walking customers, skip credit check and save directly
             if (partyType === 'walking') {
-                ensureSaved();
+                saveBookingAndOpenInvoice();
             } else if (cust) {
                 $.get('/get-customer/' + cust)
                     .done(function(res) {
@@ -3506,14 +3534,14 @@
                             return;
                         }
                         // proceed to save
-                        ensureSaved();
+                        saveBookingAndOpenInvoice();
                     })
                     .fail(function() {
                         // If customer lookup fails, proceed with save but log
-                        ensureSaved();
+                        saveBookingAndOpenInvoice();
                     });
             } else {
-                ensureSaved();
+                saveBookingAndOpenInvoice();
             }
         });
 
@@ -4009,16 +4037,19 @@
                             if (res && res.ok) {
                                 showAlert('success', 'Draft posted! Items ready for delivery. Stock will be deducted on gate pass.');
                                 $('#is_posted').val('1');
-                                $('#btnPosted3').prop('disabled', true);
                                 
-                                // Disable other post buttons
-                                $('#btnPosted, #btnPosted2, #btnHeaderPosted, #btnSave').prop('disabled', true);
-                                refreshPostedState();
+                                $('.modal').modal('hide');
+                                $('.modal-backdrop').remove();
+                                $('body').removeClass('modal-open').css('padding-right', '');
 
                                 // Open invoice in new tab
                                 if (res.invoice_url) {
                                     window.open(res.invoice_url, '_blank');
                                 }
+
+                                setTimeout(function() {
+                                    window.location.href = '{{ route('sale.add') }}';
+                                }, 500);
                             } else {
                                 $('#btnPosted3').prop('disabled', false).css('opacity', '1');
                                 showAlert('danger', res.msg || 'Draft post failed');

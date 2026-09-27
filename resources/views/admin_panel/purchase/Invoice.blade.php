@@ -3,213 +3,336 @@
 @section('content')
 <style>
     :root {
-        --pi-primary: #0f172a;
-        --pi-secondary: #475569;
-        --pi-accent: #2563eb;
-        --pi-success: #059669;
-        --pi-border: #e2e8f0;
-        --pi-bg: #f8fafc;
+        --inv-navy: #0f1f38;
+        --inv-navy-light: #1e3a5f;
+        --inv-gold: #c8973a;
+        --inv-emerald: #059669;
+        --inv-slate: #475569;
+        --inv-border: #cbd5e1;
+        --inv-bg: #f8fafc;
     }
 
-    .pi-container { background-color: #f1f5f9; min-height: 100vh; padding: 2rem 0; font-family: 'Inter', sans-serif; }
-    
-    .pi-card { 
-        background: #fff; 
-        border: none; 
-        border-radius: 12px; 
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); 
+    .inv-wrapper {
+        background-color: #f1f5f9;
+        min-height: 100vh;
+        padding: 1.5rem 0 3rem 0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .inv-card {
+        background: #ffffff;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px -5px rgba(15, 31, 56, 0.12);
         overflow: hidden;
-        max-width: 1000px;
+        max-width: 980px;
         margin: 0 auto;
+        border: 1px solid var(--inv-border);
     }
 
-    .pi-header-banner {
-        background: var(--pi-primary);
-        color: #fff;
-        padding: 2.5rem;
+    /* Top Action Bar */
+    .inv-toolbar {
+        max-width: 980px;
+        margin: 0 auto 1.25rem auto;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        border-bottom: 4px solid var(--pi-accent);
     }
 
-    .pi-title h1 {
-        font-size: 2rem;
+    /* Header Banner */
+    .inv-header-banner {
+        background: linear-gradient(135deg, var(--inv-navy) 0%, var(--inv-navy-light) 100%);
+        color: #ffffff;
+        padding: 2.25rem 2.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 4px solid var(--inv-gold);
+    }
+
+    .inv-brand-title {
+        font-size: 1.45rem;
+        font-weight: 900;
+        letter-spacing: -0.5px;
+        color: #ffffff !important;
+        margin-bottom: 3px;
+        text-transform: uppercase;
+    }
+
+    .inv-brand-sub {
+        font-size: 0.78rem;
+        color: rgba(255, 255, 255, 0.85);
+        font-weight: 500;
+    }
+
+    .inv-doc-badge {
+        background: rgba(200, 151, 58, 0.2);
+        border: 1px solid var(--inv-gold);
+        color: #fef08a;
+        padding: 4px 12px;
+        border-radius: 5px;
+        font-size: 0.7rem;
         font-weight: 800;
-        letter-spacing: -1px;
-        margin: 0;
-        text-transform: uppercase;
-    }
-
-    .pi-badge {
-        padding: 0.4rem 1rem;
-        border-radius: 6px;
-        font-weight: 700;
-        font-size: 0.75rem;
-        text-transform: uppercase;
         letter-spacing: 1px;
+        text-transform: uppercase;
+        display: inline-block;
     }
 
-    .info-grid {
+    .inv-meta-tag {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 10px 18px;
+        border-radius: 8px;
+        text-align: right;
+    }
+
+    /* Information Cards Grid */
+    .inv-info-grid {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 1.5rem;
-        padding: 2rem;
-        background: #fff;
+        gap: 1.25rem;
+        padding: 1.75rem 2.5rem;
+        background: #ffffff;
+        border-bottom: 1px solid var(--inv-border);
     }
 
-    .info-box {
-        padding: 1rem;
+    .inv-info-box {
+        padding: 1rem 1.25rem;
         border-radius: 8px;
-        background: var(--pi-bg);
-        border-left: 4px solid var(--pi-border);
+        background: var(--inv-bg);
+        border: 1px solid var(--inv-border);
+        border-top: 3px solid var(--inv-navy-light);
     }
 
-    .info-box.accent { border-left-color: var(--pi-accent); }
-    .info-box.success { border-left-color: var(--pi-success); }
+    .inv-info-box.vendor-box { border-top-color: var(--inv-emerald); }
+    .inv-info-box.dest-box { border-top-color: var(--inv-gold); }
 
-    .info-label {
+    .inv-info-label {
         font-size: 0.65rem;
         font-weight: 800;
-        color: var(--pi-secondary);
+        color: var(--inv-slate);
         text-transform: uppercase;
-        margin-bottom: 0.25rem;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.05em;
+        margin-bottom: 5px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
     }
 
-    .info-value {
+    .inv-info-value {
         font-size: 0.95rem;
-        font-weight: 700;
-        color: var(--pi-primary);
+        font-weight: 800;
+        color: var(--inv-navy);
+        line-height: 1.3;
     }
 
-    .erp-table {
+    .inv-info-sub {
+        font-size: 0.75rem;
+        color: #64748b;
+        margin-top: 3px;
+    }
+
+    /* Table Styling */
+    .inv-table {
         width: 100%;
         border-collapse: collapse;
     }
 
-    .erp-table thead th {
-        background: #f1f5f9;
-        color: var(--pi-primary);
-        font-weight: 800;
+    .inv-table thead th {
+        background: var(--inv-navy) !important;
+        color: #ffffff !important;
         font-size: 0.7rem;
+        font-weight: 800;
         text-transform: uppercase;
-        padding: 1rem;
-        border-bottom: 2px solid var(--pi-border);
-        text-align: center;
+        letter-spacing: 0.05em;
+        padding: 11px 14px;
+        border: none;
     }
 
-    .erp-table tbody td {
-        padding: 1.25rem 1rem;
-        border-bottom: 1px solid #f1f5f9;
+    .inv-table tbody td {
+        padding: 11px 14px;
+        border-bottom: 1px solid #cbd5e1;
         font-size: 0.85rem;
         vertical-align: middle;
+        color: #1e293b;
     }
 
-    .item-main { font-weight: 700; color: var(--pi-primary); }
-    .item-sub { font-size: 0.75rem; color: var(--pi-secondary); }
-
-    .pi-footer-summary {
-        background: #fff;
-        padding: 2rem;
-        border-top: 1px solid var(--pi-border);
+    .inv-table tbody tr:nth-child(even) {
+        background-color: #f8fafc;
     }
 
-    .summary-item {
+    .inv-table tbody tr:hover {
+        background-color: #f1f5f9;
+    }
+
+    .item-title { font-weight: 700; color: var(--inv-navy); font-size: 0.9rem; }
+    .item-brand { font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600; }
+
+    /* Summary Section */
+    .inv-summary-section {
+        padding: 1.75rem 2.5rem;
+        background: #ffffff;
+        border-top: 1px solid var(--inv-border);
+    }
+
+    .inv-note-box {
+        background: var(--inv-bg);
+        border: 1px dashed var(--inv-slate);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+    }
+
+    .inv-summary-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
+        align-items: center;
+        padding: 6px 0;
+        font-size: 0.875rem;
+        color: #475569;
+        font-weight: 600;
     }
 
-    .summary-total {
-        margin-top: 1rem;
-        padding-top: 1rem;
-        border-top: 2px solid var(--pi-primary);
-        font-size: 1.25rem;
+    .inv-summary-total {
+        margin-top: 10px;
+        padding-top: 10px;
+        border-top: 2px solid var(--inv-navy);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 1.15rem;
         font-weight: 900;
-        color: var(--pi-primary);
+        color: var(--inv-emerald);
     }
 
-    .sig-area {
+    .inv-due-box {
+        background: #fef2f2;
+        border: 1px solid #fca5a5;
+        color: #991b1b;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-weight: 800;
+        font-size: 0.95rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 10px;
+    }
+
+    .inv-paid-badge {
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        color: #065f46;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-weight: 800;
+        font-size: 0.85rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-top: 8px;
+    }
+
+    /* Signature Section */
+    .inv-sig-section {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
-        gap: 3rem;
-        padding: 4rem 2rem 2rem;
+        gap: 2rem;
+        padding: 3rem 2.5rem 1.5rem;
         text-align: center;
     }
 
-    .sig-line {
-        border-top: 1px solid var(--pi-primary);
-        margin-top: 2rem;
-        padding-top: 0.5rem;
-        font-size: 0.75rem;
-        font-weight: 700;
+    .inv-sig-line {
+        border-top: 1.5px solid #cbd5e1;
+        padding-top: 6px;
+        font-size: 0.725rem;
+        font-weight: 800;
         text-transform: uppercase;
-        color: var(--pi-secondary);
+        color: var(--inv-slate);
+        letter-spacing: 0.05em;
     }
 
+    .inv-footer-bar {
+        padding: 1rem 2.5rem;
+        background: #f8fafc;
+        border-top: 1px solid var(--inv-border);
+        text-align: center;
+        font-size: 0.75rem;
+        color: #94a3b8;
+    }
+
+    /* Print Styles */
     @media print {
         .no-print { display: none !important; }
-        .pi-container { padding: 0; background: #fff; }
-        .pi-card { box-shadow: none; border: 1px solid #eee; }
+        body { background: #ffffff !important; }
+        .inv-wrapper { padding: 0 !important; background: #ffffff !important; }
+        .inv-card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; max-width: 100% !important; border-radius: 0 !important; }
+        .inv-header-banner { background: #0f1f38 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .inv-table thead th { background: #0f1f38 !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
 </style>
 
-<div class="pi-container">
-    <div class="container">
+<div class="inv-wrapper">
+    <div class="container-fluid px-3">
         
-        <div class="d-flex justify-content-between align-items-center mb-4 no-print">
-            <div class="d-flex align-items-center gap-3">
-                <a href="{{ route('Purchase.home') }}" class="btn btn-outline-dark fw-bold">
-                    <i class="fas fa-arrow-left me-1"></i> Back
+        {{-- Top Toolbar --}}
+        <div class="inv-toolbar no-print">
+            <div class="d-flex align-items-center gap-2">
+                <a href="{{ route('Purchase.home') }}" class="btn btn-sm btn-outline-dark font-weight-bold" style="border-radius: 6px;">
+                    <i class="fas fa-arrow-left me-1"></i> Back to Purchases
                 </a>
-                <h4 class="m-0 fw-800 text-slate-800">Purchase Invoice View</h4>
+                <span class="text-muted">|</span>
+                <span class="font-weight-bold text-dark" style="font-size: 14px;">Purchase Invoice #{{ $purchase->invoice_no }}</span>
             </div>
             <div class="d-flex gap-2">
-                <button onclick="window.print()" class="btn btn-dark shadow-sm me-2" style="margin-right: 8px;">
-                    <i class="fas fa-print me-1"></i> Print
+                <button onclick="window.print()" class="btn btn-sm btn-dark font-weight-bold shadow-sm" style="border-radius: 6px;">
+                    <i class="fas fa-print me-1"></i> Print Invoice
                 </button>
-                <button onclick="exportPDF()" class="btn btn-danger shadow-sm me-2" style="margin-right: 8px;">
-                    <i class="fas fa-file-pdf me-1"></i> PDF
+                <button onclick="exportPDF()" class="btn btn-sm btn-danger font-weight-bold shadow-sm" style="border-radius: 6px;">
+                    <i class="fas fa-file-pdf me-1"></i> Download PDF
                 </button>
-                <button onclick="shareWhatsApp()" class="btn btn-success shadow-sm" style="background: #25D366; border-color: #25D366;">
-                    <i class="fab fa-whatsapp me-1"></i> WhatsApp
+                <button onclick="shareWhatsApp()" class="btn btn-sm text-white font-weight-bold shadow-sm" style="background: #25D366; border-radius: 6px;">
+                    <i class="fab fa-whatsapp me-1"></i> Share WhatsApp
                 </button>
             </div>
         </div>
 
-        <div id="pi-content" class="pi-card">
-            <!-- Header Banner -->
-            <div class="pi-header-banner">
-                <div class="pi-title">
-                    <div class="d-flex align-items-center mb-2">
-                        <h1>PURCHASE INVOICE</h1>
-                        <span class="pi-badge" style="background: #dcfce7; color: #166534; padding: 0.5rem 1.2rem; margin-left: 30px;">
-                            RECEIVED
+        {{-- Main Invoice Document Card --}}
+        <div id="pi-content" class="inv-card">
+            
+            {{-- Header Banner --}}
+            <div class="inv-header-banner">
+                <div>
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <h1 class="inv-brand-title">PURCHASE INVOICE</h1>
+                        <span class="inv-doc-badge">
+                            <i class="fas fa-check-circle me-1"></i> {{ $purchase->due_amount <= 0 ? 'PAID & RECEIVED' : 'CREDIT / PARTIAL' }}
                         </span>
                     </div>
-                    <div class="opacity-75 small fw-bold text-uppercase tracking-wider">Invoice No: {{ $purchase->invoice_no }}</div>
+                    <div class="inv-brand-sub">
+                        <span><i class="fas fa-barcode me-1" style="color: var(--inv-gold);"></i> INVOICE NO: <strong>{{ $purchase->invoice_no }}</strong></span>
+                    </div>
                 </div>
-                <div class="text-end">
-                    <div class="d-inline-block px-3 py-2 rounded-3" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);">
-                        <div class="fw-900 fs-5 text-uppercase tracking-wider"><i class="fas fa-building me-2 text-accent"></i>{{ $purchase->branch->name ?? 'NEW WIJDAN ERP' }}</div>
-                        <div class="opacity-75 small text-uppercase fw-bold" style="font-size: 10px; letter-spacing: 1px;"> <i class="fas fa-map-marker-alt me-1"></i> {{ $purchase->branch->address ?? 'Main Distribution Center' }}</div>
+                <div class="inv-meta-tag">
+                    <div class="font-weight-bold text-uppercase" style="font-size: 13px; color: #ffffff;">
+                        <i class="fas fa-building me-1 text-warning"></i> {{ $purchase->branch->name ?? 'Ameen & Sons Main' }}
+                    </div>
+                    <div style="font-size: 11px; color: rgba(255,255,255,0.75);" class="mt-1">
+                        <i class="fas fa-map-marker-alt me-1"></i> {{ $purchase->branch->address ?? 'Corporate Procurement HQ' }}
                     </div>
                 </div>
             </div>
 
-            <!-- Primary Info -->
-            <div class="info-grid">
-                <div class="info-box accent">
-                    <div class="info-label">Invoice Details</div>
-                    <div class="info-value mb-1">{{ \Carbon\Carbon::parse($purchase->purchase_date)->format('d M, Y') }}</div>
-                    <div class="small text-muted text-uppercase" style="font-size: 10px;">Type: {{ ucfirst($purchase->purchase_type) }} Purchase</div>
+            {{-- 3-Box Information Grid --}}
+            <div class="inv-info-grid">
+                {{-- Box 1: Invoice Meta --}}
+                <div class="inv-info-box">
+                    <div class="inv-info-label"><i class="fas fa-calendar-alt text-primary"></i> Invoice Details</div>
+                    <div class="inv-info-value">{{ \Carbon\Carbon::parse($purchase->purchase_date)->format('d M, Y') }}</div>
+                    <div class="inv-info-sub">Type: <strong>{{ ucfirst($purchase->purchase_type ?? 'local') }} Purchase</strong></div>
                     
-                    @if($purchase->inwardGatepasses->count() > 0)
+                    @if($purchase->inwardGatepasses && $purchase->inwardGatepasses->count() > 0)
                         <div class="mt-2 pt-2 border-top">
-                            <div class="info-label" style="font-size: 9px; color: #2563eb;">Gatepass Number</div>
-                            <div class="small fw-bold text-dark">
+                            <div class="inv-info-label" style="font-size: 9px; color: #2563eb;">Gatepass Ref</div>
+                            <div class="small font-weight-bold text-dark">
                                 {{ $purchase->inwardGatepasses->map(function($ig) { 
                                     return 'GP-' . str_pad($ig->id, 4, '0', STR_PAD_LEFT); 
                                 })->implode(', ') }}
@@ -217,35 +340,40 @@
                         </div>
                     @endif
                 </div>
-                <div class="info-box success">
-                    <div class="info-label">Supplier / Vendor</div>
-                    <div class="info-value text-primary mb-1 text-uppercase">{{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Market' }}</div>
-                    <div class="small text-muted">{{ $purchase->vendor->phone ?? 'Contact N/A' }}</div>
+
+                {{-- Box 2: Vendor / Supplier --}}
+                <div class="inv-info-box vendor-box">
+                    <div class="inv-info-label"><i class="fas fa-truck text-success"></i> Supplier / Vendor</div>
+                    <div class="inv-info-value text-uppercase" style="color: var(--inv-emerald);">
+                        {{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Market Supplier' }}
+                    </div>
+                    <div class="inv-info-sub"><i class="fas fa-phone-alt me-1 text-muted"></i> {{ $purchase->vendor->phone ?? 'Walk-In Market' }}</div>
                 </div>
-                <div class="info-box">
-                    <div class="info-label">Delivery Destination</div>
-                    <div class="info-value mb-1">{{ $purchase->warehouse->warehouse_name ?? 'Branch Direct' }}</div>
-                    <div class="small text-muted text-uppercase" style="font-size: 10px;">{{ $purchase->warehouse->location ?? 'Shop Stock' }}</div>
+
+                {{-- Box 3: Warehouse / Destination --}}
+                <div class="inv-info-box dest-box">
+                    <div class="inv-info-label"><i class="fas fa-warehouse text-warning"></i> Destination Warehouse</div>
+                    <div class="inv-info-value">{{ $purchase->warehouse->warehouse_name ?? 'Branch Direct Display' }}</div>
+                    <div class="inv-info-sub"><i class="fas fa-map-pin me-1 text-muted"></i> {{ $purchase->warehouse->location ?? 'Branch Inventory' }}</div>
                 </div>
             </div>
 
-            <!-- Items Table -->
-            <div class="px-0">
-                <table class="erp-table">
+            {{-- Table Section --}}
+            <div class="inv-table-wrapper">
+                <table class="inv-table">
                     <thead>
                         <tr>
-                            <th style="width: 50px;">#</th>
-                            <th style="text-align: left;">Item Description</th>
-                            <th>Packing</th>
-                            <th style="width: 100px;">Qty</th>
-                            <th style="width: 120px;">Rate</th>
-                            <th style="width: 100px;">Disc</th>
-                            <th style="width: 150px; text-align: right;" class="pe-4">Amount</th>
+                            <th style="width: 45px; text-align: center;">#</th>
+                            <th style="text-align: left;">Product Description</th>
+                            <th style="text-align: center; width: 120px;">Packing</th>
+                            <th style="text-align: center; width: 90px;">Qty</th>
+                            <th style="text-align: right; width: 110px;">Unit Rate</th>
+                            <th style="text-align: right; width: 90px;">Disc</th>
+                            <th style="text-align: right; width: 130px;" class="pe-4">Line Total</th>
                         </tr>
                     </thead>
                     <tbody>
                         @php
-                            // Group items by product, packing type, and unit for professional look
                             $groupedItems = $purchase->items->groupBy(function($item) {
                                 return $item->product_id . '-' . $item->packing_type . '-' . $item->unit;
                             });
@@ -259,17 +387,16 @@
                                 $totalDisc = $items->sum('item_discount');
                             @endphp
                             <tr>
-                                <td class="text-center fw-bold text-slate-400">{{ $srNo++ }}</td>
+                                <td class="text-center font-weight-bold text-muted">{{ $srNo++ }}</td>
                                 <td>
-                                    <div class="item-main">{{ $first->product->item_name ?? 'N/A' }}</div>
-                                    <div class="item-sub text-muted small text-uppercase">{{ $first->product->brand_name ?? $first->product->brand->name ?? '' }}</div>
+                                    <div class="item-title">{{ $first->product->item_name ?? 'N/A' }}</div>
+                                    <div class="item-brand">{{ $first->product->brand_name ?? $first->product->brand->name ?? '' }}</div>
                                     
-                                    {{-- Color Breakdown Badges --}}
                                     @if($items->count() > 1 || ($items->count() == 1 && $first->color))
-                                        <div class="mt-2 d-flex flex-wrap gap-1">
+                                        <div class="mt-1 d-flex flex-wrap gap-1">
                                             @foreach($items as $sub)
                                                 @if($sub->color)
-                                                    <span class="badge bg-white text-primary border border-primary px-2 py-1" style="font-size: 10px; font-weight: 600;">
+                                                    <span class="badge bg-white text-dark border px-2 py-1" style="font-size: 9.5px; font-weight: 600;">
                                                         {{ strtoupper($sub->color) }}: {{ (float)$sub->qty }}
                                                     </span>
                                                 @endif
@@ -278,19 +405,21 @@
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <span class="badge bg-light text-dark border px-2 py-1 small" style="font-size: 10px;">{{ strtoupper($first->packing_type ?? 'Standard') }}</span>
+                                    <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 10px; font-weight: 700;">{{ strtoupper($first->packing_type ?? 'Standard') }}</span>
                                     @if($first->packing_qty > 0)
                                         <div class="text-muted mt-1" style="font-size: 10px;">{{ (float)$first->packing_qty }} x {{ (float)$first->item_per_piece }}</div>
                                     @endif
                                 </td>
                                 <td class="text-center">
-                                    <div class="fw-bold">{{ (float)$totalQty }}</div>
+                                    <div class="font-weight-bold" style="font-family: monospace; font-size: 0.95rem;">{{ (float)$totalQty }}</div>
                                     <div class="small text-muted text-uppercase" style="font-size: 9px;">{{ $first->unit }}</div>
                                 </td>
-                                <td class="text-center fw-bold">{{ number_format($first->price, 2) }}</td>
-                                <td class="text-center text-danger small">-{{ number_format($totalDisc, 2) }}</td>
-                                <td class="text-end pe-4">
-                                    <div class="fw-900 text-primary">{{ number_format($totalLine, 2) }}</div>
+                                <td class="text-end font-weight-bold" style="font-family: monospace;">Rs. {{ number_format($first->price, 2) }}</td>
+                                <td class="text-end text-danger small font-weight-bold" style="font-family: monospace;">
+                                    {{ $totalDisc > 0 ? '-Rs. ' . number_format($totalDisc, 2) : '0.00' }}
+                                </td>
+                                <td class="text-end pe-4 font-weight-bold" style="font-family: monospace; color: var(--inv-navy); font-size: 0.95rem;">
+                                    Rs. {{ number_format($totalLine, 2) }}
                                 </td>
                             </tr>
                         @endforeach
@@ -298,69 +427,74 @@
                 </table>
             </div>
 
-            <!-- Financial Summary -->
-            <div class="pi-footer-summary">
-                <div class="row">
-                    <div class="col-md-7">
-                        <div class="p-3 rounded-3" style="background: #f1f5f9; border: 1px dashed var(--pi-secondary);">
-                            <h6 class="fw-bold text-uppercase small mb-2 text-secondary">Note / Remarks</h6>
-                            <p class="small text-muted m-0 italic">{{ $purchase->note ?? 'No additional remarks for this invoice.' }}</p>
+            {{-- Summary & Notes Section --}}
+            <div class="inv-summary-section">
+                <div class="row g-4">
+                    {{-- Left: Notes & Settlement --}}
+                    <div class="col-md-6">
+                        <div class="inv-note-box mb-3">
+                            <h6 class="font-weight-bold text-uppercase small mb-1 text-slate-700"><i class="fas fa-sticky-note me-1 text-primary"></i> Remarks / Terms</h6>
+                            <p class="small text-muted m-0" style="font-style: italic;">{{ $purchase->note ?? 'No additional remarks entered for this invoice.' }}</p>
                         </div>
-                        
-                        {{-- Payment Breakdown if any --}}
+
                         @if($purchase->paid_amount > 0)
-                            <div class="mt-3 p-3 rounded-3 border">
-                                <h6 class="fw-bold text-uppercase small mb-2 text-success"><i class="fas fa-check-circle me-1"></i> Payment Settlement</h6>
-                                <div class="d-flex justify-content-between small">
-                                    <span class="text-muted">Paid via Cash/Bank</span>
-                                    <span class="fw-bold">PKR {{ number_format($purchase->paid_amount, 2) }}</span>
-                                </div>
+                            <div class="inv-paid-badge">
+                                <span><i class="fas fa-check-circle me-1"></i> Paid Settlement Amount:</span>
+                                <span class="font-weight-bold" style="font-family: monospace;">Rs. {{ number_format($purchase->paid_amount, 2) }}</span>
                             </div>
                         @endif
                     </div>
-                    <div class="col-md-5">
-                        <div class="summary-item">
-                            <span class="text-muted uppercase fw-bold small">Gross Subtotal</span>
-                            <span class="fw-bold">{{ number_format($purchase->subtotal, 2) }}</span>
+
+                    {{-- Right: Financial Totals --}}
+                    <div class="col-md-6">
+                        <div class="inv-summary-row">
+                            <span>Subtotal Amount</span>
+                            <span style="font-family: monospace;">Rs. {{ number_format($purchase->subtotal, 2) }}</span>
                         </div>
-                        <div class="summary-item">
-                            <span class="text-muted uppercase fw-bold small">Extra Cost (+)</span>
-                            <span class="fw-bold text-info">+{{ number_format($purchase->extra_cost, 2) }}</span>
-                        </div>
-                        <div class="summary-item">
-                            <span class="text-muted uppercase fw-bold small">Overall Discount (-)</span>
-                            <span class="fw-bold text-danger">-{{ number_format($purchase->discount, 2) }}</span>
-                        </div>
-                        <div class="summary-total d-flex justify-content-between align-items-center">
-                            <span class="text-uppercase tracking-tighter">Net Payable</span>
-                            <span>PKR {{ number_format($purchase->net_amount, 2) }}</span>
-                        </div>
-                        
-                        <div class="mt-3 pt-3 border-top">
-                            <div class="d-flex justify-content-between text-success fw-bold small">
-                                <span class="text-uppercase">Amount Paid</span>
-                                <span>{{ number_format($purchase->paid_amount, 2) }}</span>
+                        @if($purchase->extra_cost > 0)
+                            <div class="inv-summary-row">
+                                <span class="text-info">Extra Charges (+)</span>
+                                <span class="text-info" style="font-family: monospace;">+Rs. {{ number_format($purchase->extra_cost, 2) }}</span>
                             </div>
-                            <div class="d-flex justify-content-between text-danger fw-black fs-5 mt-1">
-                                <span class="text-uppercase small align-self-center">Due Balance</span>
-                                <span>{{ number_format($purchase->due_amount, 2) }}</span>
+                        @endif
+                        @if($purchase->discount > 0)
+                            <div class="inv-summary-row">
+                                <span class="text-danger">Invoice Discount (-)</span>
+                                <span class="text-danger" style="font-family: monospace;">-Rs. {{ number_format($purchase->discount, 2) }}</span>
+                            </div>
+                        @endif
+                        <div class="inv-summary-total">
+                            <span class="text-uppercase" style="font-size: 0.9rem;">Net Payable</span>
+                            <span style="font-family: monospace;">Rs. {{ number_format($purchase->net_amount, 2) }}</span>
+                        </div>
+
+                        <div class="mt-2 pt-2 border-top">
+                            <div class="d-flex justify-content-between text-success font-weight-bold small">
+                                <span>Total Paid</span>
+                                <span style="font-family: monospace;">Rs. {{ number_format($purchase->paid_amount, 2) }}</span>
+                            </div>
+                            <div class="inv-due-box">
+                                <span class="text-uppercase" style="font-size: 0.8rem;">Due Balance</span>
+                                <span style="font-family: monospace;">Rs. {{ number_format($purchase->due_amount, 2) }}</span>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Signatures -->
-            <div class="sig-area">
-                <div class="sig-line">Purchase Officer</div>
-                <div class="sig-line">Warehouse Receiver</div>
-                <div class="sig-line">Accounts Approved</div>
+            {{-- Signature Lines --}}
+            <div class="inv-sig-section">
+                <div class="inv-sig-line">Purchase Officer</div>
+                <div class="inv-sig-line">Warehouse Receiver</div>
+                <div class="inv-sig-line">Accounts Verified</div>
             </div>
 
-            <div class="p-4 text-center border-top bg-light">
-                <div class="small text-muted italic">"This is a system generated Purchase Invoice and does not require a physical signature for digital audit."</div>
-                <div class="mt-2 small fw-bold text-slate-400 text-uppercase tracking-widest" style="font-size: 9px;">Powered by New Wijdan ERP | Generated: {{ now()->format('d M Y | h:i A') }}</div>
+            {{-- Footer Branding --}}
+            <div class="inv-footer-bar">
+                <div>"This is a system generated Purchase Invoice created via Ameen & Sons Corporate ERP."</div>
+                <div class="mt-1 font-weight-bold text-uppercase" style="font-size: 9px; letter-spacing: 1px;">Generated: {{ now()->format('d M Y | h:i A') }}</div>
             </div>
+
         </div>
     </div>
 </div>
@@ -372,7 +506,7 @@
     function exportPDF() {
         Swal.fire({
             title: 'Generating PDF...',
-            text: 'Preparing professional purchase invoice.',
+            text: 'Preparing purchase invoice PDF.',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
         });
@@ -394,7 +528,7 @@
     function shareWhatsApp() {
         Swal.fire({
             title: 'Preparing Share...',
-            text: 'Generating ERP PDF for WhatsApp.',
+            text: 'Generating PDF for WhatsApp.',
             allowOutsideClick: false,
             didOpen: () => { Swal.showLoading(); }
         });
@@ -414,7 +548,7 @@
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 navigator.share({
                     title: 'Purchase Invoice',
-                    text: 'Please find the attached Purchase Invoice #{{ $purchase->invoice_no }}.',
+                    text: 'Please find attached Purchase Invoice #{{ $purchase->invoice_no }}.',
                     files: [file]
                 }).then(() => Swal.close())
                 .catch(() => fallbackWaShare(pdfBlob, opt.filename));
@@ -428,7 +562,7 @@
         Swal.fire({
             icon: 'info',
             title: 'Share via WhatsApp',
-            text: 'PDF generated. It will download now, then WhatsApp will open. Please attach the file manually.',
+            text: 'PDF generated. Downloading now, then WhatsApp will open to attach.',
             confirmButtonText: 'Download & Open WA'
         }).then(() => {
             const url = URL.createObjectURL(pdfBlob);
@@ -436,10 +570,11 @@
             a.href = url; a.download = filename;
             document.body.appendChild(a); a.click(); document.body.removeChild(a);
             
-            const msg = "*Purchase Invoice #{{ $purchase->invoice_no }}*\nGenerated via New Wijdan ERP.";
+            const msg = "*Purchase Invoice #{{ $purchase->invoice_no }}*\nGenerated via Ameen & Sons Corporate ERP.";
             window.open("https://wa.me/?text=" + encodeURIComponent(msg), '_blank');
         });
     }
 </script>
 @endsection
+
 

@@ -446,7 +446,7 @@
                                     <a href="{{ route('store') }}" class="btn btn-sm btn-outline-primary fw-bold text-start">
                                         <i class="fas fa-box-open me-1"></i> Add Product
                                     </a>
-                                    <a href="{{ route('add_purchase') }}" class="btn btn-sm btn-outline-success fw-bold text-start">
+                                    <a href="{{ route('purchase.addLocal') }}" class="btn btn-sm btn-outline-success fw-bold text-start">
                                         <i class="fas fa-cart-plus me-1"></i> New Purchase
                                     </a>
                                     <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-info fw-bold text-start">

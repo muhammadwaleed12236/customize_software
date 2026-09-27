@@ -1,941 +1,792 @@
 @extends('admin_panel.layout.app')
 @section('content')
 
-    <style>
-        :root {
-            --perm-primary: #4f46e5;
-            --perm-success: #10b981;
-            --perm-warning: #f59e0b;
-            --perm-danger: #ef4444;
-            --perm-info: #0ea5e9;
-            --perm-bg: #f3f4f6;
-            --perm-card: #ffffff;
-            --perm-border: #e5e7eb;
-            --perm-text: #111827;
-            --perm-muted: #6b7280;
-            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-            --radius-lg: 1rem;
-        }
-
-        .page-header {
-            margin-bottom: 28px;
-        }
-
-        .page-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--perm-text);
-            margin: 0;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .page-title i {
-            color: var(--perm-primary);
-        }
-
-        .page-subtitle {
-            color: var(--perm-muted);
-            font-size: 0.9rem;
-            margin-top: 4px;
-        }
-
-        /* Stats Cards */
-        .stats-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 28px;
-        }
-
-        .stat-card {
-            background: var(--perm-card);
-            border-radius: 12px;
-            padding: 20px;
-            border: 1px solid var(--perm-border);
-            transition: all 0.2s;
-        }
-
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        .stat-card .stat-icon {
-            width: 48px;
-            height: 48px;
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.25rem;
-            margin-bottom: 12px;
-        }
-
-        .stat-card.primary .stat-icon {
-            background: #eef2ff;
-            color: var(--perm-primary);
-        }
-
-        .stat-card.success .stat-icon {
-            background: #dcfce7;
-            color: var(--perm-success);
-        }
-
-        .stat-card.warning .stat-icon {
-            background: #fef3c7;
-            color: var(--perm-warning);
-        }
-
-        .stat-card.info .stat-icon {
-            background: #e0f2fe;
-            color: var(--perm-info);
-        }
-
-        .stat-card .stat-value {
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--perm-text);
-        }
-
-        .stat-card .stat-label {
-            font-size: 0.8rem;
-            color: var(--perm-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        /* Permissions Card Container */
-        .perms-card {
-            background: var(--perm-card);
-            border-radius: 16px;
-            border: 1px solid var(--perm-border);
-            overflow: hidden;
-        }
-
-        .perms-header {
-            padding: 20px 24px;
-            border-bottom: 1px solid var(--perm-border);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 16px;
-            flex-wrap: wrap;
-        }
-
-        .search-box {
-            position: relative;
-            max-width: 350px;
-            flex: 1;
-        }
-
-        .search-box input {
-            width: 100%;
-            padding: 12px 16px 12px 44px;
-            border: 2px solid var(--perm-border);
-            border-radius: 10px;
-            font-size: 0.95rem;
-            transition: all 0.2s;
-            background: #f8fafc;
-        }
-
-        .search-box input:focus {
-            outline: none;
-            border-color: var(--perm-primary);
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-            background: white;
-        }
-
-        .search-box i {
-            position: absolute;
-            left: 16px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--perm-muted);
-        }
-
-        .btn-create {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .btn-create:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
-            color: white;
-        }
-
-        /* Permission Groups */
-        .perm-groups {
-            padding: 24px;
-        }
-
-        .perm-group {
-            background: var(--perm-card);
-            border: 1px solid var(--perm-border);
-            border-radius: 14px;
-            margin-bottom: 20px;
-            overflow: hidden;
-        }
-
-        .perm-group-header {
-            background: #f8fafc;
-            padding: 16px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--perm-border);
-        }
-
-        .perm-group-title {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .perm-group-icon {
-            width: 40px;
-            height: 40px;
-            border-radius: 10px;
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1rem;
-        }
-
-        .perm-group-name {
-            font-weight: 600;
-            font-size: 1rem;
-            color: var(--perm-text);
-            text-transform: capitalize;
-        }
-
-        .perm-group-count {
-            background: var(--perm-primary);
-            color: white;
-            font-size: 0.75rem;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-weight: 600;
-        }
-
-        .perm-group-body {
-            padding: 16px 20px;
-        }
-
-        .branch-submodule-header {
-            background: #f8fafc;
-            padding: 10px 16px;
-            border-radius: 8px;
-            border-left: 4px solid var(--perm-primary);
-            display: flex;
-            align-items: center;
-        }
-        .branch-submodule-header .submodule-icon {
-            color: var(--perm-primary);
-            font-size: 1.1rem;
-        }
-        .branch-submodule-header h6 {
-            font-weight: 600;
-            color: var(--perm-text);
-            font-size: 0.95rem;
-            margin: 0;
-            margin-left: 12px;
-        }
-        .branch-submodule-header .submodule-count {
-            background: #e2e8f0;
-            color: var(--perm-text);
-            font-size: 0.75rem;
-            padding: 3px 10px;
-            border-radius: 12px;
-            font-weight: 600;
-            margin-left: auto;
-        }
-
-        .perm-list {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 12px;
-        }
-
-        .perm-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 12px 16px;
-            background: #f8fafc;
-            border-radius: 10px;
-            border: 1px solid var(--perm-border);
-            transition: all 0.2s;
-        }
-
-        .perm-item:hover {
-            border-color: var(--perm-primary);
-            background: #eef2ff;
-        }
-
-        .perm-name {
-            font-weight: 500;
-            color: var(--perm-text);
-            font-size: 0.9rem;
-        }
-
-        .perm-action-badge {
-            font-size: 0.7rem;
-            padding: 3px 10px;
-            border-radius: 4px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .perm-action-badge.view {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .perm-action-badge.create,
-        .perm-action-badge.add {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .perm-action-badge.edit,
-        .perm-action-badge.read {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .perm-action-badge.delete {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .perm-action-badge.approve {
-            background: #f3e8ff;
-            color: #7c3aed;
-        }
-        
-        .perm-action-badge.mark {
-            background: #ffedd5;
-            color: #c2410c;
-        }
-        
-        .perm-action-badge.print {
-            background: #f3f4f6;
-            color: #4b5563;
-        }
-        
-        .perm-action-badge.export {
-            background: #e0e7ff;
-            color: #4338ca;
-        }
-
-        .perm-action-badge.other {
-            background: #f1f5f9;
-            color: #64748b;
-        }
-
-        .perm-actions {
-            display: flex;
-            gap: 6px;
-        }
-
-        .perm-actions .btn {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            font-size: 0.8rem;
-            transition: all 0.2s;
-        }
-
-        .perm-actions .btn-edit {
-            background: #fef3c7;
-            color: var(--perm-warning);
-            border: none;
-        }
-
-        .perm-actions .btn-edit:hover {
-            background: var(--perm-warning);
-            color: white;
-        }
-
-        .perm-actions .btn-delete {
-            background: #fee2e2;
-            color: var(--perm-danger);
-            border: none;
-        }
-
-        .perm-actions .btn-delete:hover {
-            background: var(--perm-danger);
-            color: white;
-        }
-
-        /* Modal Styling */
-        .modal-content {
-            border: none;
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
-        }
-
-        .modal-header.gradient {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: white;
-            padding: 24px 28px;
-            border: none;
-        }
-
-        .modal-header.gradient .modal-title {
-            font-weight: 700;
-            font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .modal-header.gradient .btn-close {
-            filter: brightness(0) invert(1);
-            opacity: 0.8;
-        }
-
-        .modal-body {
-            padding: 28px;
-            background: #ffffff;
-        }
-
-        .form-group-modern {
-            margin-bottom: 20px;
-        }
-
-        .form-group-modern .form-label {
-            font-weight: 600;
-            color: var(--perm-text);
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.95rem;
-        }
-
-        .form-group-modern .form-label i {
-            color: var(--perm-primary);
-            font-size: 0.9rem;
-        }
-
-        .form-group-modern .form-control,
-        .form-group-modern .form-select {
-            border: 2px solid var(--perm-border);
-            border-radius: 10px;
-            padding: 12px 16px;
-            font-size: 0.95rem;
-            transition: all 0.2s ease;
-            background: #f8fafc;
-        }
-
-        .form-group-modern .form-control:focus,
-        .form-group-modern .form-select:focus {
-            border-color: var(--perm-primary);
-            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
-            background: #ffffff;
-        }
-
-        .modal-footer-modern {
-            padding: 20px 28px;
-            background: #f8fafc;
-            border-top: 1px solid var(--perm-border);
-            display: flex;
-            justify-content: flex-end;
-            gap: 12px;
-        }
-
-        .btn-cancel {
-            background: #f1f5f9;
-            color: var(--perm-text);
-            border: none;
-            padding: 12px 24px;
-            border-radius: 10px;
-            font-weight: 600;
-            transition: all 0.2s;
-        }
-
-        .btn-cancel:hover {
-            background: #e2e8f0;
-        }
-
-        .btn-save {
-            background: linear-gradient(135deg, #6366f1, #8b5cf6);
-            color: white;
-            border: none;
-            padding: 12px 28px;
-            border-radius: 10px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            transition: all 0.2s;
-        }
-
-        .btn-save:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.35);
-            color: white;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--perm-muted);
-        }
-
-        .empty-state i {
-            font-size: 3rem;
-            margin-bottom: 16px;
-            color: #cbd5e1;
-        }
-
-        /* Responsive */
-        @media (max-width: 992px) {
-            .stats-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .perm-list {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 576px) {
-            .stats-row {
-                grid-template-columns: 1fr;
-            }
-
-            .perms-header {
-                flex-direction: column;
-            }
-
-            .search-box {
-                max-width: 100%;
-            }
-        }
-    </style>
-
-    <div class="main-content">
-        <div class="main-content-inner">
-            <div class="container">
-                <!-- Page Header -->
-                <div class="page-header d-flex justify-content-between align-items-start">
-                    <div>
-                        <h1 class="page-title"><i class="fa fa-key"></i> Permission Management</h1>
-                        <p class="page-subtitle">Manage system permissions organized by modules</p>
+<style>
+    :root {
+        --perm-navy: #0f1f38;
+        --perm-primary: #4f46e5;
+        --perm-success: #10b981;
+        --perm-warning: #f59e0b;
+        --perm-danger: #ef4444;
+        --perm-info: #0ea5e9;
+        --perm-bg: #f8fafc;
+        --perm-card: #ffffff;
+        --perm-border: #cbd5e1;
+        --perm-text: #1e293b;
+        --perm-muted: #64748b;
+    }
+
+    .main-content {
+        background-color: var(--perm-bg);
+        min-height: 100vh;
+        padding: 16px 0 40px 0;
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    .page-header-card {
+        background: #ffffff;
+        border: 1px solid var(--perm-border);
+        border-radius: 12px;
+        padding: 18px 24px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+    }
+
+    .page-title {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--perm-navy);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .page-subtitle {
+        color: var(--perm-muted);
+        font-size: 0.875rem;
+        margin-top: 4px;
+        margin-bottom: 0;
+    }
+
+    /* Stats Row */
+    .stats-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+    }
+
+    .stat-card {
+        background: #ffffff;
+        border-radius: 10px;
+        padding: 16px 20px;
+        border: 1px solid var(--perm-border);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        transition: all 0.2s;
+    }
+
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    }
+
+    .stat-card .stat-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        flex-shrink: 0;
+    }
+
+    .stat-card.primary .stat-icon { background: #eef2ff; color: var(--perm-primary); }
+    .stat-card.success .stat-icon { background: #dcfce7; color: var(--perm-success); }
+    .stat-card.warning .stat-icon { background: #fef3c7; color: var(--perm-warning); }
+    .stat-card.info .stat-icon { background: #e0f2fe; color: var(--perm-info); }
+
+    .stat-card .stat-value {
+        font-size: 1.5rem;
+        font-weight: 800;
+        color: var(--perm-navy);
+        line-height: 1;
+    }
+
+    .stat-card .stat-label {
+        font-size: 0.75rem;
+        color: var(--perm-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-top: 4px;
+        font-weight: 700;
+    }
+
+    /* Controls Bar */
+    .controls-card {
+        background: #ffffff;
+        border: 1px solid var(--perm-border);
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    }
+
+    .role-select-box {
+        min-width: 260px;
+    }
+
+    .role-select-box select {
+        height: 40px;
+        border-radius: 8px;
+        border: 1.5px solid var(--perm-border);
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: var(--perm-navy);
+        background-color: #ffffff;
+    }
+
+    .search-box-wrapper {
+        position: relative;
+        flex: 1;
+        max-width: 380px;
+    }
+
+    .search-box-wrapper input {
+        width: 100%;
+        height: 40px;
+        padding: 8px 14px 8px 40px;
+        border: 1.5px solid var(--perm-border);
+        border-radius: 8px;
+        font-size: 0.9rem;
+        background: #f8fafc;
+        transition: all 0.2s;
+    }
+
+    .search-box-wrapper input:focus {
+        outline: none;
+        border-color: var(--perm-primary);
+        background: #ffffff;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .search-box-wrapper i {
+        position: absolute;
+        left: 14px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--perm-muted);
+    }
+
+    /* Excel Permission Matrix Table */
+    .matrix-wrapper {
+        background: #ffffff;
+        border: 1px solid var(--perm-border);
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    #matrixTable {
+        border-collapse: collapse !important;
+        width: 100%;
+        margin-bottom: 0 !important;
+    }
+
+    #matrixTable thead th {
+        background: #0f1f38 !important;
+        color: #ffffff !important;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        padding: 12px 10px !important;
+        border: 1px solid #1e3a5f !important;
+        vertical-align: middle;
+        white-space: nowrap;
+    }
+
+    #matrixTable tbody td {
+        padding: 10px 12px !important;
+        vertical-align: middle;
+        border: 1px solid #e2e8f0 !important;
+        background: #ffffff;
+        font-size: 13px;
+    }
+
+    #matrixTable tbody tr:hover td {
+        background-color: #f8fafc !important;
+    }
+
+    /* Checkbox Styling */
+    .perm-checkbox {
+        width: 19px;
+        height: 19px;
+        cursor: pointer;
+        accent-color: #2563eb;
+        vertical-align: middle;
+    }
+
+    .perm-check-label {
+        cursor: pointer;
+        user-select: none;
+        margin-bottom: 0;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--perm-text);
+    }
+
+    .badge-action {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 5px;
+        text-transform: uppercase;
+    }
+
+    .badge-view { background: #dbeafe; color: #1e40af; }
+    .badge-create { background: #dcfce7; color: #166534; }
+    .badge-edit { background: #fef3c7; color: #92400e; }
+    .badge-delete { background: #fee2e2; color: #991b1b; }
+    .badge-other { background: #f1f5f9; color: #475569; }
+
+    .other-perm-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #f8fafc;
+        border: 1px solid var(--perm-border);
+        border-radius: 6px;
+        padding: 4px 8px;
+        margin: 2px;
+        font-size: 12px;
+        transition: all 0.15s;
+    }
+
+    .other-perm-pill:hover {
+        background: #eef2ff;
+        border-color: var(--perm-primary);
+    }
+
+    /* Modal Styling */
+    .modal-content {
+        border: none;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+    }
+
+    .modal-header.gradient {
+        background: linear-gradient(135deg, #0f1f38, #1e3a5f);
+        color: white;
+        padding: 20px 24px;
+    }
+
+    .modal-header.gradient .btn-close {
+        filter: brightness(0) invert(1);
+    }
+</style>
+
+<div class="main-content">
+    <div class="container-fluid px-3">
+
+        <!-- Page Header -->
+        <div class="page-header-card d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div>
+                <h1 class="page-title">
+                    <i class="fa fa-user-shield text-primary"></i> System Permission Matrix
+                </h1>
+                <p class="page-subtitle">Configure module permissions, action capabilities, and role access with master & single-click toggles.</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-primary font-weight-bold" id="addPermBtn">
+                    <i class="fa fa-plus-circle mr-1"></i> Add New Permission
+                </button>
+                <button type="button" class="btn btn-success font-weight-bold shadow-sm" id="btnSavePermissions" style="background: linear-gradient(135deg, #059669, #047857); border: none;">
+                    <i class="fa fa-save mr-1"></i> SAVE ROLE PERMISSIONS
+                </button>
+            </div>
+        </div>
+
+        <!-- Stats Row -->
+        <div class="stats-row">
+            <div class="stat-card primary">
+                <div class="stat-icon"><i class="fa fa-key"></i></div>
+                <div>
+                    <div class="stat-value">{{ $permissions->count() }}</div>
+                    <div class="stat-label">Total System Permissions</div>
+                </div>
+            </div>
+            <div class="stat-card success">
+                <div class="stat-icon"><i class="fa fa-th-large"></i></div>
+                <div>
+                    <div class="stat-value">{{ count($permissionModules) }}</div>
+                    <div class="stat-label">Configured Modules</div>
+                </div>
+            </div>
+            <div class="stat-card warning">
+                <div class="stat-icon"><i class="fa fa-user-tag"></i></div>
+                <div>
+                    <div class="stat-value">{{ $roles->count() }}</div>
+                    <div class="stat-label">Active User Roles</div>
+                </div>
+            </div>
+            <div class="stat-card info">
+                <div class="stat-icon"><i class="fa fa-check-circle"></i></div>
+                <div>
+                    <div class="stat-value" id="activePermCountDisplay">0</div>
+                    <div class="stat-label">Assigned To Role</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls Bar -->
+        <div class="controls-card d-flex justify-content-between align-items-center flex-wrap gap-3">
+            <div class="d-flex align-items-center gap-3">
+                <div class="role-select-box">
+                    <label class="form-label small font-weight-bold text-uppercase text-muted mb-1 d-block">Selected Role to Manage</label>
+                    <select id="roleSelect" class="form-select">
+                        @foreach($roles as $r)
+                            <option value="{{ $r->id }}" data-perms="{{ json_encode($r->permissions->pluck('name')) }}">{{ $r->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
+                <div class="search-box-wrapper mt-3 mt-sm-0">
+                    <label class="form-label small font-weight-bold text-uppercase text-muted mb-1 d-block">Search Filter</label>
+                    <div class="position-relative">
+                        <i class="fa fa-search"></i>
+                        <input type="search" id="matrixSearch" placeholder="Search module or action (e.g. Products, View, Edit)...">
                     </div>
-                    <button type="button" class="btn btn-create" id="addPermBtn">
-                        <i class="fa fa-plus"></i> Add Permission
+                </div>
+            </div>
+
+            <div class="d-flex align-items-center gap-2 mt-3 mt-lg-0">
+                <span class="badge bg-light text-dark border p-2 font-weight-bold" style="font-size: 12px;">
+                    <i class="fa fa-info-circle text-primary mr-1"></i> Toggle <strong>All</strong> checkbox to grant/revoke entire module.
+                </span>
+            </div>
+        </div>
+
+        <!-- Permission Matrix Table -->
+        <form id="matrixForm">
+            @csrf
+            <input type="hidden" name="edit_id" id="selectedRoleId" value="{{ $roles->first()->id ?? '' }}">
+
+            <div class="matrix-wrapper">
+                <div class="table-responsive">
+                    <table class="table table-bordered align-middle mb-0" id="matrixTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 24%;">Module / Feature</th>
+                                <th style="width: 8%; text-align: center;">
+                                    <label class="mb-0 cursor-pointer" title="Toggle all permissions across entire module row">
+                                        <input type="checkbox" id="globalMasterCheckbox" class="perm-checkbox mb-1"><br>
+                                        <span>ALL</span>
+                                    </label>
+                                </th>
+                                <th style="width: 11%; text-align: center;">
+                                    <label class="mb-0 cursor-pointer" title="Toggle VIEW for all modules">
+                                        <input type="checkbox" id="colMasterView" class="perm-checkbox col-master mb-1" data-action="view"><br>
+                                        <span>VIEW</span>
+                                    </label>
+                                </th>
+                                <th style="width: 11%; text-align: center;">
+                                    <label class="mb-0 cursor-pointer" title="Toggle CREATE for all modules">
+                                        <input type="checkbox" id="colMasterCreate" class="perm-checkbox col-master mb-1" data-action="create"><br>
+                                        <span>CREATE</span>
+                                    </label>
+                                </th>
+                                <th style="width: 11%; text-align: center;">
+                                    <label class="mb-0 cursor-pointer" title="Toggle EDIT for all modules">
+                                        <input type="checkbox" id="colMasterEdit" class="perm-checkbox col-master mb-1" data-action="edit"><br>
+                                        <span>EDIT</span>
+                                    </label>
+                                </th>
+                                <th style="width: 11%; text-align: center;">
+                                    <label class="mb-0 cursor-pointer" title="Toggle DELETE for all modules">
+                                        <input type="checkbox" id="colMasterDelete" class="perm-checkbox col-master mb-1" data-action="delete"><br>
+                                        <span>DELETE</span>
+                                    </label>
+                                </th>
+                                <th style="width: 24%;">Other / Custom Module Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="matrixTableBody">
+                            @foreach($permissionModules as $modKey => $modDef)
+                                @php
+                                    $modLabel = $modDef['label'] ?? ucfirst($modKey);
+                                    $modIcon  = $modDef['icon']  ?? 'fa-folder';
+                                    $modColor = $modDef['color'] ?? '#6366f1';
+                                    $permsMap = $modDef['permissions'] ?? [];
+
+                                    // Classify standard actions
+                                    $viewPerm   = null;
+                                    $createPerm = null;
+                                    $editPerm   = null;
+                                    $deletePerm = null;
+                                    $otherPerms = [];
+
+                                    foreach($permsMap as $pName => $pLabel) {
+                                        $last = collect(explode('.', $pName))->last();
+                                        if ($last === 'view' || $last === 'read') {
+                                            $viewPerm = ['name' => $pName, 'label' => $pLabel];
+                                        } elseif ($last === 'create' || $last === 'add') {
+                                            $createPerm = ['name' => $pName, 'label' => $pLabel];
+                                        } elseif ($last === 'edit' || $last === 'update') {
+                                            $editPerm = ['name' => $pName, 'label' => $pLabel];
+                                        } elseif ($last === 'delete' || $last === 'remove') {
+                                            $deletePerm = ['name' => $pName, 'label' => $pLabel];
+                                        } else {
+                                            $otherPerms[] = ['name' => $pName, 'label' => $pLabel, 'action' => $last];
+                                        }
+                                    }
+                                @endphp
+                                <tr class="module-row" data-module="{{ $modKey }}" data-search="{{ strtolower($modLabel . ' ' . implode(' ', array_keys($permsMap))) }}">
+                                    <!-- Module Title Cell -->
+                                    <td>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <span class="d-inline-flex align-items-center justify-content-center text-white font-weight-bold rounded" style="width: 32px; height: 32px; background: {{ $modColor }}; flex-shrink:0;">
+                                                <i class="fa {{ $modIcon }}"></i>
+                                            </span>
+                                            <div>
+                                                <strong class="text-dark font-weight-bold" style="font-size: 13.5px;">{{ $modLabel }}</strong>
+                                                <small class="text-muted d-block" style="font-size: 11px;">{{ count($permsMap) }} permissions</small>
+                                            </div>
+                                        </div>
+                                    </td>
+
+                                    <!-- Row ALL Checkbox -->
+                                    <td class="text-center bg-light">
+                                        <input type="checkbox" class="perm-checkbox row-master-all" title="Select All in {{ $modLabel }}">
+                                    </td>
+
+                                    <!-- VIEW Cell -->
+                                    <td class="text-center">
+                                        @if($viewPerm)
+                                            <label class="perm-check-label w-100 py-1">
+                                                <input type="checkbox" name="permissions[]" value="{{ $viewPerm['name'] }}" class="perm-checkbox perm-check action-view" data-module="{{ $modKey }}">
+                                            </label>
+                                        @else
+                                            <span class="text-muted small">&mdash;</span>
+                                        @endif
+                                    </td>
+
+                                    <!-- CREATE Cell -->
+                                    <td class="text-center">
+                                        @if($createPerm)
+                                            <label class="perm-check-label w-100 py-1">
+                                                <input type="checkbox" name="permissions[]" value="{{ $createPerm['name'] }}" class="perm-checkbox perm-check action-create" data-module="{{ $modKey }}">
+                                            </label>
+                                        @else
+                                            <span class="text-muted small">&mdash;</span>
+                                        @endif
+                                    </td>
+
+                                    <!-- EDIT Cell -->
+                                    <td class="text-center">
+                                        @if($editPerm)
+                                            <label class="perm-check-label w-100 py-1">
+                                                <input type="checkbox" name="permissions[]" value="{{ $editPerm['name'] }}" class="perm-checkbox perm-check action-edit" data-module="{{ $modKey }}">
+                                            </label>
+                                        @else
+                                            <span class="text-muted small">&mdash;</span>
+                                        @endif
+                                    </td>
+
+                                    <!-- DELETE Cell -->
+                                    <td class="text-center">
+                                        @if($deletePerm)
+                                            <label class="perm-check-label w-100 py-1">
+                                                <input type="checkbox" name="permissions[]" value="{{ $deletePerm['name'] }}" class="perm-checkbox perm-check action-delete" data-module="{{ $modKey }}">
+                                            </label>
+                                        @else
+                                            <span class="text-muted small">&mdash;</span>
+                                        @endif
+                                    </td>
+
+                                    <!-- OTHER ACTIONS Cell -->
+                                    <td>
+                                        @if(count($otherPerms) > 0)
+                                            <div class="d-flex flex-wrap gap-1">
+                                                @foreach($otherPerms as $op)
+                                                    <label class="other-perm-pill mb-0 cursor-pointer">
+                                                        <input type="checkbox" name="permissions[]" value="{{ $op['name'] }}" class="perm-checkbox perm-check action-other" data-module="{{ $modKey }}">
+                                                        <span>{{ $op['label'] }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        @else
+                                            <span class="text-muted small">&mdash;</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </form>
+
+    </div>
+</div>
+
+<!-- Add/Edit Permission Modal -->
+<div class="modal fade" id="permModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header gradient">
+                <h5 class="modal-title font-weight-bold mb-0">
+                    <i class="fa fa-key mr-2"></i><span id="permModalTitleText">Add New Permission</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="permForm" action="{{ route('permissions.store') }}" method="POST">
+                @csrf
+                <input type="hidden" name="edit_id" id="permEditId">
+                <input type="hidden" name="name" id="permNameInput">
+
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold small text-uppercase">Module Name</label>
+                        <select id="moduleSelect" class="form-select" required>
+                            <option value="">-- Select Module --</option>
+                            @foreach($permissionModules as $mk => $mv)
+                                <option value="{{ $mk }}">{{ $mv['label'] }} ({{ $mk }})</option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold small text-uppercase">Action Name</label>
+                        <select id="actionSelect" class="form-select" required>
+                            <option value="">-- Select Action --</option>
+                            <option value="view">View</option>
+                            <option value="create">Create</option>
+                            <option value="edit">Edit</option>
+                            <option value="delete">Delete</option>
+                            <option value="print">Print</option>
+                            <option value="approve">Approve</option>
+                            <option value="export">Export</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold small text-uppercase">Permission Code Preview</label>
+                        <input type="text" id="permPreviewInput" class="form-control bg-light font-weight-bold" readonly placeholder="module.action">
+                    </div>
+                </div>
+
+                <div class="modal-footer bg-light p-3">
+                    <button type="button" class="btn btn-outline-secondary font-weight-bold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary font-weight-bold px-4">
+                        <i class="fa fa-check mr-1"></i> Save Permission
                     </button>
                 </div>
+            </form>
+        </div>
+    </div>
+</div>
 
-                <!-- Stats Row -->
-                @php
-                   $allBranches = \App\Models\Branch::pluck('name', 'id')->toArray();
-                   $groupedPerms = $permissions->groupBy(function ($p) use ($allBranches) {
+@endsection
 
-    // 1️⃣ Normalize: space → dot
-    $name = str_replace(' ', '.', strtolower($p->name));
-    
-    // Check for branch prefix
-    if (preg_match('/^branch:(\d+):(.*)$/', $name, $matches)) {
-        $branchId = $matches[1];
-        $branchName = $allBranches[$branchId] ?? "Unknown Branch";
-        return "Branch: " . $branchName;
+@section('js')
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+$(document).ready(function() {
+
+    // --- Load Selected Role's Assigned Permissions ---
+    function loadRolePermissions() {
+        var $selectedOption = $('#roleSelect').find(':selected');
+        var roleId = $('#roleSelect').val();
+        $('#selectedRoleId').val(roleId);
+
+        var assignedPerms = $selectedOption.data('perms') || [];
+
+        // Uncheck all checkboxes first
+        $('.perm-check, .row-master-all, .col-master, #globalMasterCheckbox').prop('checked', false);
+
+        // Check assigned permissions
+        assignedPerms.forEach(function(permName) {
+            $('.perm-check[value="' + permName + '"]').prop('checked', true);
+        });
+
+        // Update row master "ALL" checkboxes & active count
+        updateAllMasterStates();
     }
 
-    // 2️⃣ Split by dot
-    $parts = explode('.', $name);
-
-    // 3️⃣ Remove last part (view, create, edit, etc)
-    if (count($parts) > 1) {
-        array_pop($parts);
-        return ucfirst(str_replace('.', ' ', implode('.', $parts)));
+    // Update Row Master "ALL" state based on individual checkboxes ("one by one" check)
+    function updateRowMasterState($row) {
+        var $permChecks = $row.find('.perm-check');
+        if ($permChecks.length > 0) {
+            var allChecked = ($permChecks.length === $permChecks.filter(':checked').length);
+            $row.find('.row-master-all').prop('checked', allChecked);
+        }
     }
 
-    return 'General';
+    // Update all row & column master checkbox states
+    function updateAllMasterStates() {
+        var totalChecked = 0;
+        $('.module-row').each(function() {
+            var $row = $(this);
+            updateRowMasterState($row);
+            totalChecked += $row.find('.perm-check:checked').length;
+        });
 
-})->sortKeys();
+        $('#activePermCountDisplay').text(totalChecked);
 
-                @endphp
-                <div class="stats-row">
-                    <div class="stat-card primary">
-                        <div class="stat-icon"><i class="fa fa-key"></i></div>
-                        <div class="stat-value">{{ $permissions->count() }}</div>
-                        <div class="stat-label">Total Permissions</div>
-                    </div>
-                    <div class="stat-card success">
-                        <div class="stat-icon"><i class="fa fa-layer-group"></i></div>
-                        <div class="stat-value">{{ $modules->count() }}</div>
-                        <div class="stat-label">Modules</div>
-                    </div>
-                    <div class="stat-card warning">
-                        <div class="stat-icon"><i class="fa fa-user-shield"></i></div>
-                        <div class="stat-value">{{ \Spatie\Permission\Models\Role::count() }}</div>
-                        <div class="stat-label">Roles</div>
-                    </div>
-                    <div class="stat-card info">
-                        <div class="stat-icon"><i class="fa fa-calendar"></i></div>
-                        <div class="stat-value">{{ $permissions->where('created_at', '>=', now()->subDays(7))->count() }}
-                        </div>
-                        <div class="stat-label">Added This Week</div>
-                    </div>
-                </div>
+        // Column masters sync
+        ['view', 'create', 'edit', 'delete'].forEach(function(action) {
+            var $actionChecks = $('.action-' + action);
+            if ($actionChecks.length > 0) {
+                var colChecked = ($actionChecks.length === $actionChecks.filter(':checked').length);
+                $('.col-master[data-action="' + action + '"]').prop('checked', colChecked);
+            }
+        });
+
+        // Global master sync
+        var $allPerms = $('.perm-check');
+        var globalAll = ($allPerms.length > 0 && $allPerms.length === $allPerms.filter(':checked').length);
+        $('#globalMasterCheckbox').prop('checked', globalAll);
+    }
+
+    // Role Selection Change
+    $('#roleSelect').on('change', loadRolePermissions);
+
+    // Initial Load
+    loadRolePermissions();
+
+    // ===== MASTER "ALL" CHECKBOX LOGIC =====
+
+    // 1. Row Master "ALL" toggle -> toggles all permissions in that row
+    $(document).on('change', '.row-master-all', function() {
+        var checked = $(this).is(':checked');
+        var $row = $(this).closest('tr.module-row');
+        $row.find('.perm-check').prop('checked', checked);
+        updateAllMasterStates();
+    });
+
+    // 2. Column Master toggle -> toggles all checkboxes for that action column across all rows
+    $(document).on('change', '.col-master', function() {
+        var action = $(this).data('action');
+        var checked = $(this).is(':checked');
+        $('.action-' + action).prop('checked', checked);
+        updateAllMasterStates();
+    });
+
+    // 3. Global Master toggle -> toggles ALL permissions across entire matrix
+    $('#globalMasterCheckbox').on('change', function() {
+        var checked = $(this).is(':checked');
+        $('.perm-checkbox').prop('checked', checked);
+        updateAllMasterStates();
+    });
+
+    // 4. Individual ("one by one") checkbox change -> updates master state dynamically
+    $(document).on('change', '.perm-check', function() {
+        var $row = $(this).closest('tr.module-row');
+        updateRowMasterState($row);
+        updateAllMasterStates();
+    });
+
+    // ===== SEARCH FILTER =====
+    $('#matrixSearch').on('input', function() {
+        var term = $(this).val().toLowerCase().trim();
+        $('.module-row').each(function() {
+            var searchData = $(this).data('search') || '';
+            var text = $(this).text().toLowerCase();
+            if (term === '' || searchData.indexOf(term) > -1 || text.indexOf(term) > -1) {
+                $(this).show();
+            } else {
+                $(this).hide();
+            }
+        });
+    });
+
+    // ===== SAVE PERMISSIONS VIA AJAX =====
+    $('#btnSavePermissions').click(function() {
+        var roleId = $('#roleSelect').val();
+        var roleName = $('#roleSelect').find(':selected').text();
+        
+        var selectedPermissions = [];
+        $('.perm-check:checked').each(function() {
+            selectedPermissions.push($(this).val());
+        });
+
+        Swal.fire({
+            title: 'Save Permissions?',
+            text: 'Role "' + roleName + '" ke permissions update karne ke liye ready hain?',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#059669',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Yes, Save Permissions!'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Swal.showLoading();
                 
-                <!-- Permissions Card -->
-                <div class="perms-card">
-                    <div class="perms-header">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="search-box">
-                                <i class="fa fa-search"></i>
-                                <input type="search" id="permSearch" placeholder="Search permissions...">
-                            </div>
-                            <div class="btn-group">
-                                <button class="btn btn-outline-secondary btn-sm" id="exportPermsBtn"><i
-                                        class="fa fa-download"></i></button>
-                                <button class="btn btn-outline-secondary btn-sm" id="refreshBtn"><i
-                                        class="fa fa-sync"></i></button>
-                            </div>
-                        </div>
-                        <span class="text-muted small" id="permsCount">{{ $permissions->count() }} permissions</span>
-                    </div>
+                $.ajax({
+                    url: "{{ route('roles.update.permission') }}",
+                    type: "POST",
+                    data: {
+                        _token: "{{ csrf_token() }}",
+                        edit_id: roleId,
+                        permissions: selectedPermissions
+                    },
+                    success: function(res) {
+                        // Update local option data attribute
+                        $('#roleSelect').find(':selected').data('perms', selectedPermissions);
 
-                    <div class="perm-groups" id="permGroups">
-                        @forelse($groupedPerms as $module => $perms)
-                            @php
-                                // Icon logic
-                                $mainCategory = explode('.', $module)[0];
-                                $moduleIcons = [
-                                    'hr' => 'fa-users',
-                                    'users' => 'fa-user',
-                                    'roles' => 'fa-user-shield',
-                                    'permissions' => 'fa-key',
-                                    'settings' => 'fa-cog',
-                                    'reports' => 'fa-chart-bar',
-                                    'inventory' => 'fa-boxes',
-                                    'sales' => 'fa-shopping-cart',
-                                    'purchase' => 'fa-cart-plus',
-                                    'accounts' => 'fa-calculator',
-                                ];
-                                $icon = $moduleIcons[$mainCategory] ?? 'fa-folder';
-                                
-                                // Format Title
-                                $title = str_replace('.', ' ', $module);
-                                $title = ucwords($title);
-                                $title = str_replace('Hr ', 'HR ', $title);
-                                
-                                // Sort permissions in this group
-                                $perms = $perms->sortBy(function($p) {
-                                    $action = explode('.', $p->name);
-                                    $action = end($action);
-                                    $order = [
-                                        'view' => 1, 'read' => 1,
-                                        'create' => 2, 'add' => 2,
-                                        'edit' => 3, 'update' => 3,
-                                        'delete' => 4, 'remove' => 4,
-                                        'approve' => 5,
-                                        'mark' => 6,
-                                        'print' => 7, 
-                                        'export' => 8
-                                    ];
-                                    return $order[$action] ?? 99;
-                                });
-                            @endphp
-                            <div class="perm-group" data-module="{{ strtolower($module) }}">
-                                <div class="perm-group-header">
-                                    <div class="perm-group-title">
-                                        <div class="perm-group-icon"><i class="fa {{ $icon }}"></i></div>
-                                        <span class="perm-group-name">{{ $title }}</span>
-                                    </div>
-                                    <span class="perm-group-count">{{ $perms->count() }} permissions</span>
-                                </div>
-                                <div class="perm-group-body">
-                                    @php
-                                        $isBranch = str_starts_with($module, 'Branch:');
-                                        $subGroups = $perms->groupBy(function($p) use ($isBranch) {
-                                            if (!$isBranch) return 'all';
-                                            
-                                            $name = str_replace(' ', '.', strtolower($p->name));
-                                            if (preg_match('/^branch:\d+:(.*)$/', $name, $matches)) {
-                                                $basePerm = $matches[1];
-                                                $parts = explode('.', $basePerm);
-                                                if (count($parts) > 1) {
-                                                    array_pop($parts);
-                                                    return ucfirst(str_replace('.', ' ', implode('.', $parts)));
-                                                }
-                                            }
-                                            return 'General';
-                                        })->sortKeys();
-                                    @endphp
-
-                                    @foreach($subGroups as $subGroupName => $subPerms)
-                                        @if($isBranch)
-                                            <div class="branch-submodule-header mt-4 mb-3">
-                                                <div class="submodule-icon"><i class="fa fa-folder-open"></i></div>
-                                                <h6>{{ $subGroupName }}</h6>
-                                                <div class="submodule-count">{{ $subPerms->count() }} permissions</div>
-                                            </div>
-                                        @endif
-                                        <div class="perm-list">
-                                            @foreach ($subPerms as $perm)
-                                                @php
-                                                    $action = collect(explode('.', $perm->name))->last();
-                                                    $actionClass = in_array($action, ['view', 'read']) ? 'view' :
-                                                                  (in_array($action, ['create', 'add']) ? 'create' :
-                                                                  (in_array($action, ['edit', 'update']) ? 'edit' :
-                                                                  (in_array($action, ['delete', 'remove']) ? 'delete' :
-                                                                  (in_array($action, ['approve']) ? 'approve' :
-                                                                  (in_array($action, ['mark']) ? 'mark' :
-                                                                  (in_array($action, ['print']) ? 'print' :
-                                                                  (in_array($action, ['export']) ? 'export' : 'other')))))));
-                                                @endphp
-                                                <div class="perm-item" data-id="{{ $perm->id }}"
-                                                    data-name="{{ strtolower($perm->name) }}">
-                                                    <div class="d-flex align-items-center gap-3">
-                                                        <span class="perm-name">{{ $perm->name }}</span>
-                                                        <span
-                                                            class="perm-action-badge {{ $actionClass }}">{{ $action }}</span>
-                                                    </div>
-                                                    <div class="perm-actions">
-                                                        <button class="btn btn-edit edit-perm-btn"
-                                                            data-id="{{ $perm->id }}" data-name="{{ $perm->name }}"
-                                                            title="Edit">
-                                                            <i class="fa fa-pen"></i>
-                                                        </button>
-                                                        <button class="btn btn-delete delete-perm-btn"
-                                                            data-id="{{ $perm->id }}" title="Delete">
-                                                            <i class="fa fa-trash"></i>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            @endforeach
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @empty
-                            <div class="empty-state">
-                                <i class="fa fa-key"></i>
-                                <p>No permissions found. Add your first permission!</p>
-                            </div>
-                        @endforelse
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add/Edit Permission Modal -->
-    <div class="modal fade" id="permModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header gradient">
-                    <h5 class="modal-title" id="permModalTitle">
-                        <i class="fa fa-key"></i>
-                        <span>Add New Permission</span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form id="permForm" class="myform" action="{{ route('permissions.store') }}" method="POST">
-                    @csrf
-                    <input type="hidden" name="edit_id" id="permEditId">
-                    <input type="hidden" name="name" id="permName">
-
-                    <div class="modal-body">
-                        <div class="form-group-modern">
-                            <label class="form-label">
-                                <i class="fa fa-layer-group"></i> Module
-                            </label>
-                            <select id="moduleSelect" class="form-select" required>
-                                <option value="">-- Select Module --</option>
-                            </select>
-                        </div>
-                        <div class="form-group-modern">
-                            <label class="form-label">
-                                <i class="fa fa-cog"></i> Action
-                            </label>
-                            <select id="actionSelect" class="form-select" required>
-                                <option value="">-- Select Action --</option>
-                                <option value="view">View</option>
-                                <option value="create">Create</option>
-                                <option value="edit">Edit</option>
-                                <option value="delete">Delete</option>
-                                <option value="approve">Approve</option>
-                            </select>
-                        </div>
-                        <div class="form-group-modern">
-                            <label class="form-label">
-                                <i class="fa fa-eye"></i> Permission Preview
-                            </label>
-                            <input type="text" id="permPreview" class="form-control" readonly
-                                placeholder="module.action">
-                        </div>
-                    </div>
-
-                    <div class="modal-footer-modern">
-                        <button type="button" class="btn btn-cancel" data-bs-dismiss="modal">
-                            <i class="fa fa-times me-2"></i>Cancel
-                        </button>
-                        <button type="submit" class="btn btn-save">
-                            <i class="fa fa-check"></i>
-                            <span>Save Permission</span>
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="{{ asset('assets/js/mycode.js') }}"></script>
-
-    <script>
-        function loadModules(selected) {
-            $.getJSON('{{ route('modules.list') }}', function(res) {
-                var $sel = $('#moduleSelect');
-                $sel.empty().append('<option value="">-- Select Module --</option>');
-                if (Array.isArray(res)) {
-                    res.forEach(function(m) {
-                        $sel.append($('<option>').val(m).text(m));
-                    });
-                }
-                if (selected) $sel.val(selected);
-                updatePreview();
-            });
-        }
-
-        function updatePreview() {
-            var module = $('#moduleSelect').val() || '';
-            var action = $('#actionSelect').val() || '';
-            var preview = module && action ? module + '.' + action : '';
-            $('#permPreview').val(preview);
-            $('#permName').val(preview);
-        }
-
-        $(document).ready(function() {
-            // Add Permission Button
-            $('#addPermBtn').click(function() {
-                $('#permEditId').val('');
-                $('#actionSelect').val('');
-                $('#permModalTitle').html('<i class="fa fa-key"></i><span>Add New Permission</span>');
-                loadModules();
-                $('#permModal').modal('show');
-            });
-
-            // Module/Action change - update preview
-            $(document).on('change', '#moduleSelect, #actionSelect', updatePreview);
-
-            // Edit Permission
-            $(document).on('click', '.edit-perm-btn', function() {
-                var id = $(this).data('id');
-                var name = $(this).data('name');
-                var parts = name.split('.');
-                var module = parts.shift();
-                var action = parts.join('.') || 'view';
-
-                $('#permEditId').val(id);
-                $('#permModalTitle').html('<i class="fa fa-pen"></i><span>Edit Permission</span>');
-                loadModules(module);
-                setTimeout(function() {
-                    $('#actionSelect').val(action);
-                    updatePreview();
-                }, 300);
-                $('#permModal').modal('show');
-            });
-
-            // Delete Permission
-            $(document).on('click', '.delete-perm-btn', function() {
-                var id = $(this).data('id');
-                Swal.fire({
-                    title: 'Delete Permission?',
-                    text: 'This action cannot be undone!',
-                    icon: 'warning',
-                    showCancelButton: true,
-                    confirmButtonColor: '#ef4444',
-                    confirmButtonText: 'Yes, delete!'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        window.location.href = '{{ url('permission/delete') }}/' + id;
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Permissions Saved!',
+                            text: 'Role "' + roleName + '" permissions have been updated successfully.',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    },
+                    error: function(err) {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Error Saving!',
+                            text: 'Permissions save karne mein issue hua. Please try again.'
+                        });
                     }
                 });
-            });
-
-            // Search Permissions
-            $('#permSearch').on('input', function() {
-                var q = $(this).val().toLowerCase();
-                var visibleCount = 0;
-
-                $('.perm-group').each(function() {
-                    var $group = $(this);
-                    var module = $group.data('module') || '';
-                    var groupVisible = false;
-
-                    $group.find('.perm-item').each(function() {
-                        var name = $(this).data('name') || '';
-                        var match = name.indexOf(q) !== -1 || module.indexOf(q) !== -1;
-                        $(this).toggle(match);
-                        if (match) {
-                            groupVisible = true;
-                            visibleCount++;
-                        }
-                    });
-
-                    $group.toggle(groupVisible);
-                });
-
-                $('#permsCount').text(visibleCount + ' permissions');
-            });
-
-            // Form Submit
-            $('#permForm').submit(function(e) {
-                e.preventDefault();
-                var module = $('#moduleSelect').val();
-                var action = $('#actionSelect').val();
-
-                if (!module) {
-                    Swal.fire('Error', 'Please select a module.', 'error');
-                    return;
-                }
-                if (!action) {
-                    Swal.fire('Error', 'Please select an action.', 'error');
-                    return;
-                }
-
-                $('#permName').val(module + '.' + action);
-
-                var formdata = new FormData(this);
-                $(this).find(':submit').prop('disabled', true);
-                myAjax($(this).attr('action'), formdata, 'POST');
-            });
-
-            // Refresh
-            $('#refreshBtn').click(function() {
-                location.reload();
-            });
+            }
         });
-    </script>
+    });
 
+    // ===== ADD NEW PERMISSION MODAL =====
+    $('#addPermBtn').click(function() {
+        $('#permEditId').val('');
+        $('#moduleSelect').val('');
+        $('#actionSelect').val('');
+        $('#permPreviewInput').val('');
+        $('#permModalTitleText').text('Add New Permission');
+        $('#permModal').modal('show');
+    });
+
+    function updatePreview() {
+        var mod = $('#moduleSelect').val();
+        var act = $('#actionSelect').val();
+        var code = (mod && act) ? mod + '.' + act : '';
+        $('#permPreviewInput').val(code);
+        $('#permNameInput').val(code);
+    }
+
+    $(document).on('change', '#moduleSelect, #actionSelect', updatePreview);
+
+    $('#permForm').on('submit', function(e) {
+        e.preventDefault();
+        var code = $('#permNameInput').val();
+        if(!code) {
+            Swal.fire('Warning', 'Module and Action selection required.', 'warning');
+            return;
+        }
+
+        var formData = $(this).serialize();
+        $.ajax({
+            url: $(this).attr('action'),
+            type: "POST",
+            data: formData,
+            success: function(res) {
+                $('#permModal').modal('hide');
+                Swal.fire('Success', 'New permission added successfully!', 'success').then(() => {
+                    location.reload();
+                });
+            },
+            error: function(err) {
+                Swal.fire('Error', 'Failed to save permission.', 'error');
+            }
+        });
+    });
+
+});
+</script>
 @endsection

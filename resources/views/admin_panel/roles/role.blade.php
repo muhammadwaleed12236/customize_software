@@ -1276,11 +1276,9 @@
 
                     Object.keys(moduleDef.permissions).forEach(function(permName) {
                         var permLabel = moduleDef.permissions[permName];
-                        var permObj = permLookup[permName];
-                        if (permObj) {
-                            permsInModule.push({ obj: permObj, label: permLabel, name: permName });
-                            handledPermNames.add(permName);
-                        }
+                        var permObj = permLookup[permName] || { id: 'cfg_' + permName.replace(/[^a-zA-Z0-9]/g, '_'), name: permName };
+                        permsInModule.push({ obj: permObj, label: permLabel, name: permName });
+                        handledPermNames.add(permName);
                     });
 
                     if (permsInModule.length === 0) return;
@@ -1299,7 +1297,7 @@
                                     <span class="badge" style="background:#e2e8f0;color:#475569;">${permsInModule.length}</span>
                                 </div>
                                 <div class="d-flex align-items-center gap-2">
-                                    <span class="badge bg-success">${checkedCount} active</span>
+                                    <span class="badge bg-success module-active-badge">${checkedCount} active</span>
                                     <div class="form-check mb-0">
                                         <input class="form-check-input module-select" type="checkbox" data-module="${moduleKey}" title="Select All ${title}">
                                         <label class="form-check-label small fw-semibold">All</label>
@@ -1518,6 +1516,16 @@
                     var total = $(this).find('input[name="permissions[]"]').length;
                     var checked = $(this).find('input[name="permissions[]"]:checked').length;
                     var $select = $(this).find('.module-select');
+                    var $badge = $(this).find('.module-active-badge');
+
+                    if ($badge.length) {
+                        $badge.text(checked + ' active');
+                        if (checked > 0) {
+                            $badge.removeClass('bg-secondary').addClass('bg-success');
+                        } else {
+                            $badge.removeClass('bg-success').addClass('bg-secondary');
+                        }
+                    }
 
                     if (checked === 0) {
                         $select.prop('checked', false).prop('indeterminate', false);
@@ -1527,6 +1535,17 @@
                         $select.prop('checked', false).prop('indeterminate', true);
                     }
                 });
+
+                var totalStandard = $('#permissionGroupsContainer input[name="permissions[]"]').length;
+                var totalStandardChecked = $('#permissionGroupsContainer input[name="permissions[]"]:checked').length;
+                var $selectAllHeader = $('#selectAllPerms');
+                if (totalStandardChecked === 0) {
+                    $selectAllHeader.prop('checked', false).prop('indeterminate', false);
+                } else if (totalStandardChecked === totalStandard) {
+                    $selectAllHeader.prop('checked', true).prop('indeterminate', false);
+                } else {
+                    $selectAllHeader.prop('checked', false).prop('indeterminate', true);
+                }
             }
 
             // Permission checkbox change (standard or cross-branch)
