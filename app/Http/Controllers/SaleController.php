@@ -3160,11 +3160,10 @@ public function finddc($invoice)
     {
         $sale = Sale::with(['customer', 'saleItems.product'])->findOrFail($id);
         
-        // ✅ BRANCH-AWARE ACCOUNTS & CUSTOMERS
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
-        $branchId = $sale->branch_id;
+        $branchId = $sale->branch_id ?? (Auth::check() ? Auth::user()->branch_id : 1);
         
-        $customers = Customer::when(!$isSuper && $branchId, function ($q) use ($branchId) {
+        $customer = Customer::when(!$isSuper && $branchId, function ($q) use ($branchId) {
             $q->where('branch_id', $branchId);
         })->get();
         
@@ -3172,87 +3171,126 @@ public function finddc($invoice)
             $q->where('branch_id', $branchId);
         })->get();
         
-        // ✅ Fetch receipt vouchers for this sale by matching invoice_no with reference_no
+        $products = Product::when(!$isSuper && $branchId, function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId);
+        })->get();
+
+        $warehouse = Warehouse::when(!$isSuper && $branchId, function ($q) use ($products) {
+            if ($products->isEmpty()) {
+                $q->whereRaw('0 = 1');
+            } else {
+                $ids = $products->pluck('id')->toArray();
+                $whIds = WarehouseStock::whereIn('product_id', $ids)
+                    ->pluck('warehouse_id')
+                    ->unique()
+                    ->toArray();
+                if (!empty($whIds)) {
+                    $q->whereIn('id', $whIds);
+                } else {
+                    $q->whereRaw('0 = 1');
+                }
+            }
+        })->get();
+
+        $branches = Branch::all();
+        $branchCounters = Branch::pluck('invoice_counter', 'id')->toArray();
+        $warehouseStocks = WarehouseStock::all()->toArray();
+        $salesmen = SalesOfficer::all();
+        $saleSettings = \App\Models\SaleSetting::getSettings();
+
+        // Fetch receipt vouchers for this sale
         $receipts = ReceiptsVoucher::where('reference_no', $sale->invoice_no)
-            ->where('type', 'SALE_RECEIPT')
-            ->orderBy('id', 'desc')
+            ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
+            ->orderBy('id', 'asc')
             ->get();
 
-        // ✅ Fetch on-hand stock for all products (from v_stock_onhand view)
+        // Fetch on-hand stock for all products
         $stockMap = DB::table('v_stock_onhand')
             ->pluck('onhand_qty', 'product_id');
 
         $items = [];
-
-        // ✅ PRIORITY 1: Use SaleItem relationship (modern DB structure)
         if ($sale->saleItems && $sale->saleItems->count() > 0) {
             foreach ($sale->saleItems as $saleItem) {
                 $product = $saleItem->product;
                 $items[] = [
-                    'product_id' => $saleItem->product_id,
-                    'item_name'  => $product->item_name ?? '',
-                    'item_code'  => $product->item_code ?? '',
-                    'brand'      => $product->brand ? $product->brand->name : '',
-                    'unit'       => $product->unit ?? '',
-                    'price'      => floatval($saleItem->retail_price ?? 0),
-                    'discount'   => floatval($saleItem->discount_amount ?? 0),
+                    'product_id'       => $saleItem->product_id,
+                    'item_name'        => $product->item_name ?? '',
+                    'item_code'        => $product->item_code ?? '',
+                    'brand'            => $product->brand ? $product->brand->name : '',
+                    'unit'             => $product->unit ?? '',
+                    'retail_price'     => floatval($saleItem->retail_price ?? $saleItem->sales_price ?? 0),
+                    'sales_price'      => floatval($saleItem->retail_price ?? $saleItem->sales_price ?? 0),
+                    'discount'         => floatval($saleItem->discount_amount ?? 0),
+                    'discount_amount'  => floatval($saleItem->discount_amount ?? 0),
                     'discount_percent' => floatval($saleItem->discount_percent ?? 0),
-                    'qty'        => intval($saleItem->sales_qty ?? 0),
-                    'total'      => floatval($saleItem->amount ?? 0),
-                    'onhand_qty' => floatval($stockMap[$saleItem->product_id] ?? 0),
-                    'color'      => [],
+                    'discount_type'    => floatval($saleItem->discount_percent ?? 0) > 0 ? 'percent' : 'pkr',
+                    'sales_qty'        => floatval($saleItem->sales_qty ?? 0),
+                    'qty'              => floatval($saleItem->sales_qty ?? 0),
+                    'amount'           => floatval($saleItem->amount ?? 0),
+                    'total'            => floatval($saleItem->amount ?? 0),
+                    'onhand_qty'       => floatval($stockMap[$saleItem->product_id] ?? 0),
+                    'warehouse_id'     => $saleItem->warehouse_id,
                 ];
             }
-        }
-        // ✅ FALLBACK: Use legacy CSV fields if no SaleItem records
-        else if ($sale->product) {
-            $products = explode(',', $sale->product);
-            $codes = explode(',', $sale->product_code ?? '');
-            $brands = explode(',', $sale->brand ?? '');
-            $units = explode(',', $sale->unit ?? '');
-            $prices = explode(',', $sale->per_price ?? '');
-            $discounts = explode(',', $sale->per_discount ?? '');
-            $qtys = explode(',', $sale->qty ?? '');
-            $totals = explode(',', $sale->per_total ?? '');
-            $colors_json = json_decode($sale->color, true) ?? [];
+        } else if ($sale->product) {
+            $productsArr  = explode(',', $sale->product);
+            $codesArr     = explode(',', $sale->product_code ?? '');
+            $pricesArr    = explode(',', $sale->per_price ?? '');
+            $discountsArr = explode(',', $sale->per_discount ?? '');
+            $qtysArr      = explode(',', $sale->qty ?? '');
+            $totalsArr    = explode(',', $sale->per_total ?? '');
 
-            foreach ($products as $index => $p) {
+            foreach ($productsArr as $index => $p) {
                 $product = Product::where('item_name', trim($p))
-                    ->orWhere('item_code', trim($codes[$index] ?? ''))
+                    ->orWhere('item_code', trim($codesArr[$index] ?? ''))
                     ->first();
 
                 $productId = $product->id ?? null;
+                $qty   = floatval($qtysArr[$index] ?? 1);
+                $price = floatval($pricesArr[$index] ?? 0);
+                $disc  = floatval($discountsArr[$index] ?? 0);
+                $tot   = floatval($totalsArr[$index] ?? 0);
 
                 $items[] = [
-                    'product_id' => $productId,
-                    'item_name'  => $product->item_name ?? $p,
-                    'item_code'  => $product->item_code ?? ($codes[$index] ?? ''),
-                    'brand'      => $product->brand ? $product->brand->name : ($brands[$index] ?? ''),
-                    'unit'       => $product->unit ?? ($units[$index] ?? ''),
-                    'price'      => floatval($prices[$index] ?? 0),
-                    'discount'   => floatval($discounts[$index] ?? 0),
+                    'product_id'       => $productId,
+                    'item_name'        => $product->item_name ?? $p,
+                    'item_code'        => $product->item_code ?? ($codesArr[$index] ?? ''),
+                    'brand'            => $product->brand ? $product->brand->name : '',
+                    'unit'             => $product->unit ?? '',
+                    'retail_price'     => $price,
+                    'sales_price'      => $price,
+                    'discount'         => $disc,
+                    'discount_amount'  => $disc,
                     'discount_percent' => 0,
-                    'qty'        => intval($qtys[$index] ?? 1),
-                    'total'      => floatval($totals[$index] ?? 0),
-                    'onhand_qty' => floatval($stockMap[$productId] ?? 0),
-                    'color'      => isset($colors_json[$index]) ? json_decode($colors_json[$index], true) : [],
+                    'discount_type'    => 'pkr',
+                    'sales_qty'        => $qty,
+                    'qty'              => $qty,
+                    'amount'           => $tot,
+                    'total'            => $tot,
+                    'onhand_qty'       => floatval($stockMap[$productId] ?? 0),
+                    'warehouse_id'     => null,
                 ];
             }
         }
 
-        $salesmen = SalesOfficer::all();
         $partyType = $sale->partyType ?? $sale->party_type ?? 'credit';
-        $saleSettings = \App\Models\SaleSetting::getSettings();
 
-        return view('admin_panel.sale.saleedit', [
-            'sale'         => $sale,
-            'Customer'     => $customers,
-            'saleItems'    => $items,
-            'accounts'     => $accounts,
-            'receipts'     => $receipts,
-            'salesmen'     => $salesmen,
-            'partyType'    => $partyType,
-            'saleSettings' => $saleSettings,
+        return view('admin_panel.sale.add_sale222', [
+            'warehouse'         => $warehouse,
+            'customer'          => $customer,
+            'accounts'          => $accounts,
+            'nextInvoiceNumber' => $sale->invoice_no,
+            'products'          => $products,
+            'branches'          => $branches,
+            'branchCounters'    => $branchCounters,
+            'warehouseStocks'   => $warehouseStocks,
+            'salesmen'          => $salesmen,
+            'saleSettings'      => $saleSettings,
+            'isEditMode'        => true,
+            'sale'              => $sale,
+            'saleItems'         => $items,
+            'receipts'          => $receipts,
+            'partyType'         => $partyType,
         ]);
     }
 
@@ -3265,36 +3303,29 @@ public function finddc($invoice)
         try {
             return DB::transaction(function () use ($request, $id) {
                 
-                /* ================= FETCH EXISTING SALE ================= */
                 $sale = Sale::with(['saleItems', 'customer'])->lockForUpdate()->findOrFail($id);
                 $oldTotal = floatval($sale->total_net ?? 0);
                 $customerId = $request->input('customer_id');
-
-                /* ================= VALIDATE CUSTOMER CHANGE ================= */
-                if ($customerId && $customerId != $sale->customer_id) {
-                    $customer = Customer::lockForUpdate()->findOrFail($customerId);
-                }
+                $branchId = $sale->branch_id ?? (auth()->user()->branch_id ?? 1);
 
                 /* ================= STEP 1: REVERSE OLD STOCK (Add back) ================= */
                 foreach ($sale->saleItems as $oldItem) {
-                    // Restore warehouse stock
-                    $whStock = WarehouseStock::lockForUpdate()
-                        ->where('product_id', $oldItem->product_id)
-                        ->where('branch_id', $sale->branch_id)
-                        ->where('warehouse_id', $oldItem->warehouse_id)
-                        ->first();
-                    
-                    if ($whStock) {
-                        $whStock->quantity += $oldItem->sales_qty;
-                        $whStock->save();
+                    if ($oldItem->warehouse_id) {
+                        $whStock = WarehouseStock::lockForUpdate()
+                            ->where('product_id', $oldItem->product_id)
+                            ->where('branch_id', $branchId)
+                            ->where('warehouse_id', $oldItem->warehouse_id)
+                            ->first();
+                        if ($whStock) {
+                            $whStock->quantity += $oldItem->sales_qty;
+                            $whStock->save();
+                        }
                     }
 
-                    // Restore main stock (branch-level, doesn't track warehouse_id)
                     $mainStock = Stock::lockForUpdate()
                         ->where('product_id', $oldItem->product_id)
-                        ->where('branch_id', $sale->branch_id)
+                        ->where('branch_id', $branchId)
                         ->first();
-                    
                     if ($mainStock) {
                         $mainStock->qty += $oldItem->sales_qty;
                         $mainStock->save();
@@ -3302,105 +3333,117 @@ public function finddc($invoice)
                 }
 
                 /* ================= STEP 2: UPDATE SALE HEADER ================= */
-                $newSubTotal = floatval($request->input('subTotal1', 0));
-                $newGrossTotal = floatval($request->input('subTotal2', 0));
-                $newDiscountAmount = floatval($request->input('discountAmount', 0));
+                $newSubTotal1 = floatval($request->input('subTotal1', 0));
+                $newSubTotal2 = floatval($request->input('subTotal2', 0));
+                $newAddDiscount = floatval($request->input('additional_discount', $request->input('discountAmount', 0)));
+                $newExtraCharges = floatval($request->input('extra_charges', 0));
                 $newTotal = floatval($request->input('totalBalance', 0));
 
+                $partyType = $request->input('partyType', $sale->partyType ?? 'credit');
+                $customerName = null;
+                if ($partyType === 'walking') {
+                    $customerName = $request->input('customer') ?? $request->input('customer_display');
+                }
+
                 $sale->update([
-                    'customer_id' => $customerId ?? $sale->customer_id,
-                    'salesman_id' => $request->salesman_id ?? $sale->salesman_id,
-                    'manual_invoice' => $request->input('manual_invoice', $sale->manual_invoice),
-                    'address' => $request->input('address', $sale->address),
-                    'tel' => $request->input('tel', $sale->tel),
-                    'remarks' => $request->input('remarks', $sale->remarks),
-                    'sub_total1' => $newSubTotal,
-                    'sub_total2' => $newGrossTotal,
-                    'discount_percent' => $request->input('discountPercent', 0),
-                    'discount_amount' => $newDiscountAmount,
-                    'total_net' => $newTotal,
-                    'previous_balance' => floatval($request->input('previousBalance', 0)),
-                    'total_balance' => $newTotal,
+                    'customer_id'         => $customerId ?: $sale->customer_id,
+                    'customer_name'       => $customerName,
+                    'partyType'           => $partyType,
+                    'salesman_id'         => $request->input('salesman_id', $sale->salesman_id),
+                    'manual_invoice'      => $request->input('Invoice_main', $sale->manual_invoice),
+                    'address'             => $request->input('address', $sale->address),
+                    'tel'                 => $request->input('tel', $sale->tel),
+                    'remarks'             => $request->input('remarks', $sale->remarks),
+                    'sub_total1'          => $newSubTotal1,
+                    'sub_total2'          => $newSubTotal2,
+                    'additional_discount' => $newAddDiscount,
+                    'extra_charges'       => $newExtraCharges,
+                    'total_net'           => $newTotal,
+                    'previous_balance'    => floatval($request->input('previousBalance', $sale->previous_balance)),
+                    'total_balance'       => $newTotal,
                 ]);
 
                 /* ================= STEP 3: DELETE OLD SALE ITEMS ================= */
-                $sale->saleItems()->delete();
+                SaleItem::where('sale_id', $sale->id)->delete();
 
-                /* ================= STEP 4: CREATE NEW SALE ITEMS ================= */
-                foreach ($request->input('sales_qty', []) as $i => $qty) {
-                    $qty = floatval($qty);
-                    if ($qty <= 0) continue;
+                /* ================= STEP 4: CREATE NEW SALE ITEMS & DEDUCT NEW STOCK ================= */
+                $productIds = $request->input('product_id', []);
+                $qtys = $request->input('sales_qty', []);
+                $retailPrices = $request->input('retail_price', []);
+                $discountAmounts = $request->input('discount_amount', []);
+                $discountPercentages = $request->input('discount_percentage', []);
+                $discountTypes = $request->input('discount_type', []);
+                $salesAmounts = $request->input('sales_amount', []);
+                $warehouseIds = $request->input('warehouse_id', []);
 
-                    $productId = $request->input("sales_qty")[$i];
-                    // Need to find product_id from a hidden field or reconstruct from table
-                    // For now, use the index to get all row data
+                foreach ($productIds as $i => $productId) {
+                    $qty = floatval($qtys[$i] ?? 0);
+                    if (!$productId || $qty <= 0) continue;
 
-                    $retailPrice = floatval($request->input('retail_price')[$i] ?? 0);
-                    $discountAmount = floatval($request->input('discount_amount')[$i] ?? 0);
-                    $discountPercent = floatval($request->input('discount_percentage')[$i] ?? 0);
-                    $salesAmount = floatval($request->input('sales_amount')[$i] ?? 0);
+                    $retailPrice = floatval($retailPrices[$i] ?? 0);
+                    $discAmount = floatval($discountAmounts[$i] ?? 0);
+                    $discPercent = floatval($discountPercentages[$i] ?? 0);
+                    $discType = $discountTypes[$i] ?? 'percent';
+                    $amount = floatval($salesAmounts[$i] ?? 0);
+                    $whId = is_array($warehouseIds) ? ($warehouseIds[$productId] ?? null) : null;
 
-                    // We need to extract product_id from rows - this should be in a hidden input
-                    // For now, skip if we can't determine product
-                    
-                    // Create new sale item with line-item discounts
-                    // CRITICAL: Include invoice_no and branch_id from sale to maintain referential integrity
+                    // Create new sale item
                     SaleItem::create([
-                        'invoice_no' => $sale->invoice_no,
-                        'branch_id' => $sale->branch_id,
-                        'sale_id' => $sale->id,
-                        'warehouse_id' => 1, // Default - should be from request
-                        'product_id' => $productId,
-                        'sales_qty' => $qty,
-                        'retail_price' => $retailPrice,
-                        'discount_percent' => $discountPercent,
-                        'discount_amount' => $discountAmount,
-                        'amount' => $salesAmount,
+                        'invoice_no'       => $sale->invoice_no,
+                        'branch_id'        => $branchId,
+                        'sale_id'          => $sale->id,
+                        'warehouse_id'     => $whId,
+                        'product_id'       => $productId,
+                        'sales_qty'        => $qty,
+                        'retail_price'     => $retailPrice,
+                        'discount_percent' => $discPercent,
+                        'discount_amount'  => $discAmount,
+                        'discount_type'    => $discType,
+                        'amount'           => $amount,
                     ]);
-                }
 
-                /* ================= STEP 5: DEDUCT NEW STOCK ================= */
-                foreach ($sale->saleItems as $newItem) {
-                    // Update warehouse stock (deduct new quantity)
-                    $whStock = WarehouseStock::lockForUpdate()
-                        ->where('product_id', $newItem->product_id)
-                        ->where('branch_id', $sale->branch_id)
-                        ->where('warehouse_id', $newItem->warehouse_id)
-                        ->first();
-                    
-                    if ($whStock) {
-                        $whStock->quantity -= $newItem->sales_qty;
-                        $whStock->save();
-                    } else {
-                        WarehouseStock::create([
-                            'warehouse_id' => $newItem->warehouse_id,
-                            'product_id' => $newItem->product_id,
-                            'quantity' => -$newItem->sales_qty,
-                        ]);
+                    // Deduct new warehouse stock
+                    if ($whId) {
+                        $whStock = WarehouseStock::lockForUpdate()
+                            ->where('product_id', $productId)
+                            ->where('branch_id', $branchId)
+                            ->where('warehouse_id', $whId)
+                            ->first();
+
+                        if ($whStock) {
+                            $whStock->quantity -= $qty;
+                            $whStock->save();
+                        } else {
+                            WarehouseStock::create([
+                                'branch_id'    => $branchId,
+                                'warehouse_id' => $whId,
+                                'product_id'   => $productId,
+                                'quantity'     => -$qty,
+                            ]);
+                        }
                     }
 
-                    // Update main stock (branch-level, doesn't track warehouse_id)
+                    // Deduct new main stock
                     $mainStock = Stock::lockForUpdate()
-                        ->where('product_id', $newItem->product_id)
-                        ->where('branch_id', $sale->branch_id)
+                        ->where('product_id', $productId)
+                        ->where('branch_id', $branchId)
                         ->first();
-                    
+
                     if ($mainStock) {
-                        $mainStock->qty -= $newItem->sales_qty;
+                        $mainStock->qty -= $qty;
                         $mainStock->save();
                     } else {
                         Stock::create([
-                            'branch_id' => 1,
-                            'product_id' => $newItem->product_id,
-                            'qty' => -$newItem->sales_qty,
+                            'branch_id'    => $branchId,
+                            'product_id'   => $productId,
+                            'qty'          => -$qty,
                             'reserved_qty' => 0,
                         ]);
                     }
                 }
 
-                /* ================= STEP 6: UPDATE CUSTOMER LEDGER ================= */
+                /* ================= STEP 5: UPDATE CUSTOMER LEDGER ================= */
                 $difference = $newTotal - $oldTotal;
-
                 if ($difference != 0 && $customerId) {
                     $latestLedger = CustomerLedger::lockForUpdate()
                         ->where('customer_id', $customerId)
@@ -3411,64 +3454,52 @@ public function finddc($invoice)
                     $newClosing = $previousBalance + $difference;
 
                     CustomerLedger::create([
-                        'customer_id' => $customerId,
+                        'customer_id'      => $customerId,
                         'admin_or_user_id' => auth()->id(),
                         'previous_balance' => $previousBalance,
-                        'opening_balance' => 0,
-                        'closing_balance' => $newClosing,
-                        'reference_type' => 'Sale Update',
-                        'reference_id' => $sale->id,
+                        'opening_balance'  => 0,
+                        'closing_balance'  => $newClosing,
+                        'reference_type'   => 'Sale Update',
+                        'reference_id'     => $sale->id,
                     ]);
                 }
 
-                /* ================= STEP 7: UPDATE SALES ACCOUNT ================= */
-                $salesHead = AccountHead::where('name', 'like', '%Sales%')->first();
-                if ($salesHead && $difference != 0) {
-                    $saleAccount = Account::lockForUpdate()
-                        ->where('head_id', $salesHead->id)
-                        ->first();
-                    if ($saleAccount) {
-                        $saleAccount->opening_balance += $difference;
-                        $saleAccount->save();
-                    }
-                }
-
-                /* ================= STEP 8: UPDATE RECEIPT VOUCHERS ================= */
-               // Delete old receipt vouchers and create new ones if provided
+                /* ================= STEP 6: UPDATE RECEIPT VOUCHERS ================= */
                 ReceiptsVoucher::where('reference_no', $sale->invoice_no)
-                    ->where('type', 'SALE_RECEIPT')
+                    ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
                     ->delete();
 
-                // Create new receipts if provided
-                if (!empty($request->input('receipt_account_id', []))) {
-                    foreach ($request->input('receipt_account_id', []) as $i => $accId) {
-                        $amount = floatval($request->input('receipt_amount')[$i] ?? 0);
-                        if ($amount <= 0 || !$accId) continue;
+                $receiptAccounts = $request->input('receipt_account_id', []);
+                $receiptAmounts = $request->input('receipt_amount', []);
+
+                if (is_array($receiptAccounts)) {
+                    foreach ($receiptAccounts as $i => $accId) {
+                        $amt = floatval($receiptAmounts[$i] ?? 0);
+                        if ($amt <= 0 || !$accId) continue;
 
                         ReceiptsVoucher::create([
-                            'branch_id' => $sale->branch_id ?? (auth()->user()->branch_id ?? 1),
-                            'rvid' => ReceiptsVoucher::generateRVID(auth()->id()),
+                            'branch_id'    => $branchId,
+                            'rvid'         => ReceiptsVoucher::generateRVID(auth()->id()),
                             'receipt_date' => now()->toDateString(),
-                            'entry_date' => now(),
-                            'type' => 'SALE_RECEIPT',
-                            'party_id' => $customerId,
-                            'sale_id' => $sale->id,
+                            'entry_date'   => now(),
+                            'type'         => 'SALE_RECEIPT',
+                            'party_id'     => $customerId,
+                            'sale_id'      => $sale->id,
                             'reference_no' => $sale->invoice_no,
                             'row_account_id' => $accId,
                             'row_account_head' => 'Cash/Bank',
-                            'amount' => $amount,
-                            'total_amount' => $amount,
-                            'processed' => true,
+                            'amount'       => $amt,
+                            'total_amount' => $amt,
+                            'processed'    => true,
                         ]);
 
-                        // Apply to account
                         try {
                             $rowAccount = Account::lockForUpdate()->find($accId);
                             if ($rowAccount) {
                                 if (strtolower($rowAccount->type) === 'debit') {
-                                    $rowAccount->opening_balance += $amount;
+                                    $rowAccount->opening_balance += $amt;
                                 } else {
-                                    $rowAccount->opening_balance -= $amount;
+                                    $rowAccount->opening_balance -= $amt;
                                 }
                                 $rowAccount->save();
                             }
@@ -3478,12 +3509,24 @@ public function finddc($invoice)
                     }
                 }
 
-                /* ================= STEP 9: RESPONSE ================= */
+                if ($request->wantsJson() || $request->ajax()) {
+                    return response()->json([
+                        'ok'          => true,
+                        'sale_id'     => $sale->id,
+                        'invoice_no'  => $sale->invoice_no,
+                        'invoice_url' => route('sale.invoice', $sale->id),
+                        'msg'         => 'Sale #' . $sale->invoice_no . ' updated successfully!',
+                    ]);
+                }
+
                 return redirect()->route('sale.index')
-                    ->with('success', 'Sale #' . $sale->invoice_no . ' updated successfully with all items, stock, and ledger adjusted!');
+                    ->with('success', 'Sale #' . $sale->invoice_no . ' updated successfully!');
             });
         } catch (\Exception $e) {
             \Log::error('Sale update failed', ['error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            }
             return back()
                 ->withError('❌ Error updating sale: ' . $e->getMessage())
                 ->withInput();

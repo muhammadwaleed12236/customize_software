@@ -1315,6 +1315,13 @@
         // Current user's branch ID
         window.USER_BRANCH_ID = {{ Auth::user()->branch_id ?? 1 }};
         
+        // ✅ Edit sale prefill data (passed from SaleController::saleedit)
+        window.IS_EDIT_MODE = {{ isset($isEditMode) && $isEditMode ? 'true' : 'false' }};
+        window.EDIT_SALE = @json($sale ?? null);
+        window.EDIT_SALE_ITEMS = @json($saleItems ?? []);
+        window.EDIT_RECEIPTS = @json($receipts ?? []);
+        window.UPDATE_URL = "{{ isset($sale) ? route('sales.update', $sale->id) : '' }}";
+
         // ✅ Booking prefill data (passed from SaleController::convertFromBooking)
         window.BOOKING_DATA = @json($booking ?? null);
         window.BOOKING_CUSTOMER = @json($booking_customer ?? null);
@@ -1550,6 +1557,108 @@
                 console.log('📥 Preparing to prefill with booking data...');
                 setTimeout(() => {
                     prefillFormWithBooking();
+                }, 800);
+            }
+
+            // ✅ PREFILL WITH SALE EDIT DATA AFTER INIT
+            function prefillFormWithSale() {
+                if (!window.EDIT_SALE) return;
+
+                console.log('✏️ Prefilling form for Sale Edit:', window.EDIT_SALE);
+
+                $('.fw-bold.mb-0.text-dark').each(function() {
+                    if ($(this).text().trim() === 'New Sale / Booking') {
+                        $(this).html('<i class="fas fa-edit me-2"></i> Edit Sale #' + (window.EDIT_SALE.invoice_no || ''));
+                    }
+                });
+                $('#btnSave').html('<i class="fas fa-save me-2"></i> Update Sale');
+                $('#btnPosted2').hide();
+
+                if (window.EDIT_SALE.invoice_no) {
+                    $('input[name="Invoice_no"]').val(window.EDIT_SALE.invoice_no).prop('readonly', true);
+                }
+                if (window.EDIT_SALE.manual_invoice) {
+                    $('input[name="Invoice_main"]').val(window.EDIT_SALE.manual_invoice);
+                }
+
+                const pType = window.EDIT_SALE.partyType || window.EDIT_SALE.party_type || 'credit';
+                $(`input[name="partyType"][value="${pType}"]`).prop('checked', true).trigger('change');
+
+                if (pType === 'walking') {
+                    $('#customerDisplay').val(window.EDIT_SALE.customer_name || '');
+                } else if (window.EDIT_SALE.customer_id) {
+                    $('#customerSelect').val(window.EDIT_SALE.customer_id).trigger('change');
+                }
+
+                if (window.EDIT_SALE.salesman_id) {
+                    $('#salesmanSelect').val(window.EDIT_SALE.salesman_id).trigger('change');
+                }
+
+                $('textarea[name="address"]').val(window.EDIT_SALE.address || '');
+                $('input[name="tel"]').val(window.EDIT_SALE.tel || '');
+                $('textarea[name="remarks"]').val(window.EDIT_SALE.remarks || '');
+
+                if (window.EDIT_SALE_ITEMS && window.EDIT_SALE_ITEMS.length > 0) {
+                    $('#salesTableBody').empty();
+
+                    window.EDIT_SALE_ITEMS.forEach(function(item) {
+                        addNewRow();
+                        const $newRow = $('#salesTableBody tr').last();
+                        const productId = item.product_id;
+
+                        if (productId) {
+                            $newRow.find('.product-select').val(productId).trigger('change');
+                        }
+
+                        $newRow.find('.sales-qty').val(item.sales_qty || item.qty || 1);
+                        $newRow.find('.retail-price').val((item.retail_price || item.sales_price || 0).toFixed(2));
+
+                        const discVal = item.discount_amount || item.discount || 0;
+                        const discType = item.discount_type || 'pkr';
+                        const $discToggle = $newRow.find('.discount-toggle');
+                        $discToggle.attr('data-type', discType).text(discType === 'percent' ? '%' : 'PKR');
+
+                        if (discType === 'percent' && item.discount_percent > 0) {
+                            $newRow.find('.discount-value').val(item.discount_percent.toFixed(2));
+                        } else {
+                            $newRow.find('.discount-value').val(discVal.toFixed(2));
+                        }
+
+                        if (item.warehouse_id) {
+                            $newRow.find('.warehouse-id')
+                                .attr('name', `warehouse_id[${productId}]`)
+                                .val(item.warehouse_id);
+                        }
+
+                        computeRow($newRow, false, true);
+                    });
+                }
+
+                if (window.EDIT_RECEIPTS && window.EDIT_RECEIPTS.length > 0) {
+                    $('.rv-row').remove();
+                    window.EDIT_RECEIPTS.forEach(function(rcpt) {
+                        $('#btnAddRV').click();
+                        const $lastRv = $('.rv-row').last();
+                        $lastRv.find('.rv-account').val(rcpt.row_account_id || rcpt.account_id).trigger('change');
+                        $lastRv.find('.rv-amount').val(parseFloat(rcpt.amount || 0).toFixed(2));
+                    });
+                }
+
+                if (window.EDIT_SALE.additional_discount) {
+                    $('#orderDiscount').val(parseFloat(window.EDIT_SALE.additional_discount).toFixed(2));
+                }
+                if (window.EDIT_SALE.extra_charges) {
+                    $('#extraCharges').val(parseFloat(window.EDIT_SALE.extra_charges).toFixed(2));
+                }
+
+                updateGrandTotals();
+                refreshPostedState();
+            }
+
+            if (window.IS_EDIT_MODE && window.EDIT_SALE) {
+                console.log('✏️ Edit mode detected, prefilling sale data...');
+                setTimeout(() => {
+                    prefillFormWithSale();
                 }, 800);
             }
             
@@ -3505,6 +3614,40 @@
             const payable = parseFloat($('#totalBalance').val() || $('#tPayable').text() || 0) || 0;
 
             function saveBookingAndOpenInvoice() {
+                if (window.IS_EDIT_MODE) {
+                    const formData = serializeForm() + '&_token=' + '{{ csrf_token() }}&_method=PUT';
+                    setBusy($('#btnSave'));
+                    $.ajax({
+                        url: window.UPDATE_URL,
+                        type: 'POST',
+                        data: formData,
+                        success: function(res) {
+                            setReady($('#btnSave'));
+                            if (res?.ok) {
+                                showAlert('success', res.msg || 'Sale updated successfully!');
+                                if (res.invoice_url) {
+                                    window.open(res.invoice_url, '_blank');
+                                }
+                                setTimeout(function() {
+                                    window.location.href = '{{ route('sale.index') }}';
+                                }, 500);
+                            } else {
+                                showAlert('danger', res.error || res.msg || 'Update failed');
+                            }
+                        },
+                        error: function(xhr) {
+                            setReady($('#btnSave'));
+                            let msg = 'Error updating sale';
+                            try {
+                                const json = xhr.responseJSON || JSON.parse(xhr.responseText || '{}');
+                                msg = json.error || json.message || msg;
+                            } catch (e) {}
+                            showAlert('danger', msg);
+                        }
+                    });
+                    return;
+                }
+
                 ensureSaved().then(function(bookingId) {
                     if (bookingId) {
                         const bookingInvoiceUrl = '{{ url('booking/invoice') }}/' + bookingId;

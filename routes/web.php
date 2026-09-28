@@ -510,7 +510,8 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('/sale-returns', [App\Http\Controllers\SaleController::class, 'salereturnview'])->middleware('permission:sale.return.view')->name('sale.returns.index');
     // Route::get('/sales/{id}/invoice', [SaleController::class, 'saleinvoice'])->name('sales.invoice');
     Route::get('/sales/{id}/edit', [SaleController::class, 'saleedit'])->middleware('permission:sale.edit')->name('sales.edit');
-    Route::put('/sales/{id}', [SaleController::class, 'updatebooking'])->middleware('permission:sale.edit')->name('sales.update');
+    Route::put('/sales/{id}', [SaleController::class, 'update'])->middleware('permission:sale.edit')->name('sales.update');
+    Route::post('/sales/{id}/update', [SaleController::class, 'update'])->middleware('permission:sale.edit')->name('sales.update.post');
     Route::delete('/sales/{id}', [SaleController::class, 'destroy'])->middleware('permission:sale.delete')->name('sales.destroy');
     Route::get('/sales/{id}/dc', [SaleController::class, 'saledc'])->middleware('permission:sale.delivery.challan')->name('sales.dc');
     Route::get('/sales/{id}/recepit', [SaleController::class, 'salerecepit'])->middleware('permission:sale.receipt')->name('sales.recepit');
