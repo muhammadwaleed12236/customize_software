@@ -201,10 +201,17 @@
 
                                     <td>
                                         <a href="{{ route('booking.invoice', $booking->id) }}" target="_blank"
-                                            class="btn btn-sm btn-outline-secondary">Receipt</a>
+                                            class="btn btn-sm btn-outline-secondary" title="View Receipt">Receipt</a>
+                                        <a href="{{ route('bookings.edit', $booking->id) }}"
+                                            class="btn btn-sm btn-primary" title="Edit Booking"><i class="fa fa-edit"></i> Edit</a>
+                                        <form action="{{ route('bookings.destroy', $booking->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this booking?');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn btn-sm btn-danger" title="Delete Booking"><i class="fa fa-trash"></i> Delete</button>
+                                        </form>
                                         @if(($booking->status ?? 'pending') == 'pending')
                                             <a href="{{ route('sales.from.booking', $booking->id) }}"
-                                                class="btn btn-sm btn-success">Confirm</a>
+                                                class="btn btn-sm btn-success" title="Confirm Booking">Confirm</a>
                                         @endif
                                     </td>
                                 </tr>

@@ -62,15 +62,16 @@
     <div class="container-fluid">
         <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-light text-white d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">SALES</h5>
+                <h5 class="mb-0">Edit Booking #{{ $booking->invoice_no ?? $booking->id }}</h5>
                 <div>
-                    <a href="" class="btn btn-primary"> DC</a>
+                    <a href="{{ route('bookings.index') }}" class="btn btn-secondary">Back to Bookings</a>
                 </div>
             </div>
-            <form action="{{ route('sales.store') }}" method="POST">
+            <form action="{{ route('bookings.update', $booking->id) }}" method="POST">
                 @csrf
-                <input type="hidden" name="branch_id" value="1">
-<input type="hidden" name="warehouse_id" value="1">
+                @method('PUT')
+                <input type="hidden" name="branch_id" value="{{ $booking->branch_id ?? 1 }}">
+                <input type="hidden" name="warehouse_id" value="1">
 
                 @if (session('success'))
                     <div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -290,9 +291,8 @@
                             <strong>TOTAL PIECES : </strong> <span>0</span>
                         </div>
                         <div>
-                            <button type="submit" name="action" value="booking" class="btn btn-warning">Book</button>
-                            <button type="submit" name="action" value="sale" class="btn btn-success">Sale</button>
-                            <button type="button" class="btn btn-secondary">Close</button>
+                            <button type="submit" class="btn btn-warning"><i class="fa fa-save me-1"></i> Update Booking</button>
+                            <a href="{{ route('bookings.index') }}" class="btn btn-secondary">Close</a>
                         </div>
                     </div>
                 </div>
