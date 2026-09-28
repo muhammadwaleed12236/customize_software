@@ -840,7 +840,7 @@
                                     </div>
                                 </div>
                             @else
-                                <input type="hidden" name="branch_id" id="branchHidden" value="{{ auth()->user()->branch_id ?? 0 }}">
+                                <input type="hidden" name="branch_id" id="branchHidden" value="{{ auth()->user()->branch_id ?? '' }}">
                             @endif
                             <div class="col-md-12">
                                 <div class="form-group-modern">

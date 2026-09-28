@@ -55,7 +55,7 @@ class UserController extends Controller
         $rules = [
             'name' => 'required',
             'email' => 'required|email|unique:users,email,' . $editId,
-            'branch_id' => 'required',
+            'branch_id' => 'nullable',
         ];
 
         if (empty($editId)) {
@@ -90,7 +90,14 @@ class UserController extends Controller
         if (!empty($request->password)) {
             $user->password = Hash::make($request->password);
         }
-        $user->branch_id = $request->branch_id;
+        
+        // Safely verify if branch_id exists in branches table to prevent SQL foreign key 1452 errors
+        $branchId = $request->branch_id ?? null;
+        if (!empty($branchId) && Branch::where('id', $branchId)->exists()) {
+            $user->branch_id = (int)$branchId;
+        } else {
+            $user->branch_id = null;
+        }
         $user->save();
 
         // Assign roles if provided
