@@ -144,9 +144,11 @@
         <div class="card shadow-sm border-0 mt-3">
             <div class="card-header bg-light text-dark d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">BOOKINGS</h5>
+                @can('booking.create')
                 <span class="fw-bold text-dark">
                     <a href="{{ route('bookings.create') }}" class="btn btn-primary">Add Booking</a>
                 </span>
+                @endcan
             </div>
 
             <div class="card-body">
@@ -202,16 +204,22 @@
                                     <td>
                                         <a href="{{ route('booking.invoice', $booking->id) }}" target="_blank"
                                             class="btn btn-sm btn-outline-secondary" title="View Receipt">Receipt</a>
+                                        @can('booking.edit')
                                         <a href="{{ route('bookings.edit', $booking->id) }}"
                                             class="btn btn-sm btn-primary" title="Edit Booking"><i class="fa fa-edit"></i> Edit</a>
+                                        @endcan
+                                        @can('booking.delete')
                                         <form action="{{ route('bookings.destroy', $booking->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to delete this booking?');">
                                             @csrf
                                             @method('DELETE')
                                             <button type="submit" class="btn btn-sm btn-danger" title="Delete Booking"><i class="fa fa-trash"></i> Delete</button>
                                         </form>
+                                        @endcan
                                         @if(($booking->status ?? 'pending') == 'pending')
+                                            @can('sale.create')
                                             <a href="{{ route('sales.from.booking', $booking->id) }}"
                                                 class="btn btn-sm btn-success" title="Confirm Booking">Confirm</a>
+                                            @endcan
                                         @endif
                                     </td>
                                 </tr>

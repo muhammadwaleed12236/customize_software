@@ -272,6 +272,12 @@ class ProductBookingController extends Controller
         }
     }
 
+    public function show($id)
+    {
+        // Redirect direct URL access to the booking invoice view
+        return redirect()->route('booking.invoice', $id);
+    }
+
     public function destroy($id)
     {
         try {

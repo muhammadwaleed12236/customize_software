@@ -570,6 +570,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
         Route::get('bookings/create', [ProductBookingController::class, 'create'])->middleware('permission:booking.create')->name('bookings.create');
         Route::post('bookings/store', [ProductBookingController::class, 'store'])->middleware('permission:booking.create|booking.edit')->name('bookings.store');
         Route::get('bookings/{id}/edit', [ProductBookingController::class, 'edit'])->middleware('permission:booking.edit')->name('bookings.edit');
+        Route::get('bookings/{id}', [ProductBookingController::class, 'show'])->middleware('permission:booking.view')->name('bookings.show');
         Route::put('bookings/{id}', [ProductBookingController::class, 'update'])->middleware('permission:booking.edit')->name('bookings.update');
         Route::delete('bookings/{id}', [ProductBookingController::class, 'destroy'])->middleware('permission:booking.delete')->name('bookings.destroy');
         Route::get('/booking/invoice/{booking}', [SaleController::class, 'invoice'])
