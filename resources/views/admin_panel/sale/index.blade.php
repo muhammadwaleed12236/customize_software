@@ -284,6 +284,17 @@
             <i class="fas fa-file-invoice"></i> Invoice
         </a>
 
+        <!-- DELETE BUTTON -->
+        @can('sale.delete')
+        <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" class="d-inline me-1" onsubmit="return confirm('Are you sure you want to delete Invoice #{{ $sale->invoice_no }}? Stock, customer ledger, and account balances will be reverted.');">
+            @csrf
+            @method('DELETE')
+            <button type="submit" class="btn btn-sm btn-danger" title="Delete Sale Invoice">
+                <i class="fas fa-trash-alt"></i> Delete
+            </button>
+        </form>
+        @endcan
+
         <!-- MORE OPTIONS DROPDOWN -->
         <div class="btn-group">
             <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle dropdown-toggle-split" data-boundary="window" aria-expanded="false">
@@ -329,6 +340,18 @@
                         </a>
                     @endif
                 </li>
+                @can('sale.delete')
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete Invoice #{{ $sale->invoice_no }}? Stock, customer ledger, and account balances will be reverted.');">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="dropdown-item d-flex align-items-center gap-2 text-danger fw-semibold">
+                            <i class="fas fa-trash-alt text-danger"></i> Delete Sale
+                        </button>
+                    </form>
+                </li>
+                @endcan
             </ul>
         </div>
     </td>

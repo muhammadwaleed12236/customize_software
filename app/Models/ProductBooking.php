@@ -38,6 +38,8 @@ class ProductBooking extends Model
         'final_balance2',
         'weight',
         'status',
+        'is_posted',
+        'is_finalized',
         'branch_id',
         'salesman_id',
     ];

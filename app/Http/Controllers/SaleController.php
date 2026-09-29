@@ -30,6 +30,10 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\Branch;
 use App\Models\SalesOfficer;
 use App\Models\SaleSetting;
+use App\Models\AccountLedgerEntry;
+use App\Models\BranchTransaction;
+use App\Models\WarehouseOrder;
+use App\Models\WarehouseOrderItem;
 
 
 class SaleController extends Controller
@@ -4084,93 +4088,196 @@ public function finddc($invoice)
     public function destroy($id)
     {
         try {
-            $sale = Sale::findOrFail($id);
+            return DB::transaction(function () use ($id) {
+                $sale = Sale::with(['saleItems', 'customer'])->lockForUpdate()->findOrFail($id);
 
-            // Start transaction
-            return DB::transaction(function () use ($sale) {
-                // Reverse stock quantities (add back to warehouses)
-                foreach ($sale->saleItems as $item) {
-                    $warehousestock = WarehouseStock::where('product_id', $item->product_id)
-                        ->where('warehouse_id', $item->warehouse_id)
-                        ->first();
+                // 1. REVERSE STOCKS (WarehouseStock, Stock, StockMovement)
+                if ($sale->saleItems && $sale->saleItems->count() > 0) {
+                    foreach ($sale->saleItems as $item) {
+                        if (!$item->product_id || !$item->sales_qty) continue;
+                        $qty = floatval($item->sales_qty);
 
-                    if ($warehousestock) {
-                        $warehousestock->quantity += $item->sales_qty;
-                        $warehousestock->save();
-                    } else {
-                        WarehouseStock::create([
-                            'warehouse_id' => $item->warehouse_id,
+                        // WarehouseStock
+                        if ($item->warehouse_id) {
+                            $whStock = WarehouseStock::where('product_id', $item->product_id)
+                                ->where('warehouse_id', $item->warehouse_id)
+                                ->first();
+
+                            if ($whStock) {
+                                $whStock->quantity += $qty;
+                                $whStock->save();
+                            } else {
+                                WarehouseStock::create([
+                                    'warehouse_id' => $item->warehouse_id,
+                                    'product_id'   => $item->product_id,
+                                    'quantity'     => $qty,
+                                ]);
+                            }
+                        }
+
+                        // Global Stock
+                        $stock = Stock::where('product_id', $item->product_id)
+                            ->when($item->warehouse_id, function ($q) use ($item) {
+                                $q->where('warehouse_id', $item->warehouse_id);
+                            })
+                            ->first();
+
+                        if ($stock) {
+                            $stock->qty += $qty;
+                            $stock->save();
+                        } else {
+                            Stock::create([
+                                'branch_id'    => $sale->branch_id ?? 1,
+                                'product_id'   => $item->product_id,
+                                'warehouse_id' => $item->warehouse_id,
+                                'qty'          => $qty,
+                                'reserved_qty' => 0,
+                            ]);
+                        }
+
+                        // Stock Movement Entry
+                        StockMovement::create([
                             'product_id' => $item->product_id,
-                            'quantity' => $item->sales_qty,
+                            'type'       => 'in',
+                            'qty'        => $qty,
+                            'ref_type'   => 'SALE_DELETE',
+                            'ref_id'     => $sale->id,
+                            'ref_uuid'   => $sale->invoice_no,
+                            'note'       => 'Sale Deleted - Invoice #' . $sale->invoice_no,
                         ]);
                     }
+                }
 
-                    // Global stock
-                    $stock = Stock::where('product_id', $item->product_id)
-                        ->where('warehouse_id', $item->warehouse_id)
-                        ->first();
+                // 2. REVERSE RECEIPTS, ACCOUNTS & TRANSACTIONS
+                $receipts = ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+                    ->orWhere('sale_id', $sale->id)
+                    ->orWhere(function ($q) use ($sale) {
+                        if ($sale->customer_id) {
+                            $q->where('party_id', $sale->customer_id)
+                              ->where('type', 'SALE_RECEIPT');
+                        }
+                    })
+                    ->get();
 
-                    if ($stock) {
-                        $stock->qty += $item->sales_qty;
-                        $stock->save();
-                    } else {
-                        Stock::create([
-                            'branch_id' => 1,
-                            'product_id' => $item->product_id,
-                            'qty' => $item->sales_qty,
-                            'reserved_qty' => 0,
-                        ]);
+                foreach ($receipts as $rv) {
+                    $accId = $rv->row_account_id ?? $rv->account_id ?? null;
+                    if ($rv->processed && $accId && floatval($rv->total_amount) > 0) {
+                        $acc = Account::find($accId);
+                        if ($acc) {
+                            $acc->opening_balance -= floatval($rv->total_amount);
+                            $acc->save();
+                        }
                     }
-
-                    // Reverse stock movement
-                    StockMovement::create([
-                        'product_id' => $item->product_id,
-                        'type' => 'in',
-                        'qty' => $item->sales_qty,
-                        'ref_type' => 'SALE_DELETE',
-                        'ref_id' => $sale->id,
-                        'ref_uuid' => $sale->invoice_no,
-                        'note' => 'Sale Deleted - ' . $sale->invoice_no,
-                    ]);
+                    $rv->delete();
                 }
 
-                // Reverse customer ledger
-                $latestLedger = CustomerLedger::where('customer_id', $sale->customer_id)
-                    ->latest('id')
-                    ->first();
+                AccountLedgerEntry::where('voucher_no', $sale->invoice_no)
+                    ->orWhere('voucher_id', $sale->id)
+                    ->delete();
 
-                if ($latestLedger) {
-                    $newClosing = $latestLedger->closing_balance - $sale->total_net;
-                    CustomerLedger::create([
-                        'customer_id' => $sale->customer_id,
-                        'admin_or_user_id' => auth()->id(),
-                        'previous_balance' => $latestLedger->closing_balance,
-                        'opening_balance' => 0,
-                        'closing_balance' => $newClosing,
-                        'reference_type' => 'Sale Delete',
-                        'reference_id' => $sale->id,
-                    ]);
-                }
+                BranchTransaction::where('reference_type', 'Sale')
+                    ->where('reference_id', $sale->id)
+                    ->delete();
 
-                // Reverse sales account
+                // Reverse Sales Head Account Balance if updated
                 $salesHead = AccountHead::where('name', 'like', '%Sales%')->first();
                 if ($salesHead) {
                     $saleAccount = Account::where('head_id', $salesHead->id)->first();
                     if ($saleAccount) {
-                        $saleAccount->opening_balance -= $sale->total_net;
+                        $saleAccount->opening_balance -= floatval($sale->total_net ?? 0);
                         $saleAccount->save();
                     }
                 }
 
-                // Delete sale items and sale
+                // 3. REVERSE CUSTOMER LEDGER (IF CUSTOMER EXISTS)
+                if ($sale->customer_id) {
+                    $saleAmount = floatval($sale->total_net ?? 0);
+
+                    // Delete ledger entries created for this sale
+                    CustomerLedger::where('customer_id', $sale->customer_id)
+                        ->where(function ($q) use ($sale) {
+                            $q->where('reference_id', (string) $sale->id)
+                              ->orWhere('reference_id', (string) $sale->invoice_no)
+                              ->orWhere('transaction_type', 'Sale')
+                              ->orWhere('transaction_type', 'Sale Finalization')
+                              ->orWhere('transaction_type', 'Sale Post');
+                        })
+                        ->delete();
+
+                    // Record reversal ledger entry for audit trail and net balance adjustment
+                    $latestLedger = CustomerLedger::where('customer_id', $sale->customer_id)
+                        ->latest('id')
+                        ->first();
+
+                    if ($latestLedger && $saleAmount > 0) {
+                        $newClosing = $latestLedger->closing_balance - $saleAmount;
+                        CustomerLedger::create([
+                            'customer_id'      => $sale->customer_id,
+                            'admin_or_user_id' => auth()->id() ?? 1,
+                            'opening_balance'  => $latestLedger->closing_balance,
+                            'previous_balance' => $latestLedger->closing_balance,
+                            'total_debit'      => 0,
+                            'total_credit'     => $saleAmount,
+                            'closing_balance'  => $newClosing,
+                            'transaction_type' => 'Sale Delete',
+                            'reference_id'     => (string) $sale->id,
+                            'description'      => 'Sale Deleted - Invoice #' . $sale->invoice_no,
+                        ]);
+                    }
+                }
+
+                // 4. RESET LINKED PRODUCT BOOKING (IF CONVERTED FROM BOOKING)
+                $booking = null;
+                if ($sale->booking_id) {
+                    $booking = ProductBooking::find($sale->booking_id);
+                } elseif ($sale->invoice_no) {
+                    $booking = ProductBooking::where('invoice_no', $sale->invoice_no)->first();
+                }
+
+                if ($booking) {
+                    $booking->is_posted = 0;
+                    $booking->is_finalized = 0;
+                    $booking->status = 'draft';
+                    $booking->save();
+                }
+
+                // 5. DELETE WAREHOUSE ORDERS / DELIVERY CHALLANS
+                $whOrders = WarehouseOrder::where('sale_id', $sale->id)
+                    ->get();
+
+                foreach ($whOrders as $wo) {
+                    WarehouseOrderItem::where('warehouse_order_id', $wo->id)->delete();
+                    $wo->delete();
+                }
+
+                // 6. DELETE SALE ITEMS AND SALE RECORD
                 $sale->saleItems()->delete();
                 $sale->delete();
 
-                return response()->json(['ok' => true, 'message' => 'Sale deleted successfully']);
+                if (request()->wantsJson() || request()->ajax()) {
+                    return response()->json([
+                        'ok' => true,
+                        'message' => 'Sale deleted successfully. Stock, customer ledger, and account balances updated.'
+                    ]);
+                }
+
+                return redirect()->route('sale.index')->with('success', 'Sale invoice #' . $sale->invoice_no . ' deleted successfully. Stock, customer ledger, and account balances updated.');
             });
         } catch (\Exception $e) {
-            Log::error('Sale deletion failed', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
-            return response()->json(['ok' => false, 'error' => $e->getMessage()], 422);
+            Log::error('Sale deletion failed', [
+                'sale_id' => $id,
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString()
+            ]);
+
+            if (request()->wantsJson() || request()->ajax()) {
+                return response()->json([
+                    'ok'    => false,
+                    'error' => 'Deletion failed: ' . $e->getMessage()
+                ], 422);
+            }
+
+            return redirect()->back()->with('error', 'Sale deletion failed: ' . $e->getMessage());
         }
     }
 
