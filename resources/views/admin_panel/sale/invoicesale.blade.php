@@ -2,7 +2,7 @@
 
 @section('content')
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Naskh+Arabic:wght@500;600;700;800&family=Noto+Sans+Arabic:wght@500;600;700;800&family=Noto+Nastaliq+Urdu:wght@500;700&display=swap');
 
 body {
     font-family: 'Inter', Arial, Helvetica, sans-serif;
@@ -12,27 +12,27 @@ body {
 
 .invoice-wrapper {
     background: #fff;
-    padding: 8px 14px;
-    max-width: 950px;
+    padding: 16px 22px;
+    max-width: 980px;
     margin: 8px auto;
-    border-radius: 4px;
+    border-radius: 6px;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     color: #000;
 }
 
 .invoice-badge-box {
-    border: 1.5px solid #000;
+    border: 2px solid #000;
     border-radius: 6px;
-    padding: 1px 10px;
+    padding: 5px 14px;
     text-align: center;
     background: #fff;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
 .invoice-badge-title {
-    font-size: 17px;
+    font-size: 22px;
     font-weight: 800;
     letter-spacing: 1px;
     color: #000;
@@ -41,155 +41,160 @@ body {
 }
 
 .invoice-badge-inv {
-    font-size: 12px;
+    font-size: 16px;
     font-weight: 800;
     color: #000;
 }
 
 .invoice-badge-date {
-    font-size: 11.5px;
+    font-size: 15px;
     font-weight: 700;
     color: #000;
 }
 
 .header-divider {
-    border-top: 1.5px dashed #000;
-    margin: 1px 0 2px 0;
+    border-top: 2px dashed #000;
+    margin: 6px 0 8px 0;
 }
 
 .pandi-box {
-    font-size: 12.5px;
+    font-size: 16px;
     font-weight: bold;
     color: #000;
     direction: rtl;
     text-align: right;
-    padding: 1px 4px;
+    padding: 4px 6px;
 }
 
 .pandi-label {
-    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 13.5px;
+    font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Tahoma', sans-serif;
+    font-size: 17px;
     margin-left: 3px;
     font-weight: 700;
 }
 
 .pandi-line {
-    border-bottom: 1px solid #000;
+    border-bottom: 1.5px solid #000;
     display: inline-block;
-    min-width: 150px;
+    min-width: 160px;
     padding-right: 4px;
     font-weight: 700;
-    font-size: 12px;
+    font-size: 16px;
     text-align: right;
 }
 
 .customer-info-line {
-    border: 1px solid #000;
-    border-radius: 3px;
-    padding: 1px 6px;
-    font-size: 12px;
+    border: 2px solid #000;
+    border-radius: 5px;
+    padding: 5px 14px;
+    font-size: 16px;
     font-weight: 800;
     color: #000;
-    background: #fff;
+    background: #fafafa;
     direction: rtl;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 10px;
 }
 
 .customer-info-label {
-    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 13px;
+    font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Tahoma', sans-serif;
+    font-size: 17px;
     font-weight: 700;
 }
 
 .invoice-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1.5px solid #000;
-    margin-top: 2px;
+    border: 2px solid #000;
+    margin-top: 8px;
 }
 
 .invoice-table th {
-    border: 1px solid #000;
-    padding: 1px 3px;
+    border: 2px solid #000;
+    padding: 6px 8px;
     text-align: center;
-    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 13.5px;
+    font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Tahoma', sans-serif;
+    font-size: 18px;
     font-weight: 800;
-    background: #ffffff;
+    background: #f8fafc;
     color: #000;
     vertical-align: middle;
-    line-height: 1.0;
+    line-height: 1.2;
 }
 
 .invoice-table td {
-    border: 1px solid #000;
-    padding: 0px 2px;
-    font-size: 10.5px;
+    border: 1.5px solid #000;
+    padding: 6px 8px;
+    font-size: 15px;
     color: #000;
     vertical-align: middle;
-    line-height: 1.0;
+    line-height: 1.3;
 }
 
 .num-bold {
     font-weight: 800 !important;
     color: #000 !important;
+    font-size: 15px !important;
 }
 
 .item-desc-eng {
     font-weight: 700;
-    font-size: 10px;
+    font-size: 13px;
     color: #000;
-    display: inline;
-    line-height: 1.0;
+    display: block;
+    line-height: 1.2;
     letter-spacing: 0.1px;
 }
 
 .item-desc-urdu {
-    font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif;
-    font-size: 10.5px;
-    font-weight: 700;
-    color: #000;
-    display: inline;
-    text-align: right;
-    direction: rtl;
-    margin-top: 0px;
-    line-height: 1.0;
+    font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif !important;
+    font-size: 21px !important;
+    font-weight: 700 !important;
+    color: #000 !important;
+    display: block !important;
+    text-align: right !important;
+    direction: rtl !important;
+    line-height: 1.5 !important;
 }
 
 .summary-table {
     width: 100%;
     border-collapse: collapse;
-    border: 1px solid #000;
-    font-size: 10.5px;
+    border: 2px solid #000;
+    font-size: 15px;
     font-weight: 700;
 }
 
 .summary-table td {
-    padding: 0px 3px;
-    border: 1px solid #000;
-    line-height: 1.0;
+    padding: 6px 10px;
+    border: 1.5px solid #000;
+    line-height: 1.3;
+    font-size: 15px;
 }
 
 .payment-remarks-title {
-    font-size: 11.5px;
+    font-size: 16px;
     font-weight: 800;
     color: #000;
-    margin-bottom: 1px;
+    margin-bottom: 4px;
 }
 
 .payment-remarks-line {
-    border-top: 1.5px solid #000;
-    margin-bottom: 2px;
+    border-top: 2px solid #000;
+    margin-bottom: 6px;
     width: 100%;
 }
 
 .amount-in-words {
-    font-size: 10.5px;
+    font-size: 15px;
     font-weight: 800;
     color: #000;
-    line-height: 1.0;
+    line-height: 1.4;
+    background: #f8fafc;
+    padding: 6px 12px;
+    border-radius: 5px;
+    border: 1.5px solid #cbd5e1;
 }
 
 @media print {
@@ -214,6 +219,8 @@ body {
         background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
     
     .container-scroller,
@@ -231,7 +238,7 @@ body {
         max-width: 100% !important;
         width: 100% !important;
         margin: 0 auto !important;
-        padding: 10px 14px !important;
+        padding: 12px 16px !important;
         border: none !important;
     }
 
@@ -240,41 +247,93 @@ body {
         margin: 8mm 8mm;
     }
 
+    .invoice-badge-title {
+        font-size: 24px !important;
+        font-weight: 800 !important;
+    }
+
+    .invoice-badge-inv {
+        font-size: 17px !important;
+        font-weight: 800 !important;
+    }
+
+    .invoice-badge-date {
+        font-size: 16px !important;
+        font-weight: 700 !important;
+    }
+
+    .customer-info-line {
+        font-size: 17px !important;
+        font-weight: 800 !important;
+        padding: 6px 12px !important;
+    }
+
+    .customer-info-label {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+    }
+
+    .pandi-box, .pandi-line {
+        font-size: 17px !important;
+        font-weight: 700 !important;
+    }
+
+    .pandi-label {
+        font-size: 18px !important;
+        font-weight: 700 !important;
+    }
+
     .invoice-table th {
-        padding: 3px 5px !important;
-        font-size: 13px !important;
-        line-height: 1.1 !important;
-        background-color: #ffffff !important;
+        padding: 8px 10px !important;
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+        background-color: #f8fafc !important;
         color: #000000 !important;
-        border: 1px solid #000000 !important;
+        border: 2px solid #000000 !important;
+        font-weight: 800 !important;
     }
 
     .invoice-table td {
-        padding: 3px 5px !important;
-        font-size: 11.5px !important;
-        line-height: 1.1 !important;
+        padding: 8px 10px !important;
+        font-size: 17px !important;
+        line-height: 1.4 !important;
         color: #000000 !important;
-        border: 1px solid #000000 !important;
+        border: 1.5px solid #000000 !important;
+        font-weight: 800 !important;
     }
 
     .item-desc-eng {
-        font-size: 11px !important;
+        font-size: 15px !important;
         font-weight: 700 !important;
         color: #000000 !important;
     }
 
     .item-desc-urdu {
-        font-size: 11.5px !important;
+        font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif !important;
+        font-size: 24px !important;
         font-weight: 700 !important;
         color: #000000 !important;
+        line-height: 1.5 !important;
     }
 
     .summary-table td {
-        padding: 3px 5px !important;
-        font-size: 11.5px !important;
-        line-height: 1.1 !important;
+        padding: 8px 12px !important;
+        font-size: 17px !important;
+        line-height: 1.3 !important;
         color: #000000 !important;
-        border: 1px solid #000000 !important;
+        border: 1.5px solid #000000 !important;
+        font-weight: 800 !important;
+    }
+
+    .payment-remarks-title {
+        font-size: 17px !important;
+        font-weight: 800 !important;
+    }
+
+    .amount-in-words {
+        font-size: 16px !important;
+        font-weight: 800 !important;
+        padding: 8px 12px !important;
     }
 
     tr { page-break-inside: avoid; }
@@ -639,22 +698,22 @@ $balanceDue = $displayClosing;
                     $productUrdu = getUrduProductName($item);
                 @endphp
                 <tr>
-                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
+                    <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
                         {{ number_format($amt, 0) }}
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
+                    <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
                         {{ number_format($unitPrice, 0) }}
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
+                    <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
                         {{ number_format($rate, 0) }}
                     </td>
-                    <td style="direction: rtl; text-align: right; padding: 0px 3px;">
-                        <span class="item-desc-urdu" style="display: inline; font-size: 13px; font-weight: 700;">{{ !empty($productUrdu) ? $productUrdu : $productEng }}</span>
+                    <td style="direction: rtl; text-align: right; padding: 6px 10px;">
+                        <span class="item-desc-urdu">{{ !empty($productUrdu) ? $productUrdu : $productEng }}</span>
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 11.5px; color: #000;">
+                    <td style="text-align: center; font-weight: 800; font-size: 16px; color: #000;">
                         {{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 11px; color: #000;">
+                    <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
                         {{ $index + 1 }}
                     </td>
                 </tr>

@@ -4,6 +4,25 @@
     @can('product.edit')
         @section('css')
         <style>
+            @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500;600;700&family=Noto+Sans+Arabic:wght@500;600;700&display=swap');
+
+            /* Urdu Input Styling - Large Legible Font */
+            .urdu-input, #item_name_urdu, input[name="item_name_urdu"] {
+                direction: rtl !important;
+                font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Segoe UI', 'Tahoma', sans-serif !important;
+                font-size: 18px !important;
+                font-weight: 600 !important;
+                height: 44px !important;
+                line-height: 1.6 !important;
+                padding: 4px 12px !important;
+                color: #0f172a !important;
+            }
+            .urdu-label {
+                font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', sans-serif !important;
+                font-size: 14px !important;
+                font-weight: 700 !important;
+            }
+
             /* Layout Matching Product Create Screen */
             .main-content-inner { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
             .form-section { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
@@ -248,8 +267,8 @@
                                 </div>
 
                                 <div class="field-group">
-                                    <label class="field-label">Item Name (Urdu) / اردو نام</label>
-                                    <input type="text" id="item_name_urdu" name="item_name_urdu" class="custom-input" value="{{ $product->item_name_urdu ?? $product->urdu_name ?? '' }}" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ" style="direction: rtl; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif;">
+                                    <label class="field-label">Item Name (Urdu) / <span class="urdu-label">اردو نام</span></label>
+                                    <input type="text" id="item_name_urdu" name="item_name_urdu" class="custom-input urdu-input" value="{{ $product->item_name_urdu ?? $product->urdu_name ?? '' }}" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ">
                                 </div>
 
                                 <div class="field-group">

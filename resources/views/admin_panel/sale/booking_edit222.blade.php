@@ -1933,10 +1933,10 @@
         });
 
         // Post to main store (branch stock) - without warehouse selection
-        function postNowBranch() {
+        function postNowBranch(forceSale = false) {
             // 🔴 MUST CALL ensureSaved() FIRST to save all discounts/charges before posting
             ensureSaved().then(function(bookingId) {
-                console.log('Booking saved, proceeding with direct post:', bookingId);
+                console.log('Booking saved, proceeding with direct post:', bookingId, 'forceSale:', forceSale);
                 
                 // Get party type and customer info
                 const partyType = $('input[name="partyType"]:checked').val();
@@ -1964,7 +1964,8 @@
                     booking_id: bookingId,
                     partyType: partyType,
                     receipt_account_id: receiptAccountIds,
-                    receipt_amount: receiptAmounts
+                    receipt_amount: receiptAmounts,
+                    force_sale: forceSale ? 1 : 0
                 };
 
                 console.log('Direct sale (branch stock) - Form data:', formData);
@@ -2005,7 +2006,25 @@
                                 msg = xhr.responseJSON.error || xhr.responseJSON.message;
                             }
                         }
-                        showAlert('danger', msg);
+                        
+                        if (!forceSale && (msg.toLowerCase().includes('stock') || msg.toLowerCase().includes('shop does not have product'))) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Stock Limit Exceeded',
+                                html: msg.replace(/\n/g, '<br>') + '<br><br>Do you want to proceed with <strong style="color:red">negative stock</strong>?',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#3085d6',
+                                confirmButtonText: 'Yes, Proceed',
+                                cancelButtonText: 'No, Cancel',
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    postNowBranch(true);
+                                }
+                            });
+                        } else {
+                            showAlert('danger', msg);
+                        }
                     }
                 });
             }).catch(function(err) {

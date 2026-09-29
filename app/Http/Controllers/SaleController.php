@@ -235,12 +235,17 @@ class SaleController extends Controller
                         ->first();
 
                     if (!$warehousestock) {
-                        Log::error('Stock not found', [
+                        Log::info('Stock record not found, creating initial 0 stock row', [
                             'product_id' => $it->product_id,
                             'branch_id' => $branch_id,
                             'warehouse_id' => $wid ?? 'NULL (branch stock)',
                         ]);
-                        abort(422, 'Stock not found for product: ' . Product::find($it->product_id)->item_name ?? 'Product ' . $it->product_id);
+                        $warehousestock = WarehouseStock::create([
+                            'product_id'   => $it->product_id,
+                            'branch_id'    => $branch_id,
+                            'warehouse_id' => $wid,
+                            'quantity'     => 0,
+                        ]);
                     }
 
                     $currentWhQty = $warehousestock->quantity ?? 0;
@@ -266,23 +271,24 @@ class SaleController extends Controller
                         ->where('branch_id', $branch_id)
                         ->first();
 
-                    if ($stock) {
-                        $stockBefore = $stock->qty ?? 0;
-                        $stock->qty = max(0, $stockBefore - $it->sales_qty);  // Don't go negative
-                        $stock->save();
-                        
-                        Log::info('Deducted from stocks (branch-level)', [
+                    if (!$stock) {
+                        $stock = Stock::create([
                             'product_id' => $it->product_id,
-                            'branch_id' => $branch_id,
-                            'qty_before' => $stockBefore,
-                            'qty_after' => $stock->qty,
-                        ]);
-                    } else {
-                        Log::warning('Stock record not found for branch-level deduction', [
-                            'product_id' => $it->product_id,
-                            'branch_id' => $branch_id,
+                            'branch_id'  => $branch_id,
+                            'qty'        => 0,
                         ]);
                     }
+
+                    $stockBefore = $stock->qty ?? 0;
+                    $stock->qty = $stockBefore - $it->sales_qty;  // Allow negative stock for branch-level overall inventory
+                    $stock->save();
+                    
+                    Log::info('Deducted from stocks (branch-level)', [
+                        'product_id' => $it->product_id,
+                        'branch_id' => $branch_id,
+                        'qty_before' => $stockBefore,
+                        'qty_after' => $stock->qty,
+                    ]);
 
                     // Sale Item - include line-item discounts from booking items
                     // CRITICAL: Use $sale->invoice_no (INV-XXXX), NOT booking's invoice_no (INVSLE-XXXX)
@@ -1236,9 +1242,11 @@ class SaleController extends Controller
         $missingProducts = [];
         $stockCheckDetails = [];
         
+        $forceSale = (bool) ($request->input('force_sale', 0));
+
         foreach ($booking->items as $item) {
             // Sum ALL stock for this product in this branch (both shop and warehouses)
-            $totalStock = WarehouseStock::where('product_id', $item->product_id)
+            $totalStock = (float) WarehouseStock::where('product_id', $item->product_id)
                 ->where('branch_id', $booking->branch_id)
                 // Include BOTH: warehouse_id = NULL (shop) and warehouse_id > 0 (warehouses)
                 ->sum('quantity');
@@ -1250,16 +1258,17 @@ class SaleController extends Controller
                 'product_id' => $item->product_id,
                 'product_name' => $productName,
                 'branch_id' => $booking->branch_id,
-                'total_stock_found' => $totalStock
+                'total_stock_found' => $totalStock,
+                'required_qty' => $item->sales_qty
             ];
             
-            if ($totalStock <= 0) {
+            if ($totalStock < $item->sales_qty) {
                 $missingProducts[] = $productName;
             }
         }
 
-        // If any products missing, abort with error
-        if (!empty($missingProducts)) {
+        // If any products missing AND not force sale, abort with error
+        if (!empty($missingProducts) && !$forceSale) {
             Log::warning('Sale button: Product stock not available - Detailed Check', [
                 'booking_id' => $booking->id,
                 'missing_products' => $missingProducts,
@@ -1269,13 +1278,14 @@ class SaleController extends Controller
             abort(422, 'Shop does not have product stock available: ' . implode(', ', $missingProducts));
         }
         
-        Log::info('Sale button: Stock validation passed', [
+        Log::info('Sale button: Stock validation passed or force_sale applied', [
             'booking_id' => $booking->id,
             'branch_id' => $booking->branch_id,
+            'force_sale' => $forceSale,
             'stock_check_details' => $stockCheckDetails
         ]);
 
-        // All products have stock - proceed with intelligent warehouse allocation
+        // All products have stock or force sale accepted - proceed with intelligent warehouse allocation
         // For each product: prefer shop stock (warehouse_id = NULL), fallback to warehouses
         $map = [];
         foreach ($booking->items as $item) {
@@ -1287,19 +1297,22 @@ class SaleController extends Controller
                 ->whereNull('warehouse_id')
                 ->first();
             
-            if ($shopStock && $shopStock->quantity > 0) {
-                // Shop has stock - use it (warehouse_id = NULL)
+            if ($shopStock && $shopStock->quantity >= $item->sales_qty) {
+                // Shop has sufficient stock - use it (warehouse_id = NULL)
                 $warehouseId = null;
             } else {
-                // Shop doesn't have stock - find first warehouse with stock
+                // Find first warehouse with sufficient stock
                 $warehouseStock = WarehouseStock::where('product_id', $item->product_id)
                     ->where('branch_id', $booking->branch_id)
                     ->whereNotNull('warehouse_id')
-                    ->where('quantity', '>', 0)
+                    ->where('quantity', '>=', $item->sales_qty)
                     ->first();
                 
                 if ($warehouseStock) {
                     $warehouseId = $warehouseStock->warehouse_id;  // Use warehouse_id > 0
+                } else {
+                    // Default to shop stock (warehouse_id = NULL) so shop stock will be decremented into negative
+                    $warehouseId = null;
                 }
             }
             

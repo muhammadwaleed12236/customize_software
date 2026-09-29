@@ -117,11 +117,16 @@ class SalePostingService
                 ->first();
 
             if (!$warehouseStock) {
-                throw new \Exception("Warehouse stock not found for product {$product->item_name}");
+                $warehouseStock = WarehouseStock::create([
+                    'product_id'   => $posting->product_id,
+                    'branch_id'    => $branchId,
+                    'warehouse_id' => $sourceId,
+                    'quantity'     => 0,
+                ]);
             }
 
             $before = $warehouseStock->quantity ?? 0;
-            $warehouseStock->quantity = max(0, $before - $qty);
+            $warehouseStock->quantity = $before - $qty;
             $warehouseStock->save();
 
             Log::info('Deducted from warehouse_stocks', [
@@ -139,11 +144,16 @@ class SalePostingService
                 ->first();
 
             if (!$branchStock) {
-                throw new \Exception("Branch stock not found for product {$product->item_name}");
+                $branchStock = WarehouseStock::create([
+                    'product_id'   => $posting->product_id,
+                    'branch_id'    => $branchId,
+                    'warehouse_id' => null,
+                    'quantity'     => 0,
+                ]);
             }
 
             $before = $branchStock->quantity ?? 0;
-            $branchStock->quantity = max(0, $before - $qty);
+            $branchStock->quantity = $before - $qty;
             $branchStock->save();
 
             Log::info('Deducted from branch stock', [
@@ -160,17 +170,23 @@ class SalePostingService
             ->where('branch_id', $branchId)
             ->first();
 
-        if ($mainStock) {
-            $before = $mainStock->qty ?? 0;
-            $mainStock->qty = max(0, $before - $qty);
-            $mainStock->save();
-
-            Log::info('Deducted from main stocks', [
+        if (!$mainStock) {
+            $mainStock = Stock::create([
                 'product_id' => $posting->product_id,
-                'qty_before' => $before,
-                'qty_after' => $mainStock->qty
+                'branch_id'  => $branchId,
+                'qty'        => 0,
             ]);
         }
+
+        $before = $mainStock->qty ?? 0;
+        $mainStock->qty = $before - $qty;
+        $mainStock->save();
+
+        Log::info('Deducted from main stocks', [
+            'product_id' => $posting->product_id,
+            'qty_before' => $before,
+            'qty_after'  => $mainStock->qty
+        ]);
 
         // Create stock movement for audit
         StockMovement::create([

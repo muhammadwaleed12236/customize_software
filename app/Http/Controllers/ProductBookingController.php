@@ -38,10 +38,7 @@ class ProductBookingController extends Controller
 
     public function create()
     {
-        $products = Product::get();
-        $Customer = Customer::get();
-        $salesmen = \App\Models\SalesOfficer::all();
-        return view('admin_panel.booking.create', compact('products', 'Customer', 'salesmen'));
+        return app(SaleController::class)->addsale();
     }
 
     public function store(Request $request)

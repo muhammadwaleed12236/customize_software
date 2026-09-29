@@ -2568,8 +2568,8 @@
                         cancelButtonText: 'No, Cancel',
                     }).then((result) => {
                         if (result.isConfirmed) {
-                            // User confirmed — proceed directly, skip stock check
-                            proceedWithSale(partyType).finally(() => setReady($btn));
+                            // User confirmed — proceed directly, allow negative stock
+                            proceedWithSale(partyType, true).finally(() => setReady($btn));
                         } else {
                             setReady($btn);
                         }
@@ -2715,7 +2715,7 @@
                 }).then((result) => {
                     if (result.isConfirmed) {
                         $('input[name="branch_id"]').val(selectedBranch);
-                        proceedWithSale(partyType).finally(() => setReady($btn));
+                        proceedWithSale(partyType, true).finally(() => setReady($btn));
                     } else {
                         setReady($btn);
                     }
@@ -2736,9 +2736,9 @@
         });
 
         // Helper function to proceed with sale after branch selection
-        function proceedWithSale(partyType) {
+        function proceedWithSale(partyType, forceSale = false) {
             return ensureSaved().then(function(bookingId) {
-                console.log('Booking saved, proceeding with post:', bookingId);
+                console.log('Booking saved, proceeding with post:', bookingId, 'forceSale:', forceSale);
                 
                 // Collect receipt data from form (needed for customer ledger + receipt vouchers)
                 let receiptAccountIds = [];
@@ -2760,7 +2760,8 @@
                     partyType: partyType,
                     branch_id: $('input[name="branch_id"]').val(),  // Include selected branch for admin
                     receipt_account_id: receiptAccountIds,
-                    receipt_amount: receiptAmounts
+                    receipt_amount: receiptAmounts,
+                    force_sale: forceSale ? 1 : 0
                 };
                 
                 console.log('Form data:', formData);
@@ -2869,7 +2870,26 @@
                         }
 
                         console.error('🔴 Final error message:', errorMsg);
-                        showAlert('danger', errorMsg);
+
+                        // If stock error occurs, prompt user for negative stock option
+                        if (!forceSale && (errorMsg.toLowerCase().includes('stock') || errorMsg.toLowerCase().includes('shop does not have product'))) {
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Stock Limit Exceeded',
+                                html: errorMsg.replace(/\n/g, '<br>') + '<br><br>Do you want to proceed with <strong style="color:red">negative stock</strong>?',
+                                showCancelButton: true,
+                                confirmButtonColor: '#d33',
+                                cancelButtonColor: '#3085d6',
+                                confirmButtonText: 'Yes, Proceed',
+                                cancelButtonText: 'No, Cancel',
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    proceedWithSale(partyType, true);
+                                }
+                            });
+                        } else {
+                            showAlert('danger', errorMsg);
+                        }
                     }
                 });
             }).catch(function(err) {
