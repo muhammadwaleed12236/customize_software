@@ -278,6 +278,236 @@ class ProductBookingController extends Controller
         return redirect()->route('booking.invoice', $id);
     }
 
+    public function deliverForm($id)
+    {
+        $booking = ProductBooking::with(['items.product', 'customer'])->findOrFail($id);
+
+        // Check if fully delivered
+        if ($booking->delivery_status === 'delivered') {
+            return back()->with('error', 'This booking has already been fully delivered.');
+        }
+
+        // Calculate remaining for each item
+        $items = $booking->items->map(function ($item) {
+            $item->remaining_qty = max(0, floatval($item->sales_qty) - floatval($item->delivered_qty));
+            return $item;
+        })->filter(fn($item) => $item->remaining_qty > 0);
+
+        if ($items->isEmpty()) {
+            return back()->with('error', 'All items have been fully delivered.');
+        }
+
+        // Get warehouse stocks for each product
+        $warehouses = \App\Models\WarehouseStock::with('warehouse')
+            ->whereIn('product_id', $items->pluck('product_id'))
+            ->where('quantity', '>', 0)
+            ->get()
+            ->groupBy('product_id');
+
+        return view('admin_panel.booking.partial_delivery', compact('booking', 'items', 'warehouses'));
+    }
+
+    public function deliverStore(Request $request, $id)
+    {
+        return DB::transaction(function () use ($request, $id) {
+            $booking = ProductBooking::with(['items.product', 'customer'])->lockForUpdate()->findOrFail($id);
+
+            if ($booking->delivery_status === 'delivered') {
+                return back()->with('error', 'This booking has already been fully delivered.');
+            }
+
+            $deliverNow   = $request->input('deliver_qty', []);
+            $warehouseIds = $request->input('warehouse_id', []);
+
+            // Validate quantities
+            foreach ($deliverNow as $itemId => $qty) {
+                $qty = floatval($qty);
+                if ($qty <= 0) continue;
+
+                $item = $booking->items->firstWhere('id', $itemId);
+                if (!$item) continue;
+
+                $remaining = floatval($item->sales_qty) - floatval($item->delivered_qty);
+                if ($qty > $remaining) {
+                    return back()->with('error', "Qty {$qty} for product {$item->product->item_name} exceeds remaining {$remaining}.");
+                }
+            }
+
+            // Generate sale invoice number
+            $branch = \App\Models\Branch::lockForUpdate()->find($booking->branch_id);
+            if ($branch) {
+                $branch->invoice_counter = ((int)($branch->invoice_counter ?? 0)) + 1;
+                $branch->save();
+                $invoiceNo = 'INV-' . str_pad($branch->invoice_counter, 4, '0', STR_PAD_LEFT);
+            } else {
+                $invoiceNo = \App\Models\Sale::generateInvoiceNo();
+            }
+
+            // Calculate partial totals
+            $partialSubTotal = 0;
+            $deliveryItems   = [];
+
+            foreach ($deliverNow as $itemId => $qty) {
+                $qty = floatval($qty);
+                if ($qty <= 0) continue;
+
+                $item = $booking->items->firstWhere('id', $itemId);
+                if (!$item) continue;
+
+                $remaining = floatval($item->sales_qty) - floatval($item->delivered_qty);
+                if ($qty > $remaining) continue;
+
+                $unitPrice    = floatval($item->retail_price);
+                $unitDiscount = floatval($item->sales_qty) > 0 ? (floatval($item->discount_amount) / floatval($item->sales_qty)) : 0;
+                $lineAmount   = ($unitPrice - $unitDiscount) * $qty;
+                $partialSubTotal += $lineAmount;
+
+                $deliveryItems[] = [
+                    'item'          => $item,
+                    'qty'           => $qty,
+                    'warehouse_id'  => $warehouseIds[$itemId] ?? $item->warehouse_id ?? null,
+                    'unit_price'    => $unitPrice,
+                    'unit_discount' => $unitDiscount,
+                    'line_amount'   => $lineAmount,
+                ];
+            }
+
+            if (empty($deliveryItems)) {
+                return back()->with('error', 'No valid quantities entered for delivery.');
+            }
+
+            // Proportional discount and charges
+            $bookingTotal             = floatval($booking->sub_total1 ?: ($booking->sub_total2 ?: 1));
+            $ratio                    = $bookingTotal > 0 ? ($partialSubTotal / $bookingTotal) : 1;
+            $partialAdditionalDiscount = floatval($booking->additional_discount) * $ratio;
+            $partialExtraCharges      = floatval($booking->extra_charges) * $ratio;
+            $partialNet               = $partialSubTotal - $partialAdditionalDiscount + $partialExtraCharges;
+
+            // Create Sale record
+            $saleData = [
+                'invoice_no'          => $invoiceNo,
+                'manual_invoice'      => $booking->manual_invoice,
+                'customer_id'         => $booking->customer_id,
+                'salesman_id'         => $booking->salesman_id,
+                'sub_customer'        => ($booking->party_type === 'walking') ? ($booking->customer_name ?? null) : null,
+                'party_type'          => $booking->party_type,
+                'address'             => $booking->address,
+                'tel'                 => $booking->tel,
+                'remarks'             => ($booking->remarks ?? '') . ' [Partial Delivery from ' . $booking->invoice_no . ']',
+                'sub_total1'          => $partialSubTotal,
+                'sub_total2'          => $partialNet,
+                'discount_percent'    => 0,
+                'discount_amount'     => 0,
+                'additional_discount' => $partialAdditionalDiscount,
+                'extra_charges'       => $partialExtraCharges,
+                'previous_balance'    => 0,
+                'total_balance'       => $partialNet,
+                'total_net'           => $partialNet,
+                'branch_id'           => $booking->branch_id,
+                'booking_id'          => $booking->id,
+            ];
+
+            $sale = \App\Models\Sale::create($saleData);
+
+            // Create sale items, deduct stock
+            foreach ($deliveryItems as $di) {
+                $item     = $di['item'];
+                $qty      = $di['qty'];
+                $wid      = $di['warehouse_id'];
+                $branchId = $booking->branch_id;
+
+                // Deduct WarehouseStock
+                $warehousestock = \App\Models\WarehouseStock::lockForUpdate()
+                    ->where('product_id', $item->product_id)
+                    ->where('branch_id', $branchId)
+                    ->where('warehouse_id', $wid)
+                    ->first();
+
+                if ($warehousestock) {
+                    $warehousestock->quantity -= $qty;
+                    $warehousestock->save();
+                }
+
+                // Deduct Stock (branch-level)
+                $stock = \App\Models\Stock::lockForUpdate()
+                    ->where('product_id', $item->product_id)
+                    ->where('branch_id', $branchId)
+                    ->first();
+
+                if ($stock) {
+                    $stock->qty -= $qty;
+                    $stock->save();
+                }
+
+                // Sale Item
+                \App\Models\SaleItem::create([
+                    'invoice_no'       => $sale->invoice_no,
+                    'branch_id'        => $sale->branch_id,
+                    'sale_id'          => $sale->id,
+                    'warehouse_id'     => $wid,
+                    'product_id'       => $item->product_id,
+                    'sales_qty'        => $qty,
+                    'retail_price'     => $di['unit_price'],
+                    'discount_percent' => 0,
+                    'discount_amount'  => $di['unit_discount'] * $qty,
+                    'amount'           => $di['line_amount'],
+                ]);
+
+                // Stock Movement
+                \App\Models\StockMovement::create([
+                    'product_id'    => $item->product_id,
+                    'type'          => 'out',
+                    'qty'           => $qty,
+                    'ref_type'      => 'PARTIAL_DELIVERY',
+                    'ref_id'        => $sale->id,
+                    'ref_uuid'      => $booking->invoice_no,
+                    'is_auto_pluck' => 1,
+                    'note'          => 'Partial Delivery ' . $invoiceNo . ' from Booking ' . $booking->invoice_no,
+                ]);
+
+                // Update booking item's delivered_qty
+                $item->delivered_qty = floatval($item->delivered_qty) + $qty;
+                $item->save();
+            }
+
+            // Customer Ledger for credit customers
+            if ($booking->party_type === 'credit' && $booking->customer_id) {
+                $lastLedger = \App\Models\CustomerLedger::where('customer_id', $booking->customer_id)
+                    ->latest('id')->lockForUpdate()->first();
+                $customer    = \App\Models\Customer::find($booking->customer_id);
+                $prevBalance = $lastLedger ? floatval($lastLedger->closing_balance) : floatval($customer->opening_balance ?? 0);
+                $closing     = $prevBalance + $partialNet;
+
+                \App\Models\CustomerLedger::create([
+                    'customer_id'      => $booking->customer_id,
+                    'admin_or_user_id' => auth()->id(),
+                    'transaction_type' => 'Partial Delivery',
+                    'reference_id'     => (string) $sale->id,
+                    'description'      => 'Partial Delivery - Invoice ' . $invoiceNo . ' (Booking: ' . $booking->invoice_no . ')',
+                    'opening_balance'  => floatval($customer->opening_balance ?? 0),
+                    'previous_balance' => $prevBalance,
+                    'total_debit'      => $partialNet,
+                    'total_credit'     => 0,
+                    'closing_balance'  => $closing,
+                ]);
+            }
+
+            // Update booking delivery_status
+            $booking->refresh();
+            $allDelivered = $booking->items->every(fn($i) => floatval($i->delivered_qty) >= floatval($i->sales_qty));
+            $anyDelivered = $booking->items->contains(fn($i) => floatval($i->delivered_qty) > 0);
+
+            $booking->delivery_status = $allDelivered ? 'delivered' : ($anyDelivered ? 'partial' : 'pending');
+            if ($allDelivered) {
+                $booking->status = 'approved';
+            }
+            $booking->save();
+
+            return redirect()->route('bookings.index')
+                ->with('success', "Partial delivery done! Invoice {$invoiceNo} created. Delivered " . count($deliveryItems) . " item(s).");
+        });
+    }
+
     public function destroy($id)
     {
         try {

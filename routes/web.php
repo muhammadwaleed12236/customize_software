@@ -513,11 +513,12 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::put('/sales/{id}', [SaleController::class, 'update'])->middleware('permission:sale.edit')->name('sales.update');
     Route::post('/sales/{id}/update', [SaleController::class, 'update'])->middleware('permission:sale.edit')->name('sales.update.post');
     Route::delete('/sales/{id}', [SaleController::class, 'destroy'])->middleware('permission:sale.delete')->name('sales.destroy');
-    Route::get('/sales/{id}/dc', [SaleController::class, 'saledc'])->middleware('permission:sale.delivery.challan')->name('sales.dc');
+    Route::get('/sales/{sale}/dc', [SaleController::class, 'saleDc'])->middleware('permission:sale.delivery.challan')->name('sales.dc');
     Route::get('/sales/{id}/recepit', [SaleController::class, 'salerecepit'])->middleware('permission:sale.receipt')->name('sales.recepit');
 // AJAX (no refresh)
     Route::post('/sale/ajax/save', [SaleController::class, 'ajaxSave'])->middleware('permission:sale.create|sale.edit')->name('sale.ajax.save');
     Route::get('/sale/ajax/post', [SaleController::class, 'ajaxPost'])->middleware('permission:sale.view')->name('sale.ajax.post');
+    Route::post('/sale/ajax/post-partial', [SaleController::class, 'ajaxPostPartialDelivery'])->middleware('permission:sale.create|sale.edit')->name('sale.ajax.post-partial');
     // Route::get('/sale/ajax/post-and-print2', [SaleController::class, 'ajaxPostAndPrint2'])->middleware('permission:sale.view')->name('sale.ajax.post-and-print2');
 
     // Post a booking using the Main Store warehouse automatically (for cash/walking/credit customers)
@@ -573,6 +574,10 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
         Route::get('bookings/{id}', [ProductBookingController::class, 'show'])->middleware('permission:booking.view')->name('bookings.show');
         Route::put('bookings/{id}', [ProductBookingController::class, 'update'])->middleware('permission:booking.edit')->name('bookings.update');
         Route::delete('bookings/{id}', [ProductBookingController::class, 'destroy'])->middleware('permission:booking.delete')->name('bookings.destroy');
+        Route::get('bookings/{id}/deliver', [ProductBookingController::class, 'deliverForm'])
+            ->middleware('permission:booking.deliver')->name('bookings.deliver.form');
+        Route::post('bookings/{id}/deliver', [ProductBookingController::class, 'deliverStore'])
+            ->middleware('permission:booking.deliver')->name('bookings.deliver.store');
         Route::get('/booking/invoice/{booking}', [SaleController::class, 'invoice'])
         ->middleware('permission:booking.invoice')->name('booking.invoice');
     Route::get('booking/print2/{booking}', [SaleController::class, 'bookingPrint2'])->middleware('permission:booking.view')->name('booking.print2');
@@ -727,12 +732,13 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
     Route::get('report/sale', [ReportingController::class, 'sale_report'])->middleware('permission:report.sale.view')->name('report.sale');
     Route::get('report/sale/fetch', [ReportingController::class, 'fetchsaleReport'])->middleware('permission:report.sale.view')->name('report.sale.fetch');
 
-    Route::get('report/customer/ledger', [ReportingController::class, 'customer_ledger_report'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger');
-    Route::get('report/customer-ledger/fetch', [ReportingController::class, 'fetch_customer_ledger'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch');
+    Route::get('report/customer-ledger', [ReportingController::class, 'customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.new');
+    Route::get('report/customer/ledger', [ReportingController::class, 'customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger');
+    Route::get('report/customer-ledger/fetch', [ReportingController::class, 'fetch_customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch');
     Route::get('report/customer-ledger/fetch-detailed', [ReportingController::class, 'fetch_customer_ledger_detailed'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch.detailed');
     Route::get('report/customers-by-branch', [ReportingController::class, 'customersByBranch'])->middleware('permission:report.customer.ledger.view|customer.ledger|customer.view')->name('report.customers.byBranch');
-Route::get('testing',[ReportingController::class, 'customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.new');
-Route::get('report/customer-ledger/fetch-new', [ReportingController::class, 'fetch_customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch.new');
+    Route::get('testing', function() { return redirect()->route('report.customer.ledger.new'); });
+    Route::get('report/customer-ledger/fetch-new', [ReportingController::class, 'fetch_customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch.new');
 
     Route::get('report/salesman-performance', [ReportingController::class, 'salesman_performance_report'])->middleware('permission:report.sale.view')->name('report.salesman.performance');
     Route::get('report/salesman-performance/fetch', [ReportingController::class, 'fetch_salesman_performance'])->middleware('permission:report.sale.view')->name('report.salesman.performance.fetch');

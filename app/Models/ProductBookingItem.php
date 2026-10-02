@@ -25,8 +25,15 @@ class ProductBookingItem extends Model
         'amount',
         'invoice_no',
         'customer_id',
-        'items'
+        'items',
+        'delivered_qty',
     ];
+
+    // Accessor: remaining qty = booked - delivered
+    public function getRemainingQtyAttribute(): float
+    {
+        return max(0, floatval($this->sales_qty) - floatval($this->delivered_qty));
+    }
 
     // include branch_id so items can carry branch context
     protected $casts = [

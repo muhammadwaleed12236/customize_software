@@ -1013,6 +1013,10 @@
                         <i class="fas fa-shopping-cart"></i> Process Sale / POS
                     </button>
 
+                    <button type="button" class="btn btn-warning px-4 py-2.5 rounded-3 fw-bold fs-6 text-white d-inline-flex align-items-center gap-2 shadow-sm" id="btnPartialSale" style="background:#f59e0b !important; border-color:#d97706 !important;" disabled>
+                        <i class="fas fa-truck-loading"></i> Partially Sale
+                    </button>
+
                     {{-- 
                     <button type="button" class="btn btn-indigo px-4 py-2 rounded-3 fw-semibold text-white d-inline-flex align-items-center gap-2 shadow-sm" id="btnPosted3" style="background:#4f46e5 !important; border-color:#4f46e5 !important;">
                         <i class="fas fa-check-double"></i> Post & Print
@@ -1105,6 +1109,82 @@
                 </div>
                 <div class="modal-body" id="warehouseModalBody">
                     <!-- Warehouses will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- PARTIAL SALE / DELIVERY DISPATCH MODAL --}}
+    <div class="modal fade" id="partialSaleModal" tabindex="-1" aria-labelledby="partialSaleModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-warning text-dark py-2 px-3">
+                    <h5 class="modal-title fw-bold fs-6" id="partialSaleModalLabel">
+                        <i class="fas fa-truck-loading me-2"></i> Partial Delivery / Sale Dispatch
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <div class="alert alert-warning py-2 px-3 mb-3 small d-flex align-items-center gap-2 border-warning">
+                        <i class="fas fa-info-circle fs-5 text-dark"></i>
+                        <div class="text-dark">
+                            Select the warehouse and specify the quantity to dispatch out <strong>NOW</strong>. 
+                            A Delivery Challan (DC) will be generated for dispatched items, and the remaining stock will be saved in 
+                            <strong>Pending Deliveries</strong> until fully issued (0 stock remaining).
+                        </div>
+                    </div>
+
+                    <div class="row g-2 mb-3 align-items-center bg-light p-2 rounded border">
+                        <div class="col-md-3">
+                            <label class="form-label fw-bold small mb-0"><i class="fas fa-warehouse me-1 text-primary"></i> Dispatch Warehouse:</label>
+                        </div>
+                        <div class="col-md-9">
+                            <select class="form-select form-select-sm border-primary fw-semibold" id="partial_warehouse_id">
+                                <option value="">-- Select Dispatch Location / Warehouse --</option>
+                                @if(isset($branches) && count($branches) > 0)
+                                    <optgroup label="🏬 Shops / Main Store">
+                                        @foreach($branches as $b)
+                                            <option value="branch_{{ $b->id }}" {{ (isset($defaultBranchId) && $defaultBranchId == $b->id) || ($loop->first) ? 'selected' : '' }}>
+                                                {{ $b->name }} (Shop / Main Store)
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @php
+                                    $whList = (isset($allWarehouses) && count($allWarehouses) > 0) ? $allWarehouses : ((isset($warehouse) && count($warehouse) > 0) ? $warehouse : \App\Models\Warehouse::all());
+                                @endphp
+                                @if(isset($whList) && count($whList) > 0)
+                                    <optgroup label="🏭 Warehouses">
+                                        @foreach($whList as $wh)
+                                            <option value="warehouse_{{ $wh->id }}">{{ $wh->warehouse_name }}</option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-sm align-middle text-center mb-0" id="partialSaleTable">
+                            <thead class="table-dark small">
+                                <tr>
+                                    <th style="width: 35%; text-align: left;" class="ps-2">Product</th>
+                                    <th style="width: 15%;">Sale Qty</th>
+                                    <th style="width: 15%;">Wh Stock</th>
+                                    <th style="width: 20%;">Dispatch Qty Now</th>
+                                    <th style="width: 15%;">Remaining Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="partialSaleTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2 px-3">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-2 fw-semibold" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-warning btn-sm rounded-2 fw-bold text-dark px-4 shadow-sm" id="btnConfirmPartialSale" style="background:#f59e0b !important; border-color:#d97706 !important;">
+                        <i class="fas fa-check-circle me-1"></i> Confirm & Issue Partial DC
+                    </button>
                 </div>
             </div>
         </div>
@@ -1302,6 +1382,8 @@
         window.AVAILABLE_PRODUCTS = @json($products ?? []);
         // Branches for admin users
         window.BRANCHES = @json($branches ?? []);
+        // All Warehouses list
+        window.ALL_WAREHOUSES = @json($allWarehouses ?? $warehouse ?? \App\Models\Warehouse::all());
         // Warehouse stocks for client-side validation
         window.WAREHOUSE_STOCKS = @json($warehouseStocks ?? []);
         // Check if current user is admin
@@ -2227,9 +2309,9 @@
             const quickAllowed = (partyType === 'cash' || partyType === 'walking' || partyType === 'credit') && state && !isPosted && !isFinalized;
             $('#btnPosted2').prop('disabled', !quickAllowed);
             
-            // btnPosted3: disabled if no items OR already posted OR already finalized
+            // btnPosted3 & btnPartialSale: disabled if no items OR already posted OR already finalized
             const canDraftPost = state && !isPosted && !isFinalized;
-            $('#btnPosted3').prop('disabled', !canDraftPost);
+            $('#btnPosted3, #btnPartialSale').prop('disabled', !canDraftPost);
             
             console.log('🔧 refreshPostedState:', {
                 hasItems: state,
@@ -2603,6 +2685,251 @@
             console.log('Non-admin user, proceeding directly');
             // Non-admin users proceed directly with their branch (already validated above)
             proceedWithSale(partyType).finally(() => setReady($btn));
+        });
+
+        /* ================= PARTIAL SALE / DELIVERY JS HANDLERS ================= */
+        // Partially Sale Button Click
+        $('#btnPartialSale').on('click', function() {
+            if (!canPost()) {
+                showAlert('danger', 'Please add at least one product with quantity before partial posting');
+                return;
+            }
+
+            const $tbody = $('#partialSaleTableBody');
+            $tbody.empty();
+
+            let hasItem = false;
+            $('#salesTableBody tr').each(function() {
+                const $row = $(this);
+                const productId = $row.find('.product-select').val();
+                const productName = $row.find('.product-select option:selected').text() || 'Product #' + productId;
+                const saleQty = toNum($row.find('.sales-qty').val());
+
+                if (productId && saleQty > 0) {
+                    hasItem = true;
+                    const trHtml = `
+                        <tr data-product-id="${productId}">
+                            <td class="text-start ps-2 fw-semibold text-dark">${productName}</td>
+                            <td><span class="badge bg-secondary px-2 py-1 fs-6">${saleQty}</span></td>
+                            <td><span class="wh-available-stock badge bg-info text-dark px-2 py-1">-</span></td>
+                            <td>
+                                <input type="number" class="form-control form-control-sm text-center fw-bold text-success partial-dispatch-qty" 
+                                    data-product-id="${productId}" data-sale-qty="${saleQty}" value="${saleQty}" min="0" max="${saleQty}" step="any">
+                            </td>
+                            <td>
+                                <span class="partial-remaining-qty badge bg-success text-white px-2 py-1 fs-6">0</span>
+                            </td>
+                        </tr>
+                    `;
+                    $tbody.append(trHtml);
+                }
+            });
+
+            if (!hasItem) {
+                showAlert('danger', 'No valid products found to dispatch');
+                return;
+            }
+
+            // Ensure location dropdown is populated with Shops/Branches and Warehouses
+            const $whSelect = $('#partial_warehouse_id');
+            if ($whSelect.find('option').length <= 1) {
+                $whSelect.empty().append('<option value="">-- Select Dispatch Location / Warehouse --</option>');
+                
+                if (window.BRANCHES && Array.isArray(window.BRANCHES) && window.BRANCHES.length > 0) {
+                    let shopHtml = '<optgroup label="🏬 Shops / Main Store">';
+                    window.BRANCHES.forEach(b => {
+                        const isSelected = (window.USER_BRANCH_ID && String(window.USER_BRANCH_ID) === String(b.id)) ? 'selected' : '';
+                        shopHtml += `<option value="branch_${b.id}" ${isSelected}>${b.name || b.branch_name} (Shop / Main Store)</option>`;
+                    });
+                    shopHtml += '</optgroup>';
+                    $whSelect.append(shopHtml);
+                }
+
+                if (window.ALL_WAREHOUSES && Array.isArray(window.ALL_WAREHOUSES) && window.ALL_WAREHOUSES.length > 0) {
+                    let whHtml = '<optgroup label="🏭 Warehouses">';
+                    window.ALL_WAREHOUSES.forEach(w => {
+                        whHtml += `<option value="warehouse_${w.id}">${w.warehouse_name || w.name}</option>`;
+                    });
+                    whHtml += '</optgroup>';
+                    $whSelect.append(whHtml);
+                }
+            }
+
+            // Auto-select first warehouse/location if available
+            if ($whSelect.find('option').length > 1 && !$whSelect.val()) {
+                $whSelect.val($whSelect.find('option:eq(1)').val()).trigger('change');
+            } else {
+                updatePartialModalStocks();
+            }
+
+            $('#partialSaleModal').modal('show');
+        });
+
+        // Warehouse change in modal updates warehouse stocks column
+        $(document).on('change', '#partial_warehouse_id', function() {
+            updatePartialModalStocks();
+        });
+
+        function updatePartialModalStocks() {
+            const selectedVal = $('#partial_warehouse_id').val() || '';
+            let isBranch = false;
+            let targetBranchId = window.USER_BRANCH_ID || 1;
+            let targetWhId = null;
+
+            if (selectedVal.startsWith('branch_')) {
+                isBranch = true;
+                targetBranchId = parseInt(selectedVal.replace('branch_', '')) || 1;
+                targetWhId = null;
+            } else if (selectedVal.startsWith('warehouse_')) {
+                isBranch = false;
+                targetWhId = parseInt(selectedVal.replace('warehouse_', ''));
+            } else if (selectedVal) {
+                targetWhId = parseInt(selectedVal);
+            }
+
+            $('#partialSaleTableBody tr').each(function() {
+                const productId = $(this).data('product-id');
+                let stockQty = 0;
+
+                if (window.WAREHOUSE_STOCKS && Array.isArray(window.WAREHOUSE_STOCKS)) {
+                    if (isBranch) {
+                        const found = window.WAREHOUSE_STOCKS.find(s => 
+                            String(s.product_id) === String(productId) && 
+                            String(s.branch_id) === String(targetBranchId) && 
+                            (!s.warehouse_id || s.warehouse_id === null || s.warehouse_id === '0' || s.warehouse_id === 0)
+                        );
+                        if (found) stockQty = parseFloat(found.quantity || 0);
+                    } else if (targetWhId) {
+                        const found = window.WAREHOUSE_STOCKS.find(s => 
+                            String(s.product_id) === String(productId) && 
+                            String(s.warehouse_id) === String(targetWhId)
+                        );
+                        if (found) stockQty = parseFloat(found.quantity || 0);
+                    }
+                }
+
+                const $stockSpan = $(this).find('.wh-available-stock');
+                $stockSpan.text(stockQty);
+                if (stockQty < 0) {
+                    $stockSpan.removeClass('bg-info text-dark bg-success text-white').addClass('bg-danger text-white');
+                } else {
+                    $stockSpan.removeClass('bg-danger text-white').addClass('bg-info text-dark');
+                }
+            });
+        }
+
+        // Dynamic calculation when user changes Dispatch Qty in partial sale modal
+        $(document).on('input change', '.partial-dispatch-qty', function() {
+            const saleQty = parseFloat($(this).data('sale-qty')) || 0;
+            let dispatchQty = parseFloat($(this).val());
+
+            if (isNaN(dispatchQty) || dispatchQty < 0) {
+                dispatchQty = 0;
+            }
+            if (dispatchQty > saleQty) {
+                dispatchQty = saleQty;
+                $(this).val(saleQty);
+            }
+
+            const remainingQty = saleQty - dispatchQty;
+            const $remainingSpan = $(this).closest('tr').find('.partial-remaining-qty');
+            $remainingSpan.text(remainingQty.toFixed(2).replace(/\.00$/, ''));
+
+            if (remainingQty > 0) {
+                $remainingSpan.removeClass('bg-secondary bg-success text-white').addClass('bg-warning text-dark');
+            } else {
+                $remainingSpan.removeClass('bg-warning text-dark').addClass('bg-success text-white');
+            }
+        });
+
+        // Confirm Partial Sale Submission
+        $('#btnConfirmPartialSale').on('click', function() {
+            const $btn = $(this);
+            const warehouseId = $('#partial_warehouse_id').val();
+
+            if (!warehouseId) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Warehouse Required',
+                    text: 'Please select a warehouse for partial stock dispatch',
+                });
+                return;
+            }
+
+            const dispatchQtyMap = {};
+            let totalDispatchQty = 0;
+
+            $('.partial-dispatch-qty').each(function() {
+                const pid = $(this).data('product-id');
+                const qty = parseFloat($(this).val()) || 0;
+                dispatchQtyMap[pid] = qty;
+                totalDispatchQty += qty;
+            });
+
+            setBusy($btn);
+
+            // Save draft booking first, then post partial delivery
+            ensureSaved().then(function(bookingId) {
+                let data = $('#saleForm').serializeArray();
+
+                data.push({ name: 'booking_id', value: bookingId });
+                data.push({ name: 'warehouse_id', value: warehouseId });
+
+                // Attach dispatch_qty array
+                $.each(dispatchQtyMap, function(pid, qty) {
+                    data.push({ name: `dispatch_qty[${pid}]`, value: qty });
+                });
+
+                // Attach receipt accounts & amounts
+                $('.rv-account').each(function(i) {
+                    const acc = $(this).val();
+                    const amt = $('.rv-amount').eq(i).val() || '';
+                    data.push({ name: 'receipt_account_id[]', value: acc });
+                    data.push({ name: 'receipt_amount[]', value: amt });
+                });
+
+                const partyType = $('input[name="partyType"]:checked').val();
+                data.push({ name: 'partyType', value: partyType });
+
+                $.ajax({
+                    url: '{{ route('sale.ajax.post-partial') }}',
+                    type: 'POST',
+                    data: data,
+                    headers: {
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    success: function(res) {
+                        setReady($btn);
+                        if (res && res.ok) {
+                            $('#partialSaleModal').modal('hide');
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Partial Sale Posted!',
+                                text: res.msg || 'Delivery Challan generated and remaining stock tracked in Pending Deliveries.',
+                                confirmButtonText: 'View DC / Continue'
+                            }).then(() => {
+                                if (res.invoice_url) {
+                                    window.open(res.invoice_url, '_blank');
+                                }
+                                window.location.href = '{{ route('sale.add') }}';
+                            });
+                        } else {
+                            showAlert('danger', res.error || res.msg || 'Partial post failed');
+                        }
+                    },
+                    error: function(xhr) {
+                        setReady($btn);
+                        let msg = 'Server error during partial post';
+                        try {
+                            const json = xhr.responseJSON || JSON.parse(xhr.responseText || '{}');
+                            msg = json.message || json.msg || json.error || msg;
+                        } catch(e) {}
+                        showAlert('danger', msg);
+                    }
+                });
+            }).catch(function(err) {
+                setReady($btn);
+            });
         });
 
         // STOCK VALIDATION FUNCTION
@@ -3688,11 +4015,20 @@
                 $.get('/get-customer/' + cust)
                     .done(function(res) {
                         const credit = parseFloat(res.credit_limit || 0) || 0;
-                        if (credit > 0 && payable > credit) {
+                        const noCreditLimit = res.no_credit_limit == true || res.no_credit_limit == 1;
+                        if (!noCreditLimit && credit > 0 && payable > credit) {
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Credit limit exceeded',
-                                html: `Customer credit limit is <b>${credit.toFixed(2)}</b>.<br>Payable amount is <b>${payable.toFixed(2)}</b>.`,
+                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.<br><br>Do you want to proceed anyway?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Proceed Anyway',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#d33',
+                            }).then(function(result) {
+                                if (result.isConfirmed) {
+                                    saveBookingAndOpenInvoice();
+                                }
                             });
                             return;
                         }
@@ -3774,13 +4110,26 @@
                 $.get('/get-customer/' + cust)
                     .done(function(res) {
                         const credit = parseFloat(res.credit_limit || 0) || 0;
-                        if (credit > 0 && payable > credit) {
+                        const noCreditLimit = res.no_credit_limit == true || res.no_credit_limit == 1;
+                        if (!noCreditLimit && credit > 0 && payable > credit) {
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Credit limit exceeded',
-                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.`,
+                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.<br><br>Do you want to proceed anyway?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Proceed Anyway',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#d33',
+                            }).then(function(result) {
+                                if (result.isConfirmed) {
+                                    ensureSaved().then(() => {
+                                        faraz();
+                                        setReady($btn);
+                                    }).catch(() => setReady($btn));
+                                } else {
+                                    setReady($btn);
+                                }
                             });
-                            setReady($btn);
                             return;
                         }
                         ensureSaved().then(() => {
@@ -4126,13 +4475,23 @@
                 $.get('/get-customer/' + cust)
                     .done(function(res) {
                         const credit = parseFloat(res.credit_limit || 0) || 0;
-                        if (credit > 0 && payable > credit) {
+                        const noCreditLimit = res.no_credit_limit == true || res.no_credit_limit == 1;
+                        if (!noCreditLimit && credit > 0 && payable > credit) {
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Credit limit exceeded',
-                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.`,
+                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.<br><br>Do you want to proceed anyway?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Proceed Anyway',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#d33',
+                            }).then(function(result) {
+                                if (result.isConfirmed) {
+                                    proceedWithDraftPost($btn);
+                                } else {
+                                    setReady($btn);
+                                }
                             });
-                            setReady($btn);
                             return;
                         }
                         proceedWithDraftPost($btn);

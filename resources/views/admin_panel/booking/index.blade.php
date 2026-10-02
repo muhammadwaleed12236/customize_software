@@ -198,6 +198,13 @@
                     : 'bg-primary') }}">
                                             {{ ucfirst($booking->status ?? 'pending') }}
                                         </span>
+                                        @php $ds = $booking->delivery_status ?? 'pending'; @endphp
+                                        <br>
+                                        <span class="badge mt-1
+                                            {{ $ds === 'delivered' ? 'bg-success' : ($ds === 'partial' ? 'bg-info' : 'bg-secondary') }}">
+                                            <i class="fas {{ $ds === 'delivered' ? 'fa-check-double' : ($ds === 'partial' ? 'fa-truck' : 'fa-clock') }}"></i>
+                                            {{ ucfirst($ds) }}
+                                        </span>
                                     </td>
 
 
@@ -215,12 +222,14 @@
                                             <button type="submit" class="btn btn-sm btn-danger" title="Delete Booking"><i class="fa fa-trash"></i> Delete</button>
                                         </form>
                                         @endcan
-                                        @if(($booking->status ?? 'pending') == 'pending')
-                                            @can('sale.create')
-                                            <a href="{{ route('sales.from.booking', $booking->id) }}"
-                                                class="btn btn-sm btn-success" title="Confirm Booking">Confirm</a>
-                                            @endcan
+                                        @can('booking.deliver')
+                                        @if(($booking->delivery_status ?? 'pending') !== 'delivered')
+                                        <a href="{{ route('bookings.deliver.form', $booking->id) }}"
+                                            class="btn btn-sm btn-success" title="Partial Delivery">
+                                            <i class="fas fa-truck"></i> Deliver
+                                        </a>
                                         @endif
+                                        @endcan
                                     </td>
                                 </tr>
                             @endforeach

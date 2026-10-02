@@ -115,6 +115,7 @@
                         <div class="col-md-3">
                             <label class="f-label">Branch</label>
                             <select name="branch_id" id="branch_id" class="form-control form-control-sm" style="height: 38px; border-radius: 6px; border: 1.5px solid #cbd5e1;">
+                                <option value="all">-- All Branches --</option>
                                 @foreach($userBranches as $branch)
                                     <option value="{{ $branch->id }}" @selected($branch->id == $selectedBranchId)>
                                         {{ $branch->name }}
@@ -274,6 +275,21 @@ $(document).ready(function() {
         // Clear the table body
         $('#reportBody').html('');
         warehouseDataStore = {}; // Reset warehouse data
+
+        if (!rows || rows.length === 0) {
+            $('#reportBody').html('<tr><td colspan="13" class="text-center py-4 text-muted font-weight-bold">No stock data found for selected criteria in this branch.</td></tr>');
+            stockTable = $('#stockTable').DataTable({
+                paging: true,
+                searching: true,
+                info: true,
+                ordering: true,
+                columnDefs: [
+                    { orderable: false, targets: -1 }
+                ]
+            });
+            $('#grandStockValue').text('0.00').removeClass('text-danger');
+            return;
+        }
 
         let hasNegativeStock = false;
 
@@ -467,12 +483,7 @@ $(document).ready(function() {
             },
             success: function(response) {
                 $('#loader').hide();
-                if (response.data && response.data.length) {
-                    renderRows(response.data, response.grand_total);
-                } else {
-                    renderRows([], 0);
-                    alert('No data found for selected product in this branch.');
-                }
+                renderRows(response.data || [], response.grand_total || 0);
             },
             error: function(xhr, status, err) {
                 $('#loader').hide();

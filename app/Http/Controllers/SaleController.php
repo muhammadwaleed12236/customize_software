@@ -34,6 +34,7 @@ use App\Models\AccountLedgerEntry;
 use App\Models\BranchTransaction;
 use App\Models\WarehouseOrder;
 use App\Models\WarehouseOrderItem;
+use App\Models\CustomerRemaining;
 
 
 class SaleController extends Controller
@@ -1340,8 +1341,360 @@ class SaleController extends Controller
         return $this->ajaxPost($request);
     }
 
+    public function ajaxPostPartialDelivery(Request $request)
+    {
+        try {
+            return DB::transaction(function () use ($request) {
+                if (!$request->booking_id) {
+                    abort(422, 'Booking ID required');
+                }
 
+                $booking = ProductBooking::with('items')
+                    ->lockForUpdate()
+                    ->findOrFail($request->booking_id);
 
+                if ($booking->is_posted) {
+                    abort(422, 'Invoice already posted');
+                }
+
+                // Selected warehouse or branch location for partial dispatch
+                $locationVal = $request->input('warehouse_id', '');
+                if (!$locationVal) {
+                    abort(422, 'Dispatch location / warehouse selection required');
+                }
+
+                $warehouseId = null;
+                $targetBranchId = $booking->branch_id ?? (auth()->user()->branch_id ?? 1);
+                $deliveryLocationType = 'branch';
+
+                if (str_starts_with($locationVal, 'warehouse_')) {
+                    $warehouseId = (int) str_replace('warehouse_', '', $locationVal);
+                    $deliveryLocationType = 'warehouse';
+                } elseif (str_starts_with($locationVal, 'branch_')) {
+                    $targetBranchId = (int) str_replace('branch_', '', $locationVal);
+                    $warehouseId = null;
+                    $deliveryLocationType = 'branch';
+                } elseif (is_numeric($locationVal) && (int)$locationVal > 0) {
+                    $whExists = Warehouse::where('id', (int)$locationVal)->exists();
+                    if ($whExists) {
+                        $warehouseId = (int)$locationVal;
+                        $deliveryLocationType = 'warehouse';
+                    } else {
+                        $targetBranchId = (int)$locationVal;
+                        $warehouseId = null;
+                        $deliveryLocationType = 'branch';
+                    }
+                }
+
+                // Update booking branch if super admin selected one
+                $requestBranchId = $request->input('branch_id') ?? $targetBranchId;
+                if ($requestBranchId && auth()->user() && auth()->user()->hasRole('super admin')) {
+                    $booking->branch_id = (int) $requestBranchId;
+                    $booking->save();
+                }
+
+                $branchId = $booking->branch_id ?? $targetBranchId;
+
+                // Update party type if passed
+                $requestPartyType = $request->input('partyType');
+                if ($requestPartyType) {
+                    $partyType = strtolower($requestPartyType);
+                    if (in_array($partyType, ['cash', 'walking', 'credit'])) {
+                        $booking->party_type = $partyType;
+                        $booking->save();
+                    }
+                }
+
+                // Generate Invoice Number
+                $invoiceNo = null;
+                if ($booking->branch_id) {
+                    $branch = Branch::lockForUpdate()->find($booking->branch_id);
+                    if ($branch) {
+                        $branch->invoice_counter = ((int) ($branch->invoice_counter ?? 0)) + 1;
+                        $branch->save();
+                        $invoiceNo = 'INV-' . str_pad($branch->invoice_counter, 4, '0', STR_PAD_LEFT);
+                    }
+                }
+                if (!$invoiceNo) {
+                    $maxSaleId = Sale::where('branch_id', $booking->branch_id)->max('id') ?? 0;
+                    $invoiceNo = 'INV-' . str_pad($maxSaleId + 1, 4, '0', STR_PAD_LEFT);
+                }
+
+                // Create Sale Record (full order value)
+                $saleData = [
+                    'invoice_no'       => $invoiceNo,
+                    'manual_invoice'   => $booking->manual_invoice,
+                    'customer_id'      => $booking->customer_id,
+                    'salesman_id'      => $booking->salesman_id ?? $request->salesman_id ?? null,
+                    'sub_customer'     => (($booking->party_type ?? '') === 'walking') ? ($booking->customer_name ?? null) : null,
+                    'party_type'       => $booking->party_type,
+                    'address'          => $booking->address,
+                    'tel'              => $booking->tel,
+                    'remarks'          => $booking->remarks,
+                    'sub_total1'       => $booking->sub_total1,
+                    'sub_total2'       => $booking->sub_total2,
+                    'discount_percent' => $booking->discount_percent,
+                    'discount_amount'  => $booking->discount_amount,
+                    'additional_discount' => $booking->additional_discount ?? 0,
+                    'extra_charges'    => $booking->extra_charges ?? 0,
+                    'previous_balance' => $booking->previous_balance,
+                    'total_balance'    => $booking->total_balance,
+                    'total_net'        => $booking->sub_total2 ?? 0,
+                ];
+
+                if (\Illuminate\Support\Facades\Schema::hasColumn('sales', 'branch_id')) {
+                    $saleData['branch_id'] = $booking->branch_id;
+                }
+                if (\Illuminate\Support\Facades\Schema::hasColumn('sales', 'booking_id')) {
+                    $saleData['booking_id'] = $booking->id;
+                }
+
+                $sale = Sale::create($saleData);
+
+                // Customer Ledger (Credit Customers)
+                if (($booking->party_type ?? '') === 'credit' && $booking->customer_id) {
+                    $lastLedger = CustomerLedger::where('customer_id', $booking->customer_id)
+                        ->latest('id')
+                        ->lockForUpdate()
+                        ->first();
+                    $customer = Customer::find($booking->customer_id);
+                    $customerOpeningBalance = $customer->opening_balance ?? 0;
+                    $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : $customerOpeningBalance;
+                    $closingBalance = (float)($booking->total_balance ?? 0);
+                    $saleAmount = ($booking->sub_total2 ?? 0) - ($booking->additional_discount ?? 0) + ($booking->extra_charges ?? 0);
+
+                    $totalReceipts = 0;
+                    if (!empty($request->receipt_amount) && is_array($request->receipt_amount)) {
+                        foreach ($request->receipt_amount as $amt) {
+                            $amt = (float)$amt;
+                            if ($amt > 0) $totalReceipts += $amt;
+                        }
+                    }
+
+                    CustomerLedger::create([
+                        'customer_id'      => $booking->customer_id,
+                        'admin_or_user_id' => auth()->id(),
+                        'opening_balance'  => $customerOpeningBalance,
+                        'previous_balance' => $previousBalance,
+                        'total_debit'      => $saleAmount,
+                        'total_credit'     => $totalReceipts,
+                        'closing_balance'  => $closingBalance,
+                    ]);
+                }
+
+                // Process Sale Items, Partial Dispatch & Remaining Quantities
+                $dcItems = [];
+                $dispatchMap = $request->input('dispatch_qty', []);
+
+                foreach ($booking->items as $it) {
+                    $pid = $it->product_id;
+                    $fullSaleQty = (float)$it->sales_qty;
+                    
+                    // User specified dispatch quantity for this item
+                    $dispatchQty = isset($dispatchMap[$pid]) ? (float)$dispatchMap[$pid] : $fullSaleQty;
+                    $dispatchQty = max(0, min($fullSaleQty, $dispatchQty));
+                    $remainingQty = $fullSaleQty - $dispatchQty;
+
+                    // Save SaleItem for full sale record
+                    $saleItem = SaleItem::create([
+                        'invoice_no'       => $sale->invoice_no,
+                        'branch_id'        => $sale->branch_id,
+                        'sale_id'          => $sale->id,
+                        'warehouse_id'     => $warehouseId,
+                        'product_id'       => $pid,
+                        'sales_qty'        => $fullSaleQty,
+                        'retail_price'     => $it->retail_price,
+                        'discount_percent' => (float)($it->discount_percent ?? 0),
+                        'discount_amount'  => (float)($it->discount_amount ?? 0),
+                        'amount'           => $it->amount,
+                    ]);
+
+                    $product = Product::find($pid);
+                    $productName = $product?->item_name ?? "Product #{$pid}";
+                    $itemCode = $product?->item_code ?? '';
+                    $unit = $product?->unit ?? 'Pcs';
+
+                    // 1. Stock Deduction ONLY for current dispatched quantity
+                    if ($dispatchQty > 0) {
+                        // Deduct from WarehouseStock
+                        $whStock = WarehouseStock::lockForUpdate()
+                            ->where('product_id', $pid)
+                            ->where('branch_id', $branchId)
+                            ->where(function($q) use ($warehouseId) {
+                                if ($warehouseId) {
+                                    $q->where('warehouse_id', $warehouseId);
+                                } else {
+                                    $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0);
+                                }
+                            })
+                            ->first();
+
+                        if (!$whStock) {
+                            $whStock = WarehouseStock::create([
+                                'product_id'   => $pid,
+                                'branch_id'    => $branchId,
+                                'warehouse_id' => $warehouseId,
+                                'quantity'     => 0,
+                            ]);
+                        }
+                        $whStock->quantity -= $dispatchQty;
+                        $whStock->save();
+
+                        // Deduct from overall Stock (branch level)
+                        $bStock = Stock::lockForUpdate()
+                            ->where('product_id', $pid)
+                            ->where('branch_id', $branchId)
+                            ->first();
+
+                        if (!$bStock) {
+                            $bStock = Stock::create([
+                                'product_id' => $pid,
+                                'branch_id'  => $branchId,
+                                'qty'        => 0,
+                            ]);
+                        }
+                        $bStock->qty -= $dispatchQty;
+                        $bStock->save();
+
+                        // Track Stock Movement
+                        StockMovement::create([
+                            'product_id'    => $pid,
+                            'type'          => 'out',
+                            'qty'           => $dispatchQty,
+                            'ref_type'      => 'SALE_PARTIAL',
+                            'ref_id'        => $sale->id,
+                            'ref_uuid'      => $booking->invoice_no,
+                            'is_auto_pluck' => 1,
+                            'note'          => 'Partial Sale ' . $booking->invoice_no . ($warehouseId ? ' (Warehouse: ' . $warehouseId . ')' : ' (Branch Stock)'),
+                        ]);
+
+                        StockAlertService::checkAndCreateAlert($pid, $warehouseId);
+
+                        // Collect item for initial Delivery Challan
+                        $dcItems[] = [
+                            'sale_item_id' => $saleItem->id,
+                            'product_id'   => $pid,
+                            'product_name' => $productName,
+                            'item_code'    => $itemCode,
+                            'qty'          => $dispatchQty,
+                            'warehouse_id' => $warehouseId,
+                            'retail_price' => (float)$it->retail_price,
+                            'amount'       => $dispatchQty * (float)$it->retail_price,
+                        ];
+                    }
+
+                    // 2. Track Remaining Quantity in customer_remaining
+                    if ($remainingQty > 0) {
+                        CustomerRemaining::create([
+                            'sale_id'           => $sale->id,
+                            'customer_id'       => $sale->customer_id,
+                            'sub_customer_name' => $sale->sub_customer ?? null,
+                            'product_id'        => $pid,
+                            'warehouse_id'      => $warehouseId,
+                            'remaining_qty'     => $remainingQty,
+                            'unit'              => $unit,
+                            'item_code'         => $itemCode,
+                            'product_name'      => $productName,
+                            'status'            => $dispatchQty > 0 ? 'partial' : 'pending',
+                            'created_by'        => auth()->id(),
+                            'updated_by'        => auth()->id(),
+                        ]);
+                    }
+                }
+
+                // Create Delivery Challan (WarehouseOrder) for current partial dispatch
+                if (!empty($dcItems)) {
+                    $branchForCounter = Branch::lockForUpdate()->find($branchId) ?? Branch::lockForUpdate()->first();
+                    $branchForCounter->dc_counter = ($branchForCounter->dc_counter ?? 0) + 1;
+                    $branchForCounter->save();
+                    $dcNo = 'DC-' . str_pad($branchForCounter->dc_counter, 4, '0', STR_PAD_LEFT);
+
+                    $warehouseOrder = WarehouseOrder::create([
+                        'dc_no'                  => $dcNo,
+                        'warehouse_id'           => $warehouseId,
+                        'delivery_location_type' => $deliveryLocationType ?? ($warehouseId ? 'warehouse' : 'branch'),
+                        'branch_id'              => $sale->branch_id ?? $branchId,
+                        'customer_id'            => $sale->customer_id,
+                        'sale_id'                => $sale->id,
+                        'status'                 => 'pending',
+                        'remarks'                => 'Partial Delivery DC for Sale ' . $sale->invoice_no,
+                        'prepared_by'            => auth()->user()->name ?? null,
+                        'created_by'             => auth()->id(),
+                        'updated_by'             => auth()->id(),
+                        'items'                  => $dcItems,
+                    ]);
+
+                    Log::info('Partial Sale DC created', ['dc_no' => $dcNo, 'sale_id' => $sale->id]);
+                }
+
+                // Accounts update for Sales Head
+                $salesHead = AccountHead::where('name', 'like', '%Sales%')->first();
+                if ($salesHead) {
+                    $saleAccount = Account::lockForUpdate()->where('head_id', $salesHead->id)->first();
+                    if ($saleAccount) {
+                        $saleAccount->opening_balance += $sale->total_net;
+                        $saleAccount->save();
+                    }
+                }
+
+                // Process Receipts (if advance payments provided)
+                if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
+                    $rvNo = 'RV-' . time();
+                    $receiptRowAccounts = [];
+                    $receiptRowAmounts = [];
+
+                    foreach ($request->receipt_account_id as $i => $accId) {
+                        $amt = (float)($request->receipt_amount[$i] ?? 0);
+                        if ($amt > 0 && !empty($accId) && is_numeric($accId)) {
+                            $receiptRowAccounts[] = (int)$accId;
+                            $receiptRowAmounts[] = $amt;
+
+                            $targetAcc = Account::lockForUpdate()->find($accId);
+                            if ($targetAcc) {
+                                $targetAcc->opening_balance += $amt;
+                                $targetAcc->save();
+                            }
+                        }
+                    }
+
+                    if (!empty($receiptRowAmounts)) {
+                        ReceiptsVoucher::create([
+                            'rvid'            => $rvNo,
+                            'reference_no'    => $sale->invoice_no,
+                            'booking_id'      => $booking->id,
+                            'type'            => 'SALE_RECEIPT',
+                            'total_amount'    => array_sum($receiptRowAmounts),
+                            'amount'          => json_encode($receiptRowAmounts),
+                            'row_account_id'  => json_encode($receiptRowAccounts),
+                            'processed'       => true,
+                            'admin_or_user_id'=> auth()->id(),
+                        ]);
+                    }
+                }
+
+                // Mark booking as posted
+                $booking->update([
+                    'is_posted' => 1,
+                    'posted_at' => now(),
+                    'status'    => 'sale',
+                ]);
+
+                return response()->json([
+                    'ok'          => true,
+                    'sale_id'     => $sale->id,
+                    'invoice_url' => route('sales.dc', $sale->id),
+                    'msg'         => 'Partial Delivery Sale posted successfully!',
+                ]);
+            });
+        } catch (\Exception $e) {
+            Log::error('Partial sale post failed', ['message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+            $status = 422;
+            if ($e instanceof \Symfony\Component\HttpKernel\Exception\HttpException) {
+                $status = $e->getStatusCode();
+            }
+            return response()->json(['ok' => false, 'error' => $e->getMessage()], $status);
+        }
+    }
 
     public function ajaxSave(Request $request)
     {
@@ -1821,6 +2174,8 @@ public function finddc($invoice)
             $q->where('branch_id', $branchId);
         })->get();
 
+        $allWarehouses = Warehouse::all();
+
         // determine warehouses that actually hold any of the filtered products
         $warehouse = Warehouse::when(!$isSuper && $branchId, function ($q) use ($products) {
             if ($products->isEmpty()) {
@@ -1840,6 +2195,10 @@ public function finddc($invoice)
                 }
             }
         })->get();
+
+        if ($warehouse->isEmpty()) {
+            $warehouse = $allWarehouses;
+        }
 
         $branches = Branch::all();
 
@@ -1879,7 +2238,7 @@ public function finddc($invoice)
 
         $saleSettings = SaleSetting::getSettings();
 
-        return view('admin_panel.sale.add_sale222', compact('warehouse', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings'));
+        return view('admin_panel.sale.add_sale222', compact('warehouse', 'allWarehouses', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings'));
     }
 
     public function getBranchSalesmen($branchId)
@@ -3829,9 +4188,12 @@ public function finddc($invoice)
        
     
 
-        public function saleDc(Sale $sale)
+    public function saleDc($sale)
     {
         try {
+            if (!($sale instanceof Sale)) {
+                $sale = Sale::findOrFail($sale);
+            }
             return DB::transaction(function () use ($sale) {
                 $sale->load(['customer', 'saleItems.product', 'saleItems.warehouse']);
 
@@ -3883,6 +4245,9 @@ public function finddc($invoice)
                     $groupedItems = $sale->saleItems->groupBy('warehouse_id');
 
                     foreach ($groupedItems as $warehouseId => $items) {
+                        $whId = (!empty($warehouseId) && $warehouseId != '0') ? (int) $warehouseId : null;
+                        $deliveryLocationType = $whId ? 'warehouse' : 'branch';
+
                         // ✅ GENERATE UNIQUE DC NUMBER using dedicated counter
                         $branchForCounter = Branch::lockForUpdate()->find($branch->id ?? 1);
                         if (!$branchForCounter) {
@@ -3896,7 +4261,8 @@ public function finddc($invoice)
                         // Create a WarehouseOrder for this DC
                         $warehouseOrder = new \App\Models\WarehouseOrder();
                         $warehouseOrder->dc_no = $dcNo;
-                        $warehouseOrder->warehouse_id = (int) $warehouseId;
+                        $warehouseOrder->warehouse_id = $whId;
+                        $warehouseOrder->delivery_location_type = $deliveryLocationType;
                         $warehouseOrder->branch_id = $sale->branch_id;
                         $warehouseOrder->customer_id = $sale->customer_id;
                         $warehouseOrder->sale_id = $sale->id;
@@ -3907,14 +4273,14 @@ public function finddc($invoice)
                         $warehouseOrder->updated_by = auth()->id();
 
                         // Map sale items into array for storage
-                        $itemsArray = $items->map(function($si) {
+                        $itemsArray = $items->map(function($si) use ($whId) {
                             return [
                                 'sale_item_id' => $si->id ?? null,
                                 'product_id' => $si->product_id ?? null,
                                 'product_name' => optional($si->product)->item_name ?? $si->product_name ?? null,
                                 'item_code' => optional($si->product)->item_code ?? null,
                                 'qty' => $si->sales_qty ?? $si->qty ?? 0,
-                                'warehouse_id' => $si->warehouse_id ?? null,
+                                'warehouse_id' => $whId,
                                 'retail_price' => isset($si->retail_price) ? (float) $si->retail_price : null,
                                 'amount' => isset($si->amount) ? (float) $si->amount : null,
                             ];
@@ -3932,11 +4298,11 @@ public function finddc($invoice)
 
                         // ✅ Notify assigned warehouse staff & branch incharge for new DC
                         try {
-                            $whName = $warehouseId ? (\App\Models\Warehouse::find($warehouseId)?->warehouse_name ?? 'Warehouse') : 'Branch';
+                            $whName = $whId ? (\App\Models\Warehouse::find($whId)?->warehouse_name ?? 'Warehouse') : 'Branch';
                             $custName = $sale->customer?->customer_name ?? ($sale->sub_customer ?? 'Customer');
                             \App\Models\Notification::create([
                                 'branch_id'         => $sale->branch_id,
-                                'warehouse_id'      => $warehouseId ?: null,
+                                'warehouse_id'      => $whId,
                                 'sale_id'           => $sale->id,
                                 'customer_id'       => $sale->customer_id,
                                 'type'              => 'dc_created',
@@ -3955,9 +4321,14 @@ public function finddc($invoice)
                         if ($sale->status === 'draft_posted') {
                             foreach ($items as $item) {
                                 // Get current available stock
-                                $warehouseStock = WarehouseStock::where('product_id', $item->product_id)
-                                    ->where('warehouse_id', $warehouseId)
-                                    ->first();
+                                $warehouseStockQuery = WarehouseStock::where('product_id', $item->product_id)
+                                    ->where('branch_id', $sale->branch_id);
+                                if ($whId) {
+                                    $warehouseStockQuery->where('warehouse_id', $whId);
+                                } else {
+                                    $warehouseStockQuery->whereNull('warehouse_id');
+                                }
+                                $warehouseStock = $warehouseStockQuery->first();
 
                                 $availableQty = $warehouseStock ? (float)$warehouseStock->quantity : 0;
                                 $deliverQty = (float)($item->sales_qty ?? 0);
@@ -3967,7 +4338,7 @@ public function finddc($invoice)
                                     'sale_id' => $sale->id,
                                     'warehouse_order_id' => $warehouseOrder->id,
                                     'product_id' => $item->product_id,
-                                    'warehouse_id' => $warehouseId,
+                                    'warehouse_id' => $whId,
                                     'customer_id' => $sale->customer_id,
                                     'invoice_no' => $sale->invoice_no,
                                     'dc_no' => $dcNo,
@@ -3993,25 +4364,37 @@ public function finddc($invoice)
                             }
                         }
 
+                        $locationName = '-';
+                        if (!$whId) {
+                            $locationName = $branch->name ?? $branch->branch_name ?? 'Branch';
+                        } else {
+                            $whObj = \App\Models\Warehouse::find($whId);
+                            $locationName = $whObj->warehouse_name ?? '-';
+                        }
+
                         $dcData[] = [
                             'dc_no' => $dcNo,
-                            'warehouse' => $items->first()->warehouse,
+                            'warehouse' => $whId ? \App\Models\Warehouse::find($whId) : null,
                             'branch' => $items->first()->branch ?? $branch,
-                            'delivery_location_type' => $items->first()->delivery_location_type,
-                            'location_name' => $items->first()->delivery_location_type === 'branch' 
-                                ? ($items->first()->branch->name ?? '-')
-                                : ($items->first()->warehouse->warehouse_name ?? '-'),
+                            'delivery_location_type' => $deliveryLocationType,
+                            'location_name' => $locationName,
                             'items' => $itemsArray,
                             'warehouse_order_id' => $warehouseOrder->id,
                         ];
                     }
                 }
 
+                // Fetch customer remaining items & latest ledger balance
+                $remainingItems = \App\Models\CustomerRemaining::where('sale_id', $sale->id)->get();
+                $latestLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer_id)->latest('id')->first();
+
                 // Return the DC view
                 return view('admin_panel.sale.booking.prints.dc2', [
                     'sale' => $sale,
                     'dcData' => $dcData,
-                    'branch' => $branch
+                    'branch' => $branch,
+                    'remainingItems' => $remainingItems,
+                    'latestLedger' => $latestLedger
                 ]);
 
             });
@@ -4028,8 +4411,11 @@ public function finddc($invoice)
     /**
      * Server-rendered thermal DC print
      */
-    public function saleDcThermal(Request $request, Sale $sale)
+    public function saleDcThermal(Request $request, $sale)
     {
+        if (!($sale instanceof Sale)) {
+            $sale = Sale::findOrFail($sale);
+        }
         $sale->load(['customer', 'saleItems.product', 'saleItems.warehouse']);
 
         // Determine branch to display

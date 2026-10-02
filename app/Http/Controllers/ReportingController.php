@@ -1566,28 +1566,8 @@ class ReportingController extends Controller
             $selectedBranchId = $user->branch_id;
         }
 
-        // Get products for selected branch - include all products with warehouse stock, purchases, or sales
-        $products = Product::where(function ($query) use ($selectedBranchId) {
-            $query->whereHas('warehouseStocks', function ($q) use ($selectedBranchId) {
-                $q->where('branch_id', $selectedBranchId);
-            });
-            
-            // Also check purchases for this branch
-            $query->orWhereIn('id', function($subQuery) use ($selectedBranchId) {
-                $subQuery->select('product_id')
-                    ->from('purchase_items')
-                    ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-                    ->where('purchases.branch_id', $selectedBranchId);
-            });
-            
-            // Also check sales for this branch
-            $query->orWhereIn('id', function($subQuery) use ($selectedBranchId) {
-                $subQuery->select('product_id')
-                    ->from('sale_items')
-                    ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
-                    ->where('sales.branch_id', $selectedBranchId);
-            });
-        })->orderBy('item_name')->get();
+        // Fetch all products so user can filter by any product or view all
+        $products = Product::orderBy('item_name')->get();
 
         return view('admin_panel.reporting.item_stock_report', [
             'products' => $products,
@@ -1617,41 +1597,18 @@ class ReportingController extends Controller
         $allowedBranchId = null;
 
         if ($user->hasRole('super admin')) {
-            // Super admin can view any branch
-            $allowedBranchId = $requestedBranchId ? (int)$requestedBranchId : $user->branch_id;
+            // Super admin can view any branch (or specific requested branch)
+            $allowedBranchId = ($requestedBranchId && $requestedBranchId !== 'all') ? (int)$requestedBranchId : ($requestedBranchId === 'all' ? 'all' : $user->branch_id);
         } else {
             // Non-admin can only see their own branch
             $allowedBranchId = $user->branch_id;
         }
 
-        // ================= FETCH PRODUCTS FOR THIS BRANCH ONLY =================
+        // ================= FETCH PRODUCTS =================
         $productsQuery = Product::query();
         if ($productId && $productId !== 'all') {
             // Single product view - get that specific product
             $productsQuery->where('id', $productId);
-        } else {
-            // All products view - include products with warehouse stock, purchases, or sales in this branch
-            $productsQuery->where(function ($query) use ($allowedBranchId) {
-                $query->whereHas('warehouseStocks', function ($q) use ($allowedBranchId) {
-                    $q->where('branch_id', $allowedBranchId);
-                });
-                
-                // Also check purchases for this branch
-                $query->orWhereIn('id', function($subQuery) use ($allowedBranchId) {
-                    $subQuery->select('product_id')
-                        ->from('purchase_items')
-                        ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-                        ->where('purchases.branch_id', $allowedBranchId);
-                });
-                
-                // Also check sales for this branch
-                $query->orWhereIn('id', function($subQuery) use ($allowedBranchId) {
-                    $subQuery->select('product_id')
-                        ->from('sale_items')
-                        ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
-                        ->where('sales.branch_id', $allowedBranchId);
-                });
-            });
         }
         $products = $productsQuery->orderBy('item_name')->get();
 
@@ -1663,7 +1620,7 @@ class ReportingController extends Controller
         $deliveredAmountMap = [];
         
         $gpQuery = DB::table('outward_gatepasses')->whereNotNull('items');
-        if (!$user->hasRole('super admin')) {
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
             $gpQuery->where('branch_id', $allowedBranchId);
         }
         
@@ -1680,16 +1637,42 @@ class ReportingController extends Controller
             }
         }
 
-        // 2. Pre-calculate TOTAL BOOKED quantities from Sale Items
-        $bookedQtyMap = DB::table('sale_items')
+        // 2. Pre-calculate TOTAL BOOKED quantities from Product Booking Items & Direct Sales
+        $bookedQuery = DB::table('product_booking_items')
+            ->join('productbookings', 'product_booking_items.booking_id', '=', 'productbookings.id')
+            ->where(function($q) {
+                $q->whereNull('productbookings.status')
+                  ->orWhere('productbookings.status', '!=', 'cancelled');
+            });
+
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
+            $bookedQuery->where(function($q) use ($allowedBranchId) {
+                $q->where('product_booking_items.branch_id', $allowedBranchId)
+                  ->orWhere('productbookings.branch_id', $allowedBranchId);
+            });
+        }
+        $bookedQtyMap = $bookedQuery
+            ->select('product_booking_items.product_id', DB::raw('SUM(product_booking_items.sales_qty) as total_qty'))
+            ->groupBy('product_booking_items.product_id')
+            ->pluck('total_qty', 'product_id')
+            ->toArray();
+
+        // Also add direct sales (sales not originating from productbookings)
+        $directSalesQuery = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
-            ->when(!$user->hasRole('super admin'), function($q) use ($allowedBranchId) {
-                return $q->where('sales.branch_id', $allowedBranchId);
-            })
+            ->whereNull('sales.booking_id');
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
+            $directSalesQuery->where('sales.branch_id', $allowedBranchId);
+        }
+        $directSalesMap = $directSalesQuery
             ->select('sale_items.product_id', DB::raw('SUM(sale_items.sales_qty) as total_qty'))
             ->groupBy('sale_items.product_id')
             ->pluck('total_qty', 'product_id')
             ->toArray();
+
+        foreach ($directSalesMap as $pid => $qty) {
+            $bookedQtyMap[$pid] = ($bookedQtyMap[$pid] ?? 0) + floatval($qty);
+        }
 
         $rows = [];
         $grandTotalValue = 0;
@@ -1697,15 +1680,17 @@ class ReportingController extends Controller
         foreach ($products as $product) {
             // ================= GET STOCK FROM warehouse_stocks TABLE (BRANCH-SPECIFIC) =================
             // Note: warehouse_stocks is the single source of truth
-            $warehouseStocks = WarehouseStock::where('product_id', $product->id)
-                ->where('branch_id', $allowedBranchId)
-                ->get();
+            $wsQuery = WarehouseStock::where('product_id', $product->id);
+            if ($allowedBranchId && $allowedBranchId !== 'all') {
+                $wsQuery->where('branch_id', $allowedBranchId);
+            }
+            $warehouseStocks = $wsQuery->get();
 
             // ================= CALCULATE TOTAL BALANCE FROM warehouse_stocks FOR THIS BRANCH =================
             $totalBalance = floatval($warehouseStocks->sum('quantity') ?? 0);
 
             // ================= GET OPENING STOCK =================
-            if ($product->branch_id == $allowedBranchId) {
+            if ($allowedBranchId === 'all' || $product->branch_id == $allowedBranchId) {
                 $openingStock = floatval($product->initial_stock ?? 0);
             } else {
                 $openingStock = 0;
@@ -1716,7 +1701,7 @@ class ReportingController extends Controller
                 ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
                 ->where('purchase_items.product_id', $product->id);
             
-            if (!$user->hasRole('super admin')) {
+            if ($allowedBranchId && $allowedBranchId !== 'all') {
                 $purchaseQuery->where('purchases.branch_id', $allowedBranchId);
             }
             
@@ -1740,9 +1725,11 @@ class ReportingController extends Controller
             $reservedQty = max(0, $totalBooked - $sold); // How many still pending delivery
 
             // ================= GET WAREHOUSE-WISE BREAKDOWN =================
-            $warehouseBreakdown = WarehouseStock::where('product_id', $product->id)
-                ->where('branch_id', $allowedBranchId)
-                ->with('warehouse')
+            $wbQuery = WarehouseStock::where('product_id', $product->id);
+            if ($allowedBranchId && $allowedBranchId !== 'all') {
+                $wbQuery->where('branch_id', $allowedBranchId);
+            }
+            $warehouseBreakdown = $wbQuery->with('warehouse')
                 ->select('warehouse_id', 'quantity')
                 ->get()
                 ->map(function ($stock) {
@@ -1759,6 +1746,16 @@ class ReportingController extends Controller
 
             // ================= CALCULATE STOCK VALUE =================
             $wholesalePrice = floatval($product->wholesale_price ?? 0);
+            if ($wholesalePrice <= 0) {
+                $wholesalePrice = floatval($product->price ?? 0);
+            }
+            if ($wholesalePrice <= 0) {
+                $latestPurchasePrice = DB::table('purchase_items')
+                    ->where('product_id', $product->id)
+                    ->latest()
+                    ->value('price');
+                $wholesalePrice = floatval($latestPurchasePrice ?? 0);
+            }
             $stockValue = $totalBalance * $wholesalePrice;
             $grandTotalValue += $stockValue;
 

@@ -1907,12 +1907,25 @@
                 $.get('/get-customer/' + cust)
                     .done(function(res) {
                         const credit = parseFloat(res.credit_limit || 0) || 0;
-                        if (credit > 0 && payable > credit) {
-                            console.log('❌ CREDIT LIMIT EXCEEDED');
+                        const noCreditLimit = res.no_credit_limit == true || res.no_credit_limit == 1;
+                        if (!noCreditLimit && credit > 0 && payable > credit) {
+                            console.log('⚠️ CREDIT LIMIT EXCEEDED - Asking for confirmation');
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Credit limit exceeded',
-                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.`,
+                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.<br><br>Do you want to proceed anyway?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Proceed Anyway',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#d33',
+                            }).then(function(result) {
+                                if (result.isConfirmed) {
+                                    ensureSaved().then(function(bookingId) {
+                                        postNowBranch();
+                                    }).catch(function(err) {
+                                        showAlert('danger', 'Failed to save booking: ' + err);
+                                    });
+                                }
                             });
                             return;
                         }
@@ -2660,11 +2673,20 @@ function computeRow($row, manualAmount = false, formatDiscount = true) {
                 $.get('/get-customer/' + cust)
                     .done(function (res) {
                         const credit = parseFloat(res.credit_limit || 0) || 0;
-                        if (credit > 0 && payable > credit) {
+                        const noCreditLimit = res.no_credit_limit == true || res.no_credit_limit == 1;
+                        if (!noCreditLimit && credit > 0 && payable > credit) {
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Credit limit exceeded',
-                                html: `Customer credit limit is <b>${credit.toFixed(2)}</b>.<br>Payable amount is <b>${payable.toFixed(2)}</b>.`,
+                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.<br><br>Do you want to proceed anyway?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Proceed Anyway',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#d33',
+                            }).then(function(result) {
+                                if (result.isConfirmed) {
+                                    ensureSaved();
+                                }
                             });
                             return;
                         }
@@ -2744,16 +2766,26 @@ function computeRow($row, manualAmount = false, formatDiscount = true) {
                 $.get('/get-customer/' + cust)
                     .done(function (res) {
                         const credit = parseFloat(res.credit_limit || 0) || 0;
-                        // ✅ BLOCK: If credit limit exceeded, show alert and DO NOT save
-                        if (credit > 0 && payable > credit) {
-                            console.log('❌ CREDIT LIMIT EXCEEDED - BLOCKING SAVE');
+                        const noCreditLimit = res.no_credit_limit == true || res.no_credit_limit == 1;
+                        // ✅ WARN: If credit limit exceeded, ask for confirmation before saving
+                        if (!noCreditLimit && credit > 0 && payable > credit) {
+                            console.log('⚠️ CREDIT LIMIT EXCEEDED - Asking for confirmation');
                             console.log('Credit Limit:', credit, 'Payable:', payable);
                             Swal.fire({
                                 icon: 'warning',
                                 title: 'Credit limit exceeded',
-                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.`,
+                                html: `Customer credit limit is <b>Rs. ${credit.toFixed(2)}</b>.<br>Payable amount is <b>Rs. ${payable.toFixed(2)}</b>.<br><br>Do you want to proceed anyway?`,
+                                showCancelButton: true,
+                                confirmButtonText: 'Proceed Anyway',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#d33',
+                            }).then(function(result) {
+                                if (result.isConfirmed) {
+                                    console.log('✅ User confirmed - proceeding to warehouse modal');
+                                    faraz();  // Open warehouse modal after user confirms
+                                }
                             });
-                            return;  // STOP HERE - DO NOT SAVE
+                            return;  // Wait for user response
                         }
                         // ✅ OK: Credit limit is sufficient, proceed to warehouse selection
                         console.log('✅ CREDIT LIMIT OK - OPENING WAREHOUSE MODAL');

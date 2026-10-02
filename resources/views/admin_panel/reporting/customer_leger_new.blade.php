@@ -101,7 +101,7 @@
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
                     <button id="toggleDetailsBtn" onclick="toggleInvoiceDetails()" class="btn btn-sm btn-light font-weight-bold border">
-                        <i class="fas fa-eye-slash mr-1"></i> Hide Details
+                        <i class="fas fa-eye mr-1"></i> Show Details
                     </button>
                     <button onclick="window.print()" class="btn btn-sm btn-outline-light font-weight-bold">
                         <i class="fas fa-print mr-1"></i> Print
@@ -227,7 +227,7 @@
                 {{-- 4. LEDGER TABLE --}}
                 <div id="printArea">
                     <div class="table-responsive" style="border: 1px solid var(--coa-border); border-radius: 9px; overflow: hidden;">
-                        <table id="ledgerTable" class="table table-bordered mb-0" style="font-size: 12.5px; border-collapse: collapse;">
+                        <table id="ledgerTable" class="table table-bordered mb-0 hide-details" style="font-size: 12.5px; border-collapse: collapse;">
                             <thead>
                                 <tr>
                                     <th class="text-center" style="width: 75px;">Date</th>
@@ -260,20 +260,20 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
 <style>
-.lbl  { font-size:11px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:.4px; }
-.val  { font-size:13px;font-weight:600;color:#1a1a2e; }
+.lbl  { font-size:11px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.4px; }
+.val  { font-size:13px;font-weight:700;color:#0f172a; }
 
 /* Row colors */
-tr.r-open    td { background:#d4edff !important; font-weight:700; border-color:#aad4f5 !important; }
-tr.r-sale    td { background:#fff8e1 !important; font-weight:600; border-color:#ffe082 !important; }
-tr.r-item    td { background:#fffdf0 !important; font-size:12px;  color:#555; border-color:#f0e6b0 !important; }
-tr.r-receipt td { background:#e8f5e9 !important; border-color:#a5d6a7 !important; }
-tr.r-pv      td { background:#f3e5f5 !important; border-color:#ce93d8 !important; }
-tr.r-return  td { background:#fce4ec !important; border-color:#f48fb1 !important; }
-tr.r-discount td { background:#fff3e0 !important; border-color:#ffb74d !important; font-style:italic; }
-tr.r-total   td { background:#e9ecef !important; font-weight:700; border-top:2px solid #1a1a2e !important; font-size:13px; }
-tr.r-close   td { background:#1a1a2e !important; color:#fff !important; font-weight:700; font-size:14px; }
-tr.r-grand   td { background:#0a3060 !important; color:#fff !important; font-weight:700; font-size:13px; }
+tr.r-open    td { background:#f0f9ff !important; color:#0369a1 !important; font-weight:700; border-color:#bae6fd !important; }
+tr.r-sale    td { background:#fefce8 !important; color:#1e293b !important; font-weight:700; border-color:#fef08a !important; }
+tr.r-item    td { background:#ffffff !important; color:#334155 !important; font-size:12px; border-color:#f1f5f9 !important; }
+tr.r-receipt td { background:#f0fdf4 !important; color:#166534 !important; font-weight:600; border-color:#bbf7d0 !important; }
+tr.r-pv      td { background:#faf5ff !important; color:#6b21a8 !important; border-color:#e9d5ff !important; }
+tr.r-return  td { background:#fff1f2 !important; color:#9f1239 !important; border-color:#fecdd3 !important; }
+tr.r-discount td { background:#fff7ed !important; color:#c2410c !important; font-style:italic; border-color:#fed7aa !important; }
+tr.r-total   td { background:#f8fafc !important; color:#0f172a !important; font-weight:800; border-top:2px solid #334155 !important; font-size:13px; }
+tr.r-close   td { background: linear-gradient(135deg, #0f1f38 0%, #1e3a5f 100%) !important; color:#ffffff !important; font-weight:800; font-size:14px; letter-spacing:0.04em; padding:10px 14px !important; }
+tr.r-grand   td { background:#0f1f38 !important; color:#ffffff !important; font-weight:800; font-size:13px; }
 
 /* Premium Input Styling */
 .fi-premium {
@@ -297,17 +297,28 @@ tr.r-grand   td { background:#0a3060 !important; color:#fff !important; font-wei
 }
 
 /* Balance colors */
-.b-dr   { color:#c62828; font-weight:700; }
-.b-cr   { color:#2e7d32; font-weight:700; }
-.b-zero { color:#0066cc; font-weight:700; }
-tr.r-close .b-dr { color:#ff8a80; }
-tr.r-close .b-cr { color:#69f0ae; }
-tr.r-grand .b-dr { color:#ff8a80; }
-tr.r-grand .b-cr { color:#69f0ae; }
+.b-dr   { color:#dc2626; font-weight:800; }
+.b-cr   { color:#16a34a; font-weight:800; }
+.b-zero { color:#2563eb; font-weight:800; }
+tr.r-close .b-dr { color:#f87171 !important; font-weight:800; text-shadow:0 1px 2px rgba(0,0,0,0.3); }
+tr.r-close .b-cr { color:#4ade80 !important; font-weight:800; text-shadow:0 1px 2px rgba(0,0,0,0.3); }
+tr.r-grand .b-dr { color:#f87171 !important; font-weight:800; }
+tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
+
+.inv-total-pill {
+    background: #0f1f38;
+    color: #4ade80 !important;
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 800;
+    display: inline-block;
+    box-shadow: 0 2px 4px rgba(15,31,56,0.15);
+}
 
 #ledgerTable td,
-#ledgerTable th { vertical-align:middle; padding:5px 6px; }
-#ledgerTable tbody tr:hover td { filter:brightness(.97); }
+#ledgerTable th { vertical-align:middle; padding:6px 7px; }
+#ledgerTable tbody tr:hover td { filter:brightness(.98); }
 
 /* Toggle Details CSS */
 #ledgerTable.hide-details .detail-row { display: none !important; }
@@ -315,7 +326,6 @@ tr.r-grand .b-cr { color:#69f0ae; }
 @media print {
     .card, button, form, #printBtnWrap { display:none !important; }
     #ledgerBox, #printArea { display:block !important; }
-    /* Print will respect the .hide-details class because it applies display:none!important */
 }
 </style>
 
@@ -566,12 +576,12 @@ tr.r-grand .b-cr { color:#69f0ae; }
 
                 /* Sub-header strip for item columns */
                 bodyHtml += '<tr class="detail-row">';
-                bodyHtml += '<td colspan="5" style="background:#dce6f7;border:1px solid #c5cfe0;padding:0;"></td>';
-                bodyHtml += '<td style="background:#dce6f7;border:1px solid #c5cfe0;font-size:10px;font-weight:700;color:#1a2e5e;padding:3px 6px;">&#9658; Item / Product</td>';
-                bodyHtml += '<td style="background:#dce6f7;border:1px solid #c5cfe0;font-size:10px;font-weight:700;color:#1a2e5e;padding:3px 5px;text-align:right;">Qty</td>';
-                bodyHtml += '<td style="background:#dce6f7;border:1px solid #c5cfe0;font-size:10px;font-weight:700;color:#1a2e5e;padding:3px 5px;text-align:right;">Rate</td>';
-                bodyHtml += '<td colspan="2" style="background:#e8f5e9;border:1px solid #a5d6a7;font-size:10px;font-weight:700;color:#1b5e20;padding:3px 5px;text-align:right;">Amount</td>';
-                bodyHtml += '<td style="background:#dce6f7;border:1px solid #c5cfe0;padding:0;"></td>';
+                bodyHtml += '<td colspan="5" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:0;"></td>';
+                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#334155;padding:4px 8px;"><i class="fas fa-cube mr-1 text-primary"></i> Item / Product Details</td>';
+                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#334155;padding:4px 6px;text-align:right;">Qty</td>';
+                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#334155;padding:4px 6px;text-align:right;">Rate</td>';
+                bodyHtml += '<td colspan="2" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:11px;font-weight:700;color:#166534;padding:4px 8px;text-align:right;">Amount</td>';
+                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;padding:0;"></td>';
                 bodyHtml += '</tr>';
                 return;
             }
@@ -584,21 +594,21 @@ tr.r-grand .b-cr { color:#69f0ae; }
                 grandQty        += n(t.qty);   /* accumulate grand total qty */
 
                 // Item name + discount below (if any) + optional product name
-                var itemNameHtml = '<span style="padding-left:14px;color:#1a1a2e;font-weight:700;">' + (t.item_name || '-') + '</span>';
+                var itemNameHtml = '<span style="padding-left:14px;color:#1e293b;font-weight:700;"><i class="fas fa-angle-right mr-1 text-muted" style="font-size:10px;"></i> ' + (t.item_name || '-') + '</span>';
                 if (disc > 0) {
-                    itemNameHtml += '<br><span style="padding-left:22px;color:#e65100;font-size:11px;font-weight:600;">&#8627; Disc: &minus;' + fmt(disc) + '</span>';
+                    itemNameHtml += '<br><span style="padding-left:26px;color:#ea580c;font-size:11px;font-weight:600;">&#8627; Disc: &minus;' + fmt(disc) + '</span>';
                 }
                 if (t.product_name && t.product_name !== t.item_name) {
-                    itemNameHtml += '<br><span style="padding-left:22px;color:#888;font-size:11px;">' + t.product_name + '</span>';
+                    itemNameHtml += '<br><span style="padding-left:26px;color:#64748b;font-size:11px;">' + t.product_name + '</span>';
                 }
 
                 bodyHtml += '<tr class="' + rc + ' detail-row">';
-                bodyHtml += '<td colspan="5" style="background:#fafcff;border:1px solid #e8e8e8;"></td>';
-                bodyHtml += '<td style="background:#fafcff;border:1px solid #e8e8e8;padding:5px 6px;">' + itemNameHtml + '</td>';
-                bodyHtml += '<td style="background:#fafcff;border:1px solid #e8e8e8;padding:5px;text-align:right;font-weight:600;">' + (t.qty !== null && t.qty !== undefined ? fmt(t.qty) : dash()) + '</td>';
-                bodyHtml += '<td style="background:#fafcff;border:1px solid #e8e8e8;padding:5px;text-align:right;color:#0044aa;font-weight:700;">' + (t.rate !== null && t.rate !== undefined ? fmt(t.rate) : dash()) + '</td>';
-                bodyHtml += '<td colspan="2" style="background:#f0fff0;border:1px solid #a5d6a7;padding:5px;text-align:right;color:#1b5e20;font-weight:700;">' + (amt > 0 ? fmt(amt) : dash()) + '</td>';
-                bodyHtml += '<td style="background:#fafcff;border:1px solid #e8e8e8;"></td>';
+                bodyHtml += '<td colspan="5" style="background:#ffffff;border:1px solid #f1f5f9;"></td>';
+                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;padding:6px 8px;">' + itemNameHtml + '</td>';
+                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;padding:6px;text-align:right;font-weight:600;color:#0f172a;">' + (t.qty !== null && t.qty !== undefined ? fmt(t.qty) : dash()) + '</td>';
+                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;padding:6px;text-align:right;color:#0284c7;font-weight:700;">' + (t.rate !== null && t.rate !== undefined ? fmt(t.rate) : dash()) + '</td>';
+                bodyHtml += '<td colspan="2" style="background:#f8fafc;border:1px solid #e2e8f0;padding:6px 8px;text-align:right;color:#16a34a;font-weight:800;">' + (amt > 0 ? fmt(amt) : dash()) + '</td>';
+                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;"></td>';
                 bodyHtml += '</tr>';
                 return;
             }
@@ -610,13 +620,14 @@ tr.r-grand .b-cr { color:#69f0ae; }
                 var extraChg = n(t.extra_chg);
 
                 /* Combined: Total Qty + Invoice Grand Total in ONE row */
+                var invTotalVal = curInvDebit > 0 ? curInvDebit : curInvLineTotal;
                 bodyHtml += '<tr class="detail-row">';
-                bodyHtml += '<td colspan="5" style="background:#eaf4ff;border:1px solid #b8d8f0;padding:0;"></td>';
-                bodyHtml += '<td style="background:#eaf4ff;border:1px solid #b8d8f0;padding:5px 8px;font-size:11px;font-weight:700;color:#004080;text-align:right;">&#9654; Total Qty</td>';
-                bodyHtml += '<td style="background:#eaf4ff;border:1px solid #b8d8f0;padding:5px;text-align:right;font-size:13px;font-weight:800;color:#1a1a2e;">' + fmt(tQty) + ' pcs</td>';
-                bodyHtml += '<td style="background:#eaf4ff;border:1px solid #b8d8f0;padding:5px 8px;font-size:11px;font-weight:700;color:#004080;text-align:right;">Invoice Total</td>';
-                bodyHtml += '<td colspan="2" style="background:#1a3a5e;border:1px solid #0a2040;padding:5px 8px;text-align:right;font-size:13px;color:#69f0ae;font-weight:800;">' + fmt(curInvDebit > 0 ? curInvDebit : curInvLineTotal) + '</td>';
-                bodyHtml += '<td style="background:#eaf4ff;border:1px solid #b8d8f0;padding:0;"></td>';
+                bodyHtml += '<td colspan="5" style="background:#f0f9ff;border:1px solid #bae6fd;padding:0;"></td>';
+                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px 10px;font-size:11px;font-weight:700;color:#0369a1;text-align:right;"><i class="fas fa-caret-right mr-1"></i> Total Qty</td>';
+                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px;text-align:right;font-size:13px;font-weight:800;color:#0f172a;">' + fmt(tQty) + ' <small style="font-size:10px;color:#64748b;">pcs</small></td>';
+                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px 10px;font-size:11px;font-weight:700;color:#0369a1;text-align:right;">Invoice Total</td>';
+                bodyHtml += '<td colspan="2" style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px 10px;text-align:right;"><span class="inv-total-pill">' + fmt(invTotalVal) + '</span></td>';
+                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:0;"></td>';
                 bodyHtml += '</tr>';
 
                 /* Additional Discount (only if > 0) */
@@ -693,6 +704,10 @@ tr.r-grand .b-cr { color:#69f0ae; }
         $('#ledgerBody').html(bodyHtml);
         $('#ledgerFooter').html(footHtml);
 
+        /* Default to HIDE details on initial load */
+        $('#ledgerTable').addClass('hide-details');
+        $('#toggleDetailsBtn').html('<i class="fas fa-eye mr-1"></i> Show Details');
+
         $('#ledgerBox').show();
         $('#printBtnWrap').show();
     }
@@ -701,16 +716,13 @@ tr.r-grand .b-cr { color:#69f0ae; }
     window.toggleInvoiceDetails = function() {
         var $table = $('#ledgerTable');
         var $btn = $('#toggleDetailsBtn');
-        var $icon = $btn.find('i');
         
         if ($table.hasClass('hide-details')) {
             $table.removeClass('hide-details');
-            $icon.removeClass('fa-eye').addClass('fa-eye-slash');
-            $btn.html('<i class="fas fa-eye-slash me-1"></i> Hide Details');
+            $btn.html('<i class="fas fa-eye-slash mr-1"></i> Hide Details');
         } else {
             $table.addClass('hide-details');
-            $icon.removeClass('fa-eye-slash').addClass('fa-eye');
-            $btn.html('<i class="fas fa-eye me-1"></i> Show Details');
+            $btn.html('<i class="fas fa-eye mr-1"></i> Show Details');
         }
     };
 

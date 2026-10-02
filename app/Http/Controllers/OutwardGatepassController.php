@@ -261,7 +261,9 @@ class OutwardGatepassController extends Controller
         // return response()->json(['order' => $order, 'sale' => $sale, 'productsMap' => $productsMap, 'prefill' => $prefill, 'prefillData' => $prefillData]);
 
         
-        return view('admin_panel.warehouses.outward_gatepass.create', compact('order', 'sale', 'productsMap', 'prefill', 'prefillData'));
+        $accounts = \App\Models\Account::with('head')->whereIn('status', [1, '1', 'active'])->orWhereNull('status')->get();
+        
+        return view('admin_panel.warehouses.outward_gatepass.create', compact('order', 'sale', 'productsMap', 'prefill', 'prefillData', 'accounts'));
     }
 
     public function store(Request $request)
@@ -281,6 +283,7 @@ class OutwardGatepassController extends Controller
                 'transporter' => 'nullable|string|max:255',
                 'billty_amount' => 'nullable|numeric',
                 'transport_rent' => 'nullable|numeric',
+                'expense_account_id' => 'nullable|integer',
                 'invoice_no' => 'nullable|string|max:255',
                 'customer_name' => 'nullable|string|max:255',
                 'delivery_city' => 'nullable|string|max:255',
@@ -460,6 +463,7 @@ class OutwardGatepassController extends Controller
                     'transporter' => $data['transporter'] ?? null,
                     'billty_amount' => isset($data['billty_amount']) ? (float) $data['billty_amount'] : null,
                     'transport_rent' => isset($data['transport_rent']) ? (float) $data['transport_rent'] : null,
+                    'expense_account_id' => isset($data['expense_account_id']) ? (int) $data['expense_account_id'] : null,
                     'invoice_no' => $data['invoice_no'] ?? null,
                     'customer_name' => $data['customer_name'] ?? null,
                     'delivery_city' => $data['delivery_city'] ?? null,
@@ -508,6 +512,54 @@ class OutwardGatepassController extends Controller
                 DB::table('outward_gatepasses')
                     ->where('id', $id)
                     ->update(['gatepass_number' => $gatepassNumber]);
+
+                // 1b️⃣ Post Transport Rent / Freight Expense to Accounting
+                $rentAmount = isset($data['transport_rent']) ? (float)$data['transport_rent'] : 0;
+                $biltyAmount = isset($data['billty_amount']) ? (float)$data['billty_amount'] : 0;
+                $totalExpenseAmount = $rentAmount + $biltyAmount;
+                $expenseAccountId = !empty($data['expense_account_id']) ? (int)$data['expense_account_id'] : null;
+
+                if ($totalExpenseAmount > 0 && $expenseAccountId) {
+                    try {
+                        $account = \App\Models\Account::find($expenseAccountId);
+                        if ($account) {
+                            $evid = \App\Models\ExpenseVoucher::generateInvoiceNo();
+                            $remarksText = "Freight / Transport Rent for Outward Gatepass " . $gatepassNumber . " (DC: " . ($orderRow->dc_no ?? 'N/A') . ")";
+
+                            $voucherData = [
+                                'evid'             => $evid,
+                                'entry_date'       => $data['gatepass_date'] ?? now()->toDateString(),
+                                'type'             => (string)$expenseAccountId,
+                                'party_id'         => $expenseAccountId,
+                                'remarks'          => $remarksText,
+                                'narration_id'     => json_encode(["1"]),
+                                'row_account_head' => json_encode([$account->head_id ?? 1]),
+                                'row_account_id'   => json_encode([$expenseAccountId]),
+                                'amount'           => json_encode([$totalExpenseAmount]),
+                                'total_amount'     => $totalExpenseAmount,
+                                'created_at'       => now(),
+                                'updated_at'       => now(),
+                            ];
+
+                            $expenseVoucher = \App\Models\ExpenseVoucher::create($voucherData);
+
+                            if (class_exists('\App\Services\VoucherService')) {
+                                \App\Services\VoucherService::applyExpenseVoucher($expenseVoucher, [
+                                    'total_amount'   => $totalExpenseAmount,
+                                    'branch_id'      => $branchId,
+                                    'entry_date'     => $data['gatepass_date'] ?? now()->toDateString(),
+                                    'type'           => (string)$expenseAccountId,
+                                    'party_id'       => $expenseAccountId,
+                                    'remarks'        => $remarksText,
+                                    'row_account_id' => [$expenseAccountId],
+                                    'amount'         => [$totalExpenseAmount],
+                                ], auth()->id() ?? 1);
+                            }
+                        }
+                    } catch (\Throwable $ex) {
+                        \Log::error("Failed to post outward gatepass freight expense: " . $ex->getMessage());
+                    }
+                }
 
                 // 2️⃣ Deduct stock from global stocks table
                 if (!empty($items)) {
@@ -793,23 +845,72 @@ class OutwardGatepassController extends Controller
         return view('admin_panel.warehouses.outward_gatepass.list', compact('gatepasses', 'stats'));
     }
 
+    protected function enrichGatepassData($gp)
+    {
+        if (!$gp) return [null, null];
+
+        // Decode items JSON for display
+        $gp->items = $gp->items ? (is_string($gp->items) ? json_decode($gp->items, true) : $gp->items) : [];
+
+        // Load related order to show fallback DC number & Customer
+        $order = DB::table('warehouse_orders')->where('id', $gp->order_id)->first();
+
+        // Enrich customer_name, invoice_no, delivery_city if missing
+        if (empty($gp->customer_name) && $order) {
+            if (!empty($order->customer_id)) {
+                $customer = DB::table('customers')->where('id', $order->customer_id)->first();
+                $gp->customer_name = $customer->customer_name ?? null;
+                $gp->delivery_city = $gp->delivery_city ?? ($customer->city ?? null);
+            }
+            if (!empty($order->sale_id)) {
+                $sale = DB::table('sales')->where('id', $order->sale_id)->first();
+                if ($sale) {
+                    $gp->invoice_no = $gp->invoice_no ?? ($sale->invoice_no ?? null);
+                    if ($sale->sub_customer) {
+                        $gp->customer_name = $sale->sub_customer;
+                        $gp->is_walking_customer = true;
+                    }
+                }
+            }
+        }
+
+        // Enrich location name
+        $gp->location_name = 'N/A';
+        if (!empty($gp->warehouse_id)) {
+            $wh = DB::table('warehouses')->where('id', $gp->warehouse_id)->first();
+            $gp->location_name = $wh->warehouse_name ?? ('Warehouse #'.$gp->warehouse_id);
+        } elseif (!empty($gp->branch_id)) {
+            $br = DB::table('branches')->where('id', $gp->branch_id)->first();
+            $gp->location_name = $br->name ?? ('Branch #'.$gp->branch_id);
+        }
+
+        // Enrich Expense Account Name
+        $gp->expense_account_name = null;
+        if (!empty($gp->expense_account_id)) {
+            $acc = DB::table('accounts')->where('id', $gp->expense_account_id)->first();
+            $gp->expense_account_name = $acc->title ?? ('Account #'.$gp->expense_account_id);
+        }
+
+        // Convert created_at and updated_at to Carbon instances for proper formatting
+        if ($gp->created_at && is_string($gp->created_at)) {
+            $gp->created_at = \Carbon\Carbon::parse($gp->created_at);
+        }
+        if ($gp->updated_at && is_string($gp->updated_at)) {
+            $gp->updated_at = \Carbon\Carbon::parse($gp->updated_at);
+        }
+
+        return [$gp, $order];
+    }
+
     public function show($id)
     {
         $gp = DB::table('outward_gatepasses')->where('id', $id)->first();
         if (! $gp) {
             return redirect()->back()->with('error', 'Gate pass not found');
         }
-        // decode items JSON for display
-        $gp->items = $gp->items ? json_decode($gp->items, true) : [];
-        // Convert created_at and updated_at to Carbon instances for proper formatting
-        if ($gp->created_at) {
-            $gp->created_at = \Carbon\Carbon::parse($gp->created_at);
-        }
-        if ($gp->updated_at) {
-            $gp->updated_at = \Carbon\Carbon::parse($gp->updated_at);
-        }
-        // load related order to show fallback DC number
-        $order = DB::table('warehouse_orders')->where('id', $gp->order_id)->first();
+
+        list($gp, $order) = $this->enrichGatepassData($gp);
+
         return view('admin_panel.warehouses.outward_gatepass.show', compact('gp', 'order'));
     }
 
@@ -820,9 +921,7 @@ class OutwardGatepassController extends Controller
             return redirect()->back()->with('error', 'Gate pass not found');
         }
 
-        $order = DB::table('warehouse_orders')->where('id', $gp->order_id)->first();
-
-        $gp->items = $gp->items ? json_decode($gp->items, true) : [];
+        list($gp, $order) = $this->enrichGatepassData($gp);
 
         $pdf = Pdf::loadView('admin_panel.warehouses.outward_gatepass.pdf', compact('gp', 'order'));
         $filename = 'outward_gatepass_'.$gp->id.'.pdf';
@@ -835,9 +934,9 @@ class OutwardGatepassController extends Controller
         if (! $gp) {
             return redirect()->back()->with('error', 'Gate pass not found');
         }
-        $gp->items = $gp->items ? json_decode($gp->items, true) : [];
-        $order = DB::table('warehouse_orders')->where('id', $gp->order_id)->first();
-        // return response()->json(['gp' => $gp, 'order' => $order]);
+
+        list($gp, $order) = $this->enrichGatepassData($gp);
+
         return view('admin_panel.warehouses.outward_gatepass.thermal', compact('gp', 'order'));
     }
 
@@ -1008,12 +1107,15 @@ class OutwardGatepassController extends Controller
             ];
         })->toArray();
 
+        $accounts = \App\Models\Account::with('head')->whereIn('status', [1, '1', 'active'])->orWhereNull('status')->get();
+
         return view('admin_panel.warehouses.outward_gatepass.create', [
             'order' => $order,
             'sale' => $sale,
             'prefillData' => $prefillData,  // ✅ NEW: Pass prefill data with invoice_no, customer_name
             'prefill' => $prefill,           // ✅ Pass items
             'from_remaining' => true,
+            'accounts' => $accounts,
         ]);
     }
 

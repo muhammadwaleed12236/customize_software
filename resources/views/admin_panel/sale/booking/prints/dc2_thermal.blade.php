@@ -242,7 +242,7 @@
         // Print a single DC by fetching the server-rendered thermal HTML for that warehouse
         async function printDCInline(warehouseId) {
             try {
-                const url = '{{ route('sale.dc.thermal', $sale->id) }}' + '?warehouse=' + encodeURIComponent(warehouseId);
+                const url = '{{ route('sale.dc.thermal', is_object($sale) ? $sale->id : $sale) }}' + '?warehouse=' + encodeURIComponent(warehouseId);
 
                 const iframe = document.createElement('iframe');
                 iframe.style.position = 'fixed';

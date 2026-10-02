@@ -195,6 +195,7 @@ return [
             'booking.delete'  => 'Delete',
             'booking.invoice' => 'Print Invoice',
             'booking.receipt' => 'Print Receipt',
+            'booking.deliver' => 'Partial Deliver',
         ],
     ],
 
