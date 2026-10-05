@@ -3568,12 +3568,13 @@
 
                 const $r = $(this);
 
-                const rp = toNum($r.find('.retail-price').val());
-                const qty = toNum($r.find('.sales-qty').val());
-                const dam = toNum($r.find('.discount-amount').val());
+                const watt = toNum($r.find('.watt-val').val());
+                const rp   = toNum($r.find('.retail-price').val());
+                const qty  = toNum($r.find('.sales-qty').val());
+                const dam  = toNum($r.find('.discount-amount').val());
 
-                const gross = rp * qty;
-                const net = Math.max(0, gross - dam);
+                const gross = (watt > 0) ? (watt * rp * qty) : (rp * qty);
+                const net   = Math.max(0, gross - dam);
 
                 tQty += qty;
                 tGross += gross;

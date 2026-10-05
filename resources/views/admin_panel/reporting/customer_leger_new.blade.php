@@ -100,9 +100,6 @@
                     <button id="waShareBtn" onclick="shareWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
-                    <button id="toggleDetailsBtn" onclick="toggleInvoiceDetails()" class="btn btn-sm btn-light font-weight-bold border">
-                        <i class="fas fa-eye mr-1"></i> Show Details
-                    </button>
                     <button onclick="window.print()" class="btn btn-sm btn-outline-light font-weight-bold">
                         <i class="fas fa-print mr-1"></i> Print
                     </button>
@@ -227,20 +224,19 @@
                 {{-- 4. LEDGER TABLE --}}
                 <div id="printArea">
                     <div class="table-responsive" style="border: 1px solid var(--coa-border); border-radius: 9px; overflow: hidden;">
-                        <table id="ledgerTable" class="table table-bordered mb-0 hide-details" style="font-size: 12.5px; border-collapse: collapse;">
+                        <table id="ledgerTable" class="table table-bordered mb-0" style="font-size: 12.5px; border-collapse: collapse;">
                             <thead>
                                 <tr>
-                                    <th class="text-center" style="width: 75px;">Date</th>
-                                    <th class="text-center" style="width: 100px;">Tran. NO</th>
-                                    <th class="text-center" style="width: 55px;">M</th>
-                                    <th class="text-center" style="width: 75px;">DC No</th>
-                                    <th class="text-center" style="width: 75px;">Gate Pass</th>
-                                    <th>Description / Item</th>
-                                    <th class="text-right" style="width: 60px;">Qty</th>
-                                    <th class="text-right" style="width: 75px;">Rate</th>
-                                    <th class="text-right"  style="width:90px;padding:9px 5px;">Debit</th>
-                                    <th class="text-right"  style="width:90px;padding:9px 5px;">Credit</th>
-                                    <th class="text-right"  style="width:105px;padding:9px 5px;">Total</th>
+                                    <th class="text-center" style="width: 65px;">No</th>
+                                    <th class="text-center" style="width: 80px;">Inv No.</th>
+                                    <th class="text-center" style="width: 55px;">Type</th>
+                                    <th class="text-center" style="width: 80px;">Date</th>
+                                    <th class="text-center" style="width: 85px;">Ref</th>
+                                    <th>Details</th>
+                                    <th class="text-right" style="width: 65px;">Qty</th>
+                                    <th class="text-right" style="width: 95px;">Debit</th>
+                                    <th class="text-right" style="width: 95px;">Credit</th>
+                                    <th class="text-right" style="width: 110px;">Balance</th>
                                 </tr>
                             </thead>
                             <tbody id="ledgerBody"></tbody>
@@ -319,9 +315,6 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 #ledgerTable td,
 #ledgerTable th { vertical-align:middle; padding:6px 7px; }
 #ledgerTable tbody tr:hover td { filter:brightness(.98); }
-
-/* Toggle Details CSS */
-#ledgerTable.hide-details .detail-row { display: none !important; }
 
 @media print {
     .card, button, form, #printBtnWrap { display:none !important; }
@@ -474,15 +467,13 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
     function dash() { return '<span style="color:#ccc;">&#8212;</span>'; }
 
-    /* 11 visible columns only */
+    /* 10 visible columns: No, Inv No., Type, Date, Ref, Details, Qty, Debit, Credit, Balance */
     function td(txt, align, attrs) {
         align = align || 'center';
         attrs = attrs || '';
         var val = (txt !== null && txt !== undefined && txt !== '') ? txt : dash();
         return '<td style="text-align:' + align + ';border:1px solid #ddd;" ' + attrs + '>' + val + '</td>';
     }
-
-    /* ---------- Live customer search/filter removed (using Select2 instead) ---------- */
 
     /* ---------- render ---------- */
     function renderLedger(res, start, end) {
@@ -504,191 +495,209 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         var txns        = res.transactions || [];
         var grandDr     = 0;
         var grandCr     = 0;
-        var grandQty    = 0;   /* total qty across all sale items */
-        var curInvDebit      = 0;   /* current invoice debit  */
-        var curInvCredit     = 0;   /* current invoice credit */
-        var curInvLineTotal  = 0;   /* current invoice items amount sum */
+        var grandQty    = 0;   /* total qty across all items */
+        var rowNum      = 1;
 
-        /* ── body HTML ── */
         var bodyHtml = '';
 
-        /* Pre-scan: build invQtyMap { invoice_no -> total_qty }
-           Each sale_total immediately follows its sale_header + sale_items */
-        var invQtyMap = {};
-        var _lastInvNo = null;
-        $.each(txns, function (i, t) {
-            if (t.row_type === 'sale_header')  { _lastInvNo = t.vno; }
-            else if (t.row_type === 'sale_total' && _lastInvNo) {
-                invQtyMap[_lastInvNo] = n(t.total_qty);
-                _lastInvNo = null;
-            }
-        });
-
-        /* Opening Balance Row — 11 cols */
+        /* Opening Balance Row — 10 cols */
         bodyHtml += '<tr class="r-open">';
-        bodyHtml += '<td colspan="6" style="text-align:left;border:1px solid #aad4f5;padding:6px 8px;"><strong>Opening Balance</strong></td>';
-        bodyHtml += td('', 'right');  /* qty */
-        bodyHtml += td('', 'right');  /* rate */
-        bodyHtml += td('', 'right');  /* debit */
-        bodyHtml += td('', 'right');  /* credit */
-        bodyHtml += td(balHtml(ob), 'right');
+        bodyHtml += td('', 'center'); // 1. No
+        bodyHtml += td('', 'center'); // 2. Inv No.
+        bodyHtml += td('', 'center'); // 3. Type
+        bodyHtml += td('', 'center'); // 4. Date
+        bodyHtml += td('', 'center'); // 5. Ref
+        bodyHtml += td('<strong>Opening Balance</strong>', 'left'); // 6. Details
+        bodyHtml += td('', 'right');  // 7. Qty
+        bodyHtml += td('', 'right');  // 8. Debit
+        bodyHtml += td('', 'right');  // 9. Credit
+        bodyHtml += td(balHtml(ob), 'right'); // 10. Balance
         bodyHtml += '</tr>';
 
-        /* Transaction Rows */
-        $.each(txns, function (i, t) {
-            var rc = 'r-txn';
-            if      (t.row_type === 'sale_header')      rc = 'r-sale';
-            else if (t.row_type === 'sale_item')        rc = 'r-item';
-            else if (t.row_type === 'receipt')          rc = 'r-receipt';
-            else if (t.row_type === 'payment_voucher')  rc = 'r-pv';
-            else if (t.row_type === 'return')           rc = 'r-return';
-            else if (t.row_type === 'discount')         rc = 'r-discount';
+        /* Process transactions */
+        var i = 0;
+        while (i < txns.length) {
+            var t = txns[i];
 
-            /* ── SALE HEADER ── */
+            /* ── SALE INVOICE BLOCK ── */
             if (t.row_type === 'sale_header') {
-                var debit  = n(t.debit);
-                var credit = n(t.credit);
+                var header = t;
+                var items  = [];
+                var saleTotal = null;
+
+                i++; // move past header
+                while (i < txns.length && txns[i].row_type === 'sale_item') {
+                    items.push(txns[i]);
+                    i++;
+                }
+                if (i < txns.length && txns[i].row_type === 'sale_total') {
+                    saleTotal = txns[i];
+                    i++;
+                }
+
+                var debit  = n(header.debit);
+                var credit = n(header.credit);
                 if (debit  > 0) grandDr += debit;
                 if (credit > 0) grandCr += credit;
-                curInvDebit      = debit;
-                curInvCredit     = credit;
-                curInvLineTotal  = 0;   /* reset per invoice */
 
-                var dcH = (t.dc_no && t.dc_no !== '-') ? '<span style="color:#0044aa;font-weight:600;">' + t.dc_no + '</span>' : '';
-                var gpH = (t.gp_no && t.gp_no !== '-') ? '<span style="color:#006633;font-weight:600;">' + t.gp_no + '</span>' : '';
+                var refVal = (header.bill && header.bill !== '-') ? header.bill : '';
 
-                /* Invoice summary row */
-                bodyHtml += '<tr class="' + rc + '">';
-                bodyHtml += td(t.date || '', 'center');
-                bodyHtml += td(t.vno ? '<strong>' + t.vno + '</strong>' : '', 'center');
-                bodyHtml += td(t.bill && t.bill !== '-' ? t.bill : '', 'center');
-                bodyHtml += td(dcH, 'center');
-                bodyHtml += td(gpH, 'center');
-                bodyHtml += td('<strong>' + (t.description || 'SALE') + '</strong>', 'left');
-                /* Qty: show invoice total qty from pre-scan map */
-                var hdrQty = invQtyMap[t.vno] || 0;
-                bodyHtml += td(hdrQty > 0 ? '<strong style="color:#1a1a2e;">' + fmt(hdrQty) + '</strong> <small style="font-size:10px;color:#777;">pcs</small>' : '', 'right');  /* qty */
-                bodyHtml += td('', 'right');  /* rate */
-                bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right');
-                bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');
-                bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');
-                bodyHtml += '</tr>';
-
-                /* Sub-header strip for item columns */
-                bodyHtml += '<tr class="detail-row">';
-                bodyHtml += '<td colspan="5" style="background:#f1f5f9;border:1px solid #e2e8f0;padding:0;"></td>';
-                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#334155;padding:4px 8px;"><i class="fas fa-cube mr-1 text-primary"></i> Item / Product Details</td>';
-                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#334155;padding:4px 6px;text-align:right;">Qty</td>';
-                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#334155;padding:4px 6px;text-align:right;">Rate</td>';
-                bodyHtml += '<td colspan="2" style="background:#f0fdf4;border:1px solid #bbf7d0;font-size:11px;font-weight:700;color:#166534;padding:4px 8px;text-align:right;">Amount</td>';
-                bodyHtml += '<td style="background:#f1f5f9;border:1px solid #e2e8f0;padding:0;"></td>';
-                bodyHtml += '</tr>';
-                return;
-            }
-
-            /* ── SALE ITEM ── */
-            if (t.row_type === 'sale_item') {
-                var disc = n(t.item_discount);
-                var amt  = n(t.line_amount);
-                curInvLineTotal += amt;
-                grandQty        += n(t.qty);   /* accumulate grand total qty */
-
-                // Item name + discount below (if any) + optional product name
-                var itemNameHtml = '<span style="padding-left:14px;color:#1e293b;font-weight:700;"><i class="fas fa-angle-right mr-1 text-muted" style="font-size:10px;"></i> ' + (t.item_name || '-') + '</span>';
-                if (disc > 0) {
-                    itemNameHtml += '<br><span style="padding-left:26px;color:#ea580c;font-size:11px;font-weight:600;">&#8627; Disc: &minus;' + fmt(disc) + '</span>';
-                }
-                if (t.product_name && t.product_name !== t.item_name) {
-                    itemNameHtml += '<br><span style="padding-left:26px;color:#64748b;font-size:11px;">' + t.product_name + '</span>';
-                }
-
-                bodyHtml += '<tr class="' + rc + ' detail-row">';
-                bodyHtml += '<td colspan="5" style="background:#ffffff;border:1px solid #f1f5f9;"></td>';
-                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;padding:6px 8px;">' + itemNameHtml + '</td>';
-                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;padding:6px;text-align:right;font-weight:600;color:#0f172a;">' + (t.qty !== null && t.qty !== undefined ? fmt(t.qty) : dash()) + '</td>';
-                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;padding:6px;text-align:right;color:#0284c7;font-weight:700;">' + (t.rate !== null && t.rate !== undefined ? fmt(t.rate) : dash()) + '</td>';
-                bodyHtml += '<td colspan="2" style="background:#f8fafc;border:1px solid #e2e8f0;padding:6px 8px;text-align:right;color:#16a34a;font-weight:800;">' + (amt > 0 ? fmt(amt) : dash()) + '</td>';
-                bodyHtml += '<td style="background:#ffffff;border:1px solid #f1f5f9;"></td>';
-                bodyHtml += '</tr>';
-                return;
-            }
-
-            /* ── SALE TOTAL ROW ── */
-            if (t.row_type === 'sale_total') {
-                var tQty     = n(t.total_qty);
-                var addDisc  = n(t.add_disc);
-                var extraChg = n(t.extra_chg);
-
-                /* Combined: Total Qty + Invoice Grand Total in ONE row */
-                var invTotalVal = curInvDebit > 0 ? curInvDebit : curInvLineTotal;
-                bodyHtml += '<tr class="detail-row">';
-                bodyHtml += '<td colspan="5" style="background:#f0f9ff;border:1px solid #bae6fd;padding:0;"></td>';
-                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px 10px;font-size:11px;font-weight:700;color:#0369a1;text-align:right;"><i class="fas fa-caret-right mr-1"></i> Total Qty</td>';
-                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px;text-align:right;font-size:13px;font-weight:800;color:#0f172a;">' + fmt(tQty) + ' <small style="font-size:10px;color:#64748b;">pcs</small></td>';
-                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px 10px;font-size:11px;font-weight:700;color:#0369a1;text-align:right;">Invoice Total</td>';
-                bodyHtml += '<td colspan="2" style="background:#f0f9ff;border:1px solid #bae6fd;padding:6px 10px;text-align:right;"><span class="inv-total-pill">' + fmt(invTotalVal) + '</span></td>';
-                bodyHtml += '<td style="background:#f0f9ff;border:1px solid #bae6fd;padding:0;"></td>';
-                bodyHtml += '</tr>';
-
-                /* Additional Discount (only if > 0) */
-                if (addDisc > 0) {
-                    bodyHtml += '<tr class="detail-row">';
-                    bodyHtml += '<td colspan="7" style="background:#fff3e0;border:1px solid #ffb74d;padding:4px 10px;text-align:right;font-size:11px;font-weight:700;color:#e65100;">&#8595; Additional Discount</td>';
-                    bodyHtml += '<td style="background:#fff3e0;border:1px solid #ffb74d;padding:4px 6px;text-align:right;font-size:11px;font-weight:700;color:#e65100;">Discount</td>';
-                    bodyHtml += '<td colspan="2" style="background:#fff3e0;border:1px solid #ffb74d;padding:4px 8px;text-align:right;font-size:12px;color:#bf360c;font-weight:800;">&minus; ' + fmt(addDisc) + '</td>';
-                    bodyHtml += '<td style="background:#fff3e0;border:1px solid #ffb74d;"></td>';
+                if (items.length === 0) {
+                    /* Fallback: Sale with no items */
+                    var q = saleTotal ? n(saleTotal.total_qty) : 0;
+                    if (q > 0) grandQty += q;
+                    bodyHtml += '<tr class="r-sale" style="border-top:1.5px solid #cbd5e1;">';
+                    bodyHtml += td(rowNum++, 'center');
+                    bodyHtml += td(header.vno ? '<strong>' + header.vno + '</strong>' : '', 'center');
+                    bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center');
+                    bodyHtml += td(header.date || '', 'center');
+                    bodyHtml += td(refVal, 'center');
+                    bodyHtml += td('<strong>' + (header.description || 'SALE') + '</strong>', 'left');
+                    bodyHtml += td(q > 0 ? fmt(q) : '', 'right');
+                    bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right');
+                    bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');
+                    bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
                     bodyHtml += '</tr>';
+                } else {
+                    /* Render each item in the invoice wrapped together */
+                    $.each(items, function(idx, item) {
+                        var itemQty  = n(item.qty);
+                        var itemRate = n(item.rate);
+                        var itemAmt  = n(item.line_amount);
+                        if (itemAmt === 0 && items.length === 1 && debit > 0) {
+                            itemAmt = debit;
+                        }
+                        if (itemAmt === 0 && itemQty > 0 && itemRate > 0) {
+                            itemAmt = itemQty * itemRate;
+                        }
+                        grandQty += itemQty;
+
+                        var itemDetailsHtml = '<strong>' + (item.item_name || 'Item') + '</strong>';
+                        if (itemRate > 0) {
+                            itemDetailsHtml += ' <span style="color:#475569;font-size:11px;">(Price: ' + fmt(itemRate) + ', Qty: ' + fmt(itemQty) + ', Total: ' + fmt(itemAmt) + ')</span>';
+                        } else if (itemQty > 0) {
+                            itemDetailsHtml += ' <span style="color:#475569;font-size:11px;">(Qty: ' + fmt(itemQty) + ')</span>';
+                        }
+                        if (n(item.item_discount) > 0) {
+                            itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
+                        }
+
+                        var borderStyle = idx === 0 ? 'border-top: 1.5px solid #cbd5e1; background: #fffde7;' : 'border-top: 1px dashed #e2e8f0; background: #fffffa;';
+
+                        bodyHtml += '<tr class="r-sale" style="' + borderStyle + '">';
+                        if (idx === 0) {
+                            /* Main invoice parameters on 1st item row */
+                            bodyHtml += td(rowNum++, 'center');
+                            bodyHtml += td(header.vno ? '<strong>' + header.vno + '</strong>' : '', 'center');
+                            bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center');
+                            bodyHtml += td(header.date || '', 'center');
+                            bodyHtml += td(refVal, 'center');
+                            bodyHtml += td(itemDetailsHtml, 'left');
+                            bodyHtml += td(itemQty > 0 ? fmt(itemQty) : '', 'right');
+                            bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : (debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : ''), 'right');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
+                        } else {
+                            /* Wrapped sub-rows for item 2, item 3, etc. */
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td(itemDetailsHtml, 'left');
+                            bodyHtml += td(itemQty > 0 ? fmt(itemQty) : '', 'right');
+                            bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : '', 'right');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += td('', 'right');
+                        }
+                        bodyHtml += '</tr>';
+                    });
+
+                    /* Optional Additional Discount / Freight rows if any */
+                    if (saleTotal) {
+                        var addDisc  = n(saleTotal.add_disc);
+                        var extraChg = n(saleTotal.extra_chg);
+                        if (addDisc > 0) {
+                            bodyHtml += '<tr class="r-sale" style="border-top:1px dashed #e2e8f0; background: #fffffa;">';
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('<small style="color:#e65100;font-weight:700;">↳ Additional Discount</small>', 'left');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += td('<small style="color:#bf360c;font-weight:800;">&minus; ' + fmt(addDisc) + '</small>', 'right');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += '</tr>';
+                        }
+                        if (extraChg > 0) {
+                            bodyHtml += '<tr class="r-sale" style="border-top:1px dashed #e2e8f0; background: #fffffa;">';
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('', 'center');
+                            bodyHtml += td('<small style="color:#1b5e20;font-weight:700;">↳ Extra Charges (Freight)</small>', 'left');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += td('', 'right');
+                            bodyHtml += '</tr>';
+                        }
+                    }
                 }
 
-                /* Extra Charges (only if > 0) */
-                if (extraChg > 0) {
-                    bodyHtml += '<tr class="detail-row">';
-                    bodyHtml += '<td colspan="7" style="background:#e8f5e9;border:1px solid #a5d6a7;padding:4px 10px;text-align:right;font-size:11px;font-weight:700;color:#1b5e20;">&#8593; Extra Charges (Freight)</td>';
-                    bodyHtml += '<td style="background:#e8f5e9;border:1px solid #a5d6a7;padding:4px 6px;text-align:right;font-size:11px;font-weight:700;color:#1b5e20;">Freight</td>';
-                    bodyHtml += '<td colspan="2" style="background:#e8f5e9;border:1px solid #a5d6a7;padding:4px 8px;text-align:right;font-size:12px;color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</td>';
-                    bodyHtml += '<td style="background:#e8f5e9;border:1px solid #a5d6a7;"></td>';
-                    bodyHtml += '</tr>';
-                }
-
-                return;
+                continue;
             }
 
-            /* ── REGULAR ROWS: Receipt, Return, Payment Voucher ── */
+            /* ── REGULAR NON-SALE TRANSACTIONS (Receipt, PV, SR, JV) ── */
+            var rc = 'r-txn';
+            if      (t.row_type === 'receipt')         rc = 'r-receipt';
+            else if (t.row_type === 'payment_voucher') rc = 'r-pv';
+            else if (t.row_type === 'return')          rc = 'r-return';
+            else if (t.row_type === 'discount')        rc = 'r-discount';
+
             var debit  = n(t.debit);
             var credit = n(t.credit);
             if (debit  > 0) grandDr += debit;
             if (credit > 0) grandCr += credit;
 
+            var typeBadge = '<span class="badge badge-secondary" style="font-size:10px;padding:3px 6px;">TXN</span>';
+            if      (t.row_type === 'receipt')         typeBadge = '<span class="badge badge-success" style="font-size:10px;padding:3px 6px;">PA</span>';
+            else if (t.row_type === 'payment_voucher') typeBadge = '<span class="badge badge-warning text-dark" style="font-size:10px;padding:3px 6px;">PV</span>';
+            else if (t.row_type === 'return')          typeBadge = '<span class="badge badge-danger" style="font-size:10px;padding:3px 6px;">SR</span>';
+            else if (t.row_type === 'journal_debit' || t.row_type === 'journal_credit') typeBadge = '<span class="badge badge-info text-dark" style="font-size:10px;padding:3px 6px;">JV</span>';
+
             var descHtml = t.description ? '<strong>' + t.description + '</strong>' : '';
             if (t.item_name && t.item_name !== '-') {
                 descHtml += '<br><small style="color:#555;">' + t.item_name + '</small>';
             }
-            var dcHtml = (t.dc_no && t.dc_no !== '-') ? '<span style="color:#0044aa;font-weight:600;">' + t.dc_no + '</span>' : '';
-            var gpHtml = (t.gp_no && t.gp_no !== '-') ? '<span style="color:#006633;font-weight:600;">' + t.gp_no + '</span>' : '';
+            var refVal = (t.bill && t.bill !== '-') ? t.bill : ((t.reference_no && t.reference_no !== '-') ? t.reference_no : '');
 
-            bodyHtml += '<tr class="' + rc + '">';
-            bodyHtml += td(t.date  || '', 'center');
-            bodyHtml += td(t.vno ? '<strong>' + t.vno + '</strong>' : '', 'center');
-            bodyHtml += td(t.bill && t.bill !== '-' ? t.bill : '', 'center');
-            bodyHtml += td(dcHtml, 'center');
-            bodyHtml += td(gpHtml, 'center');
-            bodyHtml += td(descHtml, 'left');
-            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');
-            bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');
-            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right');
-            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');
-            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');
+            bodyHtml += '<tr class="' + rc + '" style="border-top:1.5px solid #cbd5e1;">';
+            bodyHtml += td(rowNum++, 'center');                                                   // 1. No
+            bodyHtml += td(t.vno ? '<strong>' + t.vno + '</strong>' : '', 'center');              // 2. Inv No.
+            bodyHtml += td(typeBadge, 'center');                                                 // 3. Type
+            bodyHtml += td(t.date  || '', 'center');                                              // 4. Date
+            bodyHtml += td(refVal, 'center');                                                     // 5. Ref
+            bodyHtml += td(descHtml, 'left');                                                     // 6. Details
+            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 7. Qty
+            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 8. Debit
+            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 9. Credit
+            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 10. Balance
             bodyHtml += '</tr>';
-        });
+
+            i++;
+        }
 
         /* ── footer HTML ── */
         var finalBal = n(res.closing_balance);
 
-        /* Overall Sum row (top to bottom) */
+        /* Overall Sum row */
         var footHtml = '<tr class="r-total">';
         footHtml += '<td colspan="6" style="text-align:right;border:1px solid #ccc;padding:6px 10px;font-size:13px;"><strong>Total Sum (All Transactions)</strong></td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;font-size:14px;font-weight:800;color:#1a1a2e;background:#eaf4ff;">' + fmt(grandQty) + ' <small style="font-size:10px;color:#555;">pcs</small></td>';
-        footHtml += '<td style="border:1px solid #ccc;padding:6px 8px;"></td>';
+        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;font-size:13px;font-weight:800;color:#1a1a2e;background:#eaf4ff;">' + fmt(grandQty) + '</td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#c62828;">' + fmt(grandDr) + '</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#2e7d32;">' + fmt(grandCr) + '</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">' + balHtml(finalBal) + '</td>';
@@ -696,7 +705,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
         /* Closing Balance row */
         footHtml += '<tr class="r-close">';
-        footHtml += '<td colspan="10" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
+        footHtml += '<td colspan="9" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #333;padding:8px 10px;font-size:15px;">' + balHtml(finalBal) + '</td>';
         footHtml += '</tr>';
 
@@ -704,27 +713,9 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         $('#ledgerBody').html(bodyHtml);
         $('#ledgerFooter').html(footHtml);
 
-        /* Default to HIDE details on initial load */
-        $('#ledgerTable').addClass('hide-details');
-        $('#toggleDetailsBtn').html('<i class="fas fa-eye mr-1"></i> Show Details');
-
         $('#ledgerBox').show();
         $('#printBtnWrap').show();
     }
-
-    /* ---------- Toggle Invoice Details ---------- */
-    window.toggleInvoiceDetails = function() {
-        var $table = $('#ledgerTable');
-        var $btn = $('#toggleDetailsBtn');
-        
-        if ($table.hasClass('hide-details')) {
-            $table.removeClass('hide-details');
-            $btn.html('<i class="fas fa-eye-slash mr-1"></i> Hide Details');
-        } else {
-            $table.addClass('hide-details');
-            $btn.html('<i class="fas fa-eye mr-1"></i> Show Details');
-        }
-    };
 
     /* ---------- WhatsApp Share ---------- */
     window.shareWhatsApp = function() {
