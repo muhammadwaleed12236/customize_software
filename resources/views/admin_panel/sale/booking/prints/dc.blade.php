@@ -142,7 +142,12 @@ echo "<pre>";
                 @forelse ($items as $index => $item)
                     <tr>
                         <td>{{ $index + 1 }}</td>
-                        <td>{{ $item->item_name }}</td>
+                        @php
+                            $rawUrdu = $item->product->item_name_urdu ?? $item->item_name_urdu ?? null;
+                            $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                            $pName = !empty($pUrdu) ? $pUrdu : ($item->product->item_name ?? $item->item_name ?? '-');
+                        @endphp
+                        <td>{{ $pName }}</td>
                         <td>{{ $item->warehouse_name }}</td>
                         <td>{{ number_format($item->sales_qty, 0) }}</td>
                         <td></td>

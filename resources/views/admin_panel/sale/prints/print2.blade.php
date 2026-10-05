@@ -242,7 +242,8 @@
 
             @foreach($sale->saleItems as $item)
             @php
-                $productUrdu = $item->product->item_name_urdu ?? $item->product->urdu_name ?? null;
+                $rawUrdu = $item->product->item_name_urdu ?? $item->product->urdu_name ?? null;
+                $productUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
                 $productName = !empty($productUrdu) ? $productUrdu : ($item->product->item_name ?? $item->product->product_name ?? 'N/A');
             @endphp
             <div class="item-row">

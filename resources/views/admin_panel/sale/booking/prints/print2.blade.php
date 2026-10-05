@@ -256,7 +256,9 @@
 
             @forelse($booking->items ?? [] as $item)
                 @php
-                    $itemName = $item->product->item_name ?? 'N/A';
+                    $rawUrdu = $item->product->item_name_urdu ?? $item->product->urdu_name ?? null;
+                    $productUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                    $itemName = !empty($productUrdu) ? $productUrdu : ($item->product->item_name ?? $item->product_name ?? 'N/A');
                     $qty = (float)($item->sales_qty ?? 0);
                     $rate = (float)($item->retail_price ?? 0);
                     $amount = (float)($item->amount ?? $qty * $rate);

@@ -189,8 +189,12 @@
                             @endphp
                             <tr>
                                 <td class="small">{{ $i++ }}</td>
-                                <td class="small">
-                                    <div>{{ $item->product->item_name ?? '-' }}</div>
+                                    @php
+                                        $rawUrdu = $item->product->item_name_urdu ?? null;
+                                        $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                                        $pName = !empty($pUrdu) ? $pUrdu : ($item->product->item_name ?? '-');
+                                    @endphp
+                                    <div>{{ $pName }}</div>
                                     <div class="col-code">{{ $item->product->item_code ?? '' }}</div>
                                 </td>
                                 <td class="small">{{ $color }}</td>

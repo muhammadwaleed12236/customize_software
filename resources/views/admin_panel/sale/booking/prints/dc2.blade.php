@@ -408,13 +408,17 @@
                         @php
                             if (is_array($item) || $item instanceof \Illuminate\Support\Fluent) {
                                 $qty = (float) ($item['qty'] ?? $item['sales_qty'] ?? 0);
-                                $productName = $item['product_name'] ?? ($item['product']['item_name'] ?? '-');
+                                $rawUrdu = $item['product']['item_name_urdu'] ?? $item['item_name_urdu'] ?? null;
+                                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                                $productName = !empty($pUrdu) ? $pUrdu : ($item['product_name'] ?? ($item['product']['item_name'] ?? '-'));
                                 $productCode = $item['item_code'] ?? ($item['product']['item_code'] ?? '');
                                 $price = (float) ($item['retail_price'] ?? $item['sales_price'] ?? 0);
                                 $amount = (float) ($item['amount'] ?? ($price * $qty));
                             } else {
                                 $qty = (float) ($item->sales_qty ?? $item->qty ?? 0);
-                                $productName = $item->product->item_name ?? ($item->product_name ?? '-');
+                                $rawUrdu = $item->product->item_name_urdu ?? $item->item_name_urdu ?? null;
+                                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                                $productName = !empty($pUrdu) ? $pUrdu : ($item->product->item_name ?? ($item->product_name ?? '-'));
                                 $productCode = $item->product->item_code ?? ($item->item_code ?? '');
                                 $price = (float) ($item->retail_price ?? $item->sales_price ?? 0);
                                 $amount = (float) ($item->amount ?? ($price * $qty));
@@ -510,7 +514,9 @@
                                 $totDispatched += $dispatched;
                                 $totRemaining += $remaining;
 
-                                $pName = optional($sItem->product)->item_name ?? $sItem->product_name ?? 'Product #'.$pId;
+                                $rawUrdu = optional($sItem->product)->item_name_urdu ?? null;
+                                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                                $pName = !empty($pUrdu) ? $pUrdu : (optional($sItem->product)->item_name ?? $sItem->product_name ?? 'Product #'.$pId);
                                 $pCode = optional($sItem->product)->item_code ?? '';
                             @endphp
                             <tr>

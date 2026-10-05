@@ -413,6 +413,7 @@
         .sales-table .index-col     { width: 3%  !important; min-width: 35px  !important; text-align: center !important; }
         .sales-table .product-col   { width: 25% !important; min-width: 180px !important; }
         .sales-table .warehouse-col { width: 17% !important; min-width: 140px !important; }
+        .sales-table .watt-col      { width: 8%  !important; min-width: 65px  !important; }
         .sales-table .qty-col       { width: 7%  !important; min-width: 60px  !important; }
         .sales-table .unit-col      { width: 6%  !important; min-width: 50px  !important; }
         .sales-table .price-col     { width: 11% !important; min-width: 80px  !important; }
@@ -874,6 +875,7 @@
                                     <th class="index-col text-center" style="width: 35px;">#</th>
                                     <th class="product-col">PRODUCT</th>
                                     <th class="warehouse-col">WAREHOUSE</th>
+                                    <th class="watt-col text-center" style="display: none;">WATT</th>
                                     <th class="qty-col text-center">QTY</th>
                                     <th class="unit-col text-center">UNIT</th>
                                     <th class="price-col text-end">PRICE</th>
@@ -2167,12 +2169,37 @@
             }
         });
 
+        function extractWattFromModel(modelStr) {
+            if (!modelStr) return 0;
+            const match = String(modelStr).match(/(\d+(?:\.\d+)?)/);
+            return match ? parseFloat(match[1]) : 0;
+        }
+
+        function updateWattColumnVisibility() {
+            let showWattColumn = false;
+            $('#salesTableBody tr').each(function() {
+                const hasModel = $(this).attr('data-has-model') === '1';
+                const wattVal = parseFloat($(this).find('.watt-val').val() || 0);
+                if (hasModel || wattVal > 0) {
+                    showWattColumn = true;
+                    return false; // break loop
+                }
+            });
+
+            if (showWattColumn) {
+                $('.sales-table .watt-col').show();
+            } else {
+                $('.sales-table .watt-col').hide();
+            }
+        }
+
         function updateRowIndexNumbers() {
             $('#salesTableBody tr').each(function(index) {
                 $(this).find('.row-index').text(index + 1);
             });
             const totalItems = $('#salesTableBody tr').length;
             $('#itemsCountBadge').text(`(${totalItems})`);
+            updateWattColumnVisibility();
         }
 
         function addNewRow() {
@@ -2197,6 +2224,11 @@
           <select class="form-select warehouse-select rounded-3" name="warehouse_select_display[]" style="width:100%; font-size: 12px;">
             <option value="">Select product first</option>
           </select>
+        </td>
+
+        <!-- WATT -->
+        <td class="watt-col" style="display: none;">
+          <input type="text" class="form-control watt-val text-center fw-semibold rounded-3" name="watt[]" placeholder="Watt" value="">
         </td>
 
         <!-- QTY -->
@@ -3381,6 +3413,7 @@
             // console.log("retail price",rp);
             const qty = toNum($row.find('.sales-qty').val());
             // console.log("qty:",qty);
+            const watt = toNum($row.find('.watt-val').val());
 
             // 🔹 Safe discount value (never negative)
             const $discInput = $row.find('.discount-value');
@@ -3397,8 +3430,13 @@
                 dam = 0;
             }
 
-            // 🔹 GROSS
-            const gross = rp * qty;
+            // 🔹 GROSS (Watt * Price * Qty if Watt > 0, else Price * Qty)
+            let gross = 0;
+            if (watt > 0) {
+                gross = watt * rp * qty;
+            } else {
+                gross = rp * qty;
+            }
 
             /* ===== AUTO DISCOUNT ===== */
             if (discValue > 0) {
@@ -4244,6 +4282,7 @@
                                 text: (p.item_name || '') + ownershipBadge,
                                 item_code: p.item_code,
                                 item_name: p.item_name,
+                                model: p.model,
                                 brand_name: p.brand_name,
                                 stock: p.stock,
                                 price: p.retail_price || p.price,
@@ -4379,6 +4418,24 @@
                                 .val(selectedWhId);
 
                             $row.find('.retail-price').val(price);
+
+                            // Extract Watt & set data-has-model attribute if product has a model
+                            const modelStr = (data.product && data.product.model) || (e.params && e.params.data && e.params.data.model) || '';
+                            const hasModel = modelStr && modelStr.trim().length > 0;
+                            if (hasModel) {
+                                $row.attr('data-has-model', '1').attr('data-model', modelStr);
+                            } else {
+                                $row.removeAttr('data-has-model').removeAttr('data-model');
+                            }
+
+                            const wattVal = extractWattFromModel(modelStr);
+                            if (wattVal > 0) {
+                                $row.find('.watt-val').val(wattVal);
+                            } else {
+                                $row.find('.watt-val').val('');
+                            }
+                            updateWattColumnVisibility();
+
                             $row.find('.stock').val(selectedStock).data('available-stock', selectedStock);
                             $row.find('.sales-qty').data('available-stock', selectedStock);
                             $row.find('.product-select').val(data.product.id).trigger('change');
@@ -4390,6 +4447,24 @@
                         }
                     });
                 }
+            });
+
+            // 3. Product Clear/Change Handler
+            $(document).on('change', '.product-select', function() {
+                const $row = $(this).closest('tr');
+                if (!$(this).val()) {
+                    $row.removeAttr('data-has-model').removeAttr('data-model');
+                    $row.find('.watt-val').val('');
+                    updateWattColumnVisibility();
+                }
+            });
+
+            // 4. Watt Input Change Handler
+            $(document).on('input change', '.watt-val', function() {
+                const $row = $(this).closest('tr');
+                computeRow($row);
+                updateGrandTotals();
+                updateWattColumnVisibility();
             });
         });
     </script>

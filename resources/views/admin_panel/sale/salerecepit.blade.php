@@ -76,10 +76,11 @@ td:last-child, th:last-child { text-align:right }
         <tbody>
             @foreach($items as $it)
             @php
-                $pUrdu = $it->product->item_name_urdu ?? $it->product->urdu_name ?? null;
+                $rawUrdu = $it->product->item_name_urdu ?? $it->product->urdu_name ?? null;
+                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
             @endphp
             <tr>
-                <td>{{ !empty($pUrdu) ? $pUrdu : ($it->product->item_name ?? '-') }}</td>
+                <td>{{ !empty($pUrdu) ? $pUrdu : ($it->product->item_name ?? $it->item_name ?? '-') }}</td>
                 <td>{{ $it->sales_qty }}</td>
                 <td>{{ number_format($it->retail_price,0) }}</td>
                 <td>{{ number_format($it->amount,0) }}</td>
