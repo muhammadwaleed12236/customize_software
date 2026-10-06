@@ -846,27 +846,6 @@
 
                 {{-- 3. MAIN SECTION: ORDER ITEMS (FULL WIDTH 100%) --}}
                 <div class="bg-white p-3 rounded-4 shadow-sm border mb-4">
-                    {{-- PANEL HEADER --}}
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 pb-2 border-bottom gap-2">
-                        <div class="d-flex align-items-center">
-                            <span class="bg-primary rounded-pill me-2" style="width: 4px; height: 20px; display: inline-block;"></span>
-                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.3px;">
-                                ORDER ITEMS <span class="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill ms-1 fs-6" id="itemsCountBadge">(1)</span>
-                            </h5>
-                        </div>
-                        <div class="d-flex align-items-center gap-2 flex-wrap">
-                            <button type="button" class="btn btn-outline-primary btn-sm rounded-pill px-3 fw-semibold d-inline-flex align-items-center gap-1" id="btnQuickProductsModal" data-bs-toggle="modal" data-bs-target="#productSearchModal">
-                                <i class="fas fa-th"></i> Quick Products Panel
-                            </button>
-                            <button type="button" class="btn btn-outline-warning text-dark btn-sm rounded-pill px-3 fw-semibold d-inline-flex align-items-center gap-1" id="btnCreateProduct">
-                                <i class="fas fa-bolt text-warning"></i> Create Product
-                            </button>
-                            <button type="button" class="btn btn-primary btn-sm rounded-pill px-3 fw-semibold d-inline-flex align-items-center gap-1" id="btnAdd" style="background:#2563eb !important; border-color:#2563eb !important;">
-                                <i class="fas fa-plus"></i> Add Row
-                            </button>
-                        </div>
-                    </div>
-
                     {{-- ITEMS TABLE --}}
                     <div class="table-responsive rounded-3 border" style="max-height: 480px; overflow-y: auto;">
                         <table class="table table-hover align-middle sales-table mb-0">
@@ -895,7 +874,7 @@
                     <div class="d-flex justify-content-end align-items-center pt-3 mt-2 border-top">
                         <div class="bg-light px-4 py-2 rounded-3 border d-flex align-items-center gap-3">
                             <span class="fw-bold text-uppercase text-secondary small">INVOICE TOTAL:</span>
-                            <span class="fs-5 fw-bold text-primary" id="totalAmount">0.00</span>
+                            <span class="fs-5 fw-bold text-primary" id="totalAmount">0</span>
                         </div>
                     </div>
                 </div>
@@ -927,7 +906,7 @@
                                             <option value="{{ $acc->id }}">{{ $acc->title }}</option>
                                         @endforeach
                                     </select>
-                                    <input type="text" class="form-control form-control-sm text-end rv-amount rounded-3 border-secondary-subtle fw-semibold" name="receipt_amount[]" placeholder="0.00" style="max-width:140px">
+                                    <input type="text" class="form-control form-control-sm text-end rv-amount rounded-3 border-secondary-subtle fw-semibold" name="receipt_amount[]" placeholder="0" style="max-width:140px">
                                 </div>
                             </div>
 
@@ -973,32 +952,32 @@
                             <div class="d-flex flex-column gap-2">
                                 <div class="d-flex justify-content-between align-items-center py-1">
                                     <span class="text-secondary fw-medium">Invoice Total</span>
-                                    <span class="fw-bold text-dark" id="tGross">0.00</span>
+                                    <span class="fw-bold text-dark" id="tGross">0</span>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center py-1" id="summary_line_disc_row" @if(isset($saleSettings) && !$saleSettings->show_line_discount) style="display: none !important;" @endif>
                                     <span class="text-secondary fw-medium">Discount</span>
-                                    <span class="fw-bold text-danger" id="tLineDisc">0.00</span>
+                                    <span class="fw-bold text-danger" id="tLineDisc">0</span>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center py-1" id="summary_gst_row" @if(isset($saleSettings) && !$saleSettings->show_gst) style="display: none !important;" @endif>
                                     <span class="text-secondary fw-medium">GST / Tax</span>
-                                    <span class="fw-bold text-success" id="tOrderDisc">0.00</span>
+                                    <span class="fw-bold text-success" id="tOrderDisc">0</span>
                                 </div>
 
                                 {{-- NET TOTAL BLUE HIGHLIGHT BOX --}}
                                 <div class="bg-primary-subtle p-3 rounded-3 border border-primary-subtle my-2 d-flex justify-content-between align-items-center" style="background-color: #eff6ff !important; border-color: #bfdbfe !important;">
                                     <span class="fw-bold text-primary fs-6">Net Total</span>
-                                    <span class="fw-bold text-primary fs-4" id="tSub">0.00</span>
+                                    <span class="fw-bold text-primary fs-4" id="tSub">0</span>
                                 </div>
 
                                 <div class="d-flex justify-content-between align-items-center py-1">
                                     <span class="text-secondary fw-medium">Advance Payment</span>
-                                    <span class="fw-bold text-success" id="receiptsTotal">0.00</span>
+                                    <span class="fw-bold text-success" id="receiptsTotal">0</span>
                                 </div>
 
                                 {{-- BALANCE AMOUNT SOFT PINK HIGHLIGHT BOX --}}
                                 <div class="bg-danger-subtle p-3 rounded-3 border border-danger-subtle my-1 d-flex justify-content-between align-items-center" style="background-color: #fff1f2 !important; border-color: #fecdd3 !important;">
                                     <span class="fw-bold text-danger fs-6">Balance Amount</span>
-                                    <span class="fw-bold text-danger fs-4" id="tPayable">0.00</span>
+                                    <span class="fw-bold text-danger fs-4" id="tPayable">0</span>
                                 </div>
                             </div>
                         </div>
@@ -2080,6 +2059,12 @@
 
     <script>
         /* ---------- helpers ---------- */
+        function fmtCleanNum(val) {
+            var v = parseFloat(val);
+            if (isNaN(v)) return '0';
+            return (v % 1 === 0) ? String(Math.round(v)) : v.toFixed(2).replace(/\.00$/, '');
+        }
+
         function pad(n) {
             return n < 10 ? '0' + n : n
         }
@@ -2244,7 +2229,7 @@
         <!-- RETAIL PRICE -->
         <td class="price-col">
           <div class="input-group input-group-sm">
-            <input type="text" class="form-control retail-price text-end rounded-start-3" value="0.00" name="retail_price[]">
+            <input type="text" class="form-control retail-price text-end rounded-start-3" value="0" name="retail_price[]">
             <span class="input-group-text bg-light text-muted px-1" style="font-size: 11px;">Rs</span>
           </div>
         </td>
@@ -2268,7 +2253,7 @@
 
         <!-- NET AMOUNT -->
         <td class="amount-col">
-          <input type="text" class="form-control sales-amount text-end input-readonly rounded-3" name="sales_amount[]" value="0.00" readonly style="font-weight:700; color:#2563eb; background-color:#f8fafc;">
+          <input type="text" class="form-control sales-amount text-end input-readonly rounded-3" name="sales_amount[]" value="0" readonly style="font-weight:700; color:#2563eb; background-color:#f8fafc;">
         </td>
 
         <!-- ACTION -->
@@ -3693,29 +3678,105 @@
             }
         });
 
-        /* ---------- Add new row when user presses Enter in Disc % (only on last row) ---------- */
-        $('#salesTableBody').on('keydown', '.discount-value, .retail-price', function(e) {
+        /* ---------- Enter key navigation for table rows & fields ---------- */
+        function focusNextRowField($row, fromField) {
+            if (fromField === 'product') {
+                const $whSelect = $row.find('.warehouse-select');
+                if ($whSelect.length && $whSelect.is(':visible') && $whSelect.find('option').length > 1) {
+                    if ($whSelect.hasClass('select2-hidden-accessible')) {
+                        $whSelect.select2('open');
+                    } else {
+                        $whSelect.focus();
+                    }
+                    return;
+                }
+                fromField = 'warehouse';
+            }
+
+            if (fromField === 'warehouse') {
+                const $wattCell = $row.find('.watt-col');
+                const $wattInput = $row.find('.watt-val');
+                if ($wattCell.length && $wattCell.is(':visible') && $wattInput.length) {
+                    $wattInput.focus().select();
+                    return;
+                }
+                fromField = 'watt';
+            }
+
+            if (fromField === 'watt') {
+                const $qtyInput = $row.find('.sales-qty');
+                if ($qtyInput.length) {
+                    $qtyInput.focus().select();
+                    return;
+                }
+                fromField = 'qty';
+            }
+
+            if (fromField === 'qty') {
+                const $priceInput = $row.find('.retail-price');
+                if ($priceInput.length) {
+                    $priceInput.focus().select();
+                    return;
+                }
+                fromField = 'price';
+            }
+
+            if (fromField === 'price') {
+                const $discCell = $row.find('.disc-col');
+                const $discInput = $row.find('.discount-value');
+                if ($discCell.length && $discCell.is(':visible') && $discInput.length) {
+                    $discInput.focus().select();
+                    return;
+                }
+                fromField = 'discount';
+            }
+
+            if (fromField === 'discount') {
+                const $nextRow = $row.next('tr');
+                if ($nextRow.length) {
+                    const $nextProd = $nextRow.find('.product-select');
+                    if ($nextProd.length) {
+                        if ($nextProd.hasClass('select2-hidden-accessible')) {
+                            $nextProd.select2('open');
+                        } else {
+                            $nextProd.focus();
+                        }
+                    }
+                } else {
+                    // Last row! Add a new row and focus its product select2
+                    addNewRow();
+                    setTimeout(function() {
+                        const $lastRow = $('#salesTableBody tr:last-child');
+                        const $lastProd = $lastRow.find('.product-select');
+                        if ($lastProd.length) {
+                            if ($lastProd.hasClass('select2-hidden-accessible')) {
+                                $lastProd.select2('open');
+                            } else {
+                                $lastProd.focus();
+                            }
+                        }
+                    }, 120);
+                }
+            }
+        }
+
+        $('#salesTableBody').on('keydown', '.watt-val, .sales-qty, .retail-price, .discount-value', function(e) {
             if (e.key === 'Enter' || e.keyCode === 13) {
-                e.preventDefault(); // prevent accidental form submit
+                e.preventDefault(); // prevent form submit
                 const $current = $(this).closest('tr');
 
-                // compute current row first (in case user typed value and pressed Enter)
                 computeRow($current);
                 updateGrandTotals();
                 refreshPostedState();
 
-                // only add new row when this is the last row AND discount has some value OR qty > 0 or product selected
-                const isLast = $current.is(':last-child');
-                const discVal = parseFloat($(this).val() || '0') || 0;
-                const qtyVal = parseFloat($current.find('.sales-qty').val() || '0') || 0;
-                const prodSelected = !!$current.find('.product').val();
-
-                // require at least one 'meaningful' value so blank Enter doesn't create rows
-                if (isLast && (discVal !== 0 || qtyVal > 0 || prodSelected)) {
-                    addNewRow();
-                    // focus on new row product for quick entry
-                    const $newRow = $('#salesTableBody tr:last-child');
-                    // setTimeout(() => $newRow.find('.warehouse').focus(), 0);
+                if ($(this).hasClass('watt-val')) {
+                    focusNextRowField($current, 'watt');
+                } else if ($(this).hasClass('sales-qty')) {
+                    focusNextRowField($current, 'qty');
+                } else if ($(this).hasClass('retail-price')) {
+                    focusNextRowField($current, 'price');
+                } else if ($(this).hasClass('discount-value')) {
+                    focusNextRowField($current, 'discount');
                 }
             }
         });
@@ -4445,9 +4506,22 @@
                             computeRow($row);
                             updateGrandTotals();
                             refreshPostedState();
+
+                            // 🔹 Auto-advance focus to Warehouse / Watt / Qty
+                            setTimeout(function() {
+                                focusNextRowField($row, 'product');
+                            }, 120);
                         }
                     });
                 }
+            });
+
+            // Auto-advance focus when warehouse is selected via select2
+            $(document).on('select2:select', '.warehouse-select', function() {
+                const $row = $(this).closest('tr');
+                setTimeout(function() {
+                    focusNextRowField($row, 'warehouse');
+                }, 120);
             });
 
             // 3. Product Clear/Change Handler
@@ -4796,6 +4870,114 @@
                         $('#quickCustomerAlert').removeClass('d-none').addClass('alert-danger').html(errStr);
                     }
                 });
+            // ===== GLOBAL ENTER KEY NAVIGATION FOR FORM FIELDS =====
+            $(document).on('keydown', '#saleForm input, #saleForm select', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    // Skip if inside open modals or sweetalert popups
+                    if ($('.modal.show').length > 0 || (window.Swal && Swal.isVisible && Swal.isVisible())) {
+                        return;
+                    }
+
+                    const $this = $(this);
+                    // Skip if inside sales table (handled by table row keydown handler)
+                    if ($this.closest('#salesTableBody').length) {
+                        return;
+                    }
+
+                    e.preventDefault();
+
+                    // Field specific forward transitions
+                    if ($this.attr('id') === 'customerDisplay') {
+                        $('#tel').focus().select();
+                    } else if ($this.attr('id') === 'tel') {
+                        $('#address').focus().select();
+                    } else if ($this.attr('id') === 'address') {
+                        const $inv = $('[name="Invoice_main"]');
+                        if ($inv.length && $inv.is(':visible')) {
+                            $inv.focus().select();
+                        } else {
+                            moveFromHeaderToTable();
+                        }
+                    } else if ($this.attr('name') === 'Invoice_main') {
+                        const $sm = $('#salesman_id');
+                        if ($sm.length && $sm.is(':visible')) {
+                            if ($sm.hasClass('select2-hidden-accessible')) {
+                                $sm.select2('open');
+                            } else {
+                                $sm.focus();
+                            }
+                        } else {
+                            $('#remarks').focus().select();
+                        }
+                    } else if ($this.attr('id') === 'remarks') {
+                        moveFromHeaderToTable();
+                    } else if ($this.hasClass('rv-amount')) {
+                        const $nextRv = $this.closest('.rv-row').next('.rv-row').find('.rv-amount');
+                        if ($nextRv.length) {
+                            $nextRv.focus().select();
+                        } else if ($('#discountPercent').length && $('#discountPercent').is(':visible')) {
+                            $('#discountPercent').focus().select();
+                        } else if ($('#echarges').length) {
+                            $('#echarges').focus().select();
+                        }
+                    } else if ($this.attr('id') === 'discountPercent') {
+                        if ($('#echarges').length) $('#echarges').focus().select();
+                    } else if ($this.attr('id') === 'echarges') {
+                        if ($('#notify_me').length) $('#notify_me').focus().select();
+                    } else if ($this.attr('id') === 'notify_me') {
+                        if (!$('#btnPosted2').prop('disabled')) {
+                            $('#btnPosted2').focus();
+                        } else {
+                            $('#btnSave').focus();
+                        }
+                    } else {
+                        // Fallback: move to next visible input/select in form
+                        const $all = $('#saleForm').find('input:visible:not([readonly]):not([disabled]), select:visible:not([disabled])');
+                        const idx = $all.index(this);
+                        if (idx > -1 && idx < $all.length - 1) {
+                            const $next = $all.eq(idx + 1);
+                            $next.focus();
+                            if ($next.is('input:text, input[type="number"]')) $next.select();
+                        }
+                    }
+                }
+            });
+
+            function moveFromHeaderToTable() {
+                const $firstRow = $('#salesTableBody tr:first-child');
+                if ($firstRow.length) {
+                    const $prodSelect = $firstRow.find('.product-select');
+                    if ($prodSelect.length) {
+                        if ($prodSelect.hasClass('select2-hidden-accessible')) {
+                            $prodSelect.select2('open');
+                        } else {
+                            $prodSelect.focus();
+                        }
+                    }
+                }
+            }
+
+            $(document).on('select2:select', '#customerSelect', function() {
+                setTimeout(function() {
+                    if ($('#customerDisplayWrapper').is(':visible')) {
+                        $('#customerDisplay').focus().select();
+                    } else {
+                        $('#tel').focus().select();
+                    }
+                }, 120);
+            });
+
+            $(document).on('select2:select', '#salesman_id', function() {
+                setTimeout(function() {
+                    $('#remarks').focus().select();
+                }, 120);
+            });
+
+            $(document).on('select2:select', '.rv-account', function() {
+                const $rvRow = $(this).closest('.rv-row');
+                setTimeout(function() {
+                    $rvRow.find('.rv-amount').focus().select();
+                }, 120);
             });
         });
     </script>

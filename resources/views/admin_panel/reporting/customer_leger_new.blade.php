@@ -180,6 +180,62 @@
             {{-- LEDGER OUTPUT --}}
             <div id="ledgerBox" style="display:none;">
 
+                {{-- 2.5 Summary KPI Cards --}}
+                <div class="row g-2 mb-3" id="kpiSummaryCards">
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #1e3a5f !important; border: 1px solid var(--coa-border);">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Closing Balance (بقیہ)</div>
+                                    <h4 class="font-weight-bold mb-0 text-dark mt-1" id="kpiClosingBalance">0.00</h4>
+                                </div>
+                                <div class="rounded-circle p-2" style="background: rgba(30, 58, 95, 0.1); color: #1e3a5f; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-wallet fs-5"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #dc2626 !important; border: 1px solid var(--coa-border);">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Debit / Sales (فروخت)</div>
+                                    <h4 class="font-weight-bold mb-0 text-danger mt-1" id="kpiTotalDebit">Rs. 0</h4>
+                                </div>
+                                <div class="rounded-circle p-2" style="background: rgba(220, 38, 38, 0.1); color: #dc2626; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-file-invoice-dollar fs-5"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #16a34a !important; border: 1px solid var(--coa-border);">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Credit / Received (وصولی)</div>
+                                    <h4 class="font-weight-bold mb-0 text-success mt-1" id="kpiTotalCredit">Rs. 0</h4>
+                                </div>
+                                <div class="rounded-circle p-2" style="background: rgba(22, 163, 74, 0.1); color: #16a34a; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-hand-holding-usd fs-5"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #0d9f6e !important; border: 1px solid var(--coa-border);">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div>
+                                    <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Delivered Qty (کل دیے گئے)</div>
+                                    <h4 class="font-weight-bold mb-0 mt-1" style="color: #0d9f6e;" id="kpiTotalDeliveredQty">0.00</h4>
+                                </div>
+                                <div class="rounded-circle p-2" style="background: rgba(13, 159, 110, 0.15); color: #0d9f6e; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                    <i class="fas fa-truck-loading fs-5"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- 3. Customer Summary Card --}}
                 <div class="card shadow-sm mb-3 border-0" style="border-radius: 9px; border: 1.5px solid #cbd5e1 !important; background: #ffffff;">
                     <div class="card-body p-3">
@@ -226,17 +282,17 @@
                     <div class="table-responsive" style="border: 1px solid var(--coa-border); border-radius: 9px; overflow: hidden;">
                         <table id="ledgerTable" class="table table-bordered mb-0" style="font-size: 12.5px; border-collapse: collapse;">
                             <thead>
-                                <tr>
-                                    <th class="text-center" style="width: 65px;">No</th>
+                                <tr style="background: #0f1f38; color: #ffffff;">
+                                    <th class="text-center" style="width: 55px;">No</th>
                                     <th class="text-center" style="width: 80px;">Inv No.</th>
                                     <th class="text-center" style="width: 55px;">Type</th>
                                     <th class="text-center" style="width: 80px;">Date</th>
                                     <th class="text-center" style="width: 85px;">Ref</th>
-                                    <th>Details</th>
-                                    <th class="text-right" style="width: 65px;">Qty</th>
-                                    <th class="text-right" style="width: 95px;">Debit</th>
-                                    <th class="text-right" style="width: 95px;">Credit</th>
-                                    <th class="text-right" style="width: 110px;">Balance</th>
+                                    <th>Details (تفصیل)</th>
+                                    <th class="text-right" style="width: 85px; background: #064e3b !important;" title="Delivered Quantity (دیے کتنے)">Qty (دیے)</th>
+                                    <th class="text-right" style="width: 100px;">Debit (قیمت/ڈیبٹ)</th>
+                                    <th class="text-right" style="width: 100px;">Credit (وصولی)</th>
+                                    <th class="text-right" style="width: 110px;">Balance (بقیہ)</th>
                                 </tr>
                             </thead>
                             <tbody id="ledgerBody"></tbody>
@@ -491,6 +547,11 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         $('#s_credit').text('Rs. ' + fmt(res.total_credit));
         $('#s_close').html(balHtml(res.closing_balance));
 
+        /* top KPI cards */
+        $('#kpiClosingBalance').html(balHtml(res.closing_balance));
+        $('#kpiTotalDebit').text('Rs. ' + fmt(res.total_debit));
+        $('#kpiTotalCredit').text('Rs. ' + fmt(res.total_credit));
+
         var ob          = n(res.opening_balance);
         var txns        = res.transactions || [];
         var grandDr     = 0;
@@ -572,11 +633,13 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                         }
                         grandQty += itemQty;
 
-                        var itemDetailsHtml = '<strong>' + (item.item_name || 'Item') + '</strong>';
+                        var displayName = (item.item_name_urdu && item.item_name_urdu.trim() !== '') ? item.item_name_urdu : (item.item_name || 'Item');
+                        var itemDetailsHtml = '<strong>' + displayName + '</strong>';
+                        if (item.item_name_urdu && item.item_name && item.item_name.trim() !== '' && item.item_name !== displayName) {
+                            itemDetailsHtml += ' <small class="text-muted">(' + item.item_name + ')</small>';
+                        }
                         if (itemRate > 0) {
-                            itemDetailsHtml += ' <span style="color:#475569;font-size:11px;">(Price: ' + fmt(itemRate) + ', Qty: ' + fmt(itemQty) + ', Total: ' + fmt(itemAmt) + ')</span>';
-                        } else if (itemQty > 0) {
-                            itemDetailsHtml += ' <span style="color:#475569;font-size:11px;">(Qty: ' + fmt(itemQty) + ')</span>';
+                            itemDetailsHtml += ' <span style="color:#1e3a5f;font-weight:700;font-size:11px;">(Price: Rs. ' + fmt(itemRate) + ')</span>';
                         }
                         if (n(item.item_discount) > 0) {
                             itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
@@ -691,7 +754,8 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
             i++;
         }
 
-        /* ── footer HTML ── */
+        /* ── footer HTML & KPI update ── */
+        $('#kpiTotalDeliveredQty').text(fmt(grandQty));
         var finalBal = n(res.closing_balance);
 
         /* Overall Sum row */

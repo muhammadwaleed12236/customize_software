@@ -168,6 +168,62 @@
                 </div>
             </div>
 
+            {{-- 2.5 Summary KPI Cards --}}
+            <div class="row g-2 mb-3" id="kpiSummaryCards" style="display: none;">
+                <div class="col-md-3 col-sm-6">
+                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #1e3a5f !important; border: 1px solid var(--coa-border);">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Balance Stock</div>
+                                <h4 class="font-weight-bold mb-0 text-dark mt-1" id="kpiTotalBalance">0.00</h4>
+                            </div>
+                            <div class="rounded-circle p-2" style="background: rgba(30, 58, 95, 0.1); color: #1e3a5f; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-boxes fs-5"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #0d9f6e !important; border: 1px solid var(--coa-border);">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Delivered Qty (دیے گئے)</div>
+                                <h4 class="font-weight-bold mb-0 text-success mt-1" id="kpiTotalDelivered">0.00</h4>
+                            </div>
+                            <div class="rounded-circle p-2" style="background: rgba(13, 159, 110, 0.1); color: #0d9f6e; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-truck-loading fs-5"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #d97706 !important; border: 1px solid var(--coa-border);">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Reserved Qty (ریزرورڈ)</div>
+                                <h4 class="font-weight-bold mb-0 mt-1" style="color: #d97706 !important;" id="kpiTotalReserved">0.00</h4>
+                            </div>
+                            <div class="rounded-circle p-2" style="background: rgba(217, 119, 6, 0.1); color: #d97706; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-clock fs-5"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6">
+                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #c8973a !important; border: 1px solid var(--coa-border);">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Stock Value / Price</div>
+                                <h4 class="font-weight-bold mb-0 mt-1" style="color: #b45309;" id="kpiTotalStockValue">Rs. 0.00</h4>
+                            </div>
+                            <div class="rounded-circle p-2" style="background: rgba(200, 151, 58, 0.15); color: #c8973a; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                <i class="fas fa-coins fs-5"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {{-- 3. Report Table Card --}}
             <div class="card shadow-sm border-0" style="border-radius: 9px; border: 1px solid var(--coa-border) !important;" id="reportContent">
                 <div class="card-body p-3">
@@ -181,26 +237,34 @@
                             <thead>
                                 <tr>
                                     <th class="text-center" style="width: 3%;">#</th>
-                                    <th style="width: 9%;">Item Code</th>
+                                    <th style="width: 8%;">Item Code</th>
                                     <th>Item Name</th>
-                                    <th class="text-end" style="width: 7%;">Opening</th>
-                                    <th class="text-end" style="width: 7%;">Purchased</th>
+                                    <th class="text-end" style="width: 6%;">Opening</th>
+                                    <th class="text-end" style="width: 6%;">Purchased</th>
                                     <th class="text-end" style="width: 8%;">Purch. Value</th>
-                                    <th class="text-end" style="width: 7%;">Sold Qty</th>
-                                    <th class="text-end" style="width: 8%;">Sold Value</th>
-                                    <th class="text-end" style="width: 7%;">Reserved</th>
+                                    <th class="text-end" style="width: 8%; background: #064e3b !important;" title="Delivered / Dispatched Quantity (دیے کتنے)">Delivered (دیے)</th>
+                                    <th class="text-end" style="width: 8%;">Delivered Value</th>
+                                    <th class="text-end" style="width: 8%; background: #78350f !important;" title="Reserved Quantity Pending Delivery (ریزرورڈ)">Reserved (ریزرورڈ)</th>
                                     <th class="text-end" style="width: 7%;">Balance</th>
-                                    <th class="text-end" style="width: 7%;">Price</th>
+                                    <th class="text-end" style="width: 7%; background: #1e3a5f !important;" title="Unit Price / Wholesale Rate (قیمت / ریٹ)">Price (قیمت)</th>
                                     <th class="text-end" style="width: 9%;">Stock Value</th>
-                                    <th class="text-center" style="width: 8%;">Warehouses</th>
+                                    <th class="text-center" style="width: 7%;">Warehouses</th>
                                 </tr>
                             </thead>
                             <tbody id="reportBody">
                                 <!-- Filled by AJAX -->
                             </tbody>
                             <tfoot>
-                                <tr class="font-weight-bold bg-light" style="font-family: monospace; font-size: 13px;">
-                                    <th colspan="11" class="text-end font-weight-bold" style="font-family: sans-serif;">Grand Stock Value:</th>
+                                <tr class="font-weight-bold bg-light" style="font-family: monospace; font-size: 12.5px;">
+                                    <th colspan="3" class="text-end font-weight-bold" style="font-family: sans-serif;">Total Stock Summary:</th>
+                                    <th class="text-end" id="footOpening">0.00</th>
+                                    <th class="text-end" id="footPurchased">0.00</th>
+                                    <th class="text-end" id="footPurchAmount">Rs. 0.00</th>
+                                    <th class="text-end text-success" id="footDelivered">0.00</th>
+                                    <th class="text-end" id="footDeliveredAmount">Rs. 0.00</th>
+                                    <th class="text-end text-warning" id="footReserved">0.00</th>
+                                    <th class="text-end" id="footBalance">0.00</th>
+                                    <th class="text-end">--</th>
                                     <th class="text-end text-success font-weight-bold" id="grandStockValue">0.00</th>
                                     <th></th>
                                 </tr>
@@ -292,6 +356,9 @@ $(document).ready(function() {
         }
 
         let hasNegativeStock = false;
+        let sumOpening = 0, sumPurchased = 0, sumPurchAmount = 0;
+        let sumDelivered = 0, sumDeliveredAmount = 0, sumReserved = 0;
+        let sumBalance = 0;
 
         rows.forEach(function(r, idx) {
             // ============= STORE WAREHOUSE DATA =============
@@ -301,6 +368,25 @@ $(document).ready(function() {
                 itemName: r.item_name,
                 warehouses: r.warehouse_breakdown || []
             };
+
+            // ============= ACCUMULATE TOTALS =============
+            let opening     = parseFloat(r.initial_stock || 0);
+            let purchased   = parseFloat(r.purchased || 0);
+            let purchAmt    = parseFloat(r.purchase_amount || 0);
+            let sold        = parseFloat(r.sold || 0);
+            let saleAmt     = parseFloat(r.sale_amount || 0);
+            let reserved    = parseFloat(r.reserved_qty || 0);
+            let balance     = parseFloat(r.balance || 0);
+            let price       = parseFloat(r.price || 0);
+            let stockValue  = parseFloat(r.stock_value || 0);
+
+            sumOpening += opening;
+            sumPurchased += purchased;
+            sumPurchAmount += purchAmt;
+            sumDelivered += sold;
+            sumDeliveredAmount += saleAmt;
+            sumReserved += reserved;
+            sumBalance += balance;
 
             // ============= BUILD WAREHOUSE BREAKDOWN HTML =============
             let warehouseHtml = '';
@@ -313,10 +399,7 @@ $(document).ready(function() {
             }
 
             // ============= NEGATIVE STOCK VISUAL LOGIC =============
-            let balance     = parseFloat(r.balance);
-            let stockValue  = parseFloat(r.stock_value);
             let isNegative  = balance < 0;
-
             if (isNegative) hasNegativeStock = true;
 
             let balanceHtml = isNegative
@@ -335,14 +418,14 @@ $(document).ready(function() {
                     <td>${idx + 1}${isNegative ? ' <span class="text-danger" title="Negative Stock">⚠</span>' : ''}</td>
                     <td><strong>${r.item_code}</strong></td>
                     <td>${r.item_name}</td>
-                    <td class="text-end">${parseFloat(r.initial_stock).toFixed(2)}</td>
-                    <td class="text-end">${parseFloat(r.purchased).toFixed(2)}</td>
-                    <td class="text-end">Rs. ${parseFloat(r.purchase_amount).toFixed(2)}</td>
-                    <td class="text-end">${parseFloat(r.sold).toFixed(2)}</td>
-                    <td class="text-end">Rs. ${parseFloat(r.sale_amount).toFixed(2)}</td>
-                    <td class="text-end"><span class="badge bg-warning text-dark" title="Booked in sales but not yet physically delivered via gatepass">${parseFloat(r.reserved_qty).toFixed(2)} pending</span></td>
+                    <td class="text-end">${opening.toFixed(2)}</td>
+                    <td class="text-end">${purchased.toFixed(2)}</td>
+                    <td class="text-end">Rs. ${purchAmt.toFixed(2)}</td>
+                    <td class="text-end fw-bold text-success" title="Physically Delivered Qty (دیے گئے)">${sold.toFixed(2)}</td>
+                    <td class="text-end">Rs. ${saleAmt.toFixed(2)}</td>
+                    <td class="text-end" title="Reserved Stock Pending Delivery (ریزرورڈ)"><span class="badge bg-warning text-dark font-weight-bold px-2 py-1" style="font-size: 11px;">${reserved.toFixed(2)} pending</span></td>
                     <td class="text-end">${balanceHtml}</td>
-                    <td class="text-end">Rs. ${parseFloat(r.price).toFixed(2)}</td>
+                    <td class="text-end fw-bold" style="color: #1e3a5f !important;" title="Wholesale / Unit Price">Rs. ${price.toFixed(2)}</td>
                     <td class="text-end">${stockValueHtml}</td>
                     <td class="text-center">${warehouseHtml}</td>
                 </tr>
@@ -361,6 +444,31 @@ $(document).ready(function() {
                 </tr>
             `);
         }
+
+        // ============= UPDATE FOOTER TOTALS =============
+        $('#footOpening').text(sumOpening.toFixed(2));
+        $('#footPurchased').text(sumPurchased.toFixed(2));
+        $('#footPurchAmount').text('Rs. ' + sumPurchAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#footDelivered').text(sumDelivered.toFixed(2));
+        $('#footDeliveredAmount').text('Rs. ' + sumDeliveredAmount.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#footReserved').text(sumReserved.toFixed(2));
+        $('#footBalance').text(sumBalance.toFixed(2));
+
+        let grandTotalVal = parseFloat(grandTotal);
+        let grandTotalEl  = $('#grandStockValue');
+        grandTotalEl.text('Rs. ' + grandTotalVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        if (hasNegativeStock) {
+            grandTotalEl.addClass('text-danger');
+        } else {
+            grandTotalEl.removeClass('text-danger');
+        }
+
+        // ============= UPDATE KPI SUMMARY CARDS =============
+        $('#kpiTotalBalance').text(sumBalance.toFixed(2));
+        $('#kpiTotalDelivered').text(sumDelivered.toFixed(2));
+        $('#kpiTotalReserved').text(sumReserved.toFixed(2));
+        $('#kpiTotalStockValue').text('Rs. ' + grandTotalVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        $('#kpiSummaryCards').slideDown();
         
         // Reinitialize DataTable with new data
         stockTable = $('#stockTable').DataTable({
@@ -383,16 +491,6 @@ $(document).ready(function() {
                 showWarehouseBreakdown(data.itemCode, data.itemName, data.warehouses);
             }
         });
-
-        // Update grand total
-        let grandTotalVal = parseFloat(grandTotal);
-        let grandTotalEl  = $('#grandStockValue');
-        grandTotalEl.text(grandTotalVal.toFixed(2));
-        if (hasNegativeStock) {
-            grandTotalEl.addClass('text-danger');
-        } else {
-            grandTotalEl.removeClass('text-danger');
-        }
     }
 
     // ============= SHOW WAREHOUSE BREAKDOWN MODAL =============
@@ -599,7 +697,7 @@ $(document).ready(function() {
     };
 
     window.exportCSV = function () {
-        var rows = [['Item Code','Item Name','Opening Stock','Purchased Qty','Purchased Amount','Sold Qty','Sold Amount','Reserved Qty','Balance','Price','Stock Value']];
+        var rows = [['Item Code','Item Name','Opening Stock','Purchased Qty','Purchased Amount','Delivered Qty (دیے)','Delivered Value','Reserved Qty (ریزرورڈ)','Balance','Price (قیمت)','Stock Value']];
         
         $('#reportBody tr').each(function () {
             var cells = [];
@@ -612,7 +710,7 @@ $(document).ready(function() {
         });
         
         // Add grand total
-        rows.push(['','','','','','','','','','Grand Total','"' + $('#grandStockValue').text() + '"']);
+        rows.push(['','','','','','','','','','Grand Total','"' + $('#grandStockValue').text().replace(/Rs\.\s?/g, '') + '"']);
 
         var csv  = rows.map(function(r){return r.join(',');}).join('\n');
         var blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});

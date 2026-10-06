@@ -372,6 +372,7 @@ class ReportingController extends Controller
                 'sales.extra_charges       as extra_charges',
                 'sales.created_at  as txn_date',
                 'products.item_name as item_name',
+                'products.item_name_urdu as item_name_urdu',
                 'products.price    as retail_price',
                 'products.wholesale_price as n_price',
                 'sale_items.product_id as product_id',
@@ -417,17 +418,18 @@ class ReportingController extends Controller
             $avgPrice  = $avgPriceMap[$row->product_id] ?? 0;
             $nPrice    = floatval($row->n_price ?? 0);
             $salesGrouped[$row->sale_id]['items'][] = [
-                'item_name'    => $row->item_name,
-                'qty'          => $qty,
-                'rate'         => floatval($row->rate ?? 0),
-                'item_discount'=> floatval($row->item_discount ?? 0),
-                'line_amount'  => floatval($row->line_amount ?? 0),
-                'retail_price' => floatval($row->retail_price ?? 0),
-                'policy_price' => floatval($row->rate ?? 0),
-                'avg_price'    => $avgPrice,
-                'avg_s_value'  => $avgPrice * $qty,
-                'n_price'      => $nPrice,
-                'stock_value'  => floatval($row->retail_price ?? 0) * $qty,
+                'item_name'     => $row->item_name,
+                'item_name_urdu'=> $row->item_name_urdu ?? null,
+                'qty'           => $qty,
+                'rate'          => floatval($row->rate ?? 0),
+                'item_discount' => floatval($row->item_discount ?? 0),
+                'line_amount'   => floatval($row->line_amount ?? 0),
+                'retail_price'  => floatval($row->retail_price ?? 0),
+                'policy_price'  => floatval($row->rate ?? 0),
+                'avg_price'     => $avgPrice,
+                'avg_s_value'   => $avgPrice * $qty,
+                'n_price'       => $nPrice,
+                'stock_value'   => floatval($row->retail_price ?? 0) * $qty,
             ];
         }
 
@@ -738,6 +740,7 @@ class ReportingController extends Controller
                         'gp_no'        => null,
                         'description'  => null,
                         'item_name'    => $item['item_name'],
+                        'item_name_urdu'=> $item['item_name_urdu'] ?? null,
                         'qty'          => $item['qty'],
                         'rate'         => $item['rate'],
                         'item_discount'=> $item['item_discount'] ?? 0,
@@ -1043,6 +1046,7 @@ class ReportingController extends Controller
                 'purchases.extra_cost  as extra_charges',
                 'purchases.created_at  as txn_date',
                 'products.item_name    as item_name',
+                'products.item_name_urdu as item_name_urdu',
                 'purchase_items.qty    as qty',
                 'purchase_items.item_discount as item_discount',
                 'purchase_items.price   as rate',
@@ -1065,11 +1069,12 @@ class ReportingController extends Controller
             }
             if ($row->item_name) {
                 $purchasesGrouped[$row->purchase_id]['items'][] = [
-                    'item_name'    => $row->item_name,
-                    'qty'          => floatval($row->qty ?? 0),
-                    'rate'         => floatval($row->rate ?? 0),
-                    'item_discount'=> floatval($row->item_discount ?? 0),
-                    'line_amount'  => floatval($row->line_amount ?? 0),
+                    'item_name'     => $row->item_name,
+                    'item_name_urdu'=> $row->item_name_urdu ?? null,
+                    'qty'           => floatval($row->qty ?? 0),
+                    'rate'          => floatval($row->rate ?? 0),
+                    'item_discount' => floatval($row->item_discount ?? 0),
+                    'line_amount'   => floatval($row->line_amount ?? 0),
                 ];
             }
         }
@@ -1430,6 +1435,7 @@ class ReportingController extends Controller
                         'gp_no'        => null,
                         'description'  => null,
                         'item_name'    => $item['item_name'],
+                        'item_name_urdu'=> $item['item_name_urdu'] ?? null,
                         'qty'          => $item['qty'],
                         'rate'         => $item['rate'],
                         'item_discount'=> $item['item_discount'] ?? 0,

@@ -499,11 +499,13 @@ $(document).ready(function () {
                         }
                         grandQty += itemQty;
 
-                        var itemDetailsHtml = '<strong>' + (item.item_name || 'Item') + '</strong>';
+                        var displayName = (item.item_name_urdu && item.item_name_urdu.trim() !== '') ? item.item_name_urdu : (item.item_name || 'Item');
+                        var itemDetailsHtml = '<strong>' + displayName + '</strong>';
+                        if (item.item_name_urdu && item.item_name && item.item_name.trim() !== '' && item.item_name !== displayName) {
+                            itemDetailsHtml += ' <small class="text-muted">(' + item.item_name + ')</small>';
+                        }
                         if (itemRate > 0) {
-                            itemDetailsHtml += ' <span style="color:#475569;font-size:11px;">(Price: ' + fmt(itemRate) + ', Qty: ' + fmt(itemQty) + ', Total: ' + fmt(itemAmt) + ')</span>';
-                        } else if (itemQty > 0) {
-                            itemDetailsHtml += ' <span style="color:#475569;font-size:11px;">(Qty: ' + fmt(itemQty) + ')</span>';
+                            itemDetailsHtml += ' <span style="color:#1e3a5f;font-weight:700;font-size:11px;">(Price: Rs. ' + fmt(itemRate) + ')</span>';
                         }
                         if (n(item.item_discount) > 0) {
                             itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
