@@ -1728,16 +1728,21 @@ class ReportingController extends Controller
         $grandTotalValue = 0;
 
         foreach ($products as $product) {
-            // ================= GET STOCK FROM warehouse_stocks TABLE (BRANCH-SPECIFIC) =================
-            // Note: warehouse_stocks is the single source of truth
+            // ================= CALCULATE TOTAL BALANCE FROM warehouse_stocks FOR THIS BRANCH (WITH STOCKS FALLBACK) =================
             $wsQuery = WarehouseStock::where('product_id', $product->id);
             if ($allowedBranchId && $allowedBranchId !== 'all') {
                 $wsQuery->where('branch_id', $allowedBranchId);
             }
             $warehouseStocks = $wsQuery->get();
-
-            // ================= CALCULATE TOTAL BALANCE FROM warehouse_stocks FOR THIS BRANCH =================
             $totalBalance = floatval($warehouseStocks->sum('quantity') ?? 0);
+
+            if ($totalBalance == 0) {
+                $stQuery = Stock::where('product_id', $product->id);
+                if ($allowedBranchId && $allowedBranchId !== 'all') {
+                    $stQuery->where('branch_id', $allowedBranchId);
+                }
+                $totalBalance = floatval($stQuery->sum('qty') ?? 0);
+            }
 
             // ================= GET OPENING STOCK =================
             if ($allowedBranchId === 'all' || $product->branch_id == $allowedBranchId) {
@@ -1782,6 +1787,7 @@ class ReportingController extends Controller
             $warehouseBreakdown = $wbQuery->with('warehouse')
                 ->select('warehouse_id', 'quantity')
                 ->get()
+                ->filter(fn($s) => floatval($s->quantity) > 0)
                 ->map(function ($stock) {
                     $warehouseName = $stock->warehouse_id === null ? 'Shop/Branch' : ($stock->warehouse?->warehouse_name ?? "Warehouse #{$stock->warehouse_id}");
                     $location = $stock->warehouse_id === null ? 'Main' : ($stock->warehouse?->location ?? '');
@@ -1789,10 +1795,20 @@ class ReportingController extends Controller
                         'warehouse_id' => $stock->warehouse_id,
                         'warehouse_name' => $warehouseName,
                         'location' => $location,
-                        'qty' => $stock->quantity
+                        'qty' => floatval($stock->quantity)
                     ];
                 })
+                ->values()
                 ->toArray();
+
+            if (empty($warehouseBreakdown) && $totalBalance > 0) {
+                $warehouseBreakdown[] = [
+                    'warehouse_id' => null,
+                    'warehouse_name' => 'Shop/Branch',
+                    'location' => 'Main',
+                    'qty' => $totalBalance
+                ];
+            }
 
             // ================= CALCULATE STOCK VALUE =================
             $wholesalePrice = floatval($product->wholesale_price ?? 0);

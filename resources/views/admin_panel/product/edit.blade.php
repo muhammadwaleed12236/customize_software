@@ -309,7 +309,7 @@
 
                                     <div class="field-group mb-0">
                                         <label class="field-label">📦 Stock Quantity (اسٹاک کوانٹیٹی)</label>
-                                        <input type="number" step="0.01" name="initial_stock" class="custom-input fw-bold text-success" value="{{ $product->stock->qty ?? $product->initial_stock ?? 0 }}" placeholder="0.00">
+                                        <input type="number" step="0.01" name="initial_stock" class="custom-input fw-bold text-success" value="{{ $product->current_branch_stock ?? $product->stock->qty ?? $product->initial_stock ?? 0 }}" placeholder="0.00">
                                     </div>
                                 </div>
                             </div>

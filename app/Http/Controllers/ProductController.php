@@ -439,16 +439,10 @@ public function searchProductsForSalebypagination(Request $request)
 
         $products = $query->get()
             ->map(function ($product) use ($userBranch, $isSuperAdmin) {
-                // ✅ FOR SUPER ADMIN: Show all branches' stock information
                 if ($isSuperAdmin) {
-                    // Super admin: Show products from their primary branch first, then all warehouse stocks
                     $product->branch_item_code = $product->getBranchItemCode($product->branch_id);
-                    $product->is_primary = $product->isPrimaryForBranch($product->branch_id);
-                    $product->is_secondary = $product->isSecondaryForBranch($product->branch_id);
-                    $product->branch_stock_qty = $product->getStockForBranch($product->branch_id);
-                    
-                    // For super admin, get all warehouse stocks across branches from loaded relationship
-                    // Group by branch_id and sum quantities
+
+                    // Group warehouse stocks by branch
                     $stocksByBranch = [];
                     if ($product->warehouseStocks && $product->warehouseStocks->count() > 0) {
                         foreach ($product->warehouseStocks as $ws) {
@@ -459,37 +453,45 @@ public function searchProductsForSalebypagination(Request $request)
                                     'quantity' => 0
                                 ];
                             }
-                            $stocksByBranch[$ws->branch_id]['quantity'] += $ws->quantity;
+                            $stocksByBranch[$ws->branch_id]['quantity'] += (float)$ws->quantity;
                         }
                     }
-                    // Filter to only show branches that have actual stock > 0
+
+                    // Fallback: Check stocks table for any branch missing in warehouse_stocks or with 0 quantity
+                    $allStocks = Stock::with('branch')->where('product_id', $product->id)->where('qty', '>', 0)->get();
+                    foreach ($allStocks as $st) {
+                        if (!isset($stocksByBranch[$st->branch_id]) || $stocksByBranch[$st->branch_id]['quantity'] == 0) {
+                            $stocksByBranch[$st->branch_id] = [
+                                'branch_id' => $st->branch_id,
+                                'branch_name' => $st->branch->name ?? 'Unknown',
+                                'quantity' => (float)$st->qty
+                            ];
+                        }
+                    }
+
                     $stocksByBranch = array_filter($stocksByBranch, function ($item) {
                         return $item['quantity'] > 0;
                     });
-                    $product->all_warehouse_stocks = array_values($stocksByBranch);
-                    $product->user_branch_stock_qty = 0;
-                    $product->has_stock_in_user_branch = false;
-                } elseif ($userBranch) {
-                    // ✅ FOR REGULAR USERS: Show only their branch data with correct item code
-                    // Get branch-specific item code from BranchProductCode table
-                    $product->branch_item_code = $product->getBranchItemCode($userBranch);
-                    
-                    // ✅ ERP STANDARD: PRIMARY/SECONDARY STATUS based on warehouse_stocks
-                    // PRIMARY: Product has warehouse_stocks entry with quantity > 0 for this branch
-                    // SECONDARY: Product exists globally but NO warehouse_stocks for this branch yet
-                    $product->is_primary = $product->isPrimaryForBranch($userBranch);
-                    $product->is_secondary = $product->isSecondaryForBranch($userBranch);
-                    
-                    // Get total warehouse stock for this branch
-                    $product->branch_stock_qty = $product->getStockForBranch($userBranch);
 
-                    // Check stock in user's branch from stocks table (aggregate branch-level stock)
-                    $branchStock = Stock::where([
-                        'product_id' => $product->id,
-                        'branch_id' => $userBranch
-                    ])->first();
-                    $product->user_branch_stock_qty = $branchStock?->qty ?? 0;
-                    $product->has_stock_in_user_branch = ($branchStock && $branchStock->qty > 0);
+                    $product->all_warehouse_stocks = array_values($stocksByBranch);
+                    $product->branch_stock_qty = array_sum(array_column($stocksByBranch, 'quantity'));
+                    $product->is_primary = ($product->branch_stock_qty > 0);
+                    $product->is_secondary = ($product->branch_stock_qty == 0);
+                    $product->user_branch_stock_qty = $product->branch_stock_qty;
+                    $product->has_stock_in_user_branch = ($product->branch_stock_qty > 0);
+                } elseif ($userBranch) {
+                    $product->branch_item_code = $product->getBranchItemCode($userBranch);
+
+                    $stockQty = (float) $product->getStockForBranch($userBranch);
+                    if ($stockQty == 0) {
+                        $stockQty = (float) (Stock::where('product_id', $product->id)->where('branch_id', $userBranch)->value('qty') ?? 0);
+                    }
+
+                    $product->branch_stock_qty = $stockQty;
+                    $product->is_primary = ($stockQty > 0);
+                    $product->is_secondary = ($stockQty == 0);
+                    $product->user_branch_stock_qty = $stockQty;
+                    $product->has_stock_in_user_branch = ($stockQty > 0);
                     $product->all_warehouse_stocks = null;
                 } else {
                     $product->branch_item_code = null;
@@ -959,32 +961,29 @@ public function searchProductsForSalebypagination(Request $request)
     // ===== Update product =====
     public function update(Request $request, $id)
     {
-        // ✅ OWNERSHIP CHECK: Prevent non-owners from updating
-        $product = Product::findOrFail($id);
-        $userBranchId = Auth::check() ? Auth::user()->branch_id : null;
-        $isOwner = ($userBranchId && $product->branch_id == $userBranchId);
-        $isSuperAdmin = Auth::check() && Auth::user()->hasRole('super admin');
+        $product      = Product::findOrFail($id);
+        $user         = Auth::user();
+        $userBranchId = $user ? $user->branch_id : null;
+        $isSuperAdmin = $user && $user->hasRole('super admin');
         
-        if (!$isOwner && !$isSuperAdmin) {
-            abort(403, 'You can only edit products from your own branch');
-        }
-        
-        // dd($request->all());
+        $targetBranchId = $isSuperAdmin 
+            ? (int) ($request->branch_id ?? $product->branch_id ?? 1) 
+            : (int) ($userBranchId ?: $product->branch_id ?: 1);
+
         $userId = auth()->id();
 
-        // image handle
-        $imagePath = Product::where('id', $id)->value('image');
+        // Image handle
+        $imagePath = $product->image;
         if ($request->hasFile('image')) {
             $imageName = time() . '.' . $request->image->extension();
             $request->image->move(public_path('uploads/products'), $imageName);
-            $imagePath = $imageName; // keep only filename for consistency
+            $imagePath = $imageName;
         }
 
-        DB::transaction(function () use ($request, $product, $id, $userId, $imagePath, $isSuperAdmin) {
-            $wholesalePrice = (float) ($request->wholesale_price ?? 0);
-            $retailPrice    = (float) ($request->price ?? $request->retail_price ?? 0);
-            $alertQty       = (float) ($request->alert_quantity ?? 0);
-            $targetBranchId = $isSuperAdmin ? ($request->branch_id ?? $product->branch_id) : $product->branch_id;
+        DB::transaction(function () use ($request, $product, $id, $userId, $imagePath, $targetBranchId) {
+            $wholesalePrice = (float) ($request->wholesale_price ?? $request->input('wholesale_price', 0));
+            $retailPrice    = (float) ($request->price ?? $request->retail_price ?? $request->input('price', 0));
+            $alertQty       = (float) ($request->alert_quantity ?? $request->input('alert_quantity', 0));
 
             $updateData = [
                 'creater_id'      => $userId,
@@ -993,13 +992,13 @@ public function searchProductsForSalebypagination(Request $request)
                 'sub_category_id' => $request->sub_category_id,
                 'type_id'         => $request->type_id,
                 'item_code'       => $request->item_code ?? $product->item_code,
-                'item_name'       => $request->product_name,
-                'item_name_urdu'  => $request->item_name_urdu ?? $request->product_name_urdu,
+                'item_name'       => $request->product_name ?? $product->item_name,
+                'item_name_urdu'  => $request->item_name_urdu ?? $request->product_name_urdu ?? $product->item_name_urdu,
                 'barcode_path'    => $request->barcode_path ?? $product->barcode_path,
-                'unit_id'         => $request->unit,
-                'brand_id'        => $request->brand_id,
-                'model'           => $request->model,
-                'hs_code'         => $request->hs_code,
+                'unit_id'         => $request->unit ?? $product->unit_id,
+                'brand_id'        => $request->brand_id ?? $product->brand_id,
+                'model'           => $request->model ?? $product->model,
+                'hs_code'         => $request->hs_code ?? $product->hs_code,
                 'pack_type'       => $request->packing_type ?? 'Standard',
                 'pack_qty'        => (float) ($request->packing_qty ?? 0),
                 'piece_per_pack'  => (float) ($request->piece_per_pack ?? 0),
@@ -1018,8 +1017,9 @@ public function searchProductsForSalebypagination(Request $request)
                 $updateData['color'] = is_array($colors) ? json_encode($colors) : $colors;
             }
 
-            if ($request->filled('initial_stock') || $request->filled('stock_quantity')) {
-                $newStockQty = (float) ($request->initial_stock ?? $request->stock_quantity);
+            $hasStockInput = $request->has('initial_stock') || $request->has('stock_quantity');
+            if ($hasStockInput) {
+                $newStockQty = (float) ($request->initial_stock ?? $request->stock_quantity ?? 0);
                 $updateData['initial_stock'] = $newStockQty;
             } else {
                 $newStockQty = null;
@@ -1027,7 +1027,7 @@ public function searchProductsForSalebypagination(Request $request)
 
             Product::where('id', $id)->update($updateData);
 
-            // BOM re-save (replace all for this product)
+            // BOM re-save
             DB::table('product_boms')->where('product_id', $id)->delete();
 
             if ($request->has('is_assembled') && $request->is_assembled && $request->filled('bom_json')) {
@@ -1048,9 +1048,17 @@ public function searchProductsForSalebypagination(Request $request)
 
             // Stock update & movement tracking
             if ($newStockQty !== null) {
-                $currentQty = Stock::where('product_id', $id)
+                $currentQty = (float) DB::table('warehouse_stocks')
+                    ->where('product_id', $id)
                     ->where('branch_id', $targetBranchId)
-                    ->value('qty') ?? 0;
+                    ->sum('quantity');
+
+                if ($currentQty == 0) {
+                    $currentQty = (float) (DB::table('stocks')
+                        ->where('product_id', $id)
+                        ->where('branch_id', $targetBranchId)
+                        ->value('qty') ?? 0);
+                }
 
                 $delta = $newStockQty - $currentQty;
 
@@ -1066,75 +1074,30 @@ public function searchProductsForSalebypagination(Request $request)
                         'created_at' => now(),
                         'updated_at' => now(),
                     ]);
-
-                    $this->upsertStocks(
-                        productId: $id,
-                        qtyDelta:  $delta,
-                        branchId:  $targetBranchId,
-                    );
                 }
 
-                $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
-                if (empty($allocData)) {
-                    $hasWarehouseAllocations = WarehouseStock::where('product_id', $id)
-                        ->where('branch_id', $targetBranchId)
-                        ->whereNotNull('warehouse_id')
-                        ->exists();
+                Stock::updateOrCreate(
+                    ['product_id' => $id, 'branch_id' => $targetBranchId],
+                    ['qty' => $newStockQty, 'updated_at' => now()]
+                );
 
-                    if (!$hasWarehouseAllocations) {
-                        $this->applyWarehouseAllocation($id, $targetBranchId, $retailPrice, [], $newStockQty);
-                    } else {
-                        WarehouseStock::where('product_id', $id)
-                            ->where('branch_id', $targetBranchId)
-                            ->update(['price' => $retailPrice, 'updated_at' => now()]);
+                WarehouseStock::where('product_id', $id)
+                    ->where('branch_id', $targetBranchId)
+                    ->delete();
 
-                        if ($delta != 0) {
-                            $mainWS = WarehouseStock::where('product_id', $id)
-                                ->where('branch_id', $targetBranchId)
-                                ->whereNull('warehouse_id')
-                                ->first();
-
-                            if ($mainWS) {
-                                $mainWS->increment('quantity', $delta);
-                            } else {
-                                $firstWS = WarehouseStock::where('product_id', $id)
-                                    ->where('branch_id', $targetBranchId)
-                                    ->first();
-                                if ($firstWS) {
-                                    $firstWS->increment('quantity', $delta);
-                                } else {
-                                    $this->applyWarehouseAllocation($id, $targetBranchId, $retailPrice, [], $newStockQty);
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    WarehouseStock::where('product_id', $id)
-                        ->where('branch_id', $targetBranchId)
-                        ->delete();
-                    $this->applyWarehouseAllocation($id, $targetBranchId, $retailPrice, $allocData, $newStockQty);
-                }
+                DB::table('warehouse_stocks')->insert([
+                    'branch_id'    => $targetBranchId,
+                    'warehouse_id' => null,
+                    'product_id'   => $id,
+                    'quantity'     => $newStockQty,
+                    'price'        => $retailPrice,
+                    'created_at'   => now(),
+                    'updated_at'   => now(),
+                ]);
             } elseif ($retailPrice > 0) {
                 WarehouseStock::where('product_id', $id)
                     ->where('branch_id', $targetBranchId)
                     ->update(['price' => $retailPrice, 'updated_at' => now()]);
-            }
-
-            // Optional: stock adjustment field handle
-            if ($request->filled('stock_adjust') && (float)$request->stock_adjust != 0) {
-                $adj = (float)$request->stock_adjust;
-                StockMovement::create([
-                    'product_id' => $id,
-                    'branch_id'  => $targetBranchId,
-                    'type'       => $adj > 0 ? 'in' : 'out',
-                    'qty'        => abs($adj),
-                    'ref_type'   => 'ADJ',
-                    'note'       => 'Manual stock adjustment from product edit',
-                    'created_at' => now(),
-                    'updated_at' => now(),
-                ]);
-
-                $this->upsertStocks($id, $adj, $targetBranchId);
             }
         });
 
@@ -1144,25 +1107,35 @@ public function searchProductsForSalebypagination(Request $request)
     // ===== Edit view =====
     public function edit($id)
     {
-        $product = Product::with('category_relation', 'sub_category_relation', 'unit', 'brand','stock')->findOrFail($id);
+        $product = Product::with('category_relation', 'sub_category_relation', 'unit', 'brand', 'stock')->findOrFail($id);
         
-        // ✅ OWNERSHIP CHECK: Prevent non-owners from editing
-        $user = Auth::user();
+        $user         = Auth::user();
         $userBranchId = $user ? $user->branch_id : null;
-        $isOwner = ($userBranchId && $product->branch_id == $userBranchId);
         $isSuperAdmin = $user && $user->hasRole('super admin');
         
-        if (!$isOwner && !$isSuperAdmin) {
-            abort(403, 'You can only edit products from your own branch');
-        }
-
         if ($isSuperAdmin) {
             $branches = Branch::all();
         } else {
-            $userBranch = $user->branch_id ? Branch::find($user->branch_id) : null;
-            $branches = $userBranch ? collect([$userBranch]) : collect();
+            $userBranch = $userBranchId ? Branch::find($userBranchId) : null;
+            $branches   = $userBranch ? collect([$userBranch]) : Branch::all();
         }
-        
+
+        $targetBranchId = $isSuperAdmin ? ($product->branch_id ?: 1) : ($userBranchId ?: $product->branch_id ?: 1);
+
+        $currentStock = (float) DB::table('warehouse_stocks')
+            ->where('product_id', $id)
+            ->where('branch_id', $targetBranchId)
+            ->sum('quantity');
+
+        if ($currentStock == 0) {
+            $currentStock = (float) (DB::table('stocks')
+                ->where('product_id', $id)
+                ->where('branch_id', $targetBranchId)
+                ->value('qty') ?? 0);
+        }
+
+        $product->current_branch_stock = $currentStock;
+
         $categories    = Category::all();
         $subcategories = SubCategory::all();
         $brands        = Brand::all();
@@ -1585,7 +1558,8 @@ public function searchProductsForSalebypagination(Request $request)
     {
         $product      = Product::with(['unit', 'category_relation', 'branch'])->findOrFail($id);
         $user         = Auth::user();
-        $isSuperAdmin = $user->hasRole('super admin');
+        $isSuperAdmin = $user ? $user->hasRole('super admin') : false;
+        $userBranchId = $user ? (int) $user->branch_id : 1;
 
         // Fetch ALL warehouses
         $warehouses = DB::table('warehouses')->orderBy('warehouse_name')->get();
@@ -1597,7 +1571,7 @@ public function searchProductsForSalebypagination(Request $request)
             $branchIdsWithStock = DB::table('warehouse_stocks')
                 ->where('product_id', $id)
                 ->pluck('branch_id')
-                ->push($product->branch_id)   // always include the product's own branch
+                ->push($userBranchId ?: $product->branch_id)
                 ->unique()
                 ->values();
 
@@ -1605,24 +1579,17 @@ public function searchProductsForSalebypagination(Request $request)
                 ->orderBy('name')
                 ->get();
 
-            // Which branch is selected? Either from query param or default to product's branch
-            $selectedBranchId = (int) $request->get('branch_id', $product->branch_id);
+            // Which branch is selected? Query param > user's branch > product's branch
+            $selectedBranchId = (int) $request->get('branch_id', $userBranchId ?: $product->branch_id);
 
-            // Validate: selected branch must be in the available list
             if (!$branchIdsWithStock->contains($selectedBranchId)) {
-                $selectedBranchId = (int) $product->branch_id;
+                $selectedBranchId = (int) ($userBranchId ?: $product->branch_id);
             }
 
         } else {
-            // Regular user: always their own branch — no choice
             $allBranches       = collect();
             $availableBranches = collect();
-            $selectedBranchId  = (int) $user->branch_id;
-
-            // Security: non-super-admin cannot view other branch's stock
-            if ($selectedBranchId !== (int) $product->branch_id) {
-                abort(403, 'You can only edit products from your own branch.');
-            }
+            $selectedBranchId  = (int) ($userBranchId ?: $product->branch_id);
         }
 
         // 1. Fetch ONLY warehouses belonging to the selected branch
@@ -1678,15 +1645,12 @@ public function searchProductsForSalebypagination(Request $request)
     {
         $product      = Product::findOrFail($id);
         $user         = Auth::user();
-        $isSuperAdmin = $user->hasRole('super admin');
+        $isSuperAdmin = $user ? $user->hasRole('super admin') : false;
+        $userBranchId = $user ? (int) $user->branch_id : 1;
 
         $branchId = $isSuperAdmin
-            ? (int) $request->input('branch_id', $product->branch_id)
-            : (int) $user->branch_id;
-
-        if (!$isSuperAdmin && $user->branch_id !== $product->branch_id) {
-            abort(403, 'You can only edit products from your own branch.');
-        }
+            ? (int) $request->input('branch_id', $userBranchId ?: $product->branch_id)
+            : (int) ($userBranchId ?: $product->branch_id);
 
         $newQty    = (float) $request->input('opening_qty', 0);
         $alertQty  = (float) $request->input('alert_qty', 0);
@@ -1694,15 +1658,23 @@ public function searchProductsForSalebypagination(Request $request)
         $retail    = (float) $request->input('retail_price', 0);
         $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
 
-        // Current stock qty
-        $currentQty = Stock::where('product_id', $id)
+        // Fetch current stock from warehouse_stocks (or stocks table) for delta computation
+        $currentQty = (float) DB::table('warehouse_stocks')
+            ->where('product_id', $id)
             ->where('branch_id', $branchId)
-            ->value('qty') ?? 0;
+            ->sum('quantity');
 
-        $delta = $newQty - $currentQty; // can be negative (reduction)
+        if ($currentQty == 0) {
+            $currentQty = (float) (DB::table('stocks')
+                ->where('product_id', $id)
+                ->where('branch_id', $branchId)
+                ->value('qty') ?? 0);
+        }
+
+        $delta = $newQty - $currentQty;
 
         DB::transaction(function () use ($product, $id, $branchId, $delta, $newQty, $alertQty, $wholesale, $retail, $allocData) {
-            // Update product
+            // Update product master record
             $product->update([
                 'wholesale_price'   => $wholesale,
                 'price'             => $retail,
@@ -1711,7 +1683,13 @@ public function searchProductsForSalebypagination(Request $request)
                 'completion_status' => 'complete',
             ]);
 
-            // Stock movement for delta
+            // Direct update of branch stocks table for exact synchronization
+            Stock::updateOrCreate(
+                ['product_id' => $id, 'branch_id' => $branchId],
+                ['qty' => $newQty, 'updated_at' => now()]
+            );
+
+            // Stock movement audit for delta
             if ($delta != 0) {
                 StockMovement::create([
                     'product_id' => $id,
@@ -1721,14 +1699,9 @@ public function searchProductsForSalebypagination(Request $request)
                     'ref_type'   => 'OPENING_ADJ',
                     'ref_id'     => null,
                     'note'       => 'Opening stock adjustment (edit)',
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
-
-                // Update stocks table
-                $this->upsertStocks(
-                    productId: $id,
-                    qtyDelta:  $delta,
-                    branchId:  $branchId,
-                );
             }
 
             // Replace warehouse allocations
@@ -1739,7 +1712,7 @@ public function searchProductsForSalebypagination(Request $request)
             $this->applyWarehouseAllocation($id, $branchId, $retail, $allocData, $newQty);
         });
 
-        return redirect()->route('opening.stocks.index')
+        return redirect()->route('opening.stocks.edit', ['id' => $id, 'branch_id' => $branchId])
                          ->with('success', 'Opening stock updated successfully!');
     }
 
@@ -1759,25 +1732,28 @@ public function searchProductsForSalebypagination(Request $request)
             return;
         }
 
-        // Process EACH allocation row the user specified
+        // Group allocations by location to aggregate duplicate entries cleanly
+        $grouped = [];
         foreach ($allocData as $alloc) {
             $qty          = (float) ($alloc['quantity'] ?? 0);
             $locationType = $alloc['location_type'] ?? 'shop';
+            $whId         = ($locationType === 'warehouse' && !empty($alloc['warehouse_id'])) ? (int) $alloc['warehouse_id'] : null;
+            $key          = $whId === null ? 'shop' : 'wh_' . $whId;
 
-            if ($locationType === 'shop') {
-                // Branch / Shop level → warehouse_id = NULL
-                DB::table('warehouse_stocks')->updateOrInsert(
-                    ['branch_id' => $branchId, 'warehouse_id' => null, 'product_id' => $productId],
-                    ['quantity' => $qty, 'price' => $price, 'updated_at' => $now, 'created_at' => $now]
-                );
-            } elseif ($locationType === 'warehouse' && !empty($alloc['warehouse_id'])) {
-                // Specific Warehouse → warehouse_id = X
-                $warehouseId = (int) $alloc['warehouse_id'];
-                DB::table('warehouse_stocks')->updateOrInsert(
-                    ['branch_id' => $branchId, 'warehouse_id' => $warehouseId, 'product_id' => $productId],
-                    ['quantity' => $qty, 'price' => $price, 'updated_at' => $now, 'created_at' => $now]
-                );
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'warehouse_id' => $whId,
+                    'quantity'     => 0,
+                ];
             }
+            $grouped[$key]['quantity'] += $qty;
+        }
+
+        foreach ($grouped as $group) {
+            DB::table('warehouse_stocks')->updateOrInsert(
+                ['branch_id' => $branchId, 'warehouse_id' => $group['warehouse_id'], 'product_id' => $productId],
+                ['quantity' => $group['quantity'], 'price' => $price, 'updated_at' => $now, 'created_at' => $now]
+            );
         }
     }
 

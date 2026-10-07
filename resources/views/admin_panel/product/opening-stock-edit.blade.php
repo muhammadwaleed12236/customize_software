@@ -451,12 +451,12 @@
                 <h6><i class="las la-boxes" style="font-size:18px;color:#6366f1;"></i> Stock &amp; Valuation</h6>
                 <div class="input-row">
                     <div class="fg">
-                        <label>New Total Stock Qty <small style="font-size:11px;color:#6366f1;font-weight:600;">(auto from locations below)</small></label>
+                        <label>New Total Stock Qty <small style="font-size:11px;color:#6366f1;font-weight:600;">(Enter stock quantity here or in locations below)</small></label>
                         <input type="number" id="new_qty" name="opening_qty" class="fi fi-num"
                                value="{{ $currentStock }}" step="0.01" min="0" required
-                               readonly
-                               style="background:#eef2ff;border-color:#a5b4fc;color:#4f46e5;font-weight:800;cursor:not-allowed;"
-                               title="Auto-calculated from warehouse allocations below">
+                               style="background:#ffffff;border-color:#6366f1;color:#4f46e5;font-weight:800;"
+                               placeholder="0.00"
+                               title="Enter total stock quantity">
                         <div class="delta-info delta-zero" id="delta_info">No change from current stock</div>
                     </div>
                     <div class="fg">
@@ -627,6 +627,16 @@ $(document).ready(function() {
         updateEditAllocStatus();
     });
 
+    // ── Direct new_qty input change sync ──────────────────────────────────
+    $('#new_qty').on('input change', function() {
+        var val = parseFloat($(this).val()) || 0;
+        var rows = $('#alloc_edit_rows .alloc-grid-row');
+        if (rows.length === 1) {
+            rows.first().find('.alloc-qty-in').val(val);
+        }
+        calcDelta();
+    });
+
     // ── Build allocation JSON before submit ───────────────────────────────
     $('#editForm').on('submit', function() {
         var wholesale = parseFloat($('#wholesale_price').val()) || 0;
@@ -651,6 +661,12 @@ $(document).ready(function() {
                 data.push({ location_type: 'warehouse', warehouse_id: type.replace('wh_',''), quantity: qty });
             }
         });
+
+        var totalQty = parseFloat($('#new_qty').val()) || 0;
+        if (data.length === 0 && totalQty > 0) {
+            data.push({ location_type: 'shop', quantity: totalQty });
+        }
+
         $('#alloc_data_edit').val(JSON.stringify(data));
     });
 
