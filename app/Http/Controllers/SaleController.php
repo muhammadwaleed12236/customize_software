@@ -4529,9 +4529,7 @@ public function finddc($invoice)
 
                         // Global Stock
                         $stock = Stock::where('product_id', $item->product_id)
-                            ->when($item->warehouse_id, function ($q) use ($item) {
-                                $q->where('warehouse_id', $item->warehouse_id);
-                            })
+                            ->where('branch_id', $sale->branch_id ?? 1)
                             ->first();
 
                         if ($stock) {
@@ -4541,7 +4539,6 @@ public function finddc($invoice)
                             Stock::create([
                                 'branch_id'    => $sale->branch_id ?? 1,
                                 'product_id'   => $item->product_id,
-                                'warehouse_id' => $item->warehouse_id,
                                 'qty'          => $qty,
                                 'reserved_qty' => 0,
                             ]);
