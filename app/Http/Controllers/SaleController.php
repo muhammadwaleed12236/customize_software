@@ -3724,6 +3724,7 @@ public function finddc($invoice)
                 $sale->update([
                     'customer_id'         => $customerId ?: $sale->customer_id,
                     'customer_name'       => $customerName,
+                    'party_type'          => $partyType,
                     'partyType'           => $partyType,
                     'salesman_id'         => $request->input('salesman_id', $sale->salesman_id),
                     'manual_invoice'      => $request->input('Invoice_main', $sale->manual_invoice),

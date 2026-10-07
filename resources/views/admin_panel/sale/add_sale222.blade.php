@@ -727,97 +727,69 @@
                 </div>
 
                 {{-- 2. CUSTOMER TOOLBAR (SINGLE LINE LAYOUT) --}}
-                <div class="customer-card-toolbar p-3 mb-3">
+                <div class="customer-card-toolbar p-2 mb-3">
                     <input type="hidden" name="Invoice_date" id="Invoice_date" value="{{ date('Y-m-d') }}">
                     <input type="hidden" name="estimated_delivery_date" id="estimated_delivery_date" value="{{ date('Y-m-d', strtotime('+15 days')) }}">
                     <input type="hidden" name="Invoice_no" id="Invoice_no" value="{{ $nextInvoiceNumber }}">
 
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2 pb-2 border-bottom">
-                        <div class="d-flex align-items-center gap-3">
-                            <label class="form-label fw-bold text-uppercase small text-primary mb-0 me-1" style="letter-spacing: 0.5px;">
-                                <i class="fas fa-user-circle me-1"></i> Customer
+                    {{-- SINGLE UNIFIED COMPACT LINE --}}
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-1.5">
+                        <div class="d-flex align-items-center gap-1.5 flex-grow-1 flex-wrap">
+                            <label class="form-label fw-bold text-uppercase small text-primary mb-0 me-1" style="letter-spacing: 0.5px; font-size: 11px; white-space: nowrap;">
+                                <i class="fas fa-user-circle me-1"></i> CUSTOMER
                             </label>
+
+                            {{-- PARTY TYPE RADIOS --}}
                             <div class="btn-group btn-group-sm" role="group" id="partyTypeGroup">
                                 <input type="radio" class="btn-check" name="partyType" id="typeCustomers" value="credit" checked>
-                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeCustomers">Credit</label>
+                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeCustomers" style="font-size: 11px;">Credit</label>
                                 <input type="radio" class="btn-check" name="partyType" id="typeWalkin" value="cash">
-                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeWalkin">Cash</label>
+                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeWalkin" style="font-size: 11px;">Cash</label>
                                 <input type="radio" class="btn-check" name="partyType" id="typewalking" value="walking">
-                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typewalking">Walking</label>
+                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typewalking" style="font-size: 11px;">Walking</label>
                             </div>
-                        </div>
 
-                        <div class="d-flex align-items-center gap-2">
-                            <span class="badge bg-light text-dark border py-1 px-2">Inv#: <strong class="text-primary" id="invoiceNoText">{{ $nextInvoiceNumber }}</strong></span>
-                            <button id="clearCustomerData" type="button" class="btn btn-sm btn-light border text-danger py-0 px-2 fw-semibold">
-                                <i class="fas fa-eraser"></i> Clear
-                            </button>
-                        </div>
-                    </div>
-
-                    {{-- CUSTOMER SELECT / WALKING INPUT & SINGLE-LINE SUMMARY --}}
-                    <div class="row g-2 align-items-center">
-                        {{-- CUSTOMER SEARCH DROPDOWN --}}
-                        <div class="col-lg-3 col-md-3 col-12 position-relative" id="customerSelectWrapper">
-                            <div class="d-flex align-items-center gap-1">
-                                <div class="flex-grow-1 position-relative" style="min-width: 0;">
-                                    <select class="form-select js-customer border-primary-subtle rounded-3" id="customerSelect" style="width: 100%;">
-                                        <option selected disabled>Search Customer...</option>
-                                    </select>
+                            {{-- CUSTOMER DROPDOWN + ADD BUTTON --}}
+                            <div style="min-width: 180px; max-width: 250px;" class="flex-grow-1" id="customerSelectWrapper">
+                                <div class="d-flex align-items-center gap-1">
+                                    <div class="flex-grow-1 position-relative" style="min-width: 0;">
+                                        <select class="form-select js-customer border-primary-subtle rounded-3" id="customerSelect" style="width: 100%;">
+                                            <option selected disabled>Search Customer...</option>
+                                        </select>
+                                    </div>
+                                    <button type="button" id="btnOpenAddCustomerModal" class="btn btn-primary btn-sm px-2 fw-semibold rounded-3 text-white d-inline-flex align-items-center justify-content-center shadow-sm" style="background:#2563eb !important; border-color:#2563eb !important; text-decoration: none; height: 31px; white-space: nowrap;">
+                                        <i class="fas fa-plus me-1"></i> Add
+                                    </button>
                                 </div>
-                                <button type="button" id="btnOpenAddCustomerModal" class="btn btn-primary btn-sm px-2.5 fw-semibold rounded-3 text-white d-inline-flex align-items-center justify-content-center shadow-sm" style="background:#2563eb !important; border-color:#2563eb !important; text-decoration: none; height: 31px; white-space: nowrap;">
-                                    <i class="fas fa-plus me-1"></i> Add
-                                </button>
+                                <small class="text-muted" id="customerCountHint" style="display: none !important;"></small>
                             </div>
-                            <small class="text-muted position-absolute" id="customerCountHint" style="font-size: 10px; top: 100%; left: 0; line-height: 1; margin-top: 2px; z-index: 5;"></small>
-                        </div>
 
-                        {{-- VISIBLE / EDITABLE CUSTOMER NAME INPUT --}}
-                        <div class="col-lg-3 col-md-3 col-12" id="customerDisplayWrapper" style="display: none;">
-                            <input type="text" class="form-control form-control-sm border-primary-subtle fw-bold text-dark rounded-3" id="customerDisplay" name="customer_display" placeholder="Walking Customer Name" value="Walking Customer">
-                        </div>
+                            {{-- VISIBLE / EDITABLE CUSTOMER NAME INPUT --}}
+                            <div style="min-width: 180px; display: none;" id="customerDisplayWrapper">
+                                <input type="text" class="form-control form-control-sm border-primary-subtle fw-bold text-dark rounded-3" id="customerDisplay" name="customer_display" placeholder="Walking Customer Name" value="Walking Customer">
+                            </div>
 
-                        <input type="hidden" id="customer_id" name="customer_id" value="">
-                        <input type="hidden" id="customer" name="customer" value="">
+                            <input type="hidden" id="customer_id" name="customer_id" value="">
+                            <input type="hidden" id="customer" name="customer" value="">
 
-                        {{-- PHONE # --}}
-                        <div class="col-lg-2 col-md-2 col-6">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-light text-muted"><i class="fas fa-phone small"></i></span>
+                            {{-- PHONE # --}}
+                            <div style="width: 110px;">
                                 <input type="text" class="form-control form-control-sm" id="tel" name="tel" placeholder="Phone #">
                             </div>
-                        </div>
 
-                        {{-- ADDRESS --}}
-                        <div class="col-lg-4 col-md-4 col-6">
-                            <div class="input-group input-group-sm">
-                                <span class="input-group-text bg-light text-muted"><i class="fas fa-map-marker-alt small"></i></span>
+                            {{-- ADDRESS --}}
+                            <div style="width: 130px;" class="flex-grow-1">
                                 <input type="text" class="form-control form-control-sm" id="address" name="address" placeholder="Address">
                             </div>
-                        </div>
 
-                        {{-- PREV BALANCE & CREDIT LIMIT (SINGLE LINE) --}}
-                        <div class="col-lg-3 col-md-3 col-12 ms-auto" id="balanceFieldsContainer">
-                            <div class="d-flex align-items-center justify-content-end gap-1">
-                                <span class="small text-muted fw-bold">Prev Bal:</span>
-                                <input type="text" class="form-control form-control-sm text-end fw-bold text-danger rounded-3" id="previousBalance" value="0" style="width: 80px;" readonly>
-
-                                <span class="small text-muted fw-bold ms-1">Limit:</span>
-                                <input type="text" class="form-control form-control-sm text-end fw-bold text-primary rounded-3" id="creditLimit" value="0" style="width: 75px;" readonly>
-                                <small id="noCreditLimitMsg" class="text-success fw-bold ms-1" style="display:none;">Infinite</small>
-                                <input type="hidden" id="noCreditLimit" value="0">
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- SECONDARY ROW (Manual Inv#, Branch, Salesman, Remarks) --}}
-                    <div class="mt-2 pt-2 border-top">
-                        <div class="row g-2 align-items-center">
-                            <div class="col-md-2 col-6">
+                            {{-- MANUAL INV# --}}
+                            <div style="width: 100px;">
                                 <input type="text" class="form-control form-control-sm" name="Invoice_main" placeholder="Manual Inv#">
                             </div>
+
+                            {{-- BRANCH (IF SUPER ADMIN) --}}
                             @if (Auth::user() && Auth::user()->hasRole('super admin'))
-                            <div class="col-md-2 col-6">
+                            <div style="width: 110px;">
                                 <select class="form-select form-select-sm" name="branch_id" id="branch_id">
                                     @foreach($branches as $b)
                                         <option value="{{ $b->id }}">{{ $b->branch_name ?? $b->name ?? 'Branch ' . $b->id }}</option>
@@ -827,9 +799,11 @@
                             @else
                                 <input type="hidden" name="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
                             @endif
-                            <div class="col-md-3 col-6">
+
+                            {{-- SALESMAN --}}
+                            <div style="width: 130px;">
                                 <select class="form-select form-select-sm select2" name="salesman_id" id="salesman_id">
-                                    <option value="">Select Salesman</option>
+                                    <option value="">Salesman</option>
                                     @foreach($salesmen as $sm)
                                         <option value="{{ $sm->id }}" {{ (isset($booking) && $booking->salesman_id == $sm->id) ? 'selected' : '' }}>
                                             {{ $sm->name }}
@@ -837,9 +811,27 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-5 col-12">
-                                <input type="text" class="form-control form-control-sm" id="remarks" name="remarks" placeholder="Order Remarks / Notes">
+
+                            {{-- REMARKS --}}
+                            <div style="min-width: 120px;" class="flex-grow-1">
+                                <input type="text" class="form-control form-control-sm" id="remarks" name="remarks" placeholder="Remarks / Notes">
                             </div>
+                        </div>
+
+                        {{-- PREV BAL & LIMIT & INV# & CLEAR --}}
+                        <div class="d-flex align-items-center gap-1.5 flex-nowrap" id="balanceFieldsContainer" style="white-space: nowrap;">
+                            <span class="small text-muted fw-bold ms-1">Prev Bal:</span>
+                            <input type="text" class="form-control form-control-sm text-end fw-bold text-danger rounded-3" id="previousBalance" value="0" style="width: 70px;" readonly>
+
+                            <span class="small text-muted fw-bold">Limit:</span>
+                            <input type="text" class="form-control form-control-sm text-end fw-bold text-primary rounded-3" id="creditLimit" value="0" style="width: 70px;" readonly>
+                            <small id="noCreditLimitMsg" class="text-success fw-bold ms-1" style="display:none;">Infinite</small>
+                            <input type="hidden" id="noCreditLimit" value="0">
+
+                            <span class="badge bg-light text-dark border py-1 px-2 ms-1">Inv#: <strong class="text-primary" id="invoiceNoText">{{ $nextInvoiceNumber }}</strong></span>
+                            <button id="clearCustomerData" type="button" class="btn btn-sm btn-light border text-danger py-0 px-2 fw-semibold">
+                                <i class="fas fa-eraser"></i> Clear
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -1637,6 +1629,10 @@
                 $('#btnSave').html('<i class="fas fa-save me-2"></i> Update Sale');
                 $('#btnPosted2').hide();
 
+                if (window.EDIT_SALE.branch_id) {
+                    $('#branch_id').val(window.EDIT_SALE.branch_id);
+                }
+
                 if (window.EDIT_SALE.invoice_no) {
                     $('input[name="Invoice_no"]').val(window.EDIT_SALE.invoice_no).prop('readonly', true);
                 }
@@ -1645,12 +1641,13 @@
                 }
 
                 const pType = window.EDIT_SALE.partyType || window.EDIT_SALE.party_type || 'credit';
-                $(`input[name="partyType"][value="${pType}"]`).prop('checked', true).trigger('change');
+                $(`input[name="partyType"][value="${pType}"]`).prop('checked', true);
 
                 if (pType === 'walking') {
+                    loadCustomersByType('walking');
                     $('#customerDisplay').val(window.EDIT_SALE.customer_name || '');
                 } else if (window.EDIT_SALE.customer_id) {
-                    $('#customerSelect').val(window.EDIT_SALE.customer_id).trigger('change');
+                    loadCustomersByType(pType, window.EDIT_SALE.customer_id);
                 }
 
                 if (window.EDIT_SALE.salesman_id) {
@@ -1668,23 +1665,43 @@
                         addNewRow();
                         const $newRow = $('#salesTableBody tr').last();
                         const productId = item.product_id;
+                        const $productSelect = $newRow.find('.product-select');
 
                         if (productId) {
-                            $newRow.find('.product-select').val(productId).trigger('change');
+                            const label = (item.item_code ? item.item_code + ' - ' : '') + (item.item_name || 'Product #' + productId);
+                            if ($productSelect.find(`option[value="${productId}"]`).length === 0) {
+                                $productSelect.append(`<option value="${productId}" selected>${label}</option>`);
+                            } else {
+                                $productSelect.val(productId);
+                            }
+                        }
+
+                        if (item.unit) {
+                            $newRow.find('.unit-label').text(item.unit);
                         }
 
                         $newRow.find('.sales-qty').val(item.sales_qty || item.qty || 1);
-                        $newRow.find('.retail-price').val((item.retail_price || item.sales_price || 0).toFixed(2));
+                        $newRow.find('.retail-price').val(parseFloat(item.retail_price || item.sales_price || 0).toFixed(2));
 
-                        const discVal = item.discount_amount || item.discount || 0;
-                        const discType = item.discount_type || 'pkr';
+                        const discVal = parseFloat(item.discount_amount || item.discount || 0);
+                        const discPercent = parseFloat(item.discount_percent || 0);
+                        const discType = item.discount_type || (discPercent > 0 ? 'percent' : 'pkr');
                         const $discToggle = $newRow.find('.discount-toggle');
-                        $discToggle.attr('data-type', discType).text(discType === 'percent' ? '%' : 'PKR');
+                        const $discTypeField = $newRow.find('.discount-type-field');
 
-                        if (discType === 'percent' && item.discount_percent > 0) {
-                            $newRow.find('.discount-value').val(item.discount_percent.toFixed(2));
+                        $discToggle.attr('data-type', discType).text(discType === 'percent' ? '%' : 'PKR');
+                        $discTypeField.val(discType);
+
+                        if (discType === 'percent' && discPercent > 0) {
+                            $newRow.find('.discount-value').val(discPercent.toFixed(2));
+                            $newRow.find('.discount-amount').val('0');
                         } else {
                             $newRow.find('.discount-value').val(discVal.toFixed(2));
+                            $newRow.find('.discount-amount').val(discVal.toFixed(2));
+                        }
+
+                        if (item.watt !== undefined && item.watt !== null) {
+                            $newRow.find('.watt-val').val(item.watt || 0);
                         }
 
                         if (item.warehouse_id) {
@@ -1693,8 +1710,48 @@
                                 .val(item.warehouse_id);
                         }
 
+                        // Fetch warehouse options asynchronously for display
+                        if (productId) {
+                            const branchId = $('#branch_id').val() || $('[name="branch_id"]').val() || window.USER_BRANCH_ID || '';
+                            $.get('/get-product-details/' + productId, { branch_id: branchId }, function(data) {
+                                if (data && data.product) {
+                                    const totalBranchStock = data.available_stock !== undefined ? data.available_stock : 
+                                                    ((data.product.stock && (data.product.stock.qty ?? data.product.stock)) || 0);
+
+                                    const $whSelect = $newRow.find('.warehouse-select');
+                                    $whSelect.empty();
+
+                                    let selectedWhId = item.warehouse_id || '';
+
+                                    if (data.warehouse_breakdown && data.warehouse_breakdown.length > 0) {
+                                        data.warehouse_breakdown.forEach(function(wb) {
+                                            const wid = wb.warehouse_id || '';
+                                            const wname = wb.warehouse_name || 'Warehouse';
+                                            const wqty = parseFloat(wb.quantity || 0);
+                                            $whSelect.append(`<option value="${wid}" data-stock="${wqty}">🏬 ${wname} (${wqty})</option>`);
+                                        });
+                                        $whSelect.prepend(`<option value="" data-stock="${totalBranchStock}">🏢 All / Shop Stock (${totalBranchStock})</option>`);
+                                    } else {
+                                        $whSelect.append(`<option value="" data-stock="${totalBranchStock}">🏢 General Branch Stock (${totalBranchStock})</option>`);
+                                    }
+
+                                    if (selectedWhId !== '') {
+                                        $whSelect.val(selectedWhId);
+                                    }
+
+                                    $newRow.find('.warehouse-id')
+                                        .attr('name', `warehouse_id[${productId}]`)
+                                        .val($whSelect.val() || selectedWhId);
+
+                                    $newRow.find('.stock').val(totalBranchStock).data('available-stock', totalBranchStock);
+                                    $newRow.find('.sales-qty').data('available-stock', totalBranchStock);
+                                }
+                            });
+                        }
+
                         computeRow($newRow, false, true);
                     });
+                    updateWattColumnVisibility();
                 }
 
                 if (window.EDIT_RECEIPTS && window.EDIT_RECEIPTS.length > 0) {
@@ -2213,7 +2270,7 @@
 
         <!-- WATT -->
         <td class="watt-col" style="display: none;">
-          <input type="text" class="form-control watt-val text-center fw-semibold rounded-3" name="watt[]" placeholder="Watt" value="">
+          <input type="text" class="form-control watt-val text-center fw-semibold rounded-3" name="watt[]" placeholder="Watt" value="0">
         </td>
 
         <!-- QTY -->
@@ -2253,7 +2310,7 @@
 
         <!-- NET AMOUNT -->
         <td class="amount-col">
-          <input type="text" class="form-control sales-amount text-end input-readonly rounded-3" name="sales_amount[]" value="0" readonly style="font-weight:700; color:#2563eb; background-color:#f8fafc;">
+          <input type="text" class="form-control sales-amount text-end rounded-3" name="sales_amount[]" value="0.00" placeholder="0.00" style="font-weight:700; color:#2563eb;">
         </td>
 
         <!-- ACTION -->
@@ -3492,9 +3549,21 @@
             $row.find('.sales-amount').val(net.toFixed(2));
 
             if (formatDiscount) {
-                $row.find('.retail-price').val(rp.toFixed(2));
+                if (rp > 0) {
+                    $row.find('.retail-price').val(rp.toFixed(2));
+                } else if (!$row.find('.retail-price').is(':focus')) {
+                    $row.find('.retail-price').val('');
+                }
             }
         }
+
+        // 🔹 Auto-select text and clear 0 on focus for price and numeric inputs
+        $(document).on('focus', '.retail-price, .sales-qty, .watt-val, .discount-value, .sales-amount', function() {
+            this.select();
+            if ($(this).hasClass('retail-price') && toNum($(this).val()) === 0) {
+                $(this).val('');
+            }
+        });
 
 
 
@@ -3604,9 +3673,8 @@
 
             // ===== BACKEND MIRRORS =====
             // subTotal2 = subTotal1 + additional_discount + extra_charges
-            const additionalDiscount = toNum($('#discountPercent').val());
             const extraCharges = toNum($('#echarges').val());
-            const subTotal2Calculated = (tNet - additionalDiscount) + extraCharges;
+            const subTotal2Calculated = Math.max(0, tNet - orderDisc + extraCharges);
             
             $('#subTotal1').val(tGross.toFixed(2));
             $('#subTotal2').val(subTotal2Calculated.toFixed(2));
@@ -3732,6 +3800,15 @@
             }
 
             if (fromField === 'discount') {
+                const $amtInput = $row.find('.sales-amount');
+                if ($amtInput.length) {
+                    $amtInput.focus().select();
+                    return;
+                }
+                fromField = 'amount';
+            }
+
+            if (fromField === 'amount') {
                 const $nextRow = $row.next('tr');
                 if ($nextRow.length) {
                     const $nextProd = $nextRow.find('.product-select');
@@ -3760,10 +3837,38 @@
             }
         }
 
-        $('#salesTableBody').on('keydown', '.watt-val, .sales-qty, .retail-price, .discount-value', function(e) {
+        // 🔹 Reverse calculation: compute retail price from total amount when typing in sales-amount
+        $(document).on('input', '.sales-amount', function() {
+            const $row = $(this).closest('tr');
+            const netTarget = toNum($(this).val());
+            const dam = toNum($row.find('.discount-amount').val());
+            const grossTarget = netTarget + dam;
+            const watt = toNum($row.find('.watt-val').val());
+            const qty = Math.max(1, toNum($row.find('.sales-qty').val()));
+            const multiplier = (watt > 0) ? (watt * qty) : qty;
+            const calculatedPrice = multiplier > 0 ? (grossTarget / multiplier) : 0;
+            
+            $row.find('.retail-price').val(calculatedPrice.toFixed(2));
+            computeRow($row, false, false);
+            updateGrandTotals();
+            refreshPostedState();
+        });
+
+        $('#salesTableBody').on('keydown', '.watt-val, .sales-qty, .retail-price, .discount-value, .sales-amount', function(e) {
             if (e.key === 'Enter' || e.keyCode === 13) {
                 e.preventDefault(); // prevent form submit
                 const $current = $(this).closest('tr');
+
+                if ($(this).hasClass('sales-amount')) {
+                    const netTarget = toNum($(this).val());
+                    const dam = toNum($current.find('.discount-amount').val());
+                    const grossTarget = netTarget + dam;
+                    const watt = toNum($current.find('.watt-val').val());
+                    const qty = Math.max(1, toNum($current.find('.sales-qty').val()));
+                    const multiplier = (watt > 0) ? (watt * qty) : qty;
+                    const calculatedPrice = multiplier > 0 ? (grossTarget / multiplier) : 0;
+                    $current.find('.retail-price').val(calculatedPrice.toFixed(2));
+                }
 
                 computeRow($current);
                 updateGrandTotals();
@@ -3777,6 +3882,8 @@
                     focusNextRowField($current, 'price');
                 } else if ($(this).hasClass('discount-value')) {
                     focusNextRowField($current, 'discount');
+                } else if ($(this).hasClass('sales-amount')) {
+                    focusNextRowField($current, 'amount');
                 }
             }
         });
@@ -4490,12 +4597,8 @@
                                 $row.removeAttr('data-has-model').removeAttr('data-model');
                             }
 
-                            const wattVal = extractWattFromModel(modelStr);
-                            if (wattVal > 0) {
-                                $row.find('.watt-val').val(wattVal);
-                            } else {
-                                $row.find('.watt-val').val('');
-                            }
+                            // Set Watt to 0 by default as requested by user (do not auto-fetch from model)
+                            $row.find('.watt-val').val('0');
                             updateWattColumnVisibility();
 
                             $row.find('.stock').val(selectedStock).data('available-stock', selectedStock);
@@ -4529,17 +4632,27 @@
                 const $row = $(this).closest('tr');
                 if (!$(this).val()) {
                     $row.removeAttr('data-has-model').removeAttr('data-model');
-                    $row.find('.watt-val').val('');
+                    $row.find('.watt-val').val('0');
                     updateWattColumnVisibility();
                 }
             });
 
-            // 4. Watt Input Change Handler
+            // 4. Watt Input Change & Blur Handler (Default to 0)
             $(document).on('input change', '.watt-val', function() {
                 const $row = $(this).closest('tr');
                 computeRow($row);
                 updateGrandTotals();
                 updateWattColumnVisibility();
+            });
+
+            $(document).on('blur', '.watt-val', function() {
+                const val = $(this).val();
+                if (!val || val.trim() === '' || isNaN(val)) {
+                    $(this).val('0');
+                    const $row = $(this).closest('tr');
+                    computeRow($row);
+                    updateGrandTotals();
+                }
             });
         });
     </script>

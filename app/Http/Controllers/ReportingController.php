@@ -177,13 +177,35 @@ class ReportingController extends Controller
         $initialOpening = (float)($customer->opening_balance ?? 0);
 
         // 1. Prior Sales (Debit)
-        $priorSales = DB::table('sales')
-            ->where('customer_id', $customerId)
-            ->where(DB::raw('DATE(created_at)'), '<', $startDate)
+        $priorSalesRaw = DB::table('sales')
+            ->leftJoin('sale_items', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sales.customer_id', $customerId)
+            ->where(DB::raw('DATE(sales.created_at)'), '<', $startDate)
             ->where(function ($q) {
-                $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
+                $q->whereNull('sales.status')->orWhere('sales.status', '!=', 'cancelled');
             })
-            ->sum(DB::raw('COALESCE(total_net, sub_total1 - discount_amount)'));
+            ->select(
+                'sales.id',
+                'sales.total_net',
+                'sales.additional_discount',
+                'sales.extra_charges',
+                DB::raw('COALESCE(SUM(sale_items.amount), 0) as items_sum'),
+                DB::raw('COUNT(sale_items.id) as items_count')
+            )
+            ->groupBy('sales.id', 'sales.total_net', 'sales.additional_discount', 'sales.extra_charges')
+            ->get();
+
+        $priorSales = 0;
+        foreach ($priorSalesRaw as $ps) {
+            $itemsSum = (float)$ps->items_sum;
+            $addDisc  = (float)($ps->additional_discount ?? 0);
+            $extraChg = (float)($ps->extra_charges ?? 0);
+            if ($ps->items_count > 0 && $itemsSum > 0) {
+                $priorSales += max(0, $itemsSum - $addDisc + $extraChg);
+            } else {
+                $priorSales += (float)($ps->total_net ?? 0);
+            }
+        }
 
         // 2. Prior Sale Returns (Credit)
         $priorReturns = DB::table('sales_returns')
@@ -403,29 +425,43 @@ class ReportingController extends Controller
         }
 
         // Group sale items under their parent sale
-        // For running balance: debit hits ONCE per sale (total_net), not per item
+        // For running balance: debit hits ONCE per sale, accurately calculated from items sum
         $salesGrouped = [];
         foreach ($salesRaw as $row) {
-            $salesGrouped[$row->sale_id]['header'] = [
-                'invoice_no'          => $row->invoice_no,
-                'manual_invoice'      => $row->manual_invoice ?? '-',
-                'total_net'           => floatval($row->total_net ?? 0),
-                'additional_discount' => floatval($row->additional_discount ?? 0),
-                'extra_charges'       => floatval($row->extra_charges ?? 0),
-                'txn_date'            => $row->txn_date,
-            ];
+            if (!isset($salesGrouped[$row->sale_id])) {
+                $salesGrouped[$row->sale_id] = [
+                    'header' => [
+                        'invoice_no'          => $row->invoice_no,
+                        'manual_invoice'      => $row->manual_invoice ?? '-',
+                        'total_net'           => floatval($row->total_net ?? 0),
+                        'additional_discount' => floatval($row->additional_discount ?? 0),
+                        'extra_charges'       => floatval($row->extra_charges ?? 0),
+                        'txn_date'            => $row->txn_date,
+                    ],
+                    'items'     => [],
+                    'items_sum' => 0,
+                ];
+            }
             $qty       = floatval($row->qty ?? 0);
+            $rate      = floatval($row->rate ?? 0);
+            $lineAmt   = floatval($row->line_amount ?? 0);
+            if ($lineAmt == 0 && $qty > 0 && $rate > 0) {
+                $lineAmt = $qty * $rate;
+            }
+
+            $salesGrouped[$row->sale_id]['items_sum'] += $lineAmt;
+
             $avgPrice  = $avgPriceMap[$row->product_id] ?? 0;
             $nPrice    = floatval($row->n_price ?? 0);
             $salesGrouped[$row->sale_id]['items'][] = [
                 'item_name'     => $row->item_name,
                 'item_name_urdu'=> $row->item_name_urdu ?? null,
                 'qty'           => $qty,
-                'rate'          => floatval($row->rate ?? 0),
+                'rate'          => $rate,
                 'item_discount' => floatval($row->item_discount ?? 0),
-                'line_amount'   => floatval($row->line_amount ?? 0),
+                'line_amount'   => $lineAmt,
                 'retail_price'  => floatval($row->retail_price ?? 0),
-                'policy_price'  => floatval($row->rate ?? 0),
+                'policy_price'  => $rate,
                 'avg_price'     => $avgPrice,
                 'avg_s_value'   => $avgPrice * $qty,
                 'n_price'       => $nPrice,
@@ -505,8 +541,16 @@ class ReportingController extends Controller
 
         // Add Sales
         foreach ($salesGrouped as $saleId => $saleData) {
-            $header  = $saleData['header'];
-            $items   = $saleData['items'];
+            $header   = $saleData['header'];
+            $items    = $saleData['items'];
+            $itemsSum = floatval($saleData['items_sum'] ?? 0);
+            $addDisc  = floatval($header['additional_discount'] ?? 0);
+            $extraChg = floatval($header['extra_charges'] ?? 0);
+
+            $effectiveDebit = (count($items) > 0 && $itemsSum > 0)
+                ? max(0, $itemsSum - $addDisc + $extraChg)
+                : floatval($header['total_net'] ?? 0);
+
             $gp      = $gpMap[$header['invoice_no']] ?? [];
             $dcNo    = !empty($gp) ? implode(' / ', array_unique(array_column($gp, 'dc_no'))) : '-';
             $gpNo    = !empty($gp) ? implode(' / ', array_unique(array_column($gp, 'gatepass_number'))) : '-';
@@ -521,9 +565,9 @@ class ReportingController extends Controller
                     'dc_no'       => $dcNo,
                     'gp_no'       => $gpNo,
                     'txn_date'    => $header['txn_date'],
-                    'debit'       => $header['total_net'],
-                    'add_disc'    => $header['additional_discount'] ?? 0,
-                    'extra_chg'   => $header['extra_charges'] ?? 0,
+                    'debit'       => $effectiveDebit,
+                    'add_disc'    => $addDisc,
+                    'extra_chg'   => $extraChg,
                     'items'       => $items,
                 ],
             ];

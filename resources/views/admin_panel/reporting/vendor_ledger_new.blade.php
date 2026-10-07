@@ -207,17 +207,18 @@
                     <div class="table-responsive" style="border: 1px solid var(--coa-border); border-radius: 9px; overflow: hidden;">
                         <table id="ledgerTable" class="table table-bordered mb-0" style="font-size: 12.5px; border-collapse: collapse;">
                             <thead>
-                                <tr>
-                                    <th class="text-center" style="width: 65px;">No</th>
-                                    <th class="text-center" style="width: 80px;">Inv No.</th>
-                                    <th class="text-center" style="width: 55px;">Type</th>
-                                    <th class="text-center" style="width: 80px;">Date</th>
-                                    <th class="text-center" style="width: 85px;">Ref</th>
-                                    <th>Details</th>
-                                    <th class="text-right" style="width: 65px;">Qty</th>
-                                    <th class="text-right" style="width: 95px;">Debit</th>
-                                    <th class="text-right" style="width: 95px;">Credit</th>
-                                    <th class="text-right" style="width: 110px;">Balance</th>
+                                <tr style="background: #0f1f38; color: #ffffff;">
+                                    <th class="text-center" style="width: 50px;">No</th>
+                                    <th class="text-center" style="width: 75px;">Inv No.</th>
+                                    <th class="text-center" style="width: 50px;">Type</th>
+                                    <th class="text-center" style="width: 75px;">Date</th>
+                                    <th class="text-center" style="width: 75px;">Ref</th>
+                                    <th>Details (تفصیل)</th>
+                                    <th class="text-right" style="width: 85px; background: #0f2b48 !important;">Price (قیمت)</th>
+                                    <th class="text-right" style="width: 70px; background: #064e3b !important;" title="Purchased Quantity">Qty (لیے)</th>
+                                    <th class="text-right" style="width: 95px;">Debit (نام)</th>
+                                    <th class="text-right" style="width: 95px;">Credit (قیمت/جمع)</th>
+                                    <th class="text-right" style="width: 105px;">Balance (بقیہ)</th>
                                 </tr>
                             </thead>
                             <tbody id="ledgerBody"></tbody>
@@ -480,7 +481,8 @@ $(document).ready(function () {
                     bodyHtml += td(header.date || '', 'center');
                     bodyHtml += td(refVal, 'center');
                     bodyHtml += td('<strong>' + (header.description || 'PURCHASE') + '</strong>', 'left');
-                    bodyHtml += td(q > 0 ? fmt(q) : '', 'right');
+                    bodyHtml += td('', 'right'); // Price
+                    bodyHtml += td(q > 0 ? fmt(q) : '', 'right'); // Qty
                     bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right');
                     bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');
                     bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
@@ -504,9 +506,6 @@ $(document).ready(function () {
                         if (item.item_name_urdu && item.item_name && item.item_name.trim() !== '' && item.item_name !== displayName) {
                             itemDetailsHtml += ' <small class="text-muted">(' + item.item_name + ')</small>';
                         }
-                        if (itemRate > 0) {
-                            itemDetailsHtml += ' <span style="color:#1e3a5f;font-weight:700;font-size:11px;">(Price: Rs. ' + fmt(itemRate) + ')</span>';
-                        }
                         if (n(item.item_discount) > 0) {
                             itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
                         }
@@ -522,6 +521,7 @@ $(document).ready(function () {
                             bodyHtml += td(header.date || '', 'center');
                             bodyHtml += td(refVal, 'center');
                             bodyHtml += td(itemDetailsHtml, 'left');
+                            bodyHtml += td(itemRate > 0 ? '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>' : '', 'right');
                             bodyHtml += td(itemQty > 0 ? fmt(itemQty) : '', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += td(itemAmt > 0 ? '<strong style="color:#2e7d32;">' + fmt(itemAmt) + '</strong>' : (credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : ''), 'right');
@@ -534,6 +534,7 @@ $(document).ready(function () {
                             bodyHtml += td('', 'center');
                             bodyHtml += td('', 'center');
                             bodyHtml += td(itemDetailsHtml, 'left');
+                            bodyHtml += td(itemRate > 0 ? '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>' : '', 'right');
                             bodyHtml += td(itemQty > 0 ? fmt(itemQty) : '', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += td(itemAmt > 0 ? '<strong style="color:#2e7d32;">' + fmt(itemAmt) + '</strong>' : '', 'right');
@@ -556,6 +557,7 @@ $(document).ready(function () {
                             bodyHtml += td('<small style="color:#e65100;font-weight:700;">↳ Additional Discount</small>', 'left');
                             bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
+                            bodyHtml += td('', 'right');
                             bodyHtml += td('<small style="color:#bf360c;font-weight:800;">&minus; ' + fmt(addDisc) + '</small>', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += '</tr>';
@@ -571,6 +573,7 @@ $(document).ready(function () {
                             bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right');
+                            bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += '</tr>';
                         }
@@ -611,10 +614,11 @@ $(document).ready(function () {
             bodyHtml += td(t.date  || '', 'center');                                              // 4. Date
             bodyHtml += td(refVal, 'center');                                                     // 5. Ref
             bodyHtml += td(descHtml, 'left');                                                     // 6. Details
-            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 7. Qty
-            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 8. Debit
-            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 9. Credit
-            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 10. Balance
+            bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');                 // 7. Price
+            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 8. Qty
+            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 9. Debit
+            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 10. Credit
+            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 11. Balance
             bodyHtml += '</tr>';
 
             i++;
@@ -626,6 +630,7 @@ $(document).ready(function () {
         /* Overall Sum row */
         var footHtml = '<tr class="r-total">';
         footHtml += '<td colspan="6" style="text-align:right;border:1px solid #ccc;padding:6px 10px;font-size:13px;"><strong>Total Sum (All Transactions)</strong></td>';
+        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;font-size:13px;font-weight:800;color:#1a1a2e;background:#eaf4ff;">' + fmt(grandQty) + '</td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#c62828;">' + fmt(grandDr) + '</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#2e7d32;">' + fmt(grandCr) + '</strong></td>';
@@ -634,7 +639,7 @@ $(document).ready(function () {
 
         /* Closing Balance row */
         footHtml += '<tr class="r-close">';
-        footHtml += '<td colspan="9" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
+        footHtml += '<td colspan="10" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #333;padding:8px 10px;font-size:15px;">' + balHtml(finalBal) + '</td>';
         footHtml += '</tr>';
 
@@ -754,7 +759,7 @@ $(document).ready(function () {
 
     /* ---------- CSV Export ---------- */
     window.exportCSV = function () {
-        var rows = [['Date','V NO','Bill','DC No','Gate Pass','Description / Item','Qty','Rate','Debit','Credit','Balance']];
+        var rows = [['No','Inv No','Type','Date','Ref','Details','Price','Qty','Debit','Credit','Balance']];
         // Only export visible rows (respects toggle details state)
         $('#ledgerTable tbody tr:visible, #ledgerTable tfoot tr:visible').each(function () {
             var cells = [];
