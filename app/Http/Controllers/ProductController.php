@@ -980,17 +980,22 @@ public function searchProductsForSalebypagination(Request $request)
             $imagePath = $imageName; // keep only filename for consistency
         }
 
-        DB::transaction(function () use ($request, $id, $userId, $imagePath) {
+        DB::transaction(function () use ($request, $product, $id, $userId, $imagePath, $isSuperAdmin) {
+            $wholesalePrice = (float) ($request->wholesale_price ?? 0);
+            $retailPrice    = (float) ($request->price ?? $request->retail_price ?? 0);
+            $alertQty       = (float) ($request->alert_quantity ?? 0);
+            $targetBranchId = $isSuperAdmin ? ($request->branch_id ?? $product->branch_id) : $product->branch_id;
 
-            Product::where('id', $id)->update([
+            $updateData = [
                 'creater_id'      => $userId,
+                'branch_id'       => $targetBranchId,
                 'category_id'     => $request->category_id,
                 'sub_category_id' => $request->sub_category_id,
                 'type_id'         => $request->type_id,
-                'item_code'       => $request->item_code ?? Product::where('id', $id)->value('item_code'),
+                'item_code'       => $request->item_code ?? $product->item_code,
                 'item_name'       => $request->product_name,
                 'item_name_urdu'  => $request->item_name_urdu ?? $request->product_name_urdu,
-                'barcode_path'    => $request->barcode_path ?? rand(100000000000, 999999999999),
+                'barcode_path'    => $request->barcode_path ?? $product->barcode_path,
                 'unit_id'         => $request->unit,
                 'brand_id'        => $request->brand_id,
                 'model'           => $request->model,
@@ -1002,8 +1007,25 @@ public function searchProductsForSalebypagination(Request $request)
                 'image'           => $imagePath,
                 'is_part'         => $request->has('is_part') ? 1 : 0,
                 'is_assembled'    => $request->has('is_assembled') ? 1 : 0,
+                'wholesale_price' => $wholesalePrice,
+                'price'           => $retailPrice,
+                'alert_quantity'  => $alertQty,
                 'updated_at'      => now(),
-            ]);
+            ];
+
+            if ($request->has('color')) {
+                $colors = $request->color;
+                $updateData['color'] = is_array($colors) ? json_encode($colors) : $colors;
+            }
+
+            if ($request->filled('initial_stock') || $request->filled('stock_quantity')) {
+                $newStockQty = (float) ($request->initial_stock ?? $request->stock_quantity);
+                $updateData['initial_stock'] = $newStockQty;
+            } else {
+                $newStockQty = null;
+            }
+
+            Product::where('id', $id)->update($updateData);
 
             // BOM re-save (replace all for this product)
             DB::table('product_boms')->where('product_id', $id)->delete();
@@ -1024,15 +1046,95 @@ public function searchProductsForSalebypagination(Request $request)
                 }
             }
 
+            // Stock update & movement tracking
+            if ($newStockQty !== null) {
+                $currentQty = Stock::where('product_id', $id)
+                    ->where('branch_id', $targetBranchId)
+                    ->value('qty') ?? 0;
+
+                $delta = $newStockQty - $currentQty;
+
+                if ($delta != 0) {
+                    StockMovement::create([
+                        'product_id' => $id,
+                        'branch_id'  => $targetBranchId,
+                        'type'       => $delta > 0 ? 'in' : 'out',
+                        'qty'        => abs($delta),
+                        'ref_type'   => 'PRODUCT_EDIT',
+                        'ref_id'     => null,
+                        'note'       => 'Stock updated from product edit',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    $this->upsertStocks(
+                        productId: $id,
+                        qtyDelta:  $delta,
+                        branchId:  $targetBranchId,
+                    );
+                }
+
+                $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
+                if (empty($allocData)) {
+                    $hasWarehouseAllocations = WarehouseStock::where('product_id', $id)
+                        ->where('branch_id', $targetBranchId)
+                        ->whereNotNull('warehouse_id')
+                        ->exists();
+
+                    if (!$hasWarehouseAllocations) {
+                        $this->applyWarehouseAllocation($id, $targetBranchId, $retailPrice, [], $newStockQty);
+                    } else {
+                        WarehouseStock::where('product_id', $id)
+                            ->where('branch_id', $targetBranchId)
+                            ->update(['price' => $retailPrice, 'updated_at' => now()]);
+
+                        if ($delta != 0) {
+                            $mainWS = WarehouseStock::where('product_id', $id)
+                                ->where('branch_id', $targetBranchId)
+                                ->whereNull('warehouse_id')
+                                ->first();
+
+                            if ($mainWS) {
+                                $mainWS->increment('quantity', $delta);
+                            } else {
+                                $firstWS = WarehouseStock::where('product_id', $id)
+                                    ->where('branch_id', $targetBranchId)
+                                    ->first();
+                                if ($firstWS) {
+                                    $firstWS->increment('quantity', $delta);
+                                } else {
+                                    $this->applyWarehouseAllocation($id, $targetBranchId, $retailPrice, [], $newStockQty);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    WarehouseStock::where('product_id', $id)
+                        ->where('branch_id', $targetBranchId)
+                        ->delete();
+                    $this->applyWarehouseAllocation($id, $targetBranchId, $retailPrice, $allocData, $newStockQty);
+                }
+            } elseif ($retailPrice > 0) {
+                WarehouseStock::where('product_id', $id)
+                    ->where('branch_id', $targetBranchId)
+                    ->update(['price' => $retailPrice, 'updated_at' => now()]);
+            }
+
             // Optional: stock adjustment field handle
             if ($request->filled('stock_adjust') && (float)$request->stock_adjust != 0) {
+                $adj = (float)$request->stock_adjust;
                 StockMovement::create([
                     'product_id' => $id,
-                    'type'       => 'adjustment',
-                    'qty'        => (float)$request->stock_adjust, // can be negative
+                    'branch_id'  => $targetBranchId,
+                    'type'       => $adj > 0 ? 'in' : 'out',
+                    'qty'        => abs($adj),
                     'ref_type'   => 'ADJ',
-                    'note'       => 'Manual stock adjustment',
+                    'note'       => 'Manual stock adjustment from product edit',
+                    'created_at' => now(),
+                    'updated_at' => now(),
                 ]);
+
+                $this->upsertStocks($id, $adj, $targetBranchId);
             }
         });
 
