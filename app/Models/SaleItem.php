@@ -18,6 +18,7 @@ class SaleItem extends Model
         'branch_id',
         'delivery_location_type',
         'product_id',
+        'watt',
         'stock',
         'price_level',
         'sales_price',

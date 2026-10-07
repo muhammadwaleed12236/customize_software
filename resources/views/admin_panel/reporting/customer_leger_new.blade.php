@@ -283,17 +283,18 @@
                         <table id="ledgerTable" class="table table-bordered mb-0" style="font-size: 12.5px; border-collapse: collapse;">
                             <thead>
                                 <tr style="background: #0f1f38; color: #ffffff;">
-                                    <th class="text-center" style="width: 50px;">No</th>
-                                    <th class="text-center" style="width: 75px;">Inv No.</th>
-                                    <th class="text-center" style="width: 50px;">Type</th>
-                                    <th class="text-center" style="width: 75px;">Date</th>
-                                    <th class="text-center" style="width: 75px;">Ref</th>
+                                    <th class="text-center" style="width: 45px;">No</th>
+                                    <th class="text-center" style="width: 70px;">Inv No.</th>
+                                    <th class="text-center" style="width: 45px;">Type</th>
+                                    <th class="text-center" style="width: 70px;">Date</th>
+                                    <th class="text-center" style="width: 70px;">Ref</th>
                                     <th>Details (تفصیل)</th>
-                                    <th class="text-right" style="width: 85px; background: #0f2b48 !important;">Price (قیمت)</th>
-                                    <th class="text-right" style="width: 70px; background: #064e3b !important;" title="Delivered Quantity (دیے کتنے)">Qty (دیے)</th>
-                                    <th class="text-right" style="width: 95px;">Debit (ڈیبٹ)</th>
-                                    <th class="text-right" style="width: 95px;">Credit (وصولی)</th>
-                                    <th class="text-right" style="width: 105px;">Balance (بقیہ)</th>
+                                    <th class="text-right" style="width: 70px; background: #1e3a5f !important;" title="Rate per watt (ریٹ)">Rate (ریٹ)</th>
+                                    <th class="text-right" style="width: 85px; background: #0f2b48 !important;" title="Unit Price per panel (قیمت)">Price (قیمت)</th>
+                                    <th class="text-right" style="width: 65px; background: #064e3b !important;" title="Delivered Quantity (دیے کتنے)">Qty (دیے)</th>
+                                    <th class="text-right" style="width: 90px;">Debit (ڈیبٹ)</th>
+                                    <th class="text-right" style="width: 90px;">Credit (وصولی)</th>
+                                    <th class="text-right" style="width: 100px;">Balance (بقیہ)</th>
                                 </tr>
                             </thead>
                             <tbody id="ledgerBody"></tbody>
@@ -524,7 +525,13 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
     function dash() { return '<span style="color:#ccc;">&#8212;</span>'; }
 
-    /* 11 visible columns: No, Inv No., Type, Date, Ref, Details, Price, Qty, Debit, Credit, Balance */
+    function getWattVal(str) {
+        if (!str) return 0;
+        var m = String(str).match(/(\d+)\s*(?:W|WATT|WATTS)\b/i);
+        return m ? parseFloat(m[1]) : 0;
+    }
+
+    /* 12 visible columns: No, Inv No., Type, Date, Ref, Details, Rate, Price, Qty, Debit, Credit, Balance */
     function td(txt, align, attrs) {
         align = align || 'center';
         attrs = attrs || '';
@@ -562,7 +569,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
         var bodyHtml = '';
 
-        /* Opening Balance Row — 11 cols */
+        /* Opening Balance Row — 12 cols */
         bodyHtml += '<tr class="r-open">';
         bodyHtml += td('', 'center'); // 1. No
         bodyHtml += td('', 'center'); // 2. Inv No.
@@ -570,11 +577,12 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         bodyHtml += td('', 'center'); // 4. Date
         bodyHtml += td('', 'center'); // 5. Ref
         bodyHtml += td('<strong>Opening Balance</strong>', 'left'); // 6. Details
-        bodyHtml += td('', 'right');  // 7. Price
-        bodyHtml += td('', 'right');  // 8. Qty
-        bodyHtml += td('', 'right');  // 9. Debit
-        bodyHtml += td('', 'right');  // 10. Credit
-        bodyHtml += td(balHtml(ob), 'right'); // 11. Balance
+        bodyHtml += td('', 'right');  // 7. Rate
+        bodyHtml += td('', 'right');  // 8. Price
+        bodyHtml += td('', 'right');  // 9. Qty
+        bodyHtml += td('', 'right');  // 10. Debit
+        bodyHtml += td('', 'right');  // 11. Credit
+        bodyHtml += td(balHtml(ob), 'right'); // 12. Balance
         bodyHtml += '</tr>';
 
         /* Process transactions */
@@ -616,6 +624,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                     bodyHtml += td(header.date || '', 'center');
                     bodyHtml += td(refVal, 'center');
                     bodyHtml += td('<strong>' + (header.description || 'SALE') + '</strong>', 'left');
+                    bodyHtml += td('', 'right'); // Rate
                     bodyHtml += td('', 'right'); // Price
                     bodyHtml += td(q > 0 ? fmt(q) : '', 'right');
                     bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right');
@@ -645,6 +654,26 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                             itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
                         }
 
+                        var watt = getWattVal(item.item_name) || getWattVal(item.item_name_urdu) || n(item.watt);
+                        var rateStr  = '';
+                        var priceStr = '';
+
+                        if (watt > 0) {
+                            if (itemRate > 0 && itemRate < 500) {
+                                rateStr  = '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>';
+                                priceStr = '<strong style="color:#0f2b48;">' + fmt(itemRate * watt) + '</strong>';
+                            } else {
+                                var unitP = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
+                                priceStr = unitP > 0 ? '<strong style="color:#0f2b48;">' + fmt(unitP) + '</strong>' : '';
+                                var perW = unitP > 0 ? Math.round((unitP / watt) * 100) / 100 : 0;
+                                rateStr  = perW > 0 ? '<strong style="color:#1e3a5f;">' + fmt(perW) + '</strong>' : '';
+                            }
+                        } else {
+                            var pVal = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
+                            priceStr = pVal > 0 ? '<strong style="color:#0f2b48;">' + fmt(pVal) + '</strong>' : '';
+                            rateStr  = dash();
+                        }
+
                         var borderStyle = idx === 0 ? 'border-top: 1.5px solid #cbd5e1; background: #fffde7;' : 'border-top: 1px dashed #e2e8f0; background: #fffffa;';
 
                         bodyHtml += '<tr class="r-sale" style="' + borderStyle + '">';
@@ -656,7 +685,8 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                             bodyHtml += td(header.date || '', 'center');
                             bodyHtml += td(refVal, 'center');
                             bodyHtml += td(itemDetailsHtml, 'left');
-                            bodyHtml += td(itemRate > 0 ? '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>' : '', 'right');
+                            bodyHtml += td(rateStr, 'right');
+                            bodyHtml += td(priceStr, 'right');
                             bodyHtml += td(itemQty > 0 ? fmt(itemQty) : '', 'right');
                             bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : (debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : ''), 'right');
                             bodyHtml += td('', 'right');
@@ -669,7 +699,8 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                             bodyHtml += td('', 'center');
                             bodyHtml += td('', 'center');
                             bodyHtml += td(itemDetailsHtml, 'left');
-                            bodyHtml += td(itemRate > 0 ? '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>' : '', 'right');
+                            bodyHtml += td(rateStr, 'right');
+                            bodyHtml += td(priceStr, 'right');
                             bodyHtml += td(itemQty > 0 ? fmt(itemQty) : '', 'right');
                             bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : '', 'right');
                             bodyHtml += td('', 'right');
@@ -692,6 +723,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                             bodyHtml += td('<small style="color:#e65100;font-weight:700;">↳ Additional Discount</small>', 'left');
                             bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
+                            bodyHtml += td('', 'right');
                             bodyHtml += td('<small style="color:#bf360c;font-weight:800;">&minus; ' + fmt(addDisc) + '</small>', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
@@ -705,6 +737,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                             bodyHtml += td('', 'center');
                             bodyHtml += td('', 'center');
                             bodyHtml += td('<small style="color:#1b5e20;font-weight:700;">↳ Extra Charges (Freight)</small>', 'left');
+                            bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += td('', 'right');
                             bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right');
@@ -749,11 +782,12 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
             bodyHtml += td(t.date  || '', 'center');                                              // 4. Date
             bodyHtml += td(refVal, 'center');                                                     // 5. Ref
             bodyHtml += td(descHtml, 'left');                                                     // 6. Details
-            bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');                 // 7. Price
-            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 8. Qty
-            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 9. Debit
-            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 10. Credit
-            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 11. Balance
+            bodyHtml += td('', 'right');                                                          // 7. Rate
+            bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');                 // 8. Price
+            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 9. Qty
+            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 10. Debit
+            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 11. Credit
+            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 12. Balance
             bodyHtml += '</tr>';
 
             i++;
@@ -767,6 +801,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         var footHtml = '<tr class="r-total">';
         footHtml += '<td colspan="6" style="text-align:right;border:1px solid #ccc;padding:6px 10px;font-size:13px;"><strong>Total Sum (All Transactions)</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
+        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;font-size:13px;font-weight:800;color:#1a1a2e;background:#eaf4ff;">' + fmt(grandQty) + '</td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#c62828;">' + fmt(grandDr) + '</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#2e7d32;">' + fmt(grandCr) + '</strong></td>';
@@ -775,7 +810,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
         /* Closing Balance row */
         footHtml += '<tr class="r-close">';
-        footHtml += '<td colspan="10" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
+        footHtml += '<td colspan="11" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
         footHtml += '<td style="text-align:right;border:1px solid #333;padding:8px 10px;font-size:15px;">' + balHtml(finalBal) + '</td>';
         footHtml += '</tr>';
 

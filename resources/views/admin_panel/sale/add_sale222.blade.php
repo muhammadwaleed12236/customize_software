@@ -1473,7 +1473,11 @@
                             success: function(customer) {
                                 $('#address').val(customer.address || '');
                                 $('#tel').val(customer.phone_no || '');
-                                $('#previousBalance').val(customer.previous_balance || '0');
+                                if (window.IS_EDIT_MODE && window.EDIT_SALE && window.EDIT_SALE.previous_balance !== undefined && window.EDIT_SALE.previous_balance !== null) {
+                                    $('#previousBalance').val(parseFloat(window.EDIT_SALE.previous_balance).toFixed(2));
+                                } else {
+                                    $('#previousBalance').val(customer.previous_balance || '0');
+                                }
                                 $('#creditLimit').val(customer.credit_limit || '0');
                                 console.log('✅ Customer details loaded:', customer);
                             },
@@ -1657,6 +1661,9 @@
                 $('textarea[name="address"]').val(window.EDIT_SALE.address || '');
                 $('input[name="tel"]').val(window.EDIT_SALE.tel || '');
                 $('textarea[name="remarks"]').val(window.EDIT_SALE.remarks || '');
+                if (window.EDIT_SALE.previous_balance !== undefined && window.EDIT_SALE.previous_balance !== null) {
+                    $('#previousBalance').val(parseFloat(window.EDIT_SALE.previous_balance).toFixed(2));
+                }
 
                 if (window.EDIT_SALE_ITEMS && window.EDIT_SALE_ITEMS.length > 0) {
                     $('#salesTableBody').empty();

@@ -2616,6 +2616,7 @@ public function finddc($invoice)
                     'sale_id' => $sale->id,
                     'warehouse_id' => $warehouse_id,
                     'product_id' => $productId,
+                    'watt' => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
                     'stock' => (float) $request->input("stock.$i", 0),
                     'price_level' => (float) $request->input("price.$i", 0),
                     'sales_price' => (float) $request->input("sales-price.$i", 0),
@@ -3588,12 +3589,32 @@ public function finddc($invoice)
         if ($sale->saleItems && $sale->saleItems->count() > 0) {
             foreach ($sale->saleItems as $saleItem) {
                 $product = $saleItem->product;
+                $itemWatt = floatval($saleItem->watt ?? 0);
+                if ($itemWatt == 0 && $product) {
+                    if (preg_match('/\b(\d{3,4})\s*(?:watts?|w)\b/i', $product->item_name ?? '', $matches)) {
+                        $itemWatt = floatval($matches[1]);
+                    } else if (preg_match('/\b(645|585|590|575|580|550|540|530|700|650)\b/i', $product->item_name ?? '', $matches)) {
+                        $itemWatt = floatval($matches[1]);
+                    } else {
+                        $qty = floatval($saleItem->sales_qty ?? 0);
+                        $price = floatval($saleItem->retail_price ?? $saleItem->sales_price ?? 0);
+                        $amt = floatval($saleItem->amount ?? 0);
+                        if ($qty > 0 && $price > 0 && $amt > ($qty * $price)) {
+                            $possibleWatt = round($amt / ($qty * $price));
+                            if ($possibleWatt >= 100 && $possibleWatt <= 1000) {
+                                $itemWatt = $possibleWatt;
+                            }
+                        }
+                    }
+                }
+
                 $items[] = [
                     'product_id'       => $saleItem->product_id,
                     'item_name'        => $product->item_name ?? '',
                     'item_code'        => $product->item_code ?? '',
                     'brand'            => $product->brand ? $product->brand->name : '',
                     'unit'             => $product->unit ?? '',
+                    'watt'             => $itemWatt,
                     'retail_price'     => floatval($saleItem->retail_price ?? $saleItem->sales_price ?? 0),
                     'sales_price'      => floatval($saleItem->retail_price ?? $saleItem->sales_price ?? 0),
                     'discount'         => floatval($saleItem->discount_amount ?? 0),
@@ -3753,6 +3774,8 @@ public function finddc($invoice)
                 $salesAmounts = $request->input('sales_amount', []);
                 $warehouseIds = $request->input('warehouse_id', []);
 
+                $watts = $request->input('watt', []);
+
                 foreach ($productIds as $i => $productId) {
                     $qty = floatval($qtys[$i] ?? 0);
                     if (!$productId || $qty <= 0) continue;
@@ -3763,6 +3786,7 @@ public function finddc($invoice)
                     $discType = $discountTypes[$i] ?? 'percent';
                     $amount = floatval($salesAmounts[$i] ?? 0);
                     $whId = is_array($warehouseIds) ? ($warehouseIds[$productId] ?? null) : null;
+                    $watt = floatval(is_array($watts) ? ($watts[$i] ?? 0) : ($request->input("watt.$i", 0)));
 
                     // Create new sale item
                     SaleItem::create([
@@ -3771,6 +3795,7 @@ public function finddc($invoice)
                         'sale_id'          => $sale->id,
                         'warehouse_id'     => $whId,
                         'product_id'       => $productId,
+                        'watt'             => $watt,
                         'sales_qty'        => $qty,
                         'retail_price'     => $retailPrice,
                         'discount_percent' => $discPercent,
