@@ -555,6 +555,9 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
         Route::post('/sale/warehouse-select/{sale}', [SaleController::class, 'processWarehouseSelection'])
         ->middleware('permission:warehouse.view')->name('sale.warehouse.select.store');
         
+        // ✅ Sale Movement & Delivery Details Modal Data
+        Route::get('/sale/{id}/movement-details', [SaleController::class, 'getMovementDetails'])->name('sale.movement.details');
+        
     // Dedicated thermal print view for DC (server-rendered)
     Route::get('/sale/dc/{sale}/thermal', [SaleController::class, 'saleDcThermal'])->middleware('permission:booking.view')->name('sale.dc.thermal');
     

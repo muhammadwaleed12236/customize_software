@@ -4,33 +4,33 @@
     <meta charset="utf-8">
     <title>Outward Gate Pass {{ $gp->gatepass_number ?? ('GP-' . str_pad($gp->id, 4, '0', STR_PAD_LEFT)) }}</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color:#0f172a; line-height: 1.4; }
+        body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color:#000000; line-height: 1.4; }
         .wrap{ max-width:100%; margin:0 auto; padding: 10px; }
-        .brand-header { background: #1e3a5f; color: #ffffff; padding: 12px 16px; border-radius: 6px; margin-bottom: 12px; }
-        .brand-title { font-size: 18px; font-weight: bold; margin: 0; }
-        .brand-subtitle { font-size: 10px; color: #fbbf24; text-transform: uppercase; letter-spacing: 1px; }
+        .brand-header { background: #ffffff; color: #000000; padding: 10px 0px; border-bottom: 2px solid #000000; margin-bottom: 12px; }
+        .brand-title { font-size: 18px; font-weight: bold; margin: 0; color: #000000; }
+        .brand-subtitle { font-size: 10px; color: #000000; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
         
         .details-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
         .details-table td { width: 50%; vertical-align: top; padding: 0 4px; }
         
-        .box { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; background: #f8fafc; }
-        .box-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #1e3a5f; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 6px; }
+        .box { border: 1px solid #000000; border-radius: 4px; padding: 8px 10px; background: #ffffff; }
+        .box-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #000000; border-bottom: 1px solid #000000; padding-bottom: 4px; margin-bottom: 6px; }
         
         .field-row { margin-bottom: 3px; }
-        .field-label { color: #64748b; font-weight: bold; }
-        .field-val { color: #0f172a; font-weight: bold; }
+        .field-label { color: #000000; font-weight: bold; }
+        .field-val { color: #000000; font-weight: bold; }
 
-        table.items { width:100%; border-collapse:collapse; margin-top:8px; border: 1px solid #cbd5e1; }
-        table.items th { background: #1e3a5f; color: #ffffff; padding: 6px 8px; font-size: 10px; text-transform: uppercase; text-align: left; }
-        table.items td { padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-size: 10px; }
-        table.items tfoot td { background: #f1f5f9; font-weight: bold; font-size: 11px; border-top: 2px solid #cbd5e1; }
+        table.items { width:100%; border-collapse:collapse; margin-top:8px; border: 1px solid #000000; }
+        table.items th { background: #f0f0f0; color: #000000; padding: 6px 8px; font-size: 10px; text-transform: uppercase; text-align: left; border-bottom: 1.5px solid #000000; font-weight: bold; }
+        table.items td { padding: 6px 8px; border-bottom: 1px solid #cccccc; font-size: 10px; color: #000000; }
+        table.items tfoot td { background: #f8f8f8; font-weight: bold; font-size: 11px; border-top: 2px solid #000000; color: #000000; }
         
         .text-end { text-align: right; }
         .text-center { text-align: center; }
         
         .signatures { margin-top: 30px; width: 100%; border-collapse: collapse; }
         .signatures td { width: 33%; text-align: center; vertical-align: bottom; }
-        .sign-line { border-top: 1px solid #94a3b8; margin-top: 35px; padding-top: 4px; font-weight: bold; font-size: 9px; text-transform: uppercase; color: #475569; }
+        .sign-line { border-top: 1px solid #000000; margin-top: 35px; padding-top: 4px; font-weight: bold; font-size: 9px; text-transform: uppercase; color: #000000; }
     </style>
 </head>
 <body>
@@ -40,13 +40,16 @@
             <table style="width: 100%; border-collapse: collapse;">
                 <tr>
                     <td>
-                        <div class="brand-title">AMIN & SONS</div>
+                        <div class="brand-title">{{ $gp->branch_name ?? 'Branch' }}</div>
                         <div class="brand-subtitle">Outward Gate Pass & Delivery Challan</div>
+                        @if(!empty($gp->branch_address))
+                        <div style="font-size: 9px; color: #333333; margin-top: 2px;">{{ $gp->branch_address }}</div>
+                        @endif
                     </td>
-                    <td class="text-end" style="color: #ffffff;">
+                    <td class="text-end" style="color: #000000;">
                         <div style="font-size: 14px; font-weight: bold;">{{ $gp->gatepass_number ?? ('GP-' . str_pad($gp->id, 4, '0', STR_PAD_LEFT)) }}</div>
-                        <div style="font-size: 10px; color: #e2e8f0;">Date: {{ optional($gp->created_at)->format('d-M-Y') ?? '-' }}</div>
-                        <div style="font-size: 10px; color: #e2e8f0;">DC: {{ $gp->dc_no ?? ($order->dc_no ?? 'N/A') }}</div>
+                        <div style="font-size: 10px; color: #333333;">Date: {{ optional($gp->created_at)->format('d-M-Y') ?? '-' }}</div>
+                        <div style="font-size: 10px; color: #333333;">DC: {{ $gp->dc_no ?? ($order->dc_no ?? 'N/A') }}</div>
                     </td>
                 </tr>
             </table>

@@ -77,6 +77,175 @@
         padding: 10px 8px;
         border: 1px solid #1e3a5f;
     }
+
+    /* Select2 Responsive Fix */
+    .select2-container {
+        width: 100% !important;
+    }
+    .select2-container .select2-selection--single {
+        height: 38px !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+
+    /* Swipe hint bar for mobile */
+    .swipe-hint-bar {
+        display: none;
+        background: #f1f5f9;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 11.5px;
+        color: #475569;
+        margin-bottom: 10px;
+    }
+
+    /* Mobile Responsive Optimizations (< 768px) */
+    @media (max-width: 768px) {
+        .rpt-wrapper {
+            padding: 6px 0 15px 0;
+        }
+
+        .rpt-header-bar {
+            flex-direction: column;
+            align-items: stretch;
+            padding: 12px 14px;
+            gap: 10px;
+        }
+
+        .rpt-header-title {
+            font-size: 16px;
+        }
+
+        .rpt-header-sub {
+            font-size: 11px;
+        }
+
+        .rpt-header-bar .d-flex.gap-2 {
+            justify-content: stretch;
+            width: 100%;
+        }
+
+        .rpt-header-bar .d-flex.gap-2 button {
+            flex: 1;
+            padding: 8px 10px;
+            font-size: 12px;
+            justify-content: center;
+        }
+
+        /* KPI Cards on Mobile: 2 Columns */
+        #kpiSummaryCards {
+            margin-bottom: 10px !important;
+        }
+
+        .kpi-col {
+            padding-left: 4px !important;
+            padding-right: 4px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .kpi-card-box {
+            padding: 10px 12px !important;
+        }
+
+        .kpi-card-box h4 {
+            font-size: 14.5px !important;
+        }
+
+        .kpi-card-box .text-muted {
+            font-size: 9.5px !important;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .kpi-icon-box {
+            width: 32px !important;
+            height: 32px !important;
+            font-size: 14px !important;
+        }
+
+        /* Swipe hint visible on mobile */
+        .swipe-hint-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        /* DataTables Mobile Layout */
+        .dataTables_wrapper .dataTables_filter {
+            float: none !important;
+            text-align: left !important;
+            margin-bottom: 10px;
+        }
+
+        .dataTables_wrapper .dataTables_filter input {
+            width: 100% !important;
+            margin-left: 0 !important;
+            height: 36px;
+            border-radius: 6px;
+            border: 1px solid #cbd5e1;
+        }
+
+        .dataTables_wrapper .dataTables_length {
+            float: none !important;
+            text-align: left !important;
+            margin-bottom: 10px;
+        }
+
+        .dataTables_wrapper .dataTables_paginate {
+            float: none !important;
+            text-align: center !important;
+            margin-top: 10px;
+        }
+
+        /* Table Touch Scroll Optimization */
+        .table-responsive {
+            border: 1px solid var(--coa-border);
+            border-radius: 6px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #stockTable {
+            font-size: 11px !important;
+            white-space: nowrap;
+        }
+
+        #stockTable th {
+            padding: 8px 6px !important;
+            font-size: 10.5px !important;
+        }
+
+        #stockTable td {
+            padding: 8px 6px !important;
+            vertical-align: middle;
+        }
+
+        /* Sticky Item Code Column for Mobile Horizontal Scroll */
+        #stockTable th:nth-child(2),
+        #stockTable td:nth-child(2) {
+            position: sticky;
+            left: 0;
+            z-index: 2;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.06);
+        }
+
+        #stockTable td:nth-child(2) {
+            background-color: #f8fafc !important;
+        }
+
+        #stockTable th:nth-child(2) {
+            background-color: #0f1f38 !important;
+            z-index: 3;
+        }
+
+        .warehouse-btn {
+            padding: 2px 6px !important;
+            font-size: 10px !important;
+        }
+    }
 </style>
 
 <div class="main-content">
@@ -170,53 +339,53 @@
 
             {{-- 2.5 Summary KPI Cards --}}
             <div class="row g-2 mb-3" id="kpiSummaryCards" style="display: none;">
-                <div class="col-md-3 col-sm-6">
-                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #1e3a5f !important; border: 1px solid var(--coa-border);">
+                <div class="col-6 col-md-3 kpi-col">
+                    <div class="card border-0 shadow-sm p-3 kpi-card-box" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #1e3a5f !important; border: 1px solid var(--coa-border);">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Balance Stock</div>
                                 <h4 class="font-weight-bold mb-0 text-dark mt-1" id="kpiTotalBalance">0.00</h4>
                             </div>
-                            <div class="rounded-circle p-2" style="background: rgba(30, 58, 95, 0.1); color: #1e3a5f; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                            <div class="rounded-circle p-2 kpi-icon-box" style="background: rgba(30, 58, 95, 0.1); color: #1e3a5f; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                 <i class="fas fa-boxes fs-5"></i>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #0d9f6e !important; border: 1px solid var(--coa-border);">
+                <div class="col-6 col-md-3 kpi-col">
+                    <div class="card border-0 shadow-sm p-3 kpi-card-box" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #0d9f6e !important; border: 1px solid var(--coa-border);">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Delivered Qty (دیے گئے)</div>
+                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Delivered Qty (دیے)</div>
                                 <h4 class="font-weight-bold mb-0 text-success mt-1" id="kpiTotalDelivered">0.00</h4>
                             </div>
-                            <div class="rounded-circle p-2" style="background: rgba(13, 159, 110, 0.1); color: #0d9f6e; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                            <div class="rounded-circle p-2 kpi-icon-box" style="background: rgba(13, 159, 110, 0.1); color: #0d9f6e; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                 <i class="fas fa-truck-loading fs-5"></i>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #d97706 !important; border: 1px solid var(--coa-border);">
+                <div class="col-6 col-md-3 kpi-col">
+                    <div class="card border-0 shadow-sm p-3 kpi-card-box" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #d97706 !important; border: 1px solid var(--coa-border);">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
                                 <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Reserved Qty (ریزرورڈ)</div>
                                 <h4 class="font-weight-bold mb-0 mt-1" style="color: #d97706 !important;" id="kpiTotalReserved">0.00</h4>
                             </div>
-                            <div class="rounded-circle p-2" style="background: rgba(217, 119, 6, 0.1); color: #d97706; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                            <div class="rounded-circle p-2 kpi-icon-box" style="background: rgba(217, 119, 6, 0.1); color: #d97706; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                 <i class="fas fa-clock fs-5"></i>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="col-md-3 col-sm-6">
-                    <div class="card border-0 shadow-sm p-3" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #c8973a !important; border: 1px solid var(--coa-border);">
+                <div class="col-6 col-md-3 kpi-col">
+                    <div class="card border-0 shadow-sm p-3 kpi-card-box" style="border-radius: 9px; background: #ffffff; border-left: 4px solid #c8973a !important; border: 1px solid var(--coa-border);">
                         <div class="d-flex align-items-center justify-content-between">
                             <div>
-                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Stock Value / Price</div>
+                                <div class="text-muted text-uppercase font-weight-bold" style="font-size: 11px; letter-spacing: 0.05em;">Total Stock Value</div>
                                 <h4 class="font-weight-bold mb-0 mt-1" style="color: #b45309;" id="kpiTotalStockValue">Rs. 0.00</h4>
                             </div>
-                            <div class="rounded-circle p-2" style="background: rgba(200, 151, 58, 0.15); color: #c8973a; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                            <div class="rounded-circle p-2 kpi-icon-box" style="background: rgba(200, 151, 58, 0.15); color: #c8973a; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                 <i class="fas fa-coins fs-5"></i>
                             </div>
                         </div>
@@ -230,6 +399,12 @@
                     <div id="loader" style="display:none;text-align:center;padding:30px;">
                         <div class="spinner-border text-primary" role="status"></div>
                         <p class="text-muted mt-2 small font-weight-bold">Fetching stock metrics...</p>
+                    </div>
+
+                    {{-- Swipe hint indicator for mobile touch users --}}
+                    <div class="swipe-hint-bar">
+                        <span><i class="fas fa-arrows-alt-h text-primary me-1"></i> <strong>Swipe left/right</strong> to view full 13 columns</span>
+                        <span class="badge bg-secondary text-white">پوری تفصیل</span>
                     </div>
 
                     <div class="table-responsive">

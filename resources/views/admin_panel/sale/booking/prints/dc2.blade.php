@@ -124,25 +124,25 @@
     }
 
     table.custom-table th {
-        background: #334155;
-        color: #ffffff;
+        background: #f1f5f9;
+        color: #000000;
         padding: 8px 10px;
         font-size: 12px;
-        font-weight: 600;
+        font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        border: 1px solid #334155;
+        border: 1px solid #000000;
     }
 
     table.custom-table td {
         padding: 8px 10px;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #000000;
         font-size: 13px;
-        color: #1e293b;
+        color: #000000;
     }
 
     table.custom-table tbody tr:nth-child(even) {
-        background: #f8fafc;
+        background: #ffffff;
     }
 
     .text-left { text-align: left; }
@@ -159,7 +159,7 @@
 
     .summary-card {
         background: #ffffff;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #000000;
         border-radius: 6px;
         padding: 12px 16px;
     }
@@ -168,8 +168,8 @@
         margin: 0 0 8px 0;
         font-size: 13px;
         font-weight: 700;
-        color: #0f172a;
-        border-bottom: 1px solid #e2e8f0;
+        color: #000000;
+        border-bottom: 1px solid #000000;
         padding-bottom: 4px;
         text-transform: uppercase;
     }
@@ -179,15 +179,16 @@
         justify-content: space-between;
         margin-bottom: 5px;
         font-size: 13px;
+        color: #000000;
     }
 
     .summary-line.total {
         font-weight: 700;
         font-size: 13px;
-        border-top: 1px dashed #cbd5e1;
+        border-top: 1px dashed #000000;
         padding-top: 5px;
         margin-top: 5px;
-        color: #0f172a;
+        color: #000000;
     }
 
     /* BADGES */
@@ -199,9 +200,9 @@
         display: inline-block;
     }
 
-    .badge-completed { background: #f1f5f9; color: #166534; border: 1px solid #bbf7d0; }
-    .badge-partial { background: #fefce8; color: #854d0e; border: 1px solid #fef08a; }
-    .badge-pending { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+    .badge-completed { background: #ffffff; color: #000000; border: 1px solid #000000; }
+    .badge-partial { background: #ffffff; color: #000000; border: 1px solid #000000; }
+    .badge-pending { background: #ffffff; color: #000000; border: 1px solid #000000; }
 
     /* FOOTER SIGNATURES */
     .footer-signatures {
@@ -217,22 +218,22 @@
     }
 
     .sig-line {
-        border-top: 1px solid #475569;
+        border-top: 1px solid #000000;
         margin-top: 35px;
         padding-top: 5px;
         font-weight: 600;
         font-size: 12px;
-        color: #334155;
+        color: #000000;
     }
 
     .note-box {
         margin-top: 15px;
         font-size: 12px;
-        background: #f8fafc;
+        background: #ffffff;
         padding: 8px 12px;
-        border: 1px solid #cbd5e1;
+        border: 1px solid #000000;
         border-radius: 4px;
-        color: #334155;
+        color: #000000;
     }
 
     .no-print {
@@ -241,7 +242,11 @@
 
     @media print {
         .no-print { display: none !important; }
-        body { background: #ffffff !important; font-size: 12px; }
+        body { background: #ffffff !important; font-size: 12px; color: #000000 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        * { color: #000000 !important; border-color: #000000 !important; }
+        table.custom-table th { background: #ffffff !important; color: #000000 !important; border: 1px solid #000000 !important; }
+        table.custom-table td { color: #000000 !important; border: 1px solid #000000 !important; }
+        .text-muted { color: #000000 !important; }
         .dc-wrapper {
             box-shadow: none !important;
             border: none !important;
@@ -267,7 +272,7 @@
             <i class="fas fa-download me-1"></i> Export
         </button>
         <button onclick="window.print()" class="btn btn-dark shadow-sm ms-2">
-            <i class="fas fa-print me-1"></i> Print All
+            <i class="fas fa-print me-1"></i> Print
         </button>
         <a href="{{ route('sale.dc.thermal', is_object($sale) ? $sale->id : $sale) }}" target="_blank" class="btn btn-secondary shadow-sm">
             <i class="fas fa-barcode me-1"></i> Thermal Print
@@ -386,88 +391,32 @@
                 </div>
             </div>
 
-            <!-- CURRENT DC DISPATCHED ITEMS TABLE -->
+            <!-- UNIFIED PRODUCT & STOCK LEDGER TABLE -->
             <div class="section-title">
-                Items Dispatched In This Delivery Challan ({{ $dc['dc_no'] }})
-            </div>
-
-            @php $currentDcTotalQty = 0; $currentDcTotalAmount = 0; @endphp
-
-            <table class="custom-table">
-                <thead>
-                    <tr>
-                        <th width="5%" class="text-center">#</th>
-                        <th class="text-left">Product Item Details</th>
-                        <th width="14%" class="text-right">Price (Rs.)</th>
-                        <th width="14%" class="text-center">DC Qty (Di Qty)</th>
-                        <th width="16%" class="text-right">Amount (Rs.)</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach($dc['items'] as $index => $item)
-                        @php
-                            if (is_array($item) || $item instanceof \Illuminate\Support\Fluent) {
-                                $qty = (float) ($item['qty'] ?? $item['sales_qty'] ?? 0);
-                                $rawUrdu = $item['product']['item_name_urdu'] ?? $item['item_name_urdu'] ?? null;
-                                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
-                                $productName = !empty($pUrdu) ? $pUrdu : ($item['product_name'] ?? ($item['product']['item_name'] ?? '-'));
-                                $productCode = $item['item_code'] ?? ($item['product']['item_code'] ?? '');
-                                $price = (float) ($item['retail_price'] ?? $item['sales_price'] ?? 0);
-                                $amount = (float) ($item['amount'] ?? ($price * $qty));
-                            } else {
-                                $qty = (float) ($item->sales_qty ?? $item->qty ?? 0);
-                                $rawUrdu = $item->product->item_name_urdu ?? $item->item_name_urdu ?? null;
-                                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
-                                $productName = !empty($pUrdu) ? $pUrdu : ($item->product->item_name ?? ($item->product_name ?? '-'));
-                                $productCode = $item->product->item_code ?? ($item->item_code ?? '');
-                                $price = (float) ($item->retail_price ?? $item->sales_price ?? 0);
-                                $amount = (float) ($item->amount ?? ($price * $qty));
-                            }
-
-                            $currentDcTotalQty += $qty;
-                            $currentDcTotalAmount += $amount;
-                        @endphp
-                        <tr>
-                            <td class="text-center">{{ $index+1 }}</td>
-                            <td class="text-left">
-                                <strong>{{ $productName }}</strong>
-                                @if(!empty($productCode))
-                                    <small class="text-muted"> ({{ $productCode }})</small>
-                                @endif
-                            </td>
-                            <td class="text-right">{{ number_format($price, 2) }}</td>
-                            <td class="text-center"><strong>{{ $qty }}</strong></td>
-                            <td class="text-right"><strong>{{ number_format($amount, 2) }}</strong></td>
-                        </tr>
-                    @endforeach
-                    <tr style="background:#f8fafc; font-weight:700;">
-                        <td colspan="3" class="text-right">Total Current DC Dispatch:</td>
-                        <td class="text-center">{{ $currentDcTotalQty }}</td>
-                        <td class="text-right">{{ number_format($currentDcTotalAmount, 2) }}</td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <!-- QUANTITY DISPATCH & STOCK REMAINING LEDGER SUMMARY -->
-            <div class="section-title">
-                Complete Stock Ledger (Booked, Dispatched & Remaining)
+                Delivery Challan & Stock Dispatch Details ({{ $dc['dc_no'] }})
             </div>
 
             @php
                 $totBooked = 0;
-                $totDispatched = 0;
+                $totThisDc = 0;
+                $totTotalDispatched = 0;
                 $totRemaining = 0;
+                $grandTotalAmount = 0;
             @endphp
 
             <table class="custom-table">
                 <thead>
                     <tr>
-                        <th width="5%" class="text-center">#</th>
-                        <th class="text-left">Product Description</th>
-                        <th width="15%" class="text-center">Booked Qty</th>
-                        <th width="15%" class="text-center">Dispatched Qty</th>
-                        <th width="15%" class="text-center">Remaining Qty</th>
-                        <th width="18%" class="text-center">Delivery Status</th>
+                        <th width="4%" class="text-center">#</th>
+                        <th class="text-left">Product Item Details</th>
+                        <th width="8%" class="text-center">Watt</th>
+                        <th width="8%" class="text-center">Booked</th>
+                        <th width="10%" class="text-center">This DC Qty</th>
+                        <th width="10%" class="text-center">Total Out</th>
+                        <th width="10%" class="text-center">Remaining</th>
+                        <th width="12%" class="text-right">Price / Watt (Rs.)</th>
+                        <th width="14%" class="text-right">Amount (Rs.)</th>
+                        <th width="14%" class="text-center">Status</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -476,8 +425,28 @@
                             @php
                                 $pId = $sItem->product_id;
                                 $booked = (float)($sItem->sales_qty ?? $sItem->qty ?? 0);
+                                $price = (float)($sItem->retail_price ?? $sItem->sales_price ?? 0);
                                 
-                                // Look up in CustomerRemaining table
+                                // Watt detection
+                                $itemWatt = (float)($sItem->watt ?? 0);
+                                if ($itemWatt == 0 && optional($sItem->product)->item_name) {
+                                    if (preg_match('/\b(\d{3,4})\s*(?:watts?|w)\b/i', optional($sItem->product)->item_name, $matches)) {
+                                        $itemWatt = (float)$matches[1];
+                                    } elseif (preg_match('/\b(645|585|590|575|580|550|540|530|700|650)\b/i', optional($sItem->product)->item_name, $matches)) {
+                                        $itemWatt = (float)$matches[1];
+                                    }
+                                }
+
+                                // Current DC Qty for this product
+                                $thisDcQty = 0;
+                                foreach($dc['items'] as $dcItem) {
+                                    $dcItemPid = is_array($dcItem) ? ($dcItem['product_id'] ?? null) : ($dcItem->product_id ?? null);
+                                    if ($dcItemPid == $pId) {
+                                        $thisDcQty += (float)(is_array($dcItem) ? ($dcItem['qty'] ?? $dcItem['sales_qty'] ?? 0) : ($dcItem->sales_qty ?? $dcItem->qty ?? 0));
+                                    }
+                                }
+                                
+                                // Look up in CustomerRemaining table or calculate total dispatched
                                 $remRecord = null;
                                 if (isset($remainingItems) && count($remainingItems) > 0) {
                                     $remRecord = $remainingItems->where('product_id', $pId)->first();
@@ -485,34 +454,37 @@
                                 
                                 if ($remRecord) {
                                     $remaining = (float)$remRecord->remaining_qty;
-                                    $dispatched = max(0, $booked - $remaining);
+                                    $totalDispatched = max(0, $booked - $remaining);
                                     $status = $remRecord->status;
                                 } else {
-                                    // Fallback: calculate dispatched from warehouse orders
-                                    $dispatched = 0;
+                                    $totalDispatched = 0;
                                     if (!empty($dcData)) {
                                         foreach ($dcData as $d) {
                                             foreach ($d['items'] as $itemArr) {
                                                 $itemPid = is_array($itemArr) ? ($itemArr['product_id'] ?? null) : ($itemArr->product_id ?? null);
                                                 if ($itemPid == $pId) {
-                                                    $dispatched += (float)(is_array($itemArr) ? ($itemArr['qty'] ?? 0) : ($itemArr->qty ?? 0));
+                                                    $totalDispatched += (float)(is_array($itemArr) ? ($itemArr['qty'] ?? 0) : ($itemArr->qty ?? 0));
                                                 }
                                             }
                                         }
                                     }
-                                    $remaining = max(0, $booked - $dispatched);
+                                    $remaining = max(0, $booked - $totalDispatched);
                                     if ($remaining <= 0) {
                                         $status = 'completed';
-                                    } elseif ($dispatched > 0) {
+                                    } elseif ($totalDispatched > 0) {
                                         $status = 'partial';
                                     } else {
                                         $status = 'pending';
                                     }
                                 }
 
+                                $rowAmount = $itemWatt > 0 ? ($price * $itemWatt * $thisDcQty) : ($price * $thisDcQty);
+
                                 $totBooked += $booked;
-                                $totDispatched += $dispatched;
+                                $totThisDc += $thisDcQty;
+                                $totTotalDispatched += $totalDispatched;
                                 $totRemaining += $remaining;
+                                $grandTotalAmount += $rowAmount;
 
                                 $rawUrdu = optional($sItem->product)->item_name_urdu ?? null;
                                 $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
@@ -527,13 +499,17 @@
                                         <small class="text-muted"> ({{ $pCode }})</small>
                                     @endif
                                 </td>
-                                <td class="text-center"><strong>{{ $booked }}</strong></td>
-                                <td class="text-center"><strong>{{ $dispatched }}</strong></td>
-                                <td class="text-center"><strong>{{ $remaining }}</strong></td>
+                                <td class="text-center">{{ $itemWatt > 0 ? $itemWatt.' W' : '-' }}</td>
+                                <td class="text-center">{{ $booked }}</td>
+                                <td class="text-center"><strong>{{ $thisDcQty }}</strong></td>
+                                <td class="text-center">{{ $totalDispatched }}</td>
+                                <td class="text-center">{{ $remaining }}</td>
+                                <td class="text-right">{{ number_format($price, 2) }}</td>
+                                <td class="text-right"><strong>{{ number_format($rowAmount, 2) }}</strong></td>
                                 <td class="text-center">
                                     @if($status === 'completed' || $remaining <= 0)
                                         <span class="badge-status badge-completed">Fully Delivered</span>
-                                    @elseif($status === 'partial' || ($dispatched > 0 && $remaining > 0))
+                                    @elseif($status === 'partial' || ($totalDispatched > 0 && $remaining > 0))
                                         <span class="badge-status badge-partial">Partially Out</span>
                                     @else
                                         <span class="badge-status badge-pending">Pending</span>
@@ -543,15 +519,18 @@
                         @endforeach
                     @else
                         <tr>
-                            <td colspan="6" class="text-center text-muted">No stock ledger details available for this sale.</td>
+                            <td colspan="10" class="text-center text-muted">No items found for this sale.</td>
                         </tr>
                     @endif
 
                     <tr style="background:#f8fafc; font-weight:700;">
-                        <td colspan="2" class="text-right">Overall Stock Totals:</td>
+                        <td colspan="3" class="text-right">Totals:</td>
                         <td class="text-center">{{ $totBooked }}</td>
-                        <td class="text-center">{{ $totDispatched }}</td>
+                        <td class="text-center">{{ $totThisDc }}</td>
+                        <td class="text-center">{{ $totTotalDispatched }}</td>
                         <td class="text-center">{{ $totRemaining }}</td>
+                        <td class="text-right">-</td>
+                        <td class="text-right">Rs. {{ number_format($grandTotalAmount, 2) }}</td>
                         <td class="text-center">
                             @if($totRemaining <= 0)
                                 <span class="badge-status badge-completed">Fully Delivered</span>
@@ -570,7 +549,7 @@
                 <div class="summary-card">
                     <h5>Invoice Financial Summary</h5>
                     @php
-                        $subTotal = (float)($sale->total_bill_amount ?? $sale->total_subtotal ?? $sale->total_amount ?? $currentDcTotalAmount);
+                        $subTotal = (float)($sale->total_bill_amount ?? $sale->total_subtotal ?? $sale->total_amount ?? $grandTotalAmount);
                         $discount = (float)($sale->total_discount ?? $sale->total_extradiscount ?? $sale->discount_amount ?? 0);
                         $netTotal = (float)($sale->total_net ?? $sale->net_amount ?? $sale->grand_total ?? ($subTotal - $discount));
                         $paidAmount = (float)($sale->cash ?? $sale->paid_amount ?? $sale->advance_amount ?? 0);

@@ -2148,16 +2148,64 @@ public function finddc($invoice)
         }
 
         $sales = $query->get();
-        
-        // echo "<pre>";
-        // print_r($sales->toArray());
-        // dd();
-        
-        
 
-            return view('admin_panel.sale.index', compact('sales'));
-           
+        // ✅ Efficient bulk calculation for Delivered & Remaining Qty per sale
+        $saleIds = $sales->pluck('id')->toArray();
+
+        if (!empty($saleIds)) {
+            // Bulk fetch gatepasses for all loaded sales
+            $gatepassesBySale = DB::table('outward_gatepasses')
+                ->join('warehouse_orders', 'outward_gatepasses.order_id', '=', 'warehouse_orders.id')
+                ->whereIn('warehouse_orders.sale_id', $saleIds)
+                ->select('warehouse_orders.sale_id', 'outward_gatepasses.items')
+                ->get()
+                ->groupBy('sale_id');
+
+            // Bulk fetch DCs (warehouse_orders)
+            $dcsBySale = DB::table('warehouse_orders')
+                ->whereIn('sale_id', $saleIds)
+                ->select('sale_id', 'id')
+                ->get()
+                ->groupBy('sale_id');
+
+            // Bulk fetch pending/partial customer_remaining
+            $pendingRemainingSales = DB::table('customer_remaining')
+                ->whereIn('sale_id', $saleIds)
+                ->whereIn('status', ['pending', 'partial'])
+                ->pluck('sale_id')
+                ->flip()
+                ->toArray();
+
+            foreach ($sales as $sale) {
+                $totalOrdered = $sale->saleItems ? (float)$sale->saleItems->sum('sales_qty') : 0;
                 
+                $saleGps = $gatepassesBySale->get($sale->id, collect());
+                $hasDcs = $dcsBySale->has($sale->id);
+                $hasPendingRemaining = isset($pendingRemainingSales[$sale->id]);
+
+                $isRegularDirect = ($sale->status !== 'draft_posted' && $saleGps->isEmpty() && !$hasDcs && !$hasPendingRemaining);
+
+                if ($isRegularDirect) {
+                    $totalDelivered = $totalOrdered;
+                    $totalRemaining = 0;
+                } else {
+                    $totalDelivered = 0;
+                    foreach ($saleGps as $gp) {
+                        $gpItems = json_decode($gp->items, true) ?? [];
+                        foreach ($gpItems as $gpi) {
+                            $totalDelivered += (float)($gpi['qty'] ?? 0);
+                        }
+                    }
+                    $totalRemaining = max(0, $totalOrdered - $totalDelivered);
+                }
+
+                $sale->total_ordered_qty = $totalOrdered;
+                $sale->total_delivered_qty = $totalDelivered;
+                $sale->total_remaining_qty = $totalRemaining;
+            }
+        }
+        
+        return view('admin_panel.sale.index', compact('sales'));
     }            
 
     public function addsale()
@@ -5728,6 +5776,223 @@ public function finddc($invoice)
                 'ok' => false,
                 'error' => $e->getMessage()
             ], $status);
+        }
+    }
+
+    /**
+     * Get detailed itemized movement and delivery history for a sale modal
+     */
+    public function getMovementDetails($id)
+    {
+        try {
+            $sale = Sale::with([
+                'customer', 
+                'branch', 
+                'saleItems.product.unit', 
+                'saleItems.product.brand'
+            ])->findOrFail($id);
+
+            // 1. Get all warehouse orders (DCs) for this sale
+            $warehouseOrders = DB::table('warehouse_orders')
+                ->leftJoin('warehouses', 'warehouse_orders.warehouse_id', '=', 'warehouses.id')
+                ->leftJoin('branches', 'warehouse_orders.branch_id', '=', 'branches.id')
+                ->where('warehouse_orders.sale_id', $sale->id)
+                ->select(
+                    'warehouse_orders.*',
+                    'warehouses.warehouse_name',
+                    'branches.name as branch_name'
+                )
+                ->orderBy('warehouse_orders.created_at', 'asc')
+                ->get();
+
+            $orderIds = $warehouseOrders->pluck('id')->toArray();
+
+            // 2. Get all outward gatepasses for these warehouse orders or invoice_no
+            $gatepasses = DB::table('outward_gatepasses')
+                ->leftJoin('warehouses', 'outward_gatepasses.warehouse_id', '=', 'warehouses.id')
+                ->leftJoin('branches', 'outward_gatepasses.branch_id', '=', 'branches.id')
+                ->where(function($q) use ($orderIds, $sale) {
+                    if (!empty($orderIds)) {
+                        $q->whereIn('outward_gatepasses.order_id', $orderIds);
+                    }
+                    if ($sale->invoice_no) {
+                        $q->orWhere('outward_gatepasses.invoice_no', $sale->invoice_no);
+                    }
+                })
+                ->select(
+                    'outward_gatepasses.*',
+                    'warehouses.warehouse_name',
+                    'branches.name as branch_name'
+                )
+                ->orderBy('outward_gatepasses.created_at', 'asc')
+                ->get();
+
+            // Check if this sale is regular direct delivery
+            $hasPendingRemaining = DB::table('customer_remaining')
+                ->where('sale_id', $sale->id)
+                ->whereIn('status', ['pending', 'partial'])
+                ->exists();
+
+            $isRegularDirectDelivery = ($sale->status !== 'draft_posted' && $gatepasses->isEmpty() && $warehouseOrders->isEmpty() && !$hasPendingRemaining);
+
+            // 3. Build product line items breakdown
+            $itemsBreakdown = [];
+            foreach ($sale->saleItems as $item) {
+                $productId = $item->product_id;
+                $orderedQty = (float)$item->sales_qty;
+
+                $deliveredQty = 0;
+
+                if ($isRegularDirectDelivery) {
+                    $deliveredQty = $orderedQty;
+                } else {
+                    foreach ($gatepasses as $gp) {
+                        $gpItems = json_decode($gp->items, true) ?? [];
+                        foreach ($gpItems as $gpi) {
+                            if (isset($gpi['product_id']) && $gpi['product_id'] == $productId) {
+                                $deliveredQty += (float)($gpi['qty'] ?? 0);
+                            }
+                        }
+                    }
+                }
+
+                $remainingQty = max(0, $orderedQty - $deliveredQty);
+
+                $itemsBreakdown[] = [
+                    'product_id'   => $productId,
+                    'product_name' => $item->product->item_name ?? 'N/A',
+                    'item_code'    => $item->product->item_code ?? '',
+                    'brand'        => $item->product->brand->name ?? '',
+                    'unit'         => $item->product->unit->name ?? $item->unit ?? '',
+                    'ordered_qty'  => $orderedQty,
+                    'delivered_qty'=> $deliveredQty,
+                    'remaining_qty'=> $remainingQty,
+                ];
+            }
+
+            // 4. Build movement history log
+            $movements = [];
+
+            if ($isRegularDirectDelivery) {
+                $movements[] = [
+                    'type'         => 'Direct Sale Dispatch',
+                    'doc_no'       => $sale->invoice_no,
+                    'dc_no'        => 'N/A',
+                    'date'         => \Carbon\Carbon::parse($sale->created_at)->format('d-m-Y h:i A'),
+                    'location'     => $sale->branch->name ?? 'Main Branch',
+                    'transporter'  => 'Immediate Counter Delivery',
+                    'driver'       => 'N/A',
+                    'vehicle'      => 'N/A',
+                    'billty_no'    => 'N/A',
+                    'items'        => collect($itemsBreakdown)->map(function($i) {
+                        return [
+                            'product_name' => $i['product_name'],
+                            'qty'          => $i['ordered_qty'],
+                            'unit'         => $i['unit'],
+                        ];
+                    })->toArray(),
+                    'remarks'      => 'Direct dispatch on sale creation',
+                    'status'       => 'Delivered',
+                ];
+            } else {
+                // Collect from Gatepasses
+                foreach ($gatepasses as $gp) {
+                    $gpItems = json_decode($gp->items, true) ?? [];
+                    $formattedItems = [];
+
+                    foreach ($gpItems as $gpi) {
+                        $pName = $gpi['product_name'] ?? null;
+                        if (!$pName && isset($gpi['product_id'])) {
+                            $prod = \App\Models\Product::find($gpi['product_id']);
+                            $pName = $prod->item_name ?? 'Product #' . $gpi['product_id'];
+                        }
+
+                        $formattedItems[] = [
+                            'product_name' => $pName ?? 'N/A',
+                            'qty'          => (float)($gpi['qty'] ?? 0),
+                            'unit'         => $gpi['unit'] ?? '',
+                        ];
+                    }
+
+                    $locName = $gp->warehouse_name ? ($gp->warehouse_name . ' (Warehouse)') : ($gp->branch_name ? ($gp->branch_name . ' (Branch)') : 'N/A');
+
+                    $movements[] = [
+                        'type'         => 'Outward Gatepass',
+                        'doc_no'       => $gp->gatepass_number ?? ('GP #' . $gp->id),
+                        'dc_no'        => $gp->dc_no ?? 'N/A',
+                        'date'         => \Carbon\Carbon::parse($gp->created_at)->format('d-m-Y h:i A'),
+                        'location'     => $locName,
+                        'transporter'  => $gp->transporter ?? 'N/A',
+                        'driver'       => $gp->driver_name ?? 'N/A',
+                        'vehicle'      => $gp->vehicle_number ?? 'N/A',
+                        'billty_no'    => $gp->billty_no ?? 'N/A',
+                        'items'        => $formattedItems,
+                        'remarks'      => $gp->remarks ?? '',
+                        'status'       => ucfirst($gp->status ?? 'Delivered'),
+                    ];
+                }
+
+                // Also add pending DCs if any DC exists without a gatepass
+                foreach ($warehouseOrders as $wo) {
+                    $hasGP = $gatepasses->where('order_id', $wo->id)->isNotEmpty();
+                    if (!$hasGP) {
+                        $woItems = is_string($wo->items) ? json_decode($wo->items, true) : ($wo->items ?? []);
+                        $formattedItems = [];
+                        foreach ($woItems as $woi) {
+                            $pName = $woi['product_name'] ?? null;
+                            if (!$pName && isset($woi['product_id'])) {
+                                $prod = \App\Models\Product::find($woi['product_id']);
+                                $pName = $prod->item_name ?? 'Product #' . $woi['product_id'];
+                            }
+                            $formattedItems[] = [
+                                'product_name' => $pName ?? 'N/A',
+                                'qty'          => (float)($woi['qty'] ?? 0),
+                                'unit'         => $woi['unit'] ?? '',
+                            ];
+                        }
+
+                        $locName = $wo->warehouse_name ? ($wo->warehouse_name . ' (Warehouse)') : ($wo->branch_name ? ($wo->branch_name . ' (Branch)') : 'N/A');
+
+                        $movements[] = [
+                            'type'         => 'Delivery Challan (DC Created)',
+                            'doc_no'       => $wo->dc_no ?? ('DC #' . $wo->id),
+                            'dc_no'        => $wo->dc_no ?? 'N/A',
+                            'date'         => \Carbon\Carbon::parse($wo->created_at)->format('d-m-Y h:i A'),
+                            'location'     => $locName,
+                            'transporter'  => 'Pending Gatepass',
+                            'driver'       => 'Pending',
+                            'vehicle'      => 'Pending',
+                            'billty_no'    => 'N/A',
+                            'items'        => $formattedItems,
+                            'remarks'      => 'DC Created, waiting for Outward Gatepass dispatch',
+                            'status'       => 'Pending Gatepass',
+                        ];
+                    }
+                }
+            }
+
+            return response()->json([
+                'success'   => true,
+                'sale'      => [
+                    'id'             => $sale->id,
+                    'invoice_no'     => $sale->invoice_no,
+                    'date'           => \Carbon\Carbon::parse($sale->created_at)->format('d-m-Y'),
+                    'customer_name'  => optional($sale->customer)->customer_name ?? $sale->sub_customer ?? 'N/A',
+                    'party_type'     => ucfirst($sale->party_type ?? 'N/A'),
+                    'branch'         => $sale->branch->name ?? 'N/A',
+                    'total_ordered'  => collect($itemsBreakdown)->sum('ordered_qty'),
+                    'total_delivered'=> collect($itemsBreakdown)->sum('delivered_qty'),
+                    'total_remaining'=> collect($itemsBreakdown)->sum('remaining_qty'),
+                ],
+                'items'     => $itemsBreakdown,
+                'movements' => $movements,
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error fetching movement details: ' . $e->getMessage()
+            ], 500);
         }
     }
 }

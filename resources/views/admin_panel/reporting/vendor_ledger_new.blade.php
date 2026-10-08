@@ -282,7 +282,7 @@
 
 /* Row colors */
 tr.r-open    td { background:#f0f9ff !important; color:#0369a1 !important; font-weight:700; border-color:#bae6fd !important; }
-tr.r-sale    td { background:#fefce8 !important; color:#1e293b !important; font-weight:700; border-color:#fef08a !important; }
+tr.r-sale    td { background:#ffffff !important; color:#1e293b !important; font-weight:700; border-color:#e2e8f0 !important; }
 tr.r-item    td { background:#ffffff !important; color:#334155 !important; font-size:12px; border-color:#f1f5f9 !important; }
 tr.r-receipt td { background:#f0fdf4 !important; color:#166534 !important; font-weight:600; border-color:#bbf7d0 !important; }
 tr.r-pv      td { background:#faf5ff !important; color:#6b21a8 !important; border-color:#e9d5ff !important; }

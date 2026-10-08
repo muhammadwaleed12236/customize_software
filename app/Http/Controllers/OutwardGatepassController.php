@@ -891,6 +891,36 @@ class OutwardGatepassController extends Controller
             $gp->expense_account_name = $acc->title ?? ('Account #'.$gp->expense_account_id);
         }
 
+        // Dynamic Branch Resolution
+        $branchId = $gp->branch_id ?? ($order->branch_id ?? null);
+        if (!$branchId && !empty($gp->warehouse_id)) {
+            $wh = DB::table('warehouses')->where('id', $gp->warehouse_id)->first();
+            $branchId = $wh->branch_id ?? null;
+        }
+        if (!$branchId && !empty($order->warehouse_id)) {
+            $wh = DB::table('warehouses')->where('id', $order->warehouse_id)->first();
+            $branchId = $wh->branch_id ?? null;
+        }
+
+        if ($branchId) {
+            $br = DB::table('branches')->where('id', $branchId)->first();
+            $gp->branch_name = $br->name ?? ($br->branch_name ?? null);
+            $gp->branch_address = $br->address ?? null;
+            $gp->branch_phone = $br->number ?? null;
+        }
+
+        if (empty($gp->branch_name)) {
+            $userBranchId = auth()->user()->branch_id ?? null;
+            $br = $userBranchId ? DB::table('branches')->where('id', $userBranchId)->first() : DB::table('branches')->first();
+            if ($br) {
+                $gp->branch_name = $br->name ?? ($br->branch_name ?? 'Branch');
+                $gp->branch_address = $br->address ?? null;
+                $gp->branch_phone = $br->number ?? null;
+            } else {
+                $gp->branch_name = 'Branch';
+            }
+        }
+
         // Convert created_at and updated_at to Carbon instances for proper formatting
         if ($gp->created_at && is_string($gp->created_at)) {
             $gp->created_at = \Carbon\Carbon::parse($gp->created_at);

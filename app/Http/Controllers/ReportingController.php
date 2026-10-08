@@ -16,6 +16,7 @@ use App\Models\Warehouse;
 use App\Models\WarehouseStock;
 use App\Models\SalesOfficer;
 use App\Models\Vendor;
+use App\Models\Stock;
 use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -376,6 +377,28 @@ class ReportingController extends Controller
             ];
         }
 
+        // ── Customer Remaining Stock items lookup ────────────────────────
+        $remainingItems = DB::table('customer_remaining')
+            ->where('customer_id', $customerId)
+            ->where('remaining_qty', '>', 0)
+            ->select('id', 'sale_id', 'product_id', 'product_name', 'item_code', 'unit', 'remaining_qty', 'status')
+            ->get();
+
+        $totalRemainingQty = floatval($remainingItems->sum('remaining_qty'));
+
+        $saleRemainingMap = [];
+        foreach ($remainingItems as $rem) {
+            $unitStr = $rem->unit;
+            if ($unitStr && (str_starts_with($unitStr, '{') || str_starts_with($unitStr, '['))) {
+                $uObj = json_decode($unitStr, true);
+                $unitStr = $uObj['name'] ?? 'pcs';
+            }
+            $saleRemainingMap[$rem->sale_id][$rem->product_id] = [
+                'remaining_qty' => floatval($rem->remaining_qty),
+                'unit'          => $unitStr ?: 'pcs',
+            ];
+        }
+
         // ══════════════════════════════════════════════════════════════════
         // PART 1 – SALES  (one entry per sale-item for Qty/Rate breakdown)
         // ══════════════════════════════════════════════════════════════════
@@ -453,10 +476,13 @@ class ReportingController extends Controller
 
             $avgPrice  = $avgPriceMap[$row->product_id] ?? 0;
             $nPrice    = floatval($row->n_price ?? 0);
+            $remQty    = $saleRemainingMap[$row->sale_id][$row->product_id]['remaining_qty'] ?? 0;
+
             $salesGrouped[$row->sale_id]['items'][] = [
                 'item_name'     => $row->item_name,
                 'item_name_urdu'=> $row->item_name_urdu ?? null,
                 'qty'           => $qty,
+                'remaining_qty' => floatval($remQty),
                 'rate'          => $rate,
                 'item_discount' => floatval($row->item_discount ?? 0),
                 'line_amount'   => $lineAmt,
@@ -786,6 +812,7 @@ class ReportingController extends Controller
                         'item_name'    => $item['item_name'],
                         'item_name_urdu'=> $item['item_name_urdu'] ?? null,
                         'qty'          => $item['qty'],
+                        'remaining_qty'=> $item['remaining_qty'] ?? 0,
                         'rate'         => $item['rate'],
                         'item_discount'=> $item['item_discount'] ?? 0,
                         'line_amount'  => $item['line_amount']   ?? 0,
@@ -965,10 +992,12 @@ class ReportingController extends Controller
                 'end'   => $end,
             ],
             'opening_balance' => $openingBalance,
-            'total_debit'     => $totalDebit,
-            'total_credit'    => $totalCredit,
-            'closing_balance' => $runningBalance,
-            'transactions'    => $transactions,
+            'total_debit'         => $totalDebit,
+            'total_credit'        => $totalCredit,
+            'total_remaining_qty' => $totalRemainingQty,
+            'remaining_items'     => $remainingItems,
+            'closing_balance'     => $runningBalance,
+            'transactions'        => $transactions,
         ]);
     }
 
@@ -1737,7 +1766,7 @@ class ReportingController extends Controller
             $totalBalance = floatval($warehouseStocks->sum('quantity') ?? 0);
 
             if ($totalBalance == 0) {
-                $stQuery = Stock::where('product_id', $product->id);
+                $stQuery = \App\Models\Stock::where('product_id', $product->id);
                 if ($allowedBranchId && $allowedBranchId !== 'all') {
                     $stQuery->where('branch_id', $allowedBranchId);
                 }

@@ -709,9 +709,11 @@
                         <div class="bg-primary text-white rounded-3 p-2 d-flex align-items-center justify-content-center" style="width: 36px; height: 36px; background: linear-gradient(135deg, #2563eb, #1d4ed8) !important;">
                             <i class="fas fa-shopping-cart fs-6"></i>
                         </div>
-                        <div>
-                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.3px;">New Sale / Booking</h5>
-                            <p class="text-muted small mb-0 fw-medium" style="font-size: 11px;">Executive order generation, instant booking ledger, and multi-format dispatch invoicing</p>
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h5 class="fw-bold mb-0 text-dark" style="letter-spacing: -0.3px;" id="headerPageTitle">New Sale / Booking</h5>
+                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle fs-6 font-monospace px-2.5 py-1 rounded-pill" id="headerInvoiceBadge">
+                                <i class="fas fa-file-invoice me-1"></i>{{ $nextInvoiceNumber }}
+                            </span>
                         </div>
                     </div>
 
@@ -726,112 +728,94 @@
                     </div>
                 </div>
 
-                {{-- 2. CUSTOMER TOOLBAR (SINGLE LINE LAYOUT) --}}
-                <div class="customer-card-toolbar p-2 mb-3">
+                {{-- 2. CUSTOMER TOOLBAR (SUPER CLEAN & MINIMAL LAYOUT) --}}
+                <div class="customer-card-toolbar p-2 mb-3 rounded-3 shadow-sm border bg-white">
                     <input type="hidden" name="Invoice_date" id="Invoice_date" value="{{ date('Y-m-d') }}">
                     <input type="hidden" name="estimated_delivery_date" id="estimated_delivery_date" value="{{ date('Y-m-d', strtotime('+15 days')) }}">
                     <input type="hidden" name="Invoice_no" id="Invoice_no" value="{{ $nextInvoiceNumber }}">
+                    <input type="hidden" id="remarks" name="remarks" value="">
+                    <input type="hidden" id="tel" name="tel" value="">
+                    <input type="hidden" id="address" name="address" value="">
+                    <input type="hidden" name="Invoice_main" value="">
+                    <input type="hidden" id="creditLimit" value="0">
+                    <input type="hidden" id="noCreditLimit" value="0">
+                    <input type="hidden" name="salesman_id" id="salesman_id" value="{{ isset($booking) ? $booking->salesman_id : '' }}">
 
-                    {{-- SINGLE UNIFIED COMPACT LINE --}}
-                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-1.5">
-                        <div class="d-flex align-items-center gap-1.5 flex-grow-1 flex-wrap">
-                            <label class="form-label fw-bold text-uppercase small text-primary mb-0 me-1" style="letter-spacing: 0.5px; font-size: 11px; white-space: nowrap;">
-                                <i class="fas fa-user-circle me-1"></i> CUSTOMER
-                            </label>
-
-                            {{-- PARTY TYPE RADIOS --}}
+                    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        
+                        {{-- LEFT SIDE: PARTY TYPE TOGGLE + CUSTOMER DROPDOWN & EYE DETAIL BUTTON --}}
+                        <div class="d-flex align-items-center gap-2 flex-grow-1 flex-wrap">
+                            
+                            {{-- 1. SALE TYPE / PARTY TOGGLE (Credit, Cash, Walking) --}}
                             <div class="btn-group btn-group-sm" role="group" id="partyTypeGroup">
                                 <input type="radio" class="btn-check" name="partyType" id="typeCustomers" value="credit" checked>
-                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeCustomers" style="font-size: 11px;">Credit</label>
+                                <label class="btn btn-outline-primary btn-sm fw-semibold rounded-start-3" for="typeCustomers" style="font-size: 11px; padding: 3px 10px;">
+                                    <i class="fas fa-credit-card me-1"></i>Credit
+                                </label>
+
                                 <input type="radio" class="btn-check" name="partyType" id="typeWalkin" value="cash">
-                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typeWalkin" style="font-size: 11px;">Cash</label>
+                                <label class="btn btn-outline-primary btn-sm fw-semibold" for="typeWalkin" style="font-size: 11px; padding: 3px 10px;">
+                                    <i class="fas fa-money-bill-wave me-1"></i>Cash
+                                </label>
+
                                 <input type="radio" class="btn-check" name="partyType" id="typewalking" value="walking">
-                                <label class="btn btn-outline-primary btn-sm py-0 px-2" for="typewalking" style="font-size: 11px;">Walking</label>
+                                <label class="btn btn-outline-primary btn-sm fw-semibold rounded-end-3" for="typewalking" style="font-size: 11px; padding: 3px 10px;">
+                                    <i class="fas fa-walking me-1"></i>Walk-in
+                                </label>
                             </div>
 
-                            {{-- CUSTOMER DROPDOWN + ADD BUTTON --}}
-                            <div style="min-width: 180px; max-width: 250px;" class="flex-grow-1" id="customerSelectWrapper">
-                                <div class="d-flex align-items-center gap-1">
+                            {{-- 2. CUSTOMER SELECT + ADD BUTTON + EYE DETAIL BUTTON GROUP --}}
+                            <div style="min-width: 240px; max-width: 360px;" class="flex-grow-1" id="customerSelectWrapper">
+                                <div class="input-group input-group-sm shadow-2xs">
                                     <div class="flex-grow-1 position-relative" style="min-width: 0;">
-                                        <select class="form-select js-customer border-primary-subtle rounded-3" id="customerSelect" style="width: 100%;">
+                                        <select class="form-select js-customer border-primary-subtle rounded-start-3" id="customerSelect" style="width: 100%;">
                                             <option selected disabled>Search Customer...</option>
                                         </select>
                                     </div>
-                                    <button type="button" id="btnOpenAddCustomerModal" class="btn btn-primary btn-sm px-2 fw-semibold rounded-3 text-white d-inline-flex align-items-center justify-content-center shadow-sm" style="background:#2563eb !important; border-color:#2563eb !important; text-decoration: none; height: 31px; white-space: nowrap;">
+                                    <button type="button" id="btnOpenAddCustomerModal" class="btn btn-primary btn-sm px-2.5 fw-semibold d-inline-flex align-items-center shadow-sm" style="background:#2563eb !important; border-color:#2563eb !important;" title="Add New Customer">
                                         <i class="fas fa-plus me-1"></i> Add
+                                    </button>
+                                    <button type="button" id="btnViewCustomerDetail" class="btn btn-outline-secondary btn-sm px-2.5 d-inline-flex align-items-center" title="View Customer Details (Phone, Address, Limit & Balance)" style="background: #f8fafc;">
+                                        <i class="fas fa-eye text-primary"></i>
                                     </button>
                                 </div>
                                 <small class="text-muted" id="customerCountHint" style="display: none !important;"></small>
                             </div>
 
-                            {{-- VISIBLE / EDITABLE CUSTOMER NAME INPUT --}}
-                            <div style="min-width: 180px; display: none;" id="customerDisplayWrapper">
-                                <input type="text" class="form-control form-control-sm border-primary-subtle fw-bold text-dark rounded-3" id="customerDisplay" name="customer_display" placeholder="Walking Customer Name" value="Walking Customer">
+                            {{-- VISIBLE / EDITABLE WALKING CUSTOMER NAME INPUT --}}
+                            <div style="min-width: 220px; display: none;" id="customerDisplayWrapper">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light text-primary border-primary-subtle"><i class="fas fa-user-tag"></i></span>
+                                    <input type="text" class="form-control form-control-sm border-primary-subtle fw-bold text-dark rounded-end-3" id="customerDisplay" name="customer_display" placeholder="Walking Customer Name" value="Walking Customer">
+                                </div>
                             </div>
 
                             <input type="hidden" id="customer_id" name="customer_id" value="">
                             <input type="hidden" id="customer" name="customer" value="">
 
-                            {{-- PHONE # --}}
-                            <div style="width: 110px;">
-                                <input type="text" class="form-control form-control-sm" id="tel" name="tel" placeholder="Phone #">
-                            </div>
-
-                            {{-- ADDRESS --}}
-                            <div style="width: 130px;" class="flex-grow-1">
-                                <input type="text" class="form-control form-control-sm" id="address" name="address" placeholder="Address">
-                            </div>
-
-                            {{-- MANUAL INV# --}}
-                            <div style="width: 100px;">
-                                <input type="text" class="form-control form-control-sm" name="Invoice_main" placeholder="Manual Inv#">
-                            </div>
-
-                            {{-- BRANCH (IF SUPER ADMIN) --}}
+                            {{-- BRANCH SELECT (SUPER ADMIN ONLY) --}}
                             @if (Auth::user() && Auth::user()->hasRole('super admin'))
-                            <div style="width: 110px;">
-                                <select class="form-select form-select-sm" name="branch_id" id="branch_id">
-                                    @foreach($branches as $b)
-                                        <option value="{{ $b->id }}">{{ $b->branch_name ?? $b->name ?? 'Branch ' . $b->id }}</option>
-                                    @endforeach
-                                </select>
+                            <div style="width: 140px;" title="Select Branch">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text bg-light text-primary border-end-0 px-2"><i class="fas fa-building text-primary" style="font-size: 10px;"></i></span>
+                                    <select class="form-select form-select-sm border-start-0 fw-semibold" name="branch_id" id="branch_id">
+                                        @foreach($branches as $b)
+                                            <option value="{{ $b->id }}">{{ $b->branch_name ?? $b->name ?? 'Branch ' . $b->id }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
                             </div>
                             @else
                                 <input type="hidden" name="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
                             @endif
-
-                            {{-- SALESMAN --}}
-                            <div style="width: 130px;">
-                                <select class="form-select form-select-sm select2" name="salesman_id" id="salesman_id">
-                                    <option value="">Salesman</option>
-                                    @foreach($salesmen as $sm)
-                                        <option value="{{ $sm->id }}" {{ (isset($booking) && $booking->salesman_id == $sm->id) ? 'selected' : '' }}>
-                                            {{ $sm->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            {{-- REMARKS --}}
-                            <div style="min-width: 120px;" class="flex-grow-1">
-                                <input type="text" class="form-control form-control-sm" id="remarks" name="remarks" placeholder="Remarks / Notes">
-                            </div>
                         </div>
 
-                        {{-- PREV BAL & LIMIT & INV# & CLEAR --}}
-                        <div class="d-flex align-items-center gap-1.5 flex-nowrap" id="balanceFieldsContainer" style="white-space: nowrap;">
-                            <span class="small text-muted fw-bold ms-1">Prev Bal:</span>
-                            <input type="text" class="form-control form-control-sm text-end fw-bold text-danger rounded-3" id="previousBalance" value="0" style="width: 70px;" readonly>
-
-                            <span class="small text-muted fw-bold">Limit:</span>
-                            <input type="text" class="form-control form-control-sm text-end fw-bold text-primary rounded-3" id="creditLimit" value="0" style="width: 70px;" readonly>
-                            <small id="noCreditLimitMsg" class="text-success fw-bold ms-1" style="display:none;">Infinite</small>
-                            <input type="hidden" id="noCreditLimit" value="0">
-
-                            <span class="badge bg-light text-dark border py-1 px-2 ms-1">Inv#: <strong class="text-primary" id="invoiceNoText">{{ $nextInvoiceNumber }}</strong></span>
-                            <button id="clearCustomerData" type="button" class="btn btn-sm btn-light border text-danger py-0 px-2 fw-semibold">
-                                <i class="fas fa-eraser"></i> Clear
-                            </button>
+                        {{-- RIGHT SIDE: PREVIOUS BALANCE BADGE ONLY --}}
+                        <div class="d-flex align-items-center ms-auto" id="balanceFieldsContainer" style="white-space: nowrap;">
+                            <div class="d-flex align-items-center bg-danger-subtle border border-danger-subtle rounded-3 px-3 py-1" title="Previous Balance">
+                                <span class="small text-danger fw-bold me-1 fs-6"><i class="fas fa-wallet me-1"></i>Prev Bal:</span>
+                                <input type="text" class="form-control form-control-sm text-end fw-bold text-danger bg-transparent border-0 p-0 fs-6" id="previousBalance" value="0" style="width: 75px; height: 24px; min-height: 24px;" readonly>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1639,6 +1623,7 @@
 
                 if (window.EDIT_SALE.invoice_no) {
                     $('input[name="Invoice_no"]').val(window.EDIT_SALE.invoice_no).prop('readonly', true);
+                    $('#headerInvoiceBadge').html('<i class="fas fa-file-invoice me-1"></i>' + window.EDIT_SALE.invoice_no);
                 }
                 if (window.EDIT_SALE.manual_invoice) {
                     $('input[name="Invoice_main"]').val(window.EDIT_SALE.manual_invoice);
@@ -5093,14 +5078,97 @@
                 }, 120);
             });
 
-            $(document).on('select2:select', '.rv-account', function() {
-                const $rvRow = $(this).closest('.rv-row');
-                setTimeout(function() {
-                    $rvRow.find('.rv-amount').focus().select();
-                }, 120);
+            $(document).on('click', '#btnViewCustomerDetail', function() {
+                let custId = $('#customer_id').val();
+                let pType = $('input[name="partyType"]:checked').val();
+
+                // Resolve customer name properly (Select2 stores in customerDisplay after loadCustomerDetails)
+                let custName = '';
+                if (pType === 'walking') {
+                    custName = $('#customerDisplay').val() || 'Walking Customer';
+                } else {
+                    custName = $('#customerDisplay').val() || '';
+                    // fallback: try Select2 data
+                    if (!custName) {
+                        const s2data = $('#customerSelect').select2('data');
+                        if (s2data && s2data.length) custName = s2data[0].text || '';
+                    }
+                }
+                // strip placeholder text
+                if (custName.includes('Search Customer') || custName.includes('-- Select') || custName.includes('Loading')) custName = '';
+
+                if (!custId && pType !== 'walking') {
+                    $('#custDetailModalName').text('No Customer Selected');
+                    $('#custDetailModalBody').html('<div class="alert alert-info mb-0"><i class="fas fa-info-circle me-2"></i>Please search and select a customer first.</div>');
+                    new bootstrap.Modal(document.getElementById('customerDetailModal')).show();
+                    return;
+                }
+
+                let tel       = $('#tel').val() || 'N/A';
+                let address   = $('#address').val() || 'N/A';
+                let prevBal   = parseFloat($('#previousBalance').val() || 0);
+                let limit     = parseFloat($('#creditLimit').val() || 0);
+                let noLimit   = $('#noCreditLimit').val() == '1';
+
+                let balBadge = prevBal > 0
+                    ? `<span class="badge bg-danger px-3 py-1" style="font-size:13px;">Rs. ${prevBal.toLocaleString('en-US', {minimumFractionDigits: 2})} Dr</span>`
+                    : `<span class="badge bg-success px-3 py-1" style="font-size:13px;">Rs. ${Math.abs(prevBal).toLocaleString('en-US', {minimumFractionDigits: 2})} Cr</span>`;
+
+                let limitHtml = noLimit
+                    ? `<span class="badge bg-warning text-dark px-3 py-1" style="font-size:13px;">Unlimited</span>`
+                    : `<span class="fw-bold text-primary">Rs. ${limit.toLocaleString('en-US', {minimumFractionDigits: 2})}</span>`;
+
+                let ptypeBadgeClass = pType === 'credit' ? 'bg-primary' : (pType === 'cash' ? 'bg-success' : 'bg-secondary');
+
+                $('#custDetailModalName').html(`<i class="fas fa-id-card me-2 text-primary"></i>${custName || 'Customer Info'}`);
+                $('#custDetailModalBody').html(`
+                    <div style="font-size:13.5px; line-height:1.8;">
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="fas fa-tag me-1"></i> Party Type</span>
+                            <span class="badge ${ptypeBadgeClass} px-3 py-1 text-capitalize" style="font-size:12px;">${pType}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="fas fa-phone me-1"></i> Phone</span>
+                            <span class="fw-semibold text-dark">${tel}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="fas fa-map-marker-alt me-1"></i> Address</span>
+                            <span class="fw-semibold text-dark" style="max-width:200px;text-align:right;">${address}</span>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-2">
+                            <span class="text-muted"><i class="fas fa-wallet me-1"></i> Prev Balance</span>
+                            <div>${balBadge}</div>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="text-muted"><i class="fas fa-credit-card me-1"></i> Credit Limit</span>
+                            <div>${limitHtml}</div>
+                        </div>
+                    </div>
+                `);
+                new bootstrap.Modal(document.getElementById('customerDetailModal')).show();
             });
         });
     </script>
+
+    <!-- CUSTOMER DETAIL VIEW MODAL -->
+    <div class="modal fade" id="customerDetailModal" tabindex="-1" aria-labelledby="customerDetailModalLabel" aria-hidden="true" style="z-index: 1065;">
+        <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header py-2 px-3 rounded-top-4" style="background: linear-gradient(135deg, #1e3a5f, #2c5282);">
+                    <h6 class="modal-title fw-bold text-white mb-0" id="custDetailModalName">
+                        <i class="fas fa-id-card me-2"></i>Customer Info
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body px-4 py-3" id="custDetailModalBody">
+                    {{-- populated by JS --}}
+                </div>
+                <div class="modal-footer py-2 px-3 border-top-0">
+                    <button type="button" class="btn btn-sm btn-primary px-4" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- QUICK ADD CUSTOMER MODAL -->
     <div class="modal fade" id="quickAddCustomerModal" tabindex="-1" aria-labelledby="quickAddCustomerModalLabel" aria-hidden="true" style="z-index: 1060;">

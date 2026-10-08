@@ -21,8 +21,8 @@
 <body onload="setTimeout(()=>window.print(), 300)">
     <div class="wrap">
         <div class="center">
-            <div class="brand-title">AMIN &amp; SONS</div>
-            <div class="brand-sub">Outward Gate Pass</div>
+            <div class="brand-title">{{ $gp->branch_name ?? 'Branch' }}</div>
+            <div class="brand-sub">Outward Gate Pass & Delivery Challan</div>
             <div class="bold" style="font-size:13px; margin-top:4px;">{{ $gp->gatepass_number ?? ('GP-' . str_pad($gp->id, 4, '0', STR_PAD_LEFT)) }}</div>
             <div class="small">{{ optional($gp->created_at)->format('Y-m-d H:i') ?? '' }}</div>
         </div>
