@@ -503,6 +503,23 @@
         border-color: #94a3b8;
     }
 
+    .btn-action-history {
+        padding: 4px 8px;
+        border-radius: 5px;
+        font-size: 11px;
+        font-weight: 700;
+        background: #f3e8ff;
+        color: #6b21a8 !important;
+        border: 1px solid #d8b4fe;
+        cursor: pointer;
+        transition: all 0.15s;
+    }
+    .btn-action-history:hover {
+        background: #6b21a8;
+        color: #ffffff !important;
+        border-color: #6b21a8;
+    }
+
     /* ── Empty State ── */
     .coa-empty-box {
         text-align: center;
@@ -760,6 +777,14 @@
                                                     <i class="fas fa-book-open"></i> Ledger
                                                 </a>
                                                 <button type="button" 
+                                                        class="btn-action-history btn-view-account-history"
+                                                        data-id="{{ $account->id }}"
+                                                        data-title="{{ $account->title }}"
+                                                        data-code="{{ $account->account_code ?? ('ACC-' . $account->id) }}"
+                                                        title="View Account Edit History Log">
+                                                    <i class="fas fa-history"></i> History
+                                                </button>
+                                                <button type="button" 
                                                         class="btn-action-edit btn-edit-account"
                                                         data-account="{{ json_encode($account) }}"
                                                         data-toggle="modal" 
@@ -796,6 +821,86 @@
     }
 
     $(document).ready(function() {
+        // Account Edit History Modal Handler
+        $(document).on('click', '.btn-view-account-history', function() {
+            const accountId    = $(this).data('id');
+            const accountTitle = $(this).data('title');
+            const accountCode  = $(this).data('code');
+
+            $('#accModalTitle').text(accountTitle);
+            $('#accModalCode').text(accountCode);
+            $('#accHistoryLoading').show();
+            $('#accHistoryContent').hide();
+            $('#accHistoryTableBody').empty();
+
+            $('#accountEditHistoryModal').modal('show');
+
+            $.ajax({
+                url: "{{ url('coa/account') }}/" + accountId + "/history",
+                type: "GET",
+                success: function(response) {
+                    $('#accHistoryLoading').hide();
+                    $('#accHistoryContent').show();
+
+                    if (response.success && response.histories.length > 0) {
+                        let rowsHtml = '';
+                        $.each(response.histories, function(index, item) {
+                            let diffBadge = '';
+                            if (item.diff > 0) {
+                                diffBadge = `<span class="badge bg-success text-white">+ PKR ${numberFormatAcc(item.diff)}</span>`;
+                            } else if (item.diff < 0) {
+                                diffBadge = `<span class="badge bg-danger text-white">- PKR ${numberFormatAcc(Math.abs(item.diff))}</span>`;
+                            } else {
+                                diffBadge = `<span class="badge bg-secondary text-white">No Change</span>`;
+                            }
+
+                            rowsHtml += `
+                                <tr>
+                                    <td class="ps-3 font-monospace">${index + 1}</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border font-weight-bold">
+                                            <i class="fas fa-user text-primary mr-1"></i> ${item.user_name}
+                                        </span>
+                                    </td>
+                                    <td><i class="fas fa-clock text-muted mr-1"></i> ${item.date}</td>
+                                    <td class="text-end font-monospace">PKR ${numberFormatAcc(item.old_opening_balance)}</td>
+                                    <td class="text-end font-monospace fw-bold text-dark">PKR ${numberFormatAcc(item.new_opening_balance)}</td>
+                                    <td class="text-center">${diffBadge}</td>
+                                    <td class="text-end font-monospace fw-bold text-primary bg-light">PKR ${numberFormatAcc(item.resulting_current_balance)}</td>
+                                    <td class="pe-3 text-secondary small">${item.changes_summary}</td>
+                                </tr>
+                            `;
+                        });
+                        $('#accHistoryTableBody').html(rowsHtml);
+                    } else {
+                        $('#accHistoryTableBody').html(`
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="fas fa-info-circle fa-2x mb-2 d-block text-secondary"></i>
+                                    No edit history found for this account.
+                                </td>
+                            </tr>
+                        `);
+                    }
+                },
+                error: function() {
+                    $('#accHistoryLoading').hide();
+                    $('#accHistoryContent').show();
+                    $('#accHistoryTableBody').html(`
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-danger">
+                                <i class="fas fa-exclamation-circle mr-1"></i> Failed to load account edit history.
+                            </td>
+                        </tr>
+                    `);
+                }
+            });
+        });
+
+        function numberFormatAcc(num) {
+            return parseFloat(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
         // Edit Account Modal Handler
         $('.btn-edit-account').on('click', function() {
             const account = $(this).data('account');
@@ -1022,6 +1127,57 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Account Edit Audit History -->
+<div class="modal fade" id="accountEditHistoryModal" tabindex="-1" role="dialog" aria-labelledby="accHistoryModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header text-white d-flex align-items-center justify-content-between py-2" style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);">
+                <h6 class="modal-title text-white mb-0" id="accHistoryModalTitle">
+                    <i class="fas fa-history me-2"></i> Account Edit Audit Log: 
+                    <span id="accModalTitle" class="text-warning font-weight-bold"></span> 
+                    <span id="accModalCode" class="badge bg-light text-dark ms-1"></span>
+                </h6>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="background: transparent; border: none; font-size: 1.5rem;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="accHistoryLoading" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="sr-only">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-2 mb-0">Fetching account edit history log...</p>
+                </div>
+
+                <div id="accHistoryContent" style="display: none;">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0 align-middle" style="font-size: 12.5px;">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-3" style="width: 35px;">#</th>
+                                    <th>Edited By (User)</th>
+                                    <th>Date & Time</th>
+                                    <th class="text-end">Old Opening</th>
+                                    <th class="text-end">New Opening</th>
+                                    <th class="text-center">Diff</th>
+                                    <th class="text-end bg-warning text-dark">Resulting Balance</th>
+                                    <th class="pe-3">Summary / Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody id="accHistoryTableBody">
+                                <!-- Populated dynamically via JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2">
+                <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-dismiss="modal">Close</button>
+            </div>
         </div>
     </div>
 </div>

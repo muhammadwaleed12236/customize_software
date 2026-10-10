@@ -669,15 +669,16 @@ public function searchProductsForSalebypagination(Request $request)
             $nextCode = 'ITEM-' . str_pad($seq, 4, '0', STR_PAD_LEFT);
 
             // Handle packing type logic
-            $packingType = $request->packing_type;
-            $packQty = 0;
-            $piecePerPack = 0;
-            $loosePiece = 0;
-
-            if ($packingType === 'Customize') {
-                $packQty = (float) ($request->packing_qty ?? 0);
+            $packingType = $request->input('packing_type', 'Standard');
+            if ($packingType === 'Customize' || ($request->filled('piece_per_pack') && (float)$request->piece_per_pack > 0)) {
+                $packingType = 'Customize';
+                $packQty = (float) ($request->packing_qty ?? $request->pack_qty ?? 0);
                 $piecePerPack = (float) ($request->piece_per_pack ?? 0);
                 $loosePiece = (float) ($request->loose_piece ?? 0);
+            } else {
+                $packQty = 0;
+                $piecePerPack = 0;
+                $loosePiece = 0;
             }
 
             // ✅ PHASE 1: Create product form basic profile only
@@ -704,7 +705,7 @@ public function searchProductsForSalebypagination(Request $request)
                 'piece_per_pack'  => $piecePerPack,
                 'loose_piece'     => $loosePiece,
                 'image'           => $imagePath,
-                'color'           => $request->color ? json_encode($request->color) : null,
+                'color'           => $request->color ? (is_array($request->color) ? json_encode(array_values(array_filter($request->color))) : $request->color) : null,
                 'is_part'         => $request->has('is_part') ? 1 : 0,
                 'is_assembled'    => $request->has('is_assembled') ? 1 : 0,
                 'completion_status' => 'profile_only', // ← Mark as incomplete
@@ -999,8 +1000,8 @@ public function searchProductsForSalebypagination(Request $request)
                 'brand_id'        => $request->brand_id ?? $product->brand_id,
                 'model'           => $request->model ?? $product->model,
                 'hs_code'         => $request->hs_code ?? $product->hs_code,
-                'pack_type'       => $request->packing_type ?? 'Standard',
-                'pack_qty'        => (float) ($request->packing_qty ?? 0),
+                'pack_type'       => ($request->input('packing_type') === 'Customize' || ((float)($request->piece_per_pack ?? 0) > 0)) ? 'Customize' : 'Standard',
+                'pack_qty'        => (float) ($request->packing_qty ?? $request->pack_qty ?? 0),
                 'piece_per_pack'  => (float) ($request->piece_per_pack ?? 0),
                 'loose_piece'     => (float) ($request->loose_piece ?? 0),
                 'image'           => $imagePath,
@@ -1012,9 +1013,11 @@ public function searchProductsForSalebypagination(Request $request)
                 'updated_at'      => now(),
             ];
 
-            if ($request->has('color')) {
-                $colors = $request->color;
-                $updateData['color'] = is_array($colors) ? json_encode($colors) : $colors;
+            if ($request->filled('color') || $request->has('color')) {
+                $colors = $request->input('color');
+                $updateData['color'] = !empty($colors) ? (is_array($colors) ? json_encode(array_values(array_filter($colors))) : $colors) : null;
+            } else {
+                $updateData['color'] = null;
             }
 
             $hasStockInput = $request->has('initial_stock') || $request->has('stock_quantity');

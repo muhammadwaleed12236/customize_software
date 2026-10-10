@@ -199,8 +199,7 @@
                 <div class="card-body p-3">
                     <form id="onhandFilterForm" class="row g-2 align-items-end mb-0">
                         @if($isSuper)
-                            {{-- SUPER ADMIN: 3 FILTERS (BRANCH, WAREHOUSE, PRODUCT) --}}
-                            <div class="col-md-3">
+                            <div class="col-lg-3 col-md-4 col-sm-6">
                                 <label class="f-label"><i class="fas fa-building mr-1 text-primary"></i> Select Branch</label>
                                 <select id="filter_branch" name="branch_id" class="form-control form-control-sm select2">
                                     <option value="all">-- All Branches --</option>
@@ -211,76 +210,87 @@
                                     @endforeach
                                 </select>
                             </div>
-
-                            <div class="col-md-3">
-                                <label class="f-label"><i class="fas fa-warehouse mr-1 text-info"></i> Select Warehouse</label>
-                                <select id="filter_warehouse" name="warehouse_id" class="form-control form-control-sm select2">
-                                    <option value="all">-- All Warehouses --</option>
-                                    @foreach($warehouses as $w)
-                                        <option value="{{ $w->id }}" {{ (isset($warehouseId) && $warehouseId == $w->id) ? 'selected' : '' }}>
-                                            {{ $w->warehouse_name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-4">
-                                <label class="f-label"><i class="fas fa-box-open mr-1 text-secondary"></i> Select Product</label>
-                                <select id="filter_product" name="product_id" class="form-control form-control-sm select2">
-                                    <option value="all">-- All Products --</option>
-                                    @foreach($allProducts as $p)
-                                        <option value="{{ $p->id }}" {{ (isset($productId) && $productId == $p->id) ? 'selected' : '' }}>
-                                            {{ $p->item_name }} ({{ $p->item_code }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-2 d-flex gap-2">
-                                <button type="button" id="btnSearch" class="btn btn-sm btn-primary flex-grow-1 font-weight-bold" style="height: 38px; border-radius: 6px; background: var(--coa-navy); border-color: var(--coa-navy);">
-                                    <i class="fas fa-search mr-1"></i> Filter
-                                </button>
-                                <button type="button" id="btnReset" class="btn btn-sm btn-light border font-weight-bold text-muted d-inline-flex align-items-center justify-content-center" style="height: 38px; border-radius: 6px; width: 38px;" title="Reset Filters">
-                                    <i class="fas fa-undo"></i>
-                                </button>
-                            </div>
                         @else
-                            {{-- BRANCH USER: 2 FILTERS (WAREHOUSE, PRODUCT) --}}
                             <input type="hidden" id="filter_branch" name="branch_id" value="{{ $branchId }}">
-
-                            <div class="col-md-5">
-                                <label class="f-label"><i class="fas fa-warehouse mr-1 text-info"></i> Select Warehouse</label>
-                                <select id="filter_warehouse" name="warehouse_id" class="form-control form-control-sm select2">
-                                    <option value="all">-- All Warehouses --</option>
-                                    @foreach($warehouses as $w)
-                                        <option value="{{ $w->id }}" {{ (isset($warehouseId) && $warehouseId == $w->id) ? 'selected' : '' }}>
-                                            {{ $w->warehouse_name }}
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-5">
-                                <label class="f-label"><i class="fas fa-box-open mr-1 text-secondary"></i> Select Product</label>
-                                <select id="filter_product" name="product_id" class="form-control form-control-sm select2">
-                                    <option value="all">-- All Products --</option>
-                                    @foreach($allProducts as $p)
-                                        <option value="{{ $p->id }}" {{ (isset($productId) && $productId == $p->id) ? 'selected' : '' }}>
-                                            {{ $p->item_name }} ({{ $p->item_code }})
-                                        </option>
-                                    @endforeach
-                                </select>
-                            </div>
-
-                            <div class="col-md-2 d-flex gap-2">
-                                <button type="button" id="btnSearch" class="btn btn-sm btn-primary flex-grow-1 font-weight-bold" style="height: 38px; border-radius: 6px; background: var(--coa-navy); border-color: var(--coa-navy);">
-                                    <i class="fas fa-search mr-1"></i> Filter
-                                </button>
-                                <button type="button" id="btnReset" class="btn btn-sm btn-light border font-weight-bold text-muted d-inline-flex align-items-center justify-content-center" style="height: 38px; border-radius: 6px; width: 38px;" title="Reset Filters">
-                                    <i class="fas fa-undo"></i>
-                                </button>
-                            </div>
                         @endif
+
+                        <div class="col-lg-3 col-md-4 col-sm-6">
+                            <label class="f-label"><i class="fas fa-warehouse mr-1 text-info"></i> Select Warehouse</label>
+                            <select id="filter_warehouse" name="warehouse_id" class="form-control form-control-sm select2">
+                                <option value="all">-- All Warehouses --</option>
+                                @foreach($warehouses as $w)
+                                    <option value="{{ $w->id }}" {{ (isset($warehouseId) && $warehouseId == $w->id) ? 'selected' : '' }}>
+                                        {{ $w->warehouse_name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-4 col-sm-6">
+                            <label class="f-label"><i class="fas fa-th-large mr-1 text-warning"></i> Select Category</label>
+                            <select id="filter_category" name="category_id" class="form-control form-control-sm select2">
+                                <option value="all">-- All Categories --</option>
+                                @foreach($categories as $c)
+                                    <option value="{{ $c->id }}" {{ (isset($categoryId) && $categoryId == $c->id) ? 'selected' : '' }}>
+                                        {{ $c->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-4 col-sm-6">
+                            <label class="f-label"><i class="fas fa-copyright mr-1 text-danger"></i> Select Brand</label>
+                            <select id="filter_brand" name="brand_id" class="form-control form-control-sm select2">
+                                <option value="all">-- All Brands --</option>
+                                @foreach($brands as $b)
+                                    <option value="{{ $b->id }}" {{ (isset($brandId) && $brandId == $b->id) ? 'selected' : '' }}>
+                                        {{ $b->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-4 col-sm-6">
+                            <label class="f-label"><i class="fas fa-car mr-1" style="color: #7c3aed;"></i> Select Model</label>
+                            <select id="filter_model" name="model" class="form-control form-control-sm select2">
+                                <option value="all">-- All Models --</option>
+                                @foreach($models as $m)
+                                    <option value="{{ $m }}" {{ (isset($modelName) && $modelName == $m) ? 'selected' : '' }}>
+                                        {{ $m }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-4 col-sm-6">
+                            <label class="f-label"><i class="fas fa-box-open mr-1 text-secondary"></i> Select Product</label>
+                            <select id="filter_product" name="product_id" class="form-control form-control-sm select2">
+                                <option value="all">-- All Products --</option>
+                                @foreach($allProducts as $p)
+                                    <option value="{{ $p->id }}" {{ (isset($productId) && $productId == $p->id) ? 'selected' : '' }}>
+                                        {{ $p->item_name }} ({{ $p->item_code }})
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-4 col-sm-6">
+                            <label class="f-label"><i class="fas fa-filter mr-1" style="color: #047857;"></i> Stock Status</label>
+                            <select id="filter_stock_status" name="stock_status" class="form-control form-control-sm select2">
+                                <option value="in_stock" {{ (!isset($stockStatus) || $stockStatus == 'in_stock') ? 'selected' : '' }}>Available Only (> 0)</option>
+                                <option value="all" {{ (isset($stockStatus) && $stockStatus == 'all') ? 'selected' : '' }}>-- All Stock (Inc. 0) --</option>
+                                <option value="out_of_stock" {{ (isset($stockStatus) && $stockStatus == 'out_of_stock') ? 'selected' : '' }}>Out of Stock (= 0)</option>
+                            </select>
+                        </div>
+
+                        <div class="col-lg-3 col-md-4 col-sm-6 d-flex gap-2">
+                            <button type="button" id="btnSearch" class="btn btn-sm btn-primary flex-grow-1 font-weight-bold" style="height: 38px; border-radius: 6px; background: var(--coa-navy); border-color: var(--coa-navy);">
+                                <i class="fas fa-search mr-1"></i> Filter
+                            </button>
+                            <button type="button" id="btnReset" class="btn btn-sm btn-light border font-weight-bold text-muted d-inline-flex align-items-center justify-content-center" style="height: 38px; border-radius: 6px; width: 38px;" title="Reset Filters">
+                                <i class="fas fa-undo"></i>
+                            </button>
+                        </div>
                     </form>
                 </div>
             </div>
@@ -352,12 +362,14 @@
                             <thead>
                                 <tr>
                                     <th class="text-center" style="width: 40px;">#</th>
-                                    <th style="width: 120px; white-space: nowrap;">Item Code</th>
+                                    <th style="width: 110px; white-space: nowrap;">Item Code</th>
                                     <th>Product Name</th>
-                                    <th style="width: 140px;">Brand</th>
-                                    <th style="width: 100px;">UOM</th>
-                                    <th class="text-center" style="width: 110px;">Status</th>
-                                    <th class="text-end" style="width: 140px; white-space: nowrap;">On-Hand Qty</th>
+                                    <th style="width: 130px;">Category</th>
+                                    <th style="width: 130px;">Brand</th>
+                                    <th style="width: 120px;">Model</th>
+                                    <th style="width: 90px;">UOM</th>
+                                    <th class="text-center" style="width: 100px;">Status</th>
+                                    <th class="text-end" style="width: 130px; white-space: nowrap;">On-Hand Qty</th>
                                 </tr>
                             </thead>
                             <tbody id="onhandBody">
@@ -366,7 +378,9 @@
                                     <td class="text-center text-muted" style="font-size: 11px;">{{ $i + 1 }}</td>
                                     <td style="font-family: monospace; font-weight: 700; color: #1e3a5f; font-size: 12px;">{{ $r->item_code }}</td>
                                     <td class="font-weight-bold text-dark" style="font-size: 12.5px;">{{ $r->item_name }}</td>
+                                    <td>{{ $r->category_name ?: '—' }}</td>
                                     <td>{{ $r->brand_name ?: '—' }}</td>
+                                    <td>{{ $r->model ?: '—' }}</td>
                                     <td>{{ $r->unit_name ?: 'Piece' }}</td>
                                     <td class="text-center">
                                         @if($r->is_part)
@@ -383,13 +397,13 @@
                                 </tr>
                                 @empty
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-muted">No stock items found for selected filter criteria.</td>
+                                    <td colspan="9" class="text-center py-4 text-muted">No stock items found for selected filter criteria.</td>
                                 </tr>
                                 @endforelse
                             </tbody>
                             <tfoot>
                                 <tr class="font-weight-bold bg-light" style="font-family: monospace; font-size: 13px;">
-                                    <td colspan="6" class="text-end font-weight-bold" style="font-family: sans-serif;">Total On-Hand:</td>
+                                    <td colspan="8" class="text-end font-weight-bold" style="font-family: sans-serif;">Total On-Hand:</td>
                                     <td class="text-end text-success font-weight-bold" id="footerTotalQty" style="font-size: 13.5px; background: rgba(13, 159, 110, 0.12);">
                                         {{ number_format($totalQty, 2) }}
                                     </td>
@@ -482,14 +496,22 @@
                 $('#filter_branch').val('all').trigger('change');
             }
             $('#filter_warehouse').val('all').trigger('change');
+            $('#filter_category').val('all').trigger('change');
+            $('#filter_brand').val('all').trigger('change');
+            $('#filter_model').val('all').trigger('change');
             $('#filter_product').val('all').trigger('change');
+            $('#filter_stock_status').val('in_stock').trigger('change');
             setTimeout(fetchOnhandReport, 200);
         });
 
         function fetchOnhandReport() {
             let branchId = $('#filter_branch').val() || '';
             let warehouseId = $('#filter_warehouse').val() || '';
+            let categoryId = $('#filter_category').val() || '';
+            let brandId = $('#filter_brand').val() || '';
+            let modelName = $('#filter_model').val() || '';
             let productId = $('#filter_product').val() || '';
+            let stockStatus = $('#filter_stock_status').val() || 'in_stock';
 
             $('#loader').show();
 
@@ -499,7 +521,11 @@
                 data: {
                     branch_id: branchId,
                     warehouse_id: warehouseId,
-                    product_id: productId
+                    category_id: categoryId,
+                    brand_id: brandId,
+                    model: modelName,
+                    product_id: productId,
+                    stock_status: stockStatus
                 },
                 success: function(res) {
                     $('#loader').hide();
@@ -528,7 +554,7 @@
             let tbodyHtml = '';
 
             if (rows.length === 0) {
-                tbodyHtml = '<tr><td colspan="7" class="text-center py-4 text-muted">No stock items found for selected filter criteria.</td></tr>';
+                tbodyHtml = '<tr><td colspan="9" class="text-center py-4 text-muted">No stock items found for selected filter criteria.</td></tr>';
             } else {
                 rows.forEach((r, idx) => {
                     let qty = parseFloat(r.onhand_qty) || 0;
@@ -548,7 +574,9 @@
                         <td class="text-center text-muted" style="font-size: 11px;">${idx + 1}</td>
                         <td style="font-family: monospace; font-weight: 700; color: #1e3a5f; font-size: 12px;">${r.item_code}</td>
                         <td class="font-weight-bold text-dark" style="font-size: 12.5px;">${r.item_name}</td>
+                        <td>${r.category_name || '—'}</td>
                         <td>${r.brand_name || '—'}</td>
+                        <td>${r.model || '—'}</td>
                         <td>${r.unit_name || 'Piece'}</td>
                         <td class="text-center">${statusBadge}</td>
                         <td class="text-end font-monospace font-weight-bold" style="font-size: 13px; color: ${qtyColor}; background: ${qtyBg};">
@@ -568,8 +596,20 @@
             if ($('#filter_warehouse').val() !== 'all') {
                 filterDesc.push('Warehouse: ' + $('#filter_warehouse option:selected').text().trim());
             }
+            if ($('#filter_category').val() !== 'all') {
+                filterDesc.push('Category: ' + $('#filter_category option:selected').text().trim());
+            }
+            if ($('#filter_brand').val() !== 'all') {
+                filterDesc.push('Brand: ' + $('#filter_brand option:selected').text().trim());
+            }
+            if ($('#filter_model').val() !== 'all') {
+                filterDesc.push('Model: ' + $('#filter_model option:selected').text().trim());
+            }
             if ($('#filter_product').val() !== 'all') {
                 filterDesc.push('Product: ' + $('#filter_product option:selected').text().trim());
+            }
+            if ($('#filter_stock_status').val() !== 'in_stock') {
+                filterDesc.push('Status: ' + $('#filter_stock_status option:selected').text().trim());
             }
             $('#pdfFilterInfo').text(filterDesc.length > 0 ? filterDesc.join(' | ') : 'All Branches & Warehouses');
         }

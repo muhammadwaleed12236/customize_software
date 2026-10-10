@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountHead;
 use App\Models\Branch;
+use App\Models\Brand;
+use App\Models\Category;
 use App\Models\Customer;
 use App\Models\CustomerLedger;
 use App\Models\Product;
@@ -56,17 +58,39 @@ class ReportingController extends Controller
             $warehouseId = (int)$request->warehouse_id;
         }
 
+        $categoryId = null;
+        if ($request->filled('category_id') && $request->category_id !== 'all') {
+            $categoryId = (int)$request->category_id;
+        }
+
+        $brandId = null;
+        if ($request->filled('brand_id') && $request->brand_id !== 'all') {
+            $brandId = (int)$request->brand_id;
+        }
+
+        $modelName = null;
+        if ($request->filled('model') && $request->model !== 'all') {
+            $modelName = $request->model;
+        }
+
         $productId = null;
         if ($request->filled('product_id') && $request->product_id !== 'all') {
             $productId = (int)$request->product_id;
         }
 
-        // Products list for searchable dropdown
+        // Default to showing available stock only (> 0) unless specified otherwise
+        $stockStatus = $request->get('stock_status', 'in_stock');
+
+        // Master Lists for Filters
+        $categories = Category::orderBy('name')->get(['id', 'name']);
+        $brands = Brand::orderBy('name')->get(['id', 'name']);
+        $models = Product::whereNotNull('model')->where('model', '!=', '')->distinct()->orderBy('model')->pluck('model');
         $allProducts = Product::orderBy('item_name')->get(['id', 'item_name', 'item_code']);
 
         // Main Query
         $query = Product::query()
             ->leftJoin('brands', 'brands.id', '=', 'products.brand_id')
+            ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
             ->leftJoin('units', 'units.id', '=', 'products.unit_id');
 
         if ($branchId || $warehouseId) {
@@ -83,7 +107,9 @@ class ReportingController extends Controller
                 products.id,
                 products.item_code,
                 products.item_name,
+                products.model,
                 COALESCE(brands.name, '') as brand_name,
+                COALESCE(categories.name, '') as category_name,
                 COALESCE(units.name, '') as unit_name,
                 COALESCE(SUM(ws.quantity), 0) as onhand_qty,
                 products.is_part,
@@ -93,7 +119,9 @@ class ReportingController extends Controller
                 'products.id',
                 'products.item_code',
                 'products.item_name',
+                'products.model',
                 'brands.name',
+                'categories.name',
                 'units.name',
                 'products.is_part',
                 'products.is_assembled'
@@ -104,7 +132,9 @@ class ReportingController extends Controller
                 products.id,
                 products.item_code,
                 products.item_name,
+                products.model,
                 COALESCE(brands.name, '') as brand_name,
+                COALESCE(categories.name, '') as category_name,
                 COALESCE(units.name, '') as unit_name,
                 COALESCE(soh.onhand_qty, 0) as onhand_qty,
                 products.is_part,
@@ -112,8 +142,37 @@ class ReportingController extends Controller
             ");
         }
 
+        if ($categoryId) {
+            $query->where('products.category_id', $categoryId);
+        }
+
+        if ($brandId) {
+            $query->where('products.brand_id', $brandId);
+        }
+
+        if ($modelName) {
+            $query->where('products.model', $modelName);
+        }
+
         if ($productId) {
             $query->where('products.id', $productId);
+        }
+
+        // Apply Stock Status Filter
+        if ($stockStatus === 'in_stock') {
+            if ($branchId || $warehouseId) {
+                $query->havingRaw("COALESCE(SUM(ws.quantity), 0) > 0");
+            } else {
+                $query->where('soh.onhand_qty', '>', 0);
+            }
+        } elseif ($stockStatus === 'out_of_stock') {
+            if ($branchId || $warehouseId) {
+                $query->havingRaw("COALESCE(SUM(ws.quantity), 0) <= 0");
+            } else {
+                $query->where(function($q) {
+                    $q->whereNull('soh.onhand_qty')->orWhere('soh.onhand_qty', '<=', 0);
+                });
+            }
         }
 
         $rows = $query->orderBy('products.item_name')->get();
@@ -128,7 +187,10 @@ class ReportingController extends Controller
             ]);
         }
 
-        return view('admin_panel.reporting.onhand', compact('rows', 'branches', 'warehouses', 'allProducts', 'isSuper', 'branchId', 'warehouseId', 'productId'));
+        return view('admin_panel.reporting.onhand', compact(
+            'rows', 'branches', 'warehouses', 'categories', 'brands', 'models', 'allProducts',
+            'isSuper', 'branchId', 'warehouseId', 'categoryId', 'brandId', 'modelName', 'productId', 'stockStatus'
+        ));
     }
     public function customer_ledger_new(){
         $user = Auth::user();

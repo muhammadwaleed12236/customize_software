@@ -1,139 +1,294 @@
 @extends('admin_panel.layout.app')
+
 @section('content')
-    <div class="main-content">
-        <div class="main-content-inner">
-            <div class="container">
-                <h3>Add New Customer</h3>
-                <form id="customerForm" action="{{ route('customers.store') }}" method="POST">
-                    @csrf
+<style>
+    .customer-create-compact {
+        padding: 0.75rem 1rem;
+        max-width: 100%;
+    }
 
-                    @php
-                        $branchesList = $branches ?? \App\Models\Branch::all();
-                    @endphp
+    .compact-card {
+        background: #ffffff;
+        border-radius: 10px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        border: 1px solid #cbd5e1;
+        overflow: hidden;
+    }
 
-                    <div class="row mb-1">
-                        <div class="col-md-2 mb-3">
-                            <label><strong>Customer ID:</strong></label>
-                            <input type="text" class="form-control" name="customer_id" readonly value="{{ $latestId }}">
-                        </div>
-                        <div class="col-md-2">
-                            <label><strong>Customer Type :</strong></label>
-                            <select class="form-control" name="customer_type" id="customer_type_select">
-                                <option value="credit">Credit</option>
-                                <option value="cash">Cash</option>
-                            </select>
-                        </div>
+    .compact-card-header {
+        background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+        color: #ffffff;
+        padding: 0.6rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
 
-                        @if(auth()->user() && auth()->user()->hasRole('super admin'))
-                            <div class="col-md-2">
-                                <label><strong>Branch:</strong></label>
-                                <select class="form-control" name="branch_id" id="branch_id_select">
-                                    <option value="">Select Branch</option>
-                                    @foreach($branchesList as $b)
-                                        <option value="{{ $b->id }}" {{ old('branch_id') == $b->id ? 'selected' : '' }}>{{ $b->name ?? $b->branch_name ?? 'Branch '. $b->id }}</option>
-                                    @endforeach
-                                </select>
-                            </div>
-                        @else
-                            <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id ?? 0 }}">
-                        @endif
-                        <div class="col-md-2">
-                            <label><strong>Customer:</strong></label>
-                            <input type="text" class="form-control" name="customer_name"
-                                value="{{ old('customer_name') }}">
-                        </div>
-                        <div class="col-md-2">
-                            <label>NTN / CNIC no:</label>
-                            <input type="text" class="form-control" name="cnic" value="{{ old('cnic') }}">
-                        </div>
+    .compact-card-header h6 {
+        margin: 0;
+        font-weight: 700;
+        font-size: 0.98rem;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
 
-                        <div class="row mb-2">
-                            <div class="col-md-3 ">
-                                <label>Filer Type:</label>
-                                <select class="form-control" name="filer_type">
-                                    <option value="filer">Filer</option>
-                                    <option value="non filer">Non Filer</option>
-                                    <option value="exempt">Exempt</option>
-                                </select>
-                            </div>
+    .compact-card-body {
+        padding: 1rem;
+    }
 
-                            <div class="col-md-3 ">
-                                <label>Mobile:</label>
-                                <input type="text" class="form-control" name="mobile" value="{{ old('mobile') }}">
-                            </div>
+    .compact-section-header {
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #1e3a5f;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding-bottom: 0.25rem;
+        margin-bottom: 0.6rem;
+        border-bottom: 2px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
 
-                             <div class="col-md-3 mb-4">
-                            <label>Address:</label>
-                            <textarea rows="1" class="form-control" name="address">{{ old('address') }}</textarea>
-                        </div>
-                        </div>
+    .form-label-sm {
+        font-weight: 600;
+        color: #334155;
+        font-size: 0.78rem;
+        margin-bottom: 0.2rem;
+        display: block;
+    }
 
-                        <div class="row mb-4">
-                        </div>
+    .form-control-sm, .form-select-sm {
+        border-radius: 6px;
+        border: 1px solid #cbd5e1;
+        padding: 0.3rem 0.5rem;
+        font-size: 0.82rem;
+        height: auto;
+    }
 
-                        <div class="text-center">
-                            <button class="btn btn-success" type="button" id="saveCustomerBtn">Save Customer</button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+    .form-control-sm:focus, .form-select-sm:focus {
+        border-color: #2c5282;
+        box-shadow: 0 0 0 2px rgba(44, 82, 130, 0.15);
+    }
 
-    <!-- Opening Balance Modal -->
-    <div class="modal fade" id="openingBalanceModal" tabindex="-1" role="dialog" aria-labelledby="openingBalanceModalLabel" aria-hidden="true">
-        <div class="modal-dialog" role="document">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="openingBalanceModalLabel">Customer Credit Setup</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
+    .input-group-sm .input-group-text {
+        font-size: 0.78rem;
+        padding: 0.3rem 0.5rem;
+        border-radius: 6px 0 0 6px;
+        background-color: #f1f5f9;
+        font-weight: 600;
+    }
+
+    .input-group-sm .form-control {
+        border-top-left-radius: 0;
+        border-bottom-left-radius: 0;
+    }
+
+    .btn-compact {
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.82rem;
+        padding: 0.4rem 1.1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .btn-primary-custom {
+        background: #1e3a5f;
+        border-color: #1e3a5f;
+        color: #ffffff;
+    }
+    .btn-primary-custom:hover {
+        background: #2c5282;
+        border-color: #2c5282;
+        color: #ffffff;
+    }
+</style>
+
+<div class="main-content">
+    <div class="main-content-inner">
+        <div class="customer-create-compact">
+            
+            <div class="compact-card">
+                <div class="compact-card-header">
+                    <h6 class="mb-0">
+                        <i class="fa fa-user-plus"></i> Add New Customer
+                    </h6>
+                    <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-light btn-compact py-1 px-2">
+                        <i class="fa fa-arrow-left"></i> Back to List
+                    </a>
                 </div>
-                <form id="balanceForm">
-                    <div class="modal-body">
-                        <div class="form-group">
-                            <label for="opening_balance"><strong>Opening Balance (Dr):</strong></label>
-                            <input type="number" class="form-control" id="opening_balance" name="opening_balance"
-                                   step="0.01" min="0" required>
-                            <small class="form-text text-muted">Customer's initial balance</small>
+
+                <div class="compact-card-body">
+                    @if ($errors->any())
+                        <div class="alert alert-danger py-1 px-3 mb-2 small" role="alert">
+                            <strong><i class="fa fa-exclamation-triangle me-1"></i> Errors:</strong> {{ implode(', ', $errors->all()) }}
+                        </div>
+                    @endif
+
+                    @if (session('success'))
+                        <div class="alert alert-success py-1 px-3 mb-2 small" role="alert">
+                            <i class="fa fa-check-circle me-1"></i> {{ session('success') }}
+                        </div>
+                    @endif
+
+                    <form id="customerForm" action="{{ route('customers.store') }}" method="POST">
+                        @csrf
+
+                        @php
+                            $branchesList = $branches ?? \App\Models\Branch::all();
+                        @endphp
+
+                        <!-- THREE-COLUMN COMPACT FORM LAYOUT -->
+                        <div class="row g-2">
+                            
+                            <!-- COLUMN 1: BASIC INFO -->
+                            <div class="col-md-4 border-end pe-3">
+                                <div class="compact-section-header">
+                                    <i class="fa fa-id-card text-primary"></i> Basic Profile
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label-sm">Customer ID:</label>
+                                        <input type="text" class="form-control form-control-sm bg-light fw-bold" name="customer_id" readonly value="{{ $latestId }}">
+                                    </div>
+
+                                    <div class="col-6">
+                                        <label class="form-label-sm">Type <span class="text-danger">*</span>:</label>
+                                        <select class="form-select form-select-sm" name="customer_type" id="customer_type_select" required>
+                                            <option value="credit">Credit</option>
+                                            <option value="cash">Cash</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-6">
+                                        <label class="form-label-sm">Customer Name <span class="text-danger">*</span>:</label>
+                                        <input type="text" class="form-control form-control-sm" name="customer_name" value="{{ old('customer_name') }}" required placeholder="Enter customer name">
+                                    </div>
+
+                                    <div class="col-6">
+                                        <label class="form-label-sm">کسٹمر کا نام (Urdu):</label>
+                                        <input type="text" class="form-control form-control-sm text-end" name="customer_name_ur" dir="rtl" value="{{ old('customer_name_ur') }}" placeholder="اردو نام">
+                                    </div>
+
+                                    @if(auth()->user() && auth()->user()->hasRole('super admin'))
+                                        <div class="col-6">
+                                            <label class="form-label-sm">Branch <span class="text-danger">*</span>:</label>
+                                            <select class="form-select form-select-sm" name="branch_id" id="branch_id_select">
+                                                <option value="">Select Branch</option>
+                                                @foreach($branchesList as $b)
+                                                    <option value="{{ $b->id }}" {{ old('branch_id') == $b->id ? 'selected' : '' }}>
+                                                        {{ $b->name ?? $b->branch_name ?? 'Branch '. $b->id }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                    @else
+                                        <input type="hidden" name="branch_id" value="{{ auth()->user()->branch_id ?? 0 }}">
+                                    @endif
+
+                                    <div class="col-6">
+                                        <label class="form-label-sm">NTN / CNIC No:</label>
+                                        <input type="text" class="form-control form-control-sm" name="cnic" value="{{ old('cnic') }}" placeholder="CNIC or NTN">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- COLUMN 2: CONTACT & ADDRESS -->
+                            <div class="col-md-4 border-end px-3">
+                                <div class="compact-section-header">
+                                    <i class="fa fa-phone-alt text-primary"></i> Contact & Location
+                                </div>
+
+                                <div class="row g-2">
+                                    <div class="col-6">
+                                        <label class="form-label-sm">Mobile Number:</label>
+                                        <input type="text" class="form-control form-control-sm" name="mobile" value="{{ old('mobile') }}" placeholder="0300-1234567">
+                                    </div>
+
+                                    <div class="col-6">
+                                        <label class="form-label-sm">Filer Type <span class="text-danger">*</span>:</label>
+                                        <select class="form-select form-select-sm" name="filer_type" required>
+                                            <option value="filer">Filer</option>
+                                            <option value="non filer">Non Filer</option>
+                                            <option value="exempt">Exempt</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label-sm">Zone / Area:</label>
+                                        <input type="text" class="form-control form-control-sm" name="address" value="{{ old('address') }}" placeholder="Zone or Area name">
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label-sm">Address Details:</label>
+                                        <textarea rows="2" class="form-control form-control-sm" name="address_details" placeholder="Full address details">{{ old('address_details') }}</textarea>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- COLUMN 3: FINANCIAL & CREDIT SETUP -->
+                            <div class="col-md-4 ps-3">
+                                <div class="compact-section-header">
+                                    <i class="fa fa-wallet text-primary"></i> Financials & Credit Setup
+                                </div>
+
+                                <div id="creditFieldsContainer" class="row g-2">
+                                    <div class="col-12">
+                                        <label class="form-label-sm text-primary fw-bold">Opening Balance (Rs.):</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text bg-primary text-white fw-bold">Rs.</span>
+                                            <input type="number" class="form-control form-control-sm border-primary fw-bold" id="opening_balance" name="opening_balance" step="0.01" value="{{ old('opening_balance', '0') }}" placeholder="0.00">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label-sm">Credit Limit (Rs.):</label>
+                                        <div class="input-group input-group-sm">
+                                            <span class="input-group-text">Rs.</span>
+                                            <input type="number" class="form-control form-control-sm" id="credit_limit" name="credit_limit" step="0.01" min="0" value="{{ old('credit_limit', '0') }}" placeholder="0.00">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12 mt-2">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="no_credit_limit" name="no_credit_limit" value="1">
+                                            <label class="form-check-label small fw-bold text-dark" for="no_credit_limit">
+                                                No Credit Limit (Unlimited Credit)
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
-                        <div class="form-group">
-                            <label for="credit_limit"><strong>Credit Limit Amount:</strong></label>
-                            <input type="number" class="form-control" id="credit_limit" name="credit_limit"
-                                   step="0.01" min="0" required>
-                            <small class="form-text text-muted">Maximum credit amount you can provide to the customer</small>
+                        <!-- ACTION BUTTONS -->
+                        <div class="d-flex justify-content-end gap-2 mt-3 pt-2 border-top">
+                            <a href="{{ route('customers.index') }}" class="btn btn-secondary btn-compact me-2">
+                                <i class="fa fa-times"></i> Cancel
+                            </a>
+                            <button class="btn btn-primary-custom btn-compact" type="submit" id="saveCustomerBtn">
+                                <i class="fa fa-save"></i> Save Customer
+                            </button>
                         </div>
-
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="no_credit_limit" name="no_credit_limit">
-                            <label class="form-check-label" for="no_credit_limit">
-                                No Credit Limit (Infinite)
-                            </label>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" onclick="$('#openingBalanceModal').modal('hide')">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Save & Submit</button>
-                    </div>
-                </form>
+                    </form>
+                </div>
             </div>
+
         </div>
     </div>
+</div>
 
 @endsection
 
 @section('js')
     <script>
         $(document).ready(function() {
-            // Get references
-            const mainForm = $('#customerForm');
-            const balanceForm = $('#balanceForm');
-            const modal = $('#openingBalanceModal');
-            const customerTypeSelect = $('#customer_type_select');
-
-            // Handle branch selection change to load next customer ID
+            // Auto fetch customer ID on branch select
             $('#branch_id_select').on('change', function() {
                 const branchId = $(this).val();
                 const inputId = $('input[name="customer_id"]');
@@ -146,124 +301,24 @@
                 }
             });
 
-            // Save Customer button click
-            $('#saveCustomerBtn').click(function(e) {
-                e.preventDefault();
-
-                // Validate main form
-                if (mainForm.length && !mainForm[0].checkValidity()) {
-                    e.stopPropagation();
-                    mainForm.addClass('was-validated');
-                    return;
+            // Handle Customer Type Change
+            $('#customer_type_select').on('change', function() {
+                const type = $(this).val();
+                if (type === 'cash') {
+                    $('#creditFieldsContainer').slideUp();
+                    $('#opening_balance').val('0');
+                    $('#credit_limit').val('0');
+                } else {
+                    $('#creditFieldsContainer').slideDown();
                 }
-
-                // ✅ CHECK CUSTOMER TYPE
-                const customerType = customerTypeSelect.val();
-                console.log('Customer Type:', customerType);
-
-                // ✅ IF Cash: Skip modal and submit directly
-                if (customerType === 'cash') {
-                    console.log('✅ Cash - Skipping balance/credit modal');
-
-                    // Add default values for walking customers
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: 'opening_balance',
-                        value: '0'
-                    }).appendTo(mainForm);
-
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: 'credit_limit',
-                        value: '0'
-                    }).appendTo(mainForm);
-
-                    // Submit form directly without modal
-                    mainForm.submit();
-                    return;
-                }
-
-                // ✅ IF MAIN CUSTOMER: Show modal for balance/credit setup
-                console.log('📋 Credit Customer - Showing balance modal');
-                modal.modal('show');
             });
 
-            // Close modal button functionality
-            $('#openingBalanceModal').on('hidden.bs.modal', function() {
-                // Modal closed
-                balanceForm[0].reset();
-            });
-
-            // Handle no credit limit checkbox
+            // Handle No Credit Limit checkbox
             $('#no_credit_limit').on('change', function() {
                 const isChecked = $(this).is(':checked');
                 $('#credit_limit').prop('disabled', isChecked);
                 if (isChecked) {
                     $('#credit_limit').val('');
-                }
-            });
-
-            // Balance form submission
-            balanceForm.on('submit', function(e) {
-                e.preventDefault();
-
-                try {
-                    // Get values
-                    const opening_balance = $('#opening_balance').val();
-                    const credit_limit = $('#credit_limit').val();
-                    const no_credit_limit = $('#no_credit_limit').is(':checked');
-
-                    // Validate opening balance (always required)
-                    if (!opening_balance) {
-                        alert('Please enter opening balance');
-                        return;
-                    }
-
-                    // Validate credit limit (only if no credit limit is not checked)
-                    if (!no_credit_limit && !credit_limit) {
-                        alert('Please enter credit limit or check "No Credit Limit"');
-                        return;
-                    }
-
-                    // Validate numeric values
-                    if (isNaN(opening_balance) || (!no_credit_limit && isNaN(credit_limit))) {
-                        alert('Please enter valid numbers');
-                        return;
-                    }
-
-                    // Add hidden fields to main form
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: 'opening_balance',
-                        value: opening_balance
-                    }).appendTo(mainForm);
-
-                    // Only add credit_limit if no_credit_limit is not checked
-                    if (!no_credit_limit) {
-                        $('<input>').attr({
-                            type: 'hidden',
-                            name: 'credit_limit',
-                            value: credit_limit
-                        }).appendTo(mainForm);
-                    }
-
-                    $('<input>').attr({
-                        type: 'hidden',
-                        name: 'no_credit_limit',
-                        value: no_credit_limit ? '1' : '0'
-                    }).appendTo(mainForm);
-
-                    // Close modal and submit
-                    modal.modal('hide');
-
-                    // Small delay to ensure modal closes
-                    setTimeout(function() {
-                        mainForm.submit();
-                    }, 100);
-
-                } catch (error) {
-                    console.error('Error:', error);
-                    alert('An error occurred while saving. Please try again.');
                 }
             });
         });

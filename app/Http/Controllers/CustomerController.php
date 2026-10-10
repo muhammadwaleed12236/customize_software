@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Customer;
 use App\Models\CustomerLedger;
 use App\Models\CustomerPayment;
+use App\Models\CustomerOpeningBalanceHistory;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 
@@ -242,12 +243,32 @@ class CustomerController extends Controller
 
     public function store(Request $request)
     {
-        // return $request->all();
-        // dd();
+        if (!$request->filled('branch_id')) {
+            $branchId = Auth::check() ? (Auth::user()->branch_id ?? 1) : 1;
+            $request->merge(['branch_id' => $branchId]);
+        } else {
+            $branchId = $request->branch_id;
+        }
+
+        if (!$request->filled('customer_id')) {
+            $prefix = 'CUST-' . str_pad($branchId, 2, '0', STR_PAD_LEFT) . '-';
+            $latestCustomer = Customer::where('branch_id', $branchId)
+                ->where('customer_id', 'like', $prefix . '%')
+                ->get()
+                ->map(function($c) use ($prefix) {
+                    $subStr = substr($c->customer_id, strlen($prefix));
+                    return is_numeric($subStr) ? (int)$subStr : 0;
+                })
+                ->max();
+
+            $nextSeq = ($latestCustomer ?? 0) + 1;
+            $nextCustomerId = $prefix . str_pad($nextSeq, 4, '0', STR_PAD_LEFT);
+            $request->merge(['customer_id' => $nextCustomerId]);
+        }
 
         $data = $request->validate([
             'branch_id'        => 'required',
-            'customer_id'        => 'required|unique:customers',
+            'customer_id'      => 'required|unique:customers',
             'customer_name'      => 'nullable',
             'customer_name_ur'   => 'nullable',
             'cnic'               => 'nullable',
@@ -305,8 +326,9 @@ class CustomerController extends Controller
 
     public function edit($id)
     {
-        $customer = Customer::findOrFail($id);
-        return view('admin_panel.customers.edit', compact('customer'));
+        $customer = Customer::with(['openingBalanceHistories.user', 'branch'])->findOrFail($id);
+        $branches = \App\Models\Branch::all();
+        return view('admin_panel.customers.edit', compact('customer', 'branches'));
     }
 
     public function update(Request $request, $id)
@@ -315,19 +337,20 @@ class CustomerController extends Controller
 
         // Validate the input
         $data = $request->validate([
-            'branch_id'      => 'nullable|integer',
-            'customer_name'      => 'nullable|string',
-            'customer_name_ur'   => 'nullable|string',
-            'customer_type'      => 'nullable|string',
-            'cnic'               => 'nullable|string',
-            'filer_type'         => 'nullable|string',
-            'mobile'             => 'nullable|string',
-            'address'            => 'nullable|string',
-            'address_details'    => 'nullable|string',
-            'opening_balance'    => 'nullable|numeric|min:0',
-            'credit_limit'       => 'nullable|numeric|min:0',
-            'closing_balance'    => 'nullable|numeric',
-            'no_credit_limit'    => 'nullable|boolean',
+            'branch_id'            => 'nullable|integer',
+            'customer_name'        => 'nullable|string',
+            'customer_name_ur'     => 'nullable|string',
+            'customer_type'        => 'nullable|string',
+            'cnic'                 => 'nullable|string',
+            'filer_type'           => 'nullable|string',
+            'mobile'               => 'nullable|string',
+            'address'              => 'nullable|string',
+            'address_details'      => 'nullable|string',
+            'opening_balance'      => 'nullable|numeric',
+            'opening_balance_note' => 'nullable|string',
+            'credit_limit'         => 'nullable|numeric|min:0',
+            'closing_balance'      => 'nullable|numeric',
+            'no_credit_limit'      => 'nullable|boolean',
         ]);
 
         // Business logic: if no_credit_limit is true, set credit_limit to null
@@ -337,6 +360,37 @@ class CustomerController extends Controller
         } elseif ($request->has('credit_limit') && $request->credit_limit !== null) {
             $data['no_credit_limit'] = false;
         }
+
+        // Track opening balance edit history if balance changed
+        $oldOpening = (float) ($customer->opening_balance ?? 0);
+        $newOpening = (float) ($request->input('opening_balance', 0));
+        $diff       = $newOpening - $oldOpening;
+
+        if (abs($diff) > 0.0001) {
+            $currentClosing = (float) $customer->closing_balance;
+            $resultingClosing = $currentClosing + $diff;
+
+            CustomerOpeningBalanceHistory::create([
+                'customer_id'               => $customer->id,
+                'user_id'                   => Auth::id(),
+                'old_opening_balance'       => $oldOpening,
+                'new_opening_balance'       => $newOpening,
+                'resulting_closing_balance' => $resultingClosing,
+                'remarks'                   => $request->input('opening_balance_note') ?? 'Opening balance updated via Edit Customer',
+            ]);
+
+            // Sync with first ledger entry if it exists as an initial balance entry
+            $firstLedger = CustomerLedger::where('customer_id', $customer->id)->oldest('id')->first();
+            if ($firstLedger && (float)$firstLedger->previous_balance == 0) {
+                $firstLedger->opening_balance = $newOpening;
+                if ((float)$firstLedger->closing_balance == $oldOpening) {
+                    $firstLedger->closing_balance = $newOpening;
+                }
+                $firstLedger->save();
+            }
+        }
+
+        unset($data['opening_balance_note']);
 
         // Update customer
         $customer->update($data);
@@ -478,5 +532,40 @@ class CustomerController extends Controller
         $customers = Customer::where('customer_type', $type)->get(['id', 'customer_name']);
 
         return response()->json(['customers' => $customers]);
+    }
+
+    public function getOpeningBalanceHistory($id)
+    {
+        $customer = Customer::findOrFail($id);
+        $currentClosing = (float) $customer->closing_balance;
+
+        $histories = CustomerOpeningBalanceHistory::with('user:id,name')
+            ->where('customer_id', $id)
+            ->latest()
+            ->get()
+            ->map(function ($h) use ($currentClosing) {
+                $diff = (float) $h->new_opening_balance - (float) $h->old_opening_balance;
+                $resulting = isset($h->resulting_closing_balance) && (float)$h->resulting_closing_balance != 0
+                    ? (float) $h->resulting_closing_balance
+                    : ($currentClosing);
+                return [
+                    'id'                        => $h->id,
+                    'user_name'                 => $h->user ? $h->user->name : 'System User',
+                    'date'                      => $h->created_at ? $h->created_at->format('d M Y, h:i A') : 'N/A',
+                    'old_opening_balance'       => (float) $h->old_opening_balance,
+                    'new_opening_balance'       => (float) $h->new_opening_balance,
+                    'resulting_closing_balance' => $resulting,
+                    'diff'                      => $diff,
+                    'remarks'                   => $h->remarks ?? 'Opening balance updated',
+                ];
+            });
+
+        return response()->json([
+            'success'                 => true,
+            'customer_name'           => $customer->customer_name,
+            'customer_id'             => $customer->customer_id,
+            'current_closing_balance' => $currentClosing,
+            'histories'               => $histories
+        ]);
     }
 }

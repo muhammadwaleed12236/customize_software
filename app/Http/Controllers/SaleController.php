@@ -2509,8 +2509,18 @@ public function finddc($invoice)
 
         // Direct Sale (stock minus)
         return DB::transaction(function () use ($request) {
-            // Determine branch: prefer authenticated user's branch, fallback to request or first branch
-            $branchId = Auth::check() ? (Auth::user()->branch_id ?? ($request->input('branch_id') ?? null)) : ($request->input('branch_id') ?? null);
+            // Determine branch: super-admin may select branch_id, otherwise use authenticated user's branch
+            if (Auth::check()) {
+                $user = Auth::user();
+                if ($user->hasRole('super admin')) {
+                    $branchId = (int) ($request->input('branch_id') ?? $user->branch_id ?? 1);
+                } else {
+                    $branchId = (int) ($user->branch_id ?? 1);
+                }
+            } else {
+                $branchId = (int) ($request->input('branch_id') ?? 1);
+            }
+
             $branch = null;
             if ($branchId) {
                 $branch = Branch::lockForUpdate()->find($branchId);
@@ -2576,7 +2586,7 @@ public function finddc($invoice)
                 'branch_id' => $branch->id,
                 'invoice_no' => $invoiceNo,
                 'manual_invoice' => $request->Invoice_main ?? null,
-                'partyType' => $request->input('partyType') ?? null,
+                'party_type' => $request->input('partyType') ?? null,
                 'customer_id' => $customerId ?? ($request->customer ?? null),
                 'salesman_id' => $request->salesman_id ?? null,
                 'sub_customer' => $request->customerType ?? null,
@@ -2594,7 +2604,7 @@ public function finddc($invoice)
                 'receipt2' => $request->receipt2 ?? 0,
                 'final_balance1' => $request->finalBalance1 ?? 0,
                 'final_balance2' => $request->finalBalance2 ?? 0,
-                'weight' => $request->weight ?? null,
+                // 'weight' => $request->weight ?? null,
             ]);
 
             // Persist optional notify_me value on sale (days integer)
@@ -2617,13 +2627,31 @@ public function finddc($invoice)
                 }
             }
 
-            foreach ($request->warehouse_name ?? [] as $i => $warehouse_id) {
-                $productId = $request->input("product_name.$i");
-                if (empty($warehouse_id) || empty($productId)) {
-                    continue;
+            // Support multiple form structures (add_sale222 sending product_id[] array OR legacy product_name[] / warehouse_name[])
+            $productsList = $request->product_id ?? $request->product_name ?? $request->warehouse_name ?? [];
+            if (!is_array($productsList)) {
+                $productsList = [];
+            }
+
+            foreach ($productsList as $i => $itemVal) {
+                $productId = is_numeric($itemVal) ? (int) $itemVal : ($request->product_id[$i] ?? $request->input("product_name.$i") ?? null);
+                if (!$productId) continue;
+
+                $warehouse_id = null;
+                if (is_array($request->warehouse_id) && isset($request->warehouse_id[$i])) {
+                    $warehouse_id = $request->warehouse_id[$i];
+                } elseif (is_array($request->warehouse_name) && isset($request->warehouse_name[$i])) {
+                    $warehouse_id = $request->warehouse_name[$i];
+                } else {
+                    $warehouse_id = $request->input('warehouse_id') ?? auth()->user()->warehouse_id ?? 1;
                 }
 
-                $saleQty = (float) $request->input("sales-qty.$i", 0);
+                if (empty($warehouse_id)) {
+                    $warehouse_id = auth()->user()->warehouse_id ?? 1;
+                }
+
+                $saleQty = (float) ($request->sales_qty[$i] ?? $request->qty[$i] ?? $request->carton_qty[$i] ?? $request->input("sales-qty.$i", 0));
+                if ($saleQty <= 0) continue;
 
                 // Per-warehouse stock (allow negative)
                 $ws = WarehouseStock::where('warehouse_id', $warehouse_id)
@@ -2635,6 +2663,7 @@ public function finddc($invoice)
                     $ws->save();
                 } else {
                     WarehouseStock::create([
+                        'branch_id' => $sale->branch_id ?? $branch->id ?? 1,
                         'warehouse_id' => $warehouse_id,
                         'product_id' => $productId,
                         'quantity' => -1 * $saleQty,
@@ -2650,14 +2679,18 @@ public function finddc($invoice)
                     $stockRow->save();
                 } else {
                     Stock::create([
-                        'branch_id' => 1,
+                        'branch_id' => $branch->id ?? 1,
                         'product_id' => $productId,
                         'qty' => -1 * $saleQty,
                         'reserved_qty' => 0,
                     ]);
                 }
 
-                // CRITICAL: Include invoice_no and branch_id from sale to maintain referential integrity
+                $retailPrice = (float) ($request->retail_price[$i] ?? $request->input("retail-price.$i", 0));
+                $discPercent = (float) ($request->discount_percentage[$i] ?? $request->input("discount-percent.$i", 0));
+                $discAmount = (float) ($request->discount_amount[$i] ?? $request->input("discount-amount.$i", 0));
+                $salesAmount = (float) ($request->sales_amount[$i] ?? $request->input("sales-amount.$i", 0));
+
                 SaleItem::create([
                     'invoice_no' => $sale->invoice_no,
                     'branch_id' => $sale->branch_id,
@@ -2665,14 +2698,14 @@ public function finddc($invoice)
                     'warehouse_id' => $warehouse_id,
                     'product_id' => $productId,
                     'watt' => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
-                    'stock' => (float) $request->input("stock.$i", 0),
-                    'price_level' => (float) $request->input("price.$i", 0),
-                    'sales_price' => (float) $request->input("sales-price.$i", 0),
+                    'stock' => (float) ($request->stock[$i] ?? $request->input("stock.$i", 0)),
+                    'price_level' => (float) ($request->price[$i] ?? $request->input("price.$i", 0)),
+                    'sales_price' => $retailPrice,
                     'sales_qty' => $saleQty,
-                    'retail_price' => (float) $request->input("retail-price.$i", 0),
-                    'discount_percent' => (float) $request->input("discount-percent.$i", 0),
-                    'discount_amount' => (float) $request->input("discount-amount.$i", 0),
-                    'amount' => (float) $request->input("sales-amount.$i", 0),
+                    'retail_price' => $retailPrice,
+                    'discount_percent' => $discPercent,
+                    'discount_amount' => $discAmount,
+                    'amount' => $salesAmount,
                 ]);
             }
 
@@ -2771,8 +2804,6 @@ public function finddc($invoice)
                     'previous_balance' => $previousBalance,
                     'opening_balance' => 0,  // یہ sale transaction ہے
                     'closing_balance' => $newClosingBalance,
-                    'reference_type' => 'Sale',
-                    'reference_id' => $sale->id,
                 ]);
             }
 
@@ -3794,7 +3825,6 @@ public function finddc($invoice)
                     'customer_id'         => $customerId ?: $sale->customer_id,
                     'customer_name'       => $customerName,
                     'party_type'          => $partyType,
-                    'partyType'           => $partyType,
                     'salesman_id'         => $request->input('salesman_id', $sale->salesman_id),
                     'manual_invoice'      => $request->input('Invoice_main', $sale->manual_invoice),
                     'address'             => $request->input('address', $sale->address),

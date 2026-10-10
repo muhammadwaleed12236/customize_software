@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountHead;
 use App\Models\AccountLedgerEntry;
+use App\Models\AccountEditHistory;
 use App\Models\Branch;
 use App\Models\PurchaseAccountAllocaations;
 use Illuminate\Http\Request;
@@ -250,11 +251,24 @@ class AccountsHeadController extends Controller
 
         $request->validate($rules);
 
+        // Store old values for audit log
+        $oldTitle   = $account->title;
+        $oldOpening = (float)($account->opening_balance ?? 0);
+        $oldHeadId  = $account->head_id;
+        $oldType    = $account->type;
+        $oldStatus  = (int)($account->status == 1 || $account->status == 'active');
+
+        $newTitle   = $request->title;
+        $newOpening = (float)($request->opening_balance ?? 0);
+        $newHeadId  = (int)$request->head_id;
+        $newType    = $request->type;
+        $newStatus  = $request->status === 'on' ? 1 : 0;
+
         $data = [
-            'title'           => $request->title,
-            'type'            => $request->type,
-            'opening_balance' => $request->opening_balance ?? 0,
-            'status'          => $request->status === 'on' ? 1 : 0,
+            'title'           => $newTitle,
+            'type'            => $newType,
+            'opening_balance' => $newOpening,
+            'status'          => $newStatus,
         ];
 
         // ✅ If head changed, generate new sequential code
@@ -267,9 +281,82 @@ class AccountsHeadController extends Controller
             $data['account_code'] = $service->generateAccountCode($branch, $head);
         }
 
+        // Calculate differences and build change notes
+        $diff = $newOpening - $oldOpening;
+        $lastEntry = AccountLedgerEntry::where('account_id', $account->id)->latest('id')->first();
+        $currentBal = $lastEntry ? (float)$lastEntry->running_balance : $oldOpening;
+        $resultingCurrentBal = $currentBal + $diff;
+
+        $changes = [];
+        if (abs($diff) > 0.0001) {
+            $changes[] = "Opening Balance: PKR " . number_format($oldOpening, 2) . " → PKR " . number_format($newOpening, 2);
+        }
+        if ($oldTitle !== $newTitle) {
+            $changes[] = "Title: '{$oldTitle}' → '{$newTitle}'";
+        }
+        if ($oldType !== $newType) {
+            $changes[] = "Nature: {$oldType} → {$newType}";
+        }
+        if ($oldHeadId !== $newHeadId) {
+            $changes[] = "Head updated";
+        }
+        if ($oldStatus !== $newStatus) {
+            $statusText = $newStatus === 1 ? 'Active' : 'Inactive';
+            $changes[] = "Status: {$statusText}";
+        }
+
+        if (!empty($changes)) {
+            AccountEditHistory::create([
+                'account_id'                => $account->id,
+                'branch_id'                 => $account->branch_id,
+                'user_id'                   => Auth::id(),
+                'old_opening_balance'       => $oldOpening,
+                'new_opening_balance'       => $newOpening,
+                'resulting_current_balance' => $resultingCurrentBal,
+                'old_title'                 => $oldTitle,
+                'new_title'                 => $newTitle,
+                'changes_summary'           => implode('; ', $changes),
+            ]);
+        }
+
         $account->update($data);
 
         return redirect()->back()->with('success', 'Account updated successfully.');
+    }
+
+    public function getAccountHistory($id)
+    {
+        $account = Account::with(['head', 'branch'])->findOrFail($id);
+        $lastEntry = AccountLedgerEntry::where('account_id', $id)->latest('id')->first();
+        $currentBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
+
+        $histories = AccountEditHistory::with('user:id,name')
+            ->where('account_id', $id)
+            ->latest()
+            ->get()
+            ->map(function ($h) {
+                return [
+                    'id'                        => $h->id,
+                    'user_name'                 => $h->user ? $h->user->name : 'System User',
+                    'date'                      => $h->created_at ? $h->created_at->format('d M Y, h:i A') : 'N/A',
+                    'old_opening_balance'       => (float) $h->old_opening_balance,
+                    'new_opening_balance'       => (float) $h->new_opening_balance,
+                    'resulting_current_balance' => (float) $h->resulting_current_balance,
+                    'diff'                      => (float) $h->new_opening_balance - (float) $h->old_opening_balance,
+                    'old_title'                 => $h->old_title,
+                    'new_title'                 => $h->new_title,
+                    'changes_summary'           => $h->changes_summary ?? 'Account details updated',
+                ];
+            });
+
+        return response()->json([
+            'success'               => true,
+            'account_title'         => $account->title,
+            'account_code'          => $account->account_code,
+            'branch_name'           => $account->branch->name ?? '',
+            'current_balance'       => $currentBal,
+            'histories'             => $histories
+        ]);
     }
 
     /**

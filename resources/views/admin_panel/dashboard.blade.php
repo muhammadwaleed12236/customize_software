@@ -197,6 +197,37 @@
     .table-dash tr:last-child td {
         border-bottom: none;
     }
+
+    /* ─── Top Products Mobile Card Styling ─── */
+    .top-products-list {
+        display: flex;
+        flex-direction: column;
+    }
+    .top-product-item {
+        transition: background 0.15s ease;
+    }
+    .top-product-item:hover {
+        background: #f8fafc;
+    }
+    .top-product-item:last-child {
+        border-bottom: none !important;
+    }
+    .top-rank-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        font-size: 12.5px;
+        font-weight: 800;
+        background: #f1f5f9;
+        color: #475569;
+        flex-shrink: 0;
+    }
+    .top-rank-badge.rank-1 { background: #fef3c7; color: #d97706; border: 1px solid #fcd34d; }
+    .top-rank-badge.rank-2 { background: #e0e7ff; color: #4338ca; border: 1px solid #c7d2fe; }
+    .top-rank-badge.rank-3 { background: #fee2e2; color: #b91c1c; border: 1px solid #fca5a5; }
+    .top-rank-badge.rank-4 { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+    .top-rank-badge.rank-5 { background: #fdf4ff; color: #86198f; border: 1px solid #f5d0fe; }
+    .top-rank-badge.rank-6 { background: #f8fafc; color: #475569; border: 1px solid #e2e8f0; }
     
     /* Mobile Responsiveness & Margin Fixes */
     @media (max-width: 991px) {
@@ -209,8 +240,9 @@
         .branch-select-box { width: 100%; }
         .btn-quick-act { width: 100%; justify-content: center; }
         .kpi-card { padding: 14px 16px; border-radius: 12px; margin-bottom: 10px; }
-        .panel-header { padding: 12px 16px; flex-direction: column; align-items: flex-start; gap: 8px; }
+        .panel-header { padding: 12px 16px; flex-direction: row; align-items: center; justify-content: space-between; gap: 8px; }
         .panel-body { padding: 14px 12px; }
+        .top-product-item { padding: 12px 10px !important; }
     }
 </style>
 
@@ -409,13 +441,13 @@
                 {{-- Sales vs Purchases Comparison Area Chart (8 Columns) --}}
                 <div class="col-lg-8">
                     <div class="dashboard-panel h-100">
-                        <div class="panel-header">
-                            <div class="panel-title">
-                                <i class="fas fa-chart-area text-primary"></i> Financial Performance (Sales vs Purchases)
+                        <div class="panel-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+                            <div class="panel-title me-auto" style="font-size: 14px;">
+                                <i class="fas fa-chart-area text-primary"></i> Financial Performance <span class="d-none d-sm-inline">(Sales vs Purchases)</span>
                             </div>
-                            <div class="d-flex align-items-center gap-2">
-                                <label for="salesFilter" class="small text-muted m-0">View:</label>
-                                <select id="salesFilter" class="form-select form-select-sm" style="width: 120px; border-radius: 8px; font-weight:600;">
+                            <div class="d-flex align-items-center gap-1 ms-auto">
+                                <label for="salesFilter" class="small text-muted me-1 m-0">View:</label>
+                                <select id="salesFilter" class="form-select form-select-sm py-1 px-2" style="width: 100px; border-radius: 8px; font-weight:600; font-size:12px;">
                                     <option value="daily" selected>Daily</option>
                                     <option value="weekly">Weekly</option>
                                     <option value="monthly">Monthly</option>
@@ -423,7 +455,7 @@
                             </div>
                         </div>
                         <div class="panel-body">
-                            <div id="financialComparisonChart" style="height: 350px;"></div>
+                            <div id="financialComparisonChart" style="height: 330px;"></div>
                         </div>
                     </div>
                 </div>
@@ -441,21 +473,62 @@
                             
                             {{-- Quick Shortcuts --}}
                             <div class="mt-3 pt-3 border-top">
-                                <div class="small font-weight-bold text-muted mb-2 text-uppercase" style="letter-spacing: 0.5px;">Quick Shortcuts</div>
-                                <div class="d-grid gap-2" style="grid-template-columns: repeat(2, 1fr);">
-                                    <a href="{{ route('store') }}" class="btn btn-sm btn-outline-primary fw-bold text-start">
+                                <div class="small font-weight-bold text-muted mb-2 text-uppercase" style="letter-spacing: 0.5px; font-size: 11px;">Quick Shortcuts</div>
+                                <div class="quick-shortcuts-grid">
+                                    <a href="{{ route('store') }}" class="btn btn-outline-primary quick-shortcuts-btn">
                                         <i class="fas fa-box-open me-1"></i> Add Product
                                     </a>
-                                    <a href="{{ route('purchase.addLocal') }}" class="btn btn-sm btn-outline-success fw-bold text-start">
+                                    <a href="{{ route('purchase.addLocal') }}" class="btn btn-outline-success quick-shortcuts-btn">
                                         <i class="fas fa-cart-plus me-1"></i> New Purchase
                                     </a>
-                                    <a href="{{ route('customers.index') }}" class="btn btn-sm btn-outline-info fw-bold text-start">
+                                    <a href="{{ route('customers.index') }}" class="btn btn-outline-info quick-shortcuts-btn">
                                         <i class="fas fa-user-friends me-1"></i> Customers
                                     </a>
-                                    <a href="{{ route('product') }}" class="btn btn-sm btn-outline-secondary fw-bold text-start">
+                                    <a href="{{ route('product') }}" class="btn btn-outline-secondary quick-shortcuts-btn">
                                         <i class="fas fa-warehouse me-1"></i> Stock List
                                     </a>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ══════════════════════════════════════════════════
+                 TOP PRODUCTS SECTION (MOBILE & DESKTOP)
+            ══════════════════════════════════════════════════ --}}
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="dashboard-panel mb-0">
+                        <div class="panel-header d-flex align-items-center justify-content-between">
+                            <div class="panel-title">
+                                <i class="fas fa-fire text-danger me-1"></i> Top Products
+                            </div>
+                            <span class="badge bg-light text-secondary border px-2 py-1" style="font-size: 11px; font-weight: 600;">This Month</span>
+                        </div>
+                        <div class="panel-body p-0">
+                            <div class="top-products-list">
+                                @forelse($topProducts as $index => $item)
+                                    <div class="top-product-item d-flex align-items-center justify-content-between p-3 border-bottom">
+                                        <div class="d-flex align-items-center gap-3">
+                                            <span class="top-rank-badge rank-{{ $index + 1 }} d-flex align-items-center justify-content-center">
+                                                {{ $index + 1 }}
+                                            </span>
+                                            <div>
+                                                <div class="fw-bold text-dark font-14" style="font-size: 14px;">{{ $item->name }}</div>
+                                                @if(!empty($item->name_urdu))
+                                                    <small class="text-muted d-block" style="direction:rtl; font-size: 11px;">{{ $item->name_urdu }}</small>
+                                                @endif
+                                                <small class="text-muted" style="font-size: 12px;">{{ number_format($item->total_qty) }} units sold</small>
+                                            </div>
+                                        </div>
+                                        <div class="text-end">
+                                            <div class="fw-bold text-primary" style="font-size: 14.5px;">Rs {{ number_format($item->total_amount) }}</div>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <div class="p-4 text-center text-muted">No sales items available yet.</div>
+                                @endforelse
                             </div>
                         </div>
                     </div>
@@ -638,7 +711,7 @@
         const comparisonOptions = {
             chart: {
                 type: 'area',
-                height: 350,
+                height: 320,
                 toolbar: { show: false },
                 fontFamily: 'Inter, Segoe UI, sans-serif'
             },
@@ -650,25 +723,46 @@
             ],
             xaxis: {
                 categories: salesStats.daily.categories,
-                labels: { style: { colors: '#64748b', fontSize: '11px', fontFamily: 'Inter, sans-serif' } },
+                labels: {
+                    style: { colors: '#64748b', fontSize: '10px', fontFamily: 'Inter, sans-serif' },
+                    rotate: -35,
+                    rotateAlways: false,
+                    hideOverlappingLabels: true
+                },
                 axisBorder: { show: false },
                 axisTicks: { show: false }
             },
             yaxis: {
-                labels: { style: { colors: '#64748b', fontSize: '11px', fontFamily: 'Inter, sans-serif' }, formatter: val => "Rs " + val.toLocaleString() }
+                labels: {
+                    style: { colors: '#64748b', fontSize: '10px', fontFamily: 'Inter, sans-serif' },
+                    formatter: function(val) {
+                        if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+                        if (val >= 1000) return (val / 1000).toFixed(0) + 'k';
+                        return val;
+                    }
+                }
             },
             dataLabels: { enabled: false },
-            markers: { size: 4, colors: ['#fff'], strokeWidth: 2 },
+            markers: { size: 3, colors: ['#fff'], strokeWidth: 2 },
             fill: {
                 type: "gradient",
                 gradient: { shadeIntensity: 1, opacityFrom: 0.25, opacityTo: 0.02, stops: [0, 95, 100] }
             },
-            grid: { borderColor: '#f1f5f9', strokeDashArray: 4 },
+            grid: {
+                borderColor: '#f1f5f9',
+                strokeDashArray: 4,
+                padding: { left: 5, right: 10, bottom: 15 }
+            },
             tooltip: {
                 theme: "light",
                 y: { formatter: val => "Rs " + val.toLocaleString() }
             },
-            legend: { position: 'top', horizontalAlign: 'right', labels: { colors: '#334155', fontWeight: 600 } }
+            legend: {
+                position: 'top',
+                horizontalAlign: 'center',
+                fontSize: '11px',
+                labels: { colors: '#334155', fontWeight: 600 }
+            }
         };
 
         const comparisonChart = new ApexCharts(document.querySelector("#financialComparisonChart"), comparisonOptions);
@@ -699,7 +793,7 @@
             series: [cashTotal > 0 || creditTotal > 0 ? cashTotal : 1, creditTotal],
             labels: ['Cash / Walking Sales', 'Credit Sales'],
             colors: ['#10b981', '#f59e0b'],
-            legend: { position: 'bottom', fontSize: '12px', fontWeight: 600 },
+            legend: { position: 'bottom', fontSize: '11px', fontWeight: 600 },
             dataLabels: { enabled: false },
             plotOptions: {
                 pie: {
@@ -710,10 +804,14 @@
                             total: {
                                 show: true,
                                 label: 'Total Sales',
-                                fontSize: '12px',
+                                fontSize: '11px',
                                 fontWeight: 600,
                                 color: '#64748b',
-                                formatter: () => "Rs " + (cashTotal + creditTotal).toLocaleString()
+                                formatter: () => {
+                                    let total = cashTotal + creditTotal;
+                                    if (total >= 1000000) return "Rs " + (total / 1000000).toFixed(2) + "M";
+                                    return "Rs " + total.toLocaleString();
+                                }
                             }
                         }
                     }

@@ -17,13 +17,13 @@
         padding: 1.5rem;
     }
 
-    /* ── Hero Header ── */
+    /* ── Hero Header (Ameen & Sons Navy Theme) ── */
     .osm-hero {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%);
+        background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
         border-radius: 16px;
         padding: 1.5rem;
         color: #ffffff;
-        box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.2);
+        box-shadow: 0 10px 25px -5px rgba(30, 58, 95, 0.25);
         margin-bottom: 1.5rem;
         display: flex;
         justify-content: space-between;
@@ -39,14 +39,14 @@
     .osm-hero-icon {
         width: 48px;
         height: 48px;
-        background: rgba(99, 102, 241, 0.2);
-        border: 1.5px solid rgba(129, 140, 248, 0.4);
+        background: rgba(200, 151, 58, 0.2);
+        border: 1.5px solid rgba(200, 151, 58, 0.4);
         border-radius: 12px;
         display: flex;
         align-items: center;
         justify-content: center;
         font-size: 24px;
-        color: #818cf8;
+        color: #c8973a;
         flex-shrink: 0;
     }
     .osm-title {
@@ -58,11 +58,16 @@
         align-items: center;
         gap: 8px;
         flex-wrap: wrap;
+        color: #ffffff !important;
+    }
+    .osm-hero-content h4,
+    .osm-hero-content h4 * {
+        color: #ffffff !important;
     }
     .osm-badge-erp {
-        background: rgba(99, 102, 241, 0.25);
-        border: 1px solid rgba(165, 180, 252, 0.3);
-        color: #c7d2fe;
+        background: rgba(200, 151, 58, 0.25);
+        border: 1px solid rgba(200, 151, 58, 0.4);
+        color: #fef08a !important;
         font-size: 11px;
         font-weight: 700;
         padding: 3px 10px;
@@ -72,13 +77,13 @@
     }
     .osm-subtitle {
         font-size: 13px;
-        color: #94a3b8;
+        color: #cbd5e1 !important;
         margin-top: 4px;
     }
     .btn-back-link {
-        background: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
-        color: #f1f5f9;
+        background: rgba(255, 255, 255, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        color: #ffffff;
         font-size: 13px;
         font-weight: 600;
         padding: 8px 16px;
@@ -90,9 +95,10 @@
         gap: 6px;
     }
     .btn-back-link:hover {
-        background: rgba(255, 255, 255, 0.2);
+        background: rgba(255, 255, 255, 0.22);
         color: #ffffff;
         transform: translateY(-1px);
+        text-decoration: none;
     }
 
     /* ── Branch Selector Card (Super Admin) ── */
@@ -116,7 +122,7 @@
         margin: 0;
     }
     .branch-card select {
-        border: 1.5px solid #6366f1;
+        border: 1.5px solid #1e3a5f;
         border-radius: 10px;
         padding: 8px 14px;
         font-size: 14px;
@@ -130,7 +136,7 @@
     }
     .branch-card select:focus {
         background: #ffffff;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+        box-shadow: 0 0 0 4px rgba(30, 58, 95, 0.12);
     }
 
     /* ── Main Container & Table Card ── */
@@ -155,7 +161,7 @@
         border-spacing: 0;
     }
     .osm-thead {
-        background: linear-gradient(135deg, #1e293b, #334155);
+        background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
         color: #ffffff;
     }
     .osm-thead th {
@@ -184,7 +190,7 @@
         width: 44px;
         text-align: center;
         font-weight: 800;
-        color: #94a3b8;
+        color: #64748b;
         font-size: 13px;
         padding-top: 18px !important;
     }
@@ -202,10 +208,10 @@
         color: #0f172a;
     }
     .fi:focus {
-        border-color: #6366f1;
+        border-color: #1e3a5f;
         background: #ffffff;
         outline: none;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12);
+        box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
     }
     .fi-num {
         text-align: right;
@@ -221,7 +227,7 @@
         display: block;
     }
 
-    /* Input prefix (Currency ₨) */
+    /* Input prefix (Currency PKR) */
     .input-with-prefix {
         position: relative;
         display: flex;
@@ -231,13 +237,13 @@
     .input-with-prefix .prefix {
         position: absolute;
         left: 10px;
-        font-size: 12px;
-        font-weight: 700;
+        font-size: 10.5px;
+        font-weight: 800;
         color: #64748b;
         pointer-events: none;
     }
     .input-with-prefix input {
-        padding-left: 26px !important;
+        padding-left: 36px !important;
     }
 
     /* ── Select2 Modern Custom Styling ── */
@@ -264,12 +270,12 @@
     }
     .select2-container--default.select2-container--focus .select2-selection--single,
     .select2-container--default.select2-container--open .select2-selection--single {
-        border-color: #6366f1 !important;
+        border-color: #1e3a5f !important;
         background: #ffffff !important;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.12) !important;
+        box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12) !important;
     }
     .select2-dropdown {
-        border: 1.5px solid #6366f1 !important;
+        border: 1.5px solid #1e3a5f !important;
         border-radius: 12px !important;
         box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15) !important;
         overflow: hidden !important;
@@ -280,7 +286,7 @@
         font-size: 13px !important;
     }
     .select2-results__option--highlighted[aria-selected] {
-        background-color: #6366f1 !important;
+        background-color: #1e3a5f !important;
     }
 
     .stock-badge {
@@ -309,15 +315,15 @@
         align-items: center;
         gap: 6px;
         background: #ffffff;
-        border: 1.5px solid #c7d2fe;
+        border: 1.5px solid #cbd5e1;
         border-radius: 10px;
         padding: 5px 8px;
         transition: all 0.2s ease;
         box-shadow: 0 1px 3px rgba(0,0,0,0.02);
     }
     .alloc-inline-row:focus-within {
-        border-color: #6366f1;
-        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+        border-color: #1e3a5f;
+        box-shadow: 0 0 0 3px rgba(30, 58, 95, 0.12);
     }
     .alloc-inline-row select {
         flex: 1.4;
@@ -337,7 +343,7 @@
         font-weight: 700;
         border: none;
         background: transparent;
-        color: #4f46e5;
+        color: #1e3a5f;
         text-align: right;
         outline: none;
         min-width: 0;
@@ -361,9 +367,9 @@
     }
 
     .btn-add-alloc {
-        background: #eef2ff;
-        color: #4f46e5;
-        border: 1.5px dashed #a5b4fc;
+        background: #f1f5f9;
+        color: #1e3a5f;
+        border: 1.5px dashed #94a3b8;
         border-radius: 8px;
         padding: 6px 12px;
         font-size: 11.5px;
@@ -376,10 +382,10 @@
         gap: 4px;
     }
     .btn-add-alloc:hover {
-        background: #6366f1;
+        background: #1e3a5f;
         color: #ffffff;
         border-style: solid;
-        border-color: #6366f1;
+        border-color: #1e3a5f;
     }
 
     .btn-del-row {
@@ -417,8 +423,8 @@
     }
     .btn-add-row {
         background: #ffffff;
-        border: 2px dashed #6366f1;
-        color: #6366f1;
+        border: 2px dashed #1e3a5f;
+        color: #1e3a5f;
         border-radius: 10px;
         padding: 10px 20px;
         font-size: 13.5px;
@@ -430,13 +436,13 @@
         gap: 6px;
     }
     .btn-add-row:hover {
-        background: #eef2ff;
-        border-color: #4f46e5;
-        color: #4f46e5;
+        background: #f1f5f9;
+        border-color: #1e3a5f;
+        color: #1e3a5f;
         transform: translateY(-1px);
     }
     .btn-save-all {
-        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
         color: #ffffff;
         border: none;
         border-radius: 10px;
@@ -444,7 +450,7 @@
         font-size: 14.5px;
         font-weight: 800;
         cursor: pointer;
-        box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+        box-shadow: 0 4px 14px rgba(30, 58, 95, 0.35);
         transition: all 0.2s;
         display: inline-flex;
         align-items: center;
@@ -452,7 +458,7 @@
     }
     .btn-save-all:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45);
+        box-shadow: 0 6px 20px rgba(30, 58, 95, 0.45);
     }
 
     .flash-success {
@@ -480,25 +486,25 @@
     @media (max-width: 767.98px) {
         .osm-wrap {
             padding: 0.75rem;
-            padding-bottom: 5rem; /* space for mobile sticky footer */
+            padding-bottom: 6rem; /* space for mobile sticky footer */
         }
         .osm-hero {
-            padding: 1.2rem;
+            padding: 1.25rem;
             border-radius: 14px;
         }
         .osm-hero-content {
             gap: 0.75rem;
         }
         .osm-hero-icon {
-            width: 40px;
-            height: 40px;
-            font-size: 20px;
+            width: 42px;
+            height: 42px;
+            font-size: 22px;
         }
         .osm-title {
             font-size: 17px;
         }
 
-        /* Convert Table to Mobile Cards */
+        /* Convert Table Rows into Mobile Grid Cards */
         .osm-table,
         .osm-table tbody,
         .osm-table tr,
@@ -512,53 +518,67 @@
         }
         .osm-row {
             background: #ffffff !important;
-            border-radius: 16px !important;
-            border: 1.5px solid #e2e8f0 !important;
-            margin-bottom: 1.25rem !important;
-            padding: 1rem 1rem 1.25rem 1rem !important;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04) !important;
-            position: relative !important;
+            border-radius: 14px !important;
+            border: 1.5px solid #cbd5e1 !important;
+            margin-bottom: 1rem !important;
+            padding: 0.85rem !important;
+            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05) !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
         }
         .osm-row td {
-            padding: 6px 0 !important;
+            padding: 2px 0 !important;
             border: none !important;
         }
 
-        /* Row header element inside card */
-        .osm-row-num {
-            display: inline-block !important;
-            position: absolute !important;
-            top: 14px !important;
-            left: 14px !important;
-            background: #eef2ff !important;
-            color: #4f46e5 !important;
-            font-size: 11px !important;
-            font-weight: 800 !important;
-            padding: 3px 10px !important;
-            border-radius: 20px !important;
-            width: auto !important;
-            text-align: left !important;
-            padding-top: 3px !important;
+        /* Grid Placement for Mobile Cards */
+        .osm-cell-mobile-header,
+        .osm-cell-product,
+        .osm-cell-location {
+            grid-column: span 2;
         }
-        .osm-cell-actions {
-            position: absolute !important;
-            top: 10px !important;
-            right: 14px !important;
-            width: auto !important;
-            padding-top: 0 !important;
+        .osm-cell-price-w,
+        .osm-cell-price-r,
+        .osm-cell-alert,
+        .osm-cell-total {
+            grid-column: span 1;
         }
 
-        /* Product search container on mobile */
         .osm-cell-product {
-            margin-top: 24px;
+            margin-bottom: 4px;
+        }
+        .osm-cell-location {
+            margin-bottom: 6px;
+            background: #f8fafc;
+            padding: 8px !important;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0 !important;
         }
 
-        /* Grid layout for prices on mobile */
-        .mobile-price-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 4px;
+        /* Location Sub-row on Mobile: full-width select dropdown */
+        .alloc-inline-row {
+            flex-wrap: wrap !important;
+            padding: 8px !important;
+            gap: 6px !important;
+            background: #ffffff !important;
+            border: 1.5px solid #cbd5e1 !important;
+            border-radius: 10px !important;
+        }
+        .alloc-inline-row select {
+            flex: 1 1 100% !important;
+            width: 100% !important;
+            border-bottom: 1px dashed #cbd5e1 !important;
+            padding-bottom: 6px !important;
+            margin-bottom: 2px !important;
+            font-size: 13px !important;
+        }
+        .alloc-inline-row input {
+            flex: 1 !important;
+            background: #f8fafc !important;
+            border: 1px solid #cbd5e1 !important;
+            border-radius: 6px !important;
+            padding: 5px 8px !important;
         }
 
         /* Sticky bottom footer bar on mobile */
@@ -567,12 +587,13 @@
             bottom: 0;
             left: 0;
             right: 0;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
-            border-top: 1.5px solid #e2e8f0;
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1.5px solid #cbd5e1;
             padding: 0.75rem 1rem;
             z-index: 1000;
-            box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 -4px 20px rgba(15, 23, 42, 0.12);
             display: flex;
             gap: 0.5rem;
             justify-content: space-between;
@@ -581,14 +602,16 @@
         .btn-add-row {
             flex: 1;
             justify-content: center;
-            padding: 10px 12px;
-            font-size: 12.5px;
+            padding: 11px 12px;
+            font-size: 13px;
+            border-radius: 8px;
         }
         .btn-save-all {
             flex: 1.4;
             justify-content: center;
-            padding: 10px 16px;
+            padding: 11px 16px;
             font-size: 13px;
+            border-radius: 8px;
         }
     }
 </style>
@@ -714,62 +737,57 @@ $(document).ready(function() {
     function buildRow(idx) {
         return `
         <tr class="osm-row" id="row_${idx}" data-row="${idx}">
-            <td class="osm-row-num">#${idx}</td>
+            <td class="osm-cell-mobile-header d-md-none">
+                <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom" style="border-color:#f1f5f9 !important;">
+                    <span class="badge" style="background:#1e3a5f; color:#ffffff; font-size:11.5px; font-weight:800; padding:4px 10px; border-radius:20px;">#${idx}</span>
+                    <button type="button" class="btn-del-row" onclick="delRow(${idx})" title="Remove Product Row">✕</button>
+                </div>
+            </td>
+            <td class="osm-row-num d-none d-md-table-cell">#${idx}</td>
             <td class="osm-cell-product">
                 <span class="fi-label">Product Selection</span>
                 <select class="product-sel" id="prod_${idx}" name="rows[${idx}][product_id]" style="width:100%;"></select>
                 <span class="stock-badge zero" id="stk_${idx}" style="display:none;">Stock: 0</span>
                 <input type="hidden" name="rows[${idx}][allocation_data]" id="alloc_data_${idx}" value="[]">
             </td>
-            <td>
+            <td class="osm-cell-location">
                 <span class="fi-label">Warehouse / Location &amp; Quantities</span>
                 <div class="alloc-container" id="alloc_rows_${idx}"></div>
                 <button type="button" class="btn-add-alloc" onclick="addAllocLine(${idx})">
                     <i class="las la-plus"></i> Add Location
                 </button>
-                <div id="oqty_label_${idx}" style="font-size:11px;color:#4f46e5;font-weight:700;margin-top:6px;display:none;">
+                <div id="oqty_label_${idx}" style="font-size:11px;color:#1e3a5f;font-weight:700;margin-top:6px;display:none;">
                     ℹ️ Total Allocated: <span id="oqty_display_${idx}">0</span>
                 </div>
             </td>
-            <td>
-                <div class="mobile-price-grid">
-                    <div>
-                        <span class="fi-label">Wholesale Price</span>
-                        <div class="input-with-prefix">
-                            <span class="prefix">₨</span>
-                            <input type="number" class="fi fi-num price-wholesale" name="rows[${idx}][wholesale_price]" placeholder="0.00" step="0.01" min="0">
-                        </div>
-                    </div>
-                    <div class="d-md-none">
-                        <span class="fi-label">Retail Price</span>
-                        <div class="input-with-prefix">
-                            <span class="prefix">₨</span>
-                            <input type="number" class="fi fi-num price-retail" name="rows[${idx}][retail_price]" placeholder="0.00" step="0.01" min="0">
-                        </div>
-                    </div>
+            <td class="osm-cell-price-w">
+                <span class="fi-label">Wholesale Price</span>
+                <div class="input-with-prefix">
+                    <span class="prefix">PKR</span>
+                    <input type="number" class="fi fi-num price-wholesale" name="rows[${idx}][wholesale_price]" placeholder="0.00" step="0.01" min="0">
                 </div>
             </td>
-            <td class="d-none d-md-table-cell">
+            <td class="osm-cell-price-r">
                 <span class="fi-label">Retail Price</span>
                 <div class="input-with-prefix">
-                    <span class="prefix">₨</span>
+                    <span class="prefix">PKR</span>
                     <input type="number" class="fi fi-num price-retail" name="rows[${idx}][retail_price]" placeholder="0.00" step="0.01" min="0">
                 </div>
                 <div class="price-warning-msg" style="display:none; color:#dc2626; font-size:10px; font-weight:700; margin-top:4px;">⚠️ Retail < Wholesale</div>
             </td>
-            <td>
+            <td class="osm-cell-alert">
                 <span class="fi-label">Alert Qty</span>
                 <input type="number" class="fi fi-num" name="rows[${idx}][alert_qty]" placeholder="0" step="0.01" min="0">
             </td>
-            <td>
+            <td class="osm-cell-total">
                 <span class="fi-label">Opening Qty</span>
                 <input type="number" class="fi fi-num" id="oqty_${idx}"
                        name="rows[${idx}][opening_qty]" placeholder="0.00" step="0.01" min="0"
                        readonly
-                       style="background:#eef2ff;border-color:#a5b4fc;color:#4f46e5;font-weight:800;cursor:not-allowed;"
+                       style="background:#f1f5f9;border-color:#cbd5e1;color:#1e3a5f;font-weight:800;cursor:not-allowed;"
                        title="Auto-calculated from warehouse locations">
             </td>
-            <td class="osm-cell-actions">
+            <td class="osm-cell-actions d-none d-md-table-cell">
                 <button type="button" class="btn-del-row" onclick="delRow(${idx})" title="Remove Product Row">✕</button>
             </td>
         </tr>`;
@@ -791,7 +809,7 @@ $(document).ready(function() {
                 icon: 'info',
                 title: 'Minimum Row Required',
                 text: 'At least one product row must remain.',
-                confirmButtonColor: '#6366f1'
+                confirmButtonColor: '#1e3a5f'
             });
             return;
         }
@@ -980,7 +998,7 @@ $(document).ready(function() {
                 icon: 'error',
                 title: 'Validation Error',
                 text: 'Please check the product rows for missing inputs or invalid pricing.',
-                confirmButtonColor: '#6366f1'
+                confirmButtonColor: '#1e3a5f'
             });
             return;
         }

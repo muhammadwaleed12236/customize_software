@@ -797,7 +797,7 @@
         $(document).on('click', '#mobileNavToggler, .rt_nav_header .navbar-toggler', function(e) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            $('.nav-bottom').toggleClass('header-toggled');
+            $('.nav-bottom').toggleClass('header-toggled show');
         });
 
         // 2. Profile Dropdown Fallback Toggle
@@ -819,40 +819,36 @@
             }
         });
 
-        var $navItems = $('.nav.page-navigation > .nav-item');
-
-        // 4. Mobile Navigation Click Handler for submenus
-        $navItems.on('click', function(e) {
+        // 4. Mobile Navigation Click Handler for submenus (slideDown / slideUp toggle)
+        $(document).on('click', '.nav.page-navigation > .nav-item > a.nav-link', function(e) {
             if ($(window).width() <= 991) {
-                var $item = $(this);
-                var $submenu = $item.find('.submenu');
+                var $link = $(this);
+                var $item = $link.parent('.nav-item');
+                var $submenu = $item.children('.submenu');
 
                 if ($submenu.length > 0) {
-                    if ($(e.target).closest('.submenu a').length > 0) {
-                        return true;
-                    }
-
                     e.preventDefault();
                     e.stopPropagation();
 
-                    var isCurrentlyOpen = $item.hasClass('show-submenu') || $item.hasClass('show');
+                    var isCurrentlyOpen = $item.hasClass('open-mobile');
 
                     // Close other submenus
-                    $navItems.not($item).removeClass('show-submenu show').find('.submenu').slideUp(150);
+                    $('.nav.page-navigation > .nav-item').not($item).removeClass('open-mobile show-submenu show').children('.submenu').stop(true, true).slideUp(150);
 
                     // Toggle clicked submenu
-                    if (!isCurrentlyOpen) {
-                        $item.addClass('show-submenu show');
-                        $submenu.stop(true, true).slideDown(200);
-                    } else {
-                        $item.removeClass('show-submenu show');
+                    if (isCurrentlyOpen) {
+                        $item.removeClass('open-mobile show-submenu show');
                         $submenu.stop(true, true).slideUp(150);
+                    } else {
+                        $item.addClass('open-mobile show-submenu show');
+                        $submenu.stop(true, true).slideDown(200);
                     }
                 }
             }
         });
 
         // 5. Desktop Hover Logic
+        var $navItems = $('.nav.page-navigation > .nav-item');
         $navItems.on('mouseenter', function() {
             if ($(window).width() > 991) {
                 $navItems.not(this).removeClass('show show-submenu').find('.submenu').hide();

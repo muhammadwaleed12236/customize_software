@@ -270,6 +270,30 @@
                                 </div>
                             </div>
 
+                            <!-- Carton / Pack Packing Details Box (Dynamically shown when Crtn/Carton/Box unit selected) -->
+                            <div id="packingDetailsBox" class="card p-3 my-3 shadow-sm" style="display: none; background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px;">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <h6 class="font-weight-bold text-success m-0" style="font-size: 13.5px;">
+                                        <i class="fas fa-box-open mr-1"></i> 📦 Carton Packing Details (کارٹن / پیکنگ تفصیلات)
+                                    </h6>
+                                    <span class="badge badge-success px-2 py-1" style="font-size: 10px;">Carton Unit Enabled</span>
+                                </div>
+                                <div class="field-row" style="grid-template-columns: repeat(2, 1fr);">
+                                    <div class="field-group mb-0">
+                                        <label class="field-label text-dark">Packing Type</label>
+                                        <select name="packing_type" id="packing_type" class="custom-select">
+                                            <option value="Customize" selected>Carton / Custom Packing</option>
+                                            <option value="Standard">Standard Unit Only</option>
+                                        </select>
+                                    </div>
+
+                                    <div class="field-group mb-0">
+                                        <label class="field-label text-dark">Pcs per Carton / Pack (پیکنگ کوانٹیٹی / 1 کارٹن میں پیس)</label>
+                                        <input type="number" step="0.01" min="0" id="piece_per_pack" name="piece_per_pack" class="custom-input fw-bold text-success" placeholder="e.g. 20 (Pcs per Crtn)">
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Row 3: Item Description, Item Name (Urdu), Model, HS Code -->
                             <div class="field-row mt-3">
                                 <div class="field-group">
@@ -524,6 +548,33 @@
                     $sub.empty().append('<option value="">Select Sub category</option>');
                 }
             });
+
+            // 3b. Dynamic Unit Change -> Toggle Carton Packing Details Box
+            function checkUnitPacking() {
+                var selectedText = $('#unit_select option:selected').text().toLowerCase().trim();
+                var isCartonUnit = selectedText.includes('crtn') || 
+                                   selectedText.includes('carton') || 
+                                   selectedText.includes('box') || 
+                                   selectedText.includes('pack') || 
+                                   selectedText.includes('pkt') || 
+                                   selectedText.includes('bundle') || 
+                                   selectedText.includes('ctn');
+
+                if (isCartonUnit) {
+                    $('#packingDetailsBox').slideDown(250);
+                    $('#packing_type').val('Customize');
+                } else {
+                    if (!$('#piece_per_pack').val() || parseFloat($('#piece_per_pack').val()) <= 0) {
+                        $('#packingDetailsBox').slideUp(200);
+                        $('#packing_type').val('Standard');
+                    }
+                }
+            }
+
+            $('#unit_select').on('change', checkUnitPacking);
+            if ($('#unit_select').val()) {
+                checkUnitPacking();
+            }
 
             // 4. Initialize Select2
             $(document).ready(function () {

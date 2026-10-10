@@ -34,6 +34,11 @@ class Customer extends Model
         return $this->hasOne(CustomerLedger::class, 'customer_id')->latest();
     }
 
+    public function openingBalanceHistories()
+    {
+        return $this->hasMany(CustomerOpeningBalanceHistory::class, 'customer_id')->latest();
+    }
+
     // Accessor for closing balance (gets latest ledger closing balance)
     public function getClosingBalanceAttribute()
     {

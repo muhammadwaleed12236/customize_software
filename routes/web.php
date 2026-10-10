@@ -283,6 +283,7 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
     Route::get('/get-next-customer-id', [CustomerController::class, 'getNextCustomerId'])->name('customers.nextId');
     Route::post('/customers/store', [CustomerController::class, 'store'])->middleware('permission:customer.create|customer.edit')->name('customers.store');
     Route::get('/customers/edit/{id}', [CustomerController::class, 'edit'])->middleware('permission:customer.edit')->name('customers.edit');
+    Route::get('/customers/{id}/history', [CustomerController::class, 'getOpeningBalanceHistory'])->middleware('permission:customer.view')->name('customers.history');
     Route::post('/customers/update/{id}', [CustomerController::class, 'update'])->middleware('permission:customer.edit')->name('customers.update');
     Route::get('/customers/delete/{id}', [CustomerController::class, 'destroy'])->middleware('permission:customer.delete')->name('customers.destroy');
 
@@ -764,6 +765,7 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
         Route::post('/head', [AccountsHeadController::class, 'storeHead'])->middleware('permission:chart.of.accounts.create')->name('coa.head.store');
         Route::post('/account', [AccountsHeadController::class, 'storeAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.store');
         Route::put('/account/{id}', [AccountsHeadController::class, 'updateAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.update');
+        Route::get('/account/{id}/history', [AccountsHeadController::class, 'getAccountHistory'])->name('coa.account.history');
         Route::delete('/account/{id}', [AccountsHeadController::class, 'destroyAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.delete');
                     
 

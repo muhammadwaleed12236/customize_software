@@ -1246,6 +1246,384 @@ footer .footer-area p {
     color: #475569 !important;
 }
 
+/* ─── GLOBAL MOBILE VIEW DESIGN SYSTEM ─── */
+@media (max-width: 768px) {
+    /* Touch target optimizations */
+    button, input, select, textarea, .btn, .form-control, .form-select {
+        touch-action: manipulation;
+    }
+    
+    .btn {
+        min-height: 40px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* Mobile Full Width Container & Side Gap Fixes */
+    html, body {
+        overflow-x: hidden !important;
+        width: 100% !important;
+    }
+    
+    .main-content, 
+    .main-content-inner, 
+    .content-wrapper, 
+    .container-fluid {
+        width: 100% !important;
+        max-width: 100% !important;
+        padding-left: 6px !important;
+        padding-right: 6px !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    .row {
+        margin-left: -4px !important;
+        margin-right: -4px !important;
+        width: calc(100% + 8px) !important;
+    }
+
+    .row > [class*="col-"] {
+        padding-left: 4px !important;
+        padding-right: 4px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        flex: 0 0 100% !important;
+    }
+
+    .dashboard-panel, 
+    .product-card, 
+    .card {
+        width: 100% !important;
+        max-width: 100% !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Panel Header Mobile Alignment & Wrap Fix */
+    .panel-header {
+        padding: 12px 14px !important;
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .panel-title {
+        font-size: 14px !important;
+        font-weight: 700 !important;
+        line-height: 1.3 !important;
+        white-space: normal !important;
+        word-break: break-word !important;
+    }
+
+    /* Container Spacing for Small Screens */
+    .main-content {
+        padding-top: 8px !important;
+        padding-bottom: 24px !important;
+    }
+
+    /* Card Padding & Radius */
+    .card, .dashboard-panel, .product-card {
+        border-radius: 14px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
+    }
+
+    /* Responsive Data Tables Container (No Horizontal Scroll on Mobile) */
+    .table-responsive {
+        width: 100% !important;
+        overflow-x: visible !important;
+        border-radius: 10px;
+    }
+
+    /* Form Fields Grid */
+    .form-group {
+        margin-bottom: 12px !important;
+    }
+    .form-label {
+        font-size: 12.5px !important;
+        font-weight: 600 !important;
+        margin-bottom: 4px !important;
+    }
+    .form-control, .form-select {
+        height: 42px !important;
+        font-size: 13.5px !important;
+        border-radius: 8px !important;
+    }
+
+    /* Modal Mobile Formatting */
+    .modal-dialog {
+        margin: 0.5rem !important;
+        max-width: calc(100% - 1rem) !important;
+    }
+    .modal-content {
+        border-radius: 16px !important;
+    }
+
+    /* Top Nav Mobile Layout Fixes */
+    .top_nav {
+        padding: 4px 8px !important;
+    }
+    .nav_logo.rt_logo {
+        font-size: 0.95rem !important;
+        padding: 4px 8px !important;
+    }
+    
+    /* Top Products Mobile List */
+    .top-product-item {
+        padding: 12px 8px !important;
+    }
+    .top-product-item .font-14 {
+        font-size: 13.5px !important;
+    }
+
+    /* Table Mobile Card Transformation (No Horizontal Scroll) */
+    .table-dash, 
+    .table-dash tbody {
+        display: block !important;
+        width: 100% !important;
+    }
+    .table-dash thead {
+        display: none !important;
+    }
+    .table-dash tbody tr {
+        display: block !important;
+        background: #ffffff !important;
+        border: 1.5px solid #cbd5e1 !important;
+        border-radius: 12px !important;
+        padding: 12px 14px !important;
+        margin-bottom: 10px !important;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.03) !important;
+        position: relative !important;
+    }
+    .table-dash tbody td {
+        display: block !important;
+        width: 100% !important;
+        padding: 2px 0 !important;
+        border: none !important;
+        text-align: left !important;
+    }
+
+    /* Invoice # (Td 1) - Top Right */
+    .table-dash tbody td:nth-child(1) {
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        color: #0f172a !important;
+        text-align: right !important;
+        margin-bottom: 2px !important;
+    }
+    .table-dash tbody td:nth-child(1) i {
+        float: left !important;
+        margin-top: 3px !important;
+    }
+
+    /* Customer Name (Td 2) */
+    .table-dash tbody td:nth-child(2) {
+        font-size: 13px !important;
+        color: #475569 !important;
+        text-align: left !important;
+        margin-bottom: 2px !important;
+    }
+
+    /* Party Type Badge (Td 3) */
+    .table-dash tbody td:nth-child(3) {
+        text-align: left !important;
+        margin-bottom: 2px !important;
+    }
+
+    /* Amount (Td 4) */
+    .table-dash tbody td:nth-child(4) {
+        font-size: 14px !important;
+        font-weight: 800 !important;
+        color: #1e3a5f !important;
+        text-align: left !important;
+        padding-right: 90px !important;
+        margin-top: 2px !important;
+    }
+
+    /* View Button (Td 5) - Positioned on right side of Amount & Credit Badge */
+    .table-dash tbody td:nth-child(5) {
+        position: absolute !important;
+        right: 14px !important;
+        bottom: 12px !important;
+        width: auto !important;
+        text-align: right !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    .table-dash tbody td:nth-child(5) .btn,
+    .table-dash tbody td:nth-child(5) a {
+        padding: 6px 14px !important;
+        font-size: 12px !important;
+        font-weight: 600 !important;
+        border-radius: 7px !important;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+}
+
+/* ─── QUICK SHORTCUTS GRID ─── */
+.quick-shortcuts-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    width: 100% !important;
+}
+
+.quick-shortcuts-btn {
+    width: 100% !important;
+    min-height: 38px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    border-radius: 8px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+/* ─── MOBILE NAVBAR DRAWER FIX (max-width: 991px) ─────────────── */
+@media (max-width: 991px) {
+    .rt_nav_header.horizontal-layout {
+        position: relative !important;
+    }
+
+    /* Hide nav-bottom by default on mobile screens */
+    .rt_nav_header.horizontal-layout .nav-bottom {
+        display: none !important;
+        position: absolute !important;
+        top: 100% !important;
+        left: 0 !important;
+        right: 0 !important;
+        width: 100% !important;
+        background: #ffffff !important;
+        box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22) !important;
+        z-index: 99999 !important;
+        max-height: calc(100vh - 70px) !important;
+        overflow-y: auto !important;
+        border-top: 1px solid #e2e8f0 !important;
+        border-bottom: 4px solid var(--brand-primary, #20c997) !important;
+        padding: 0 !important;
+    }
+
+    /* Display nav-bottom when header-toggled or show class is active */
+    .rt_nav_header.horizontal-layout .nav-bottom.header-toggled,
+    .rt_nav_header.horizontal-layout .nav-bottom.show {
+        display: block !important;
+    }
+
+    /* Mobile vertical nav menu list */
+    .rt_nav_header.horizontal-layout .nav-bottom .container {
+        padding: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .nav.page-navigation {
+        flex-direction: column !important;
+        padding: 8px 0 !important;
+        margin: 0 !important;
+        gap: 0 !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item {
+        width: 100% !important;
+        border-bottom: 1px solid #f1f5f9 !important;
+        margin: 0 !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item > .nav-link {
+        padding: 13px 18px !important;
+        font-size: 14px !important;
+        font-weight: 600 !important;
+        color: #1e293b !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        width: 100% !important;
+        border-radius: 0 !important;
+        border-bottom: none !important;
+        background: transparent !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item > .nav-link .menu-title {
+        flex-grow: 1 !important;
+        margin-left: 12px !important;
+        font-size: 13.5px !important;
+        color: #1e293b !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item > .nav-link i.menu_icon {
+        font-size: 16px !important;
+        width: 24px !important;
+        text-align: center !important;
+        color: var(--brand-primary, #20c997) !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item > .nav-link i.menu-arrow {
+        font-size: 11px !important;
+        transition: transform 0.2s ease !important;
+        margin-left: auto !important;
+        position: static !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item.open-mobile > .nav-link i.menu-arrow,
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item.show-submenu > .nav-link i.menu-arrow,
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item.show > .nav-link i.menu-arrow {
+        transform: rotate(180deg) !important;
+    }
+
+    /* Submenu Accordion Container on Mobile */
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item .submenu {
+        display: none;
+        position: static !important;
+        width: 100% !important;
+        box-shadow: none !important;
+        border: none !important;
+        background: #f8fafc !important;
+        padding: 4px 0 6px 12px !important;
+        border-top: 1px solid #f1f5f9 !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item .submenu ul.submenu-item {
+        list-style: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item .submenu ul.submenu-item li {
+        margin: 0 !important;
+        width: 100% !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item .submenu ul.submenu-item li a {
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+        padding: 10px 16px !important;
+        font-size: 13px !important;
+        font-weight: 500 !important;
+        color: #475569 !important;
+        text-decoration: none !important;
+    }
+
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item .submenu ul.submenu-item li a:hover,
+    .rt_nav_header.horizontal-layout .nav-bottom .page-navigation > .nav-item .submenu ul.submenu-item li.active a {
+        color: var(--brand-primary, #20c997) !important;
+        background: rgba(32, 201, 151, 0.1) !important;
+        font-weight: 600 !important;
+    }
+}
+
 /* ─── GLOBAL PRINT STYLES ────────────────────────────────────── */
 @media print {
     nav.rt_nav_header,
