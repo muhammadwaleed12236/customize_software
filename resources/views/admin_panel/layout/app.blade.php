@@ -449,9 +449,9 @@
                                             @can('vendor.view')
                                             <li><a href="{{url('vendorlist')}}"><i class="fas fa-truck"></i> Vendors</a></li>
                                             @endcan
-                                            <!-- @can('vendor.ledger')
-                                            <li><a href="{{ route('vendors.ledger') }}"><i class="fas fa-book"></i> Vendor Ledger</a></li>
-                                            @endcan -->
+                                            @if(Auth::user()->can('vendor.ledger') || Auth::user()->can('report.vendor.ledger.view') || Auth::user()->hasRole('super admin'))
+                                            <li><a href="{{ route('vendors-ledger') }}"><i class="fas fa-book"></i> Vendor Ledger</a></li>
+                                            @endif
                                         </ul>
                                     </li>
                                     @endif
@@ -641,9 +641,9 @@
                                     @can('report.customer.ledger.view')
                                     <li><a href="{{ route('report.customer.ledger.new') }}"><i class="fa-solid fa-users"></i> Customer Ledger Report</a></li>
                                     @endcan
-                                    @can('report.vendor.ledger.view')
+                                    @if(Auth::user()->can('report.vendor.ledger.view') || Auth::user()->can('vendor.ledger') || Auth::user()->hasRole('super admin'))
                                     <li><a href="{{ route('vendors-ledger') }}"><i class="fa-solid fa-users"></i> Vendor Ledger Report</a></li>
-                                    @endcan
+                                    @endif
                                     @can('report.product.ledger.view')
                                     <li><a href="{{ route('report.product_ledger') }}"><i class="fa-solid fa-boxes-stacked"></i> Product Ledger</a></li>
                                     @endcan

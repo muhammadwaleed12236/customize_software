@@ -638,9 +638,14 @@
                 <div class="osm-subtitle">Add opening stock — products are global, stock is allocated per branch/warehouse</div>
             </div>
         </div>
-        <a href="{{ route('product') }}" class="btn-back-link">
-            <i class="las la-arrow-left"></i> Back to Products
-        </a>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a href="{{ route('opening.stocks.index') }}" class="btn-back-link">
+                <i class="las la-arrow-left"></i> Back to Opening Stocks List
+            </a>
+            <a href="{{ route('product') }}" class="btn-back-link" style="opacity:0.85;">
+                <i class="las la-boxes"></i> Products Catalog
+            </a>
+        </div>
     </div>
 
     {{-- Branch Selector (Super Admin Only) --}}
@@ -1015,7 +1020,7 @@ $(document).ready(function() {
                 if (res && res.success) {
                     showGlobalMsg(res.message || 'Opening stocks saved! Redirecting...', 'success');
                     setTimeout(function() {
-                        window.location.href = "{{ route('product') }}";
+                        window.location.href = "{{ route('opening.stocks.index') }}";
                     }, 1200);
                 } else if (res && res.error) {
                     showGlobalMsg(res.error, 'error');
@@ -1023,7 +1028,7 @@ $(document).ready(function() {
                 } else {
                     showGlobalMsg('Saved successfully! Redirecting...', 'success');
                     setTimeout(function() {
-                        window.location.href = "{{ route('product') }}";
+                        window.location.href = "{{ route('opening.stocks.index') }}";
                     }, 1200);
                 }
             },

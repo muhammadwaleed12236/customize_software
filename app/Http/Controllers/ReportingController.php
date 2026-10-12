@@ -327,18 +327,22 @@ class ReportingController extends Controller
      * Calculate mathematically exact Opening Balance for a Vendor before $startDate.
      * Opening = Initial + Prior Purchases + Prior Receipts + Prior JV Credits - Prior Returns - Prior Payments - Prior JV Debits
      */
-    public function getVendorOpeningBalance(int $vendorId, int $branchId, string $startDate): float
+    public function getVendorOpeningBalance(int $vendorId, ?int $branchId, string $startDate): float
     {
         $vendor = \App\Models\Vendor::find($vendorId);
         $initialOpening = (float)($vendor->opening_balance ?? 0);
 
         // 1. Prior Purchases (Credit)
-        $priorPurchases = DB::table('purchases')
+        $purchasesQ = DB::table('purchases')
             ->where('vendor_id', $vendorId)
-            ->where('branch_id', $branchId)
             ->where(DB::raw('DATE(created_at)'), '<', $startDate)
-            ->whereNull('deleted_at')
-            ->sum(DB::raw('COALESCE(net_amount, 0)'));
+            ->whereNull('deleted_at');
+
+        if ($branchId) {
+            $purchasesQ->where('branch_id', $branchId);
+        }
+
+        $priorPurchases = $purchasesQ->sum(DB::raw('COALESCE(net_amount, 0)'));
 
         // 2. Prior Purchase Returns (Debit)
         $priorReturns = DB::table('purchase_returns')
@@ -1074,11 +1078,15 @@ class ReportingController extends Controller
             $branches = \App\Models\Branch::where('id', $user->branch_id)->get();
         }
 
-        // Vendors are now BRANCH-SPECIFIC
+        // Vendors (support branch-specific as well as global vendors)
         $vendorQuery = \App\Models\Vendor::select('id', 'name', 'phone', 'email', 'opening_balance');
         
-        if (!$user->hasRole('super admin')) {
-            $vendorQuery->where('branch_id', $user->branch_id ?? 0);
+        if (!$user->hasRole('super admin') && ($user->branch_id ?? 0) > 0) {
+            $vendorQuery->where(function($q) use ($user) {
+                $q->where('branch_id', $user->branch_id)
+                  ->orWhere('branch_id', 0)
+                  ->orWhereNull('branch_id');
+            });
         }
         
         $vendors = $vendorQuery->orderBy('name')->get();
@@ -1095,7 +1103,11 @@ class ReportingController extends Controller
         $query = \App\Models\Vendor::query();
 
         if ($branchId && $branchId !== 'all') {
-            $query->where('branch_id', $branchId);
+            $query->where(function($q) use ($branchId) {
+                $q->where('branch_id', $branchId)
+                  ->orWhere('branch_id', 0)
+                  ->orWhereNull('branch_id');
+            });
         }
 
         $vendors = $query->select('id', 'name', 'phone')
@@ -1119,46 +1131,43 @@ class ReportingController extends Controller
     {
         $user       = auth()->user();
         $vendorId   = (int) $request->vendor_id;
-        $branchId   = (int) $request->branch_id; // Add branchId filtering
+        $branchId   = ($request->filled('branch_id') && $request->branch_id !== 'all' && $request->branch_id !== '') ? (int) $request->branch_id : null;
         $start      = $request->start_date;
         $end        = $request->end_date;
 
-        if (!$vendorId || !$branchId || !$start || !$end) {
-            return response()->json(['error' => 'Missing required parameters (vendor, branch, dates)'], 422);
+        if (!$vendorId || !$start || !$end) {
+            return response()->json(['error' => 'Missing required parameters (vendor and dates)'], 422);
         }
 
         $vendor       = \App\Models\Vendor::findOrFail($vendorId);
+        $vBranchId   = (int) ($vendor->branch_id ?? 0);
         
         // Ensure branch isolation
-        if (!$user->hasRole('super admin') && $vendor->branch_id != ($user->branch_id ?? 0)) {
-            return response()->json(['error' => 'Unauthorized vendor access'], 403);
-        }
         $allowed      = false;
-
         if ($user && $user->hasRole('super admin')) {
             $allowed = true;
-        } elseif ($user && ($user->branch_id ?? null) && $user->branch_id == $branchId) {
+        } elseif ($vBranchId === 0 || ($user && ($user->branch_id ?? 0) === $vBranchId)) {
             $allowed = true;
         } elseif ($user && $user->can('report.vendor.ledger.branch.view')) {
             $allowed = true;
         }
 
         if (!$allowed) {
-            return response()->json(['error' => 'Unauthorized branch access'], 403);
+            return response()->json(['error' => 'Unauthorized vendor access'], 403);
         }
 
-        // ── Mathematically Exact Branch Opening Balance ──────────
+        // ── Mathematically Exact Opening Balance ──────────
         $openingBalance = $this->getVendorOpeningBalance($vendorId, $branchId, $start);
 
         // ── Gate Pass lookup map for Purchases: purchase_id → {dc_no, gp_no} ───
         $gpMap = [];
         $gpRows = DB::table('inward_gatepasses')
             ->whereNotNull('purchase_id')
-            ->select('purchase_id', 'gatepass_no', 'bilty_no') // Assuming bilty_no might be used as DC
+            ->select('purchase_id', 'gatepass_no', 'bilty_no', 'delivery_challan_no')
             ->get();
         foreach ($gpRows as $gp) {
             $gpMap[$gp->purchase_id] = [
-                'dc_no'  => $gp->bilty_no ?? '-',
+                'dc_no'  => $gp->delivery_challan_no ?: ($gp->bilty_no ?: '-'),
                 'gp_no'  => $gp->gatepass_no ?? '-',
             ];
         }
@@ -1166,14 +1175,20 @@ class ReportingController extends Controller
         // ══════════════════════════════════════════════════════════════════
         // PART 1 – PURCHASES (Credit)
         // ══════════════════════════════════════════════════════════════════
-        $purchasesRaw = DB::table('purchases')
+        $purchasesQuery = DB::table('purchases')
             ->leftJoin('purchase_items', 'purchase_items.purchase_id', '=', 'purchases.id')
             ->leftJoin('products', 'products.id', '=', 'purchase_items.product_id')
             ->where('purchases.vendor_id', $vendorId)
-            ->where('purchases.branch_id', $branchId)
             ->whereNull('purchases.deleted_at')
-            ->whereBetween(DB::raw('DATE(purchases.created_at)'), [$start, $end])
-            ->select(
+            ->whereBetween(DB::raw('DATE(purchases.created_at)'), [$start, $end]);
+
+        if ($branchId) {
+            $purchasesQuery->where('purchases.branch_id', $branchId);
+        } elseif (!$user->hasRole('super admin') && ($user->branch_id ?? 0) > 0) {
+            $purchasesQuery->where('purchases.branch_id', $user->branch_id);
+        }
+
+        $purchasesRaw = $purchasesQuery->select(
                 'purchases.id          as purchase_id',
                 'purchases.invoice_no  as invoice_no',
                 DB::raw('COALESCE(purchases.net_amount, 0) as total_net'),

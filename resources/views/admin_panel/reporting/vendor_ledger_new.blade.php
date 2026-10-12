@@ -119,14 +119,14 @@
                             <div class="col-md-3">
                                 <label class="f-label">Select Branch</label>
                                 <select id="branch_id" class="form-control form-control-sm" style="height: 38px; border-radius: 6px; border: 1.5px solid #cbd5e1;">
-                                    <option value="">-- Choose Branch --</option>
+                                    <option value="all">-- All Branches --</option>
                                     @foreach($branches as $b)
-                                        <option value="{{ $b->id }}">{{ $b->name ?? $b->branch_name }}</option>
+                                        <option value="{{ $b->id }}" {{ (request('branch_id') == $b->id) ? 'selected' : '' }}>{{ $b->name ?? $b->branch_name }}</option>
                                     @endforeach
                                 </select>
                             </div>
                         @else
-                            <input type="hidden" id="branch_id" value="{{ $user->branch_id }}">
+                            <input type="hidden" id="branch_id" value="{{ $user->branch_id ?? '' }}">
                         @endif
 
                         <div class="col-md-{{ ($user && $user->hasRole('super admin')) ? '3' : '4' }}">
@@ -134,7 +134,7 @@
                             <select id="vendor_id" class="form-control form-control-sm select2">
                                 <option value="">-- Choose Vendor --</option>
                                 @foreach($vendors as $v)
-                                    <option value="{{ $v->id }}">{{ $v->name }}</option>
+                                    <option value="{{ $v->id }}" {{ (request('vendor_id') == $v->id) ? 'selected' : '' }}>{{ $v->name }}</option>
                                 @endforeach
                             </select>
                         </div>
@@ -347,7 +347,13 @@ $(document).ready(function () {
 
     function dash() { return '<span style="color:#ccc;">&#8212;</span>'; }
 
-    /* 11 visible columns only */
+    function getWattVal(str) {
+        if (!str) return 0;
+        var m = String(str).match(/(\d+)\s*(?:W|WATT|WATTS)\b/i);
+        return m ? parseFloat(m[1]) : 0;
+    }
+
+    /* 12 visible columns */
     function td(txt, align, attrs) {
         align = align || 'center';
         attrs = attrs || '';
@@ -355,21 +361,28 @@ $(document).ready(function () {
         return '<td style="text-align:' + align + ';border:1px solid #ddd;" ' + attrs + '>' + val + '</td>';
     }
 
+    /* ---------- Initialize Select2 ---------- */
+    if ($.fn.select2) {
+        $('#vendor_id').select2({ width: '100%' });
+    }
+
     /* ---------- branch -> vendor loader (super admin) ---------- */
     $('#branch_id').on('change', function() {
         var bid = $(this).val();
-        if (!bid) {
-            $('#vendor_id').html('<option value="">-- Choose Vendor --</option>');
-            return;
-        }
+        var branchParam = (bid === 'all' || !bid) ? '' : bid;
 
         // Fetch vendors for this branch
-        $.get("{{ route('vendors-by-branch') }}", { branch_id: bid }, function(res) {
+        $.get("{{ route('vendors-by-branch') }}", { branch_id: branchParam }, function(res) {
+            var currentVid = $('#vendor_id').val();
             var html = '<option value="">-- Choose Vendor --</option>';
             $.each(res, function(i, v) {
-                html += '<option value="' + v.id + '">' + v.customer_name + '</option>';
+                var sel = (v.id == currentVid) ? ' selected' : '';
+                html += '<option value="' + v.id + '"' + sel + '>' + (v.customer_name || v.name) + '</option>';
             });
-            $('#vendor_id').html(html).trigger('change');
+            $('#vendor_id').html(html);
+            if ($.fn.select2) {
+                $('#vendor_id').select2({ width: '100%' });
+            }
         });
     });
 
@@ -380,15 +393,19 @@ $(document).ready(function () {
         var start = $('#start_date').val();
         var end   = $('#end_date').val();
 
-        if (!vid || !start || !end) { alert('Please fill all fields.'); return; }
-        if ($('#branch_id').length && !bid) { alert('Please select a branch.'); return; }
+        if (!vid || !start || !end) {
+            alert('Please select a vendor and date range.');
+            return;
+        }
 
         $('#loader').show();
         $('#ledgerBox').hide();
         $('#printBtnWrap').hide();
 
+        var branchParam = (bid === 'all' || !bid) ? '' : bid;
+
         $.get("{{ route('report.vendor.ledger.fetch.new') }}", {
-            branch_id  : bid,
+            branch_id  : branchParam,
             vendor_id  : vid,
             start_date : start,
             end_date   : end
@@ -404,6 +421,11 @@ $(document).ready(function () {
             alert(msg);
         });
     });
+
+    // Auto-search if vendor is pre-selected (e.g. from vendor list link)
+    if ($('#vendor_id').val()) {
+        $('#btnSearch').trigger('click');
+    }
 
     /* ---------- render ---------- */
     function render(res, start, end) {
@@ -597,12 +619,12 @@ $(document).ready(function () {
                             bodyHtml += td('', 'center');
                             bodyHtml += td('', 'center');
                             bodyHtml += td('<small style="color:#1b5e20;font-weight:700;">↳ Extra Charges (Freight)</small>', 'left');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
+                            bodyHtml += td('', 'right'); // Rate
+                            bodyHtml += td('', 'right'); // Price
+                            bodyHtml += td('', 'right'); // Qty
+                            bodyHtml += td('', 'right'); // Debit
+                            bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right'); // Credit
+                            bodyHtml += td('', 'right'); // Balance
                             bodyHtml += '</tr>';
                         }
                     }
@@ -789,7 +811,7 @@ $(document).ready(function () {
 
     /* ---------- CSV Export ---------- */
     window.exportCSV = function () {
-        var rows = [['No','Inv No','Type','Date','Ref','Details','Price','Qty','Debit','Credit','Balance']];
+        var rows = [['No','Inv No','Type','Date','Ref','Details','Rate','Price','Qty','Debit','Credit','Balance']];
         // Only export visible rows (respects toggle details state)
         $('#ledgerTable tbody tr:visible, #ledgerTable tfoot tr:visible').each(function () {
             var cells = [];

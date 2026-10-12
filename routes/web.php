@@ -212,12 +212,16 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
     Route::get('/products/opening-stock/{product_id}', [ProductController::class, 'createOpeningStock'])->middleware('permission:product.edit')->name('product.opening-stock.create');
     Route::get('/products/incomplete', [ProductController::class, 'incompleteProducts'])->middleware('permission:product.view')->name('product.incomplete');
 
-    // ✅ NEW: Unified Opening Stock Manager (ERP Standard)
-    Route::get('/opening-stocks', [ProductController::class, 'openingStockManager'])->middleware('permission:product.edit')->name('opening.stocks.index');
+    // ✅ NEW: Unified Opening Stock Module (ERP Standard)
+    Route::get('/opening-stocks', [ProductController::class, 'openingStockIndex'])->middleware('permission:product.view')->name('opening.stocks.index');
+    Route::get('/opening-stocks/create', [ProductController::class, 'openingStockManager'])->middleware('permission:product.edit')->name('opening.stocks.create');
+    Route::get('/opening-stocks/manager', [ProductController::class, 'openingStockManager'])->middleware('permission:product.edit')->name('opening.stocks.manager');
     Route::post('/opening-stocks/store', [ProductController::class, 'storeOpeningStocks'])->middleware('permission:product.edit')->name('opening.stocks.store');
     Route::get('/opening-stocks/search-products', [ProductController::class, 'searchProductsForStock'])->middleware('permission:product.view')->name('opening.stocks.search');
     Route::get('/opening-stocks/{id}/edit', [ProductController::class, 'editOpeningStock'])->middleware('permission:product.edit')->name('opening.stocks.edit');
     Route::post('/opening-stocks/{id}/update', [ProductController::class, 'updateOpeningStock'])->middleware('permission:product.edit')->name('opening.stocks.update');
+    Route::delete('/opening-stocks/{id}', [ProductController::class, 'destroyOpeningStock'])->middleware('permission:product.edit')->name('opening.stocks.destroy');
+    Route::post('/opening-stocks/{id}/delete', [ProductController::class, 'destroyOpeningStock'])->middleware('permission:product.edit');
     Route::get('/opening-stocks/warehouses-by-branch', [ProductController::class, 'getWarehousesForBranch'])->middleware('permission:product.view')->name('opening.stocks.warehouses');
     Route::get('/opening-stocks/stock-breakdown', [ProductController::class, 'getProductStockBreakdown'])->middleware('permission:product.view')->name('opening.stocks.breakdown');
 
@@ -305,7 +309,7 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
     Route::post('/vendor/store', [VendorController::class, 'store'])->name('vendors.store.ajax');
     Route::get('/vendor/delete/{id}', [VendorController::class, 'delete']);
     Route::get('/vendors/ledger', [VendorController::class, 'vendors_ledger'])->middleware('permission:vendor.ledger')->name('vendors.ledger');
-    Route::get('/vendors-ledger', [\App\Http\Controllers\ReportingController::class, 'vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view')->name('vendors-ledger');
+    Route::get('/vendors-ledger', [\App\Http\Controllers\ReportingController::class, 'vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view|vendor.ledger')->name('vendors-ledger');
     Route::get('/vendor/payments', [VendorController::class, 'vendor_payments'])->name('vendor.payments');
     Route::post('/vendor/payments', [VendorController::class, 'store_vendor_payment'])->name('vendor.payments.store');
     Route::get('/vendor/bilties', [VendorController::class, 'vendor_bilties'])->name('vendor.bilties');
@@ -749,8 +753,8 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
     Route::get('report/salesman-ledger/fetch', [ReportingController::class, 'fetch_salesman_ledger'])->middleware('permission:report.sale.view')->name('report.salesman.ledger.fetch');
     Route::get('report/salesmen-by-branch', [ReportingController::class, 'salesmenByBranch'])->middleware('permission:report.sale.view')->name('report.salesmen.byBranch');
 
-    Route::get('report/vendor-ledger-new', [ReportingController::class, 'vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view')->name('report.vendor.ledger.new');
-    Route::get('report/vendor-ledger/fetch-new', [ReportingController::class, 'fetch_vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view')->name('report.vendor.ledger.fetch.new');
+    Route::get('report/vendor-ledger-new', [ReportingController::class, 'vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view|vendor.ledger')->name('report.vendor.ledger.new');
+    Route::get('report/vendor-ledger/fetch-new', [ReportingController::class, 'fetch_vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view|vendor.ledger')->name('report.vendor.ledger.fetch.new');
     Route::get('report/vendors-by-branch', [ReportingController::class, 'vendorsByBranch'])->middleware('permission:report.vendor.ledger.view|report.purchase.view|vendor.ledger')->name('vendors-by-branch');
     Route::get('/warehouses-by-branch', [App\Http\Controllers\WarehouseController::class, 'warehousesByBranch'])->middleware('permission:inward.gatepass.create|inward.gatepass.edit|purchase.create|report.inventory.onhand.view|warehouse.view')->name('warehouses-by-branch');
     Route::get('reports/onhand', [ReportingController::class, 'onhand'])->middleware('permission:report.inventory.onhand.view')->name('reports.onhand');

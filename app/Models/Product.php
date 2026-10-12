@@ -92,6 +92,11 @@ public function stock()
     return $this->hasOne(Stock::class, 'product_id', 'id');
 }
 
+public function stocks()
+{
+    return $this->hasMany(Stock::class, 'product_id', 'id');
+}
+
   public function saleItems()
     {
         return $this->hasMany(SaleItem::class, 'product_id', 'id');

@@ -201,16 +201,9 @@
                 <button class="btn btn-premium btn-add" data-toggle="modal" data-target="#vendorModal" onclick="clearVendor()">
                     <i class="fas fa-plus-circle mr-2"></i> Add New Vendor
                 </button>
-                {{-- Ledger, Payments, Bilty buttons hidden --}}
-                {{-- <a href="{{ url('vendors-ledger') }}" class="btn btn-premium btn-outline-danger ml-2">
+                <a href="{{ route('vendors-ledger') }}" class="btn btn-premium btn-outline-danger ml-2">
                     <i class="fas fa-book mr-2"></i> Ledger
                 </a>
-                <a href="{{ route('vendor.payments') }}" class="btn btn-premium btn-outline-primary ml-2">
-                    <i class="fas fa-money-bill-wave mr-2"></i> Payments
-                </a>
-                <a href="{{ url('vendor/bilties') }}" class="btn btn-premium btn-outline-info ml-2">
-                    <i class="fas fa-truck mr-2"></i> Bilty
-                </a> --}}
             </div>
         </div>
 
@@ -307,6 +300,11 @@
                                  <td><i class="fas fa-phone-alt me-2 text-muted small"></i>{{ $v->phone }}</td>
                                  <td class="text-end fw-bold {{ $v->current_balance > 0 ? 'text-danger' : ($v->current_balance < 0 ? 'text-success' : 'text-primary') }}" style="font-size: 1.05rem;">{{ number_format($v->current_balance, 2) }}</td>
                                 <td class="text-center">
+                                     <a href="{{ route('vendors-ledger') }}?vendor_id={{ $v->id }}&branch_id={{ $v->branch_id }}" 
+                                        class="btn btn-sm btn-info btn-action" 
+                                        title="View Vendor Ledger">
+                                         <i class="fas fa-book"></i>
+                                     </a>
                                      <button class="btn btn-sm btn-primary btn-action btn-edit-vendor" 
                                          data-id="{{ $v->id }}" 
                                          data-name="{{ $v->name }}"

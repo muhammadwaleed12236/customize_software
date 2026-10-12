@@ -1333,6 +1333,182 @@ public function searchProductsForSalebypagination(Request $request)
     // ==========================================
 
     /**
+     * Index: Opening Stocks List Register
+     * Shows all products with opening stock, warehouse allocations, prices, and actions (edit, delete)
+     */
+    public function openingStockIndex(Request $request)
+    {
+        $user         = Auth::user();
+        $isSuperAdmin = $user ? $user->hasRole('super admin') : false;
+        $userBranchId = $user ? (int) $user->branch_id : 1;
+        $allBranches  = Branch::orderBy('name')->get();
+        $categories   = Category::orderBy('name')->get();
+
+        // Branch filter
+        $branchId = $request->get('branch_id');
+        if (!$isSuperAdmin) {
+            $branchId = $userBranchId;
+        } elseif ($branchId === null || $branchId === '') {
+            $branchId = 'all';
+        }
+
+        $categoryId = $request->get('category_id');
+        $status     = $request->get('status', 'opening_set'); // 'opening_set', 'pending', 'all'
+
+        $query = Product::with([
+            'unit',
+            'category_relation',
+            'brand',
+            'branch',
+            'warehouseStocks.warehouse',
+            'warehouseStocks.branch',
+            'stocks'
+        ]);
+
+        if ($categoryId) {
+            $query->where('category_id', $categoryId);
+        }
+
+        if ($branchId && $branchId !== 'all') {
+            $bid = (int) $branchId;
+            $query->where(function ($q) use ($bid) {
+                $q->where('branch_id', $bid)
+                  ->orWhereHas('warehouseStocks', function ($ws) use ($bid) {
+                      $ws->where('branch_id', $bid);
+                  })
+                  ->orWhereHas('stocks', function ($st) use ($bid) {
+                      $st->where('branch_id', $bid);
+                  });
+            });
+        }
+
+        // Status filter
+        if ($status === 'opening_set') {
+            $query->where(function ($q) use ($branchId) {
+                $q->where('initial_stock', '>', 0)
+                  ->orWhereExists(function ($sub) use ($branchId) {
+                      $sub->select(DB::raw(1))
+                          ->from('stock_movements')
+                          ->whereColumn('stock_movements.product_id', 'products.id')
+                          ->whereIn('stock_movements.ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
+                          ->when($branchId && $branchId !== 'all', fn($sm) => $sm->where('branch_id', (int) $branchId));
+                  })
+                  ->orWhereExists(function ($sub2) use ($branchId) {
+                      $sub2->select(DB::raw(1))
+                          ->from('warehouse_stocks')
+                          ->whereColumn('warehouse_stocks.product_id', 'products.id')
+                          ->where('warehouse_stocks.quantity', '>', 0)
+                          ->when($branchId && $branchId !== 'all', fn($ws) => $ws->where('branch_id', (int) $branchId));
+                  });
+            });
+        } elseif ($status === 'pending') {
+            $query->where(function ($q) {
+                $q->whereNull('initial_stock')->orWhere('initial_stock', '<=', 0);
+            })->whereDoesntHave('warehouseStocks', function ($ws) {
+                $ws->where('quantity', '>', 0);
+            });
+        }
+
+        $products = $query->orderBy('item_name')->get();
+
+        // Fetch all opening stock movements for these products in a single bulk query
+        $productIds = $products->pluck('id')->toArray();
+        $openingMovements = collect();
+        if (!empty($productIds)) {
+            $openingMovements = DB::table('stock_movements')
+                ->whereIn('product_id', $productIds)
+                ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
+                ->when($branchId && $branchId !== 'all', fn($q) => $q->where('branch_id', (int) $branchId))
+                ->orderBy('id', 'desc')
+                ->get()
+                ->groupBy('product_id');
+        }
+
+        // Transform records
+        $items = $products->map(function ($product) use ($branchId, $openingMovements, $userBranchId) {
+            $pId = $product->id;
+
+            // Target branch for this item
+            $targetBranchId = ($branchId && $branchId !== 'all')
+                ? (int) $branchId
+                : ($product->branch_id ?: ($userBranchId ?: 1));
+
+            // Compute Opening Quantity
+            $movements = $openingMovements->get($pId, collect());
+            $movOpening = $movements->where('type', 'in')->sum('qty');
+            if ($movements->isNotEmpty() && $movOpening > 0) {
+                $openingQty = (float) $movOpening;
+            } elseif ($product->initial_stock !== null && $product->initial_stock > 0) {
+                $openingQty = (float) $product->initial_stock;
+            } else {
+                $whSum = $product->warehouseStocks
+                    ->when($branchId && $branchId !== 'all', fn($c) => $c->where('branch_id', (int) $branchId))
+                    ->sum('quantity');
+                $openingQty = (float) $whSum;
+            }
+
+            // Current live stock
+            if ($branchId && $branchId !== 'all') {
+                $currentStock = (float) ($product->stocks->where('branch_id', (int) $branchId)->first()?->qty ?? 0);
+            } else {
+                $currentStock = (float) $product->stocks->sum('qty');
+            }
+
+            // Warehouse allocations list
+            $whList = $product->warehouseStocks;
+            if ($branchId && $branchId !== 'all') {
+                $whList = $whList->where('branch_id', (int) $branchId);
+            }
+
+            $allocations = $whList->map(function ($ws) {
+                return [
+                    'warehouse_name' => $ws->warehouse ? $ws->warehouse->warehouse_name : 'Shop / Counter',
+                    'branch_name'    => $ws->branch ? $ws->branch->name : 'Branch',
+                    'quantity'       => (float) $ws->quantity,
+                    'is_shop'        => is_null($ws->warehouse_id),
+                ];
+            })->values();
+
+            $wholesalePrice = (float) ($product->wholesale_price ?? 0);
+            $retailPrice    = (float) ($product->price ?? 0);
+            $valuation      = $openingQty * $wholesalePrice;
+
+            return (object) [
+                'id'                 => $product->id,
+                'item_code'          => $product->item_code,
+                'item_name'          => $product->item_name,
+                'item_name_urdu'     => $product->item_name_urdu,
+                'category_name'      => optional($product->category_relation)->name ?? 'General',
+                'brand_name'         => optional($product->brand)->name ?? '-',
+                'unit_name'          => optional($product->unit)->name ?? 'PCS',
+                'branch_id'          => $targetBranchId,
+                'branch_name'        => optional($product->branch)->name ?? ('Branch ' . $targetBranchId),
+                'opening_qty'        => $openingQty,
+                'current_stock'      => $currentStock,
+                'wholesale_price'    => $wholesalePrice,
+                'retail_price'       => $retailPrice,
+                'valuation'          => $valuation,
+                'allocations'        => $allocations,
+                'completion_status'  => $product->completion_status,
+                'updated_at'         => $product->updated_at ? $product->updated_at->format('d M Y, h:i A') : '-',
+            ];
+        });
+
+        // Summary KPI Totals
+        $kpi = [
+            'total_items'      => $items->count(),
+            'total_with_stock' => $items->where('opening_qty', '>', 0)->count(),
+            'total_opening_qty'=> $items->sum('opening_qty'),
+            'total_valuation'  => $items->sum('valuation'),
+            'total_current_qty'=> $items->sum('current_stock'),
+        ];
+
+        return view('admin_panel.product.opening-stocks-index', compact(
+            'items', 'kpi', 'allBranches', 'categories', 'branchId', 'categoryId', 'status', 'isSuperAdmin', 'userBranchId'
+        ));
+    }
+
+    /**
      * Show unified Opening Stock Manager page
      * Super admin: sees branch selector + all products
      * Regular user: auto-branch, no selector
@@ -1756,6 +1932,114 @@ public function searchProductsForSalebypagination(Request $request)
                 ['branch_id' => $branchId, 'warehouse_id' => $group['warehouse_id'], 'product_id' => $productId],
                 ['quantity' => $group['quantity'], 'price' => $price, 'updated_at' => $now, 'created_at' => $now]
             );
+        }
+    }
+
+    /**
+     * Delete / Reset opening stock for a product in a branch
+     * Reverses stock movements and warehouse allocations safely
+     */
+    public function destroyOpeningStock(Request $request, $id)
+    {
+        $product      = Product::findOrFail($id);
+        $user         = Auth::user();
+        $isSuperAdmin = $user ? $user->hasRole('super admin') : false;
+        $userBranchId = $user ? (int) $user->branch_id : 1;
+
+        $branchId = (int) $request->input('branch_id', $product->branch_id ?: $userBranchId);
+
+        // Ownership / permission check
+        if (!$isSuperAdmin && $userBranchId !== $branchId) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['error' => 'You do not have permission to delete stock for this branch.'], 403);
+            }
+            return back()->with('error', 'You do not have permission to delete stock for this branch.');
+        }
+
+        try {
+            DB::transaction(function () use ($product, $id, $branchId, $user) {
+                // 1. Calculate opening quantity to reverse
+                $openingMovementQty = (float) DB::table('stock_movements')
+                    ->where('product_id', $id)
+                    ->where('branch_id', $branchId)
+                    ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
+                    ->where('type', 'in')
+                    ->sum('qty');
+
+                if ($openingMovementQty <= 0) {
+                    $whSum = (float) DB::table('warehouse_stocks')
+                        ->where('product_id', $id)
+                        ->where('branch_id', $branchId)
+                        ->sum('quantity');
+                    $openingMovementQty = $whSum > 0 ? $whSum : (float) ($product->initial_stock ?? 0);
+                }
+
+                // 2. Decrement branch stock in stocks table
+                $branchStock = DB::table('stocks')
+                    ->where('product_id', $id)
+                    ->where('branch_id', $branchId)
+                    ->first();
+
+                if ($branchStock) {
+                    $newStockQty = (float) $branchStock->qty - $openingMovementQty;
+                    DB::table('stocks')
+                        ->where('product_id', $id)
+                        ->where('branch_id', $branchId)
+                        ->update([
+                            'qty'        => $newStockQty,
+                            'updated_at' => now(),
+                        ]);
+                }
+
+                // 3. Delete warehouse_stocks allocations for this branch
+                DB::table('warehouse_stocks')
+                    ->where('product_id', $id)
+                    ->where('branch_id', $branchId)
+                    ->delete();
+
+                // 4. Record audit rollback movement
+                if ($openingMovementQty > 0) {
+                    DB::table('stock_movements')->insert([
+                        'product_id'  => $id,
+                        'branch_id'   => $branchId,
+                        'type'        => 'out',
+                        'qty'         => $openingMovementQty,
+                        'ref_type'    => 'OPENING_DELETE',
+                        'ref_id'      => null,
+                        'note'        => 'Opening stock deleted by ' . ($user ? $user->name : 'System'),
+                        'created_at'  => now(),
+                        'updated_at'  => now(),
+                    ]);
+                }
+
+                // Delete old OPENING records
+                DB::table('stock_movements')
+                    ->where('product_id', $id)
+                    ->where('branch_id', $branchId)
+                    ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+                    ->delete();
+
+                // 5. Update initial_stock on Product
+                $newInitial = max(0, (float) ($product->initial_stock ?? 0) - $openingMovementQty);
+                $product->update([
+                    'initial_stock' => $newInitial,
+                ]);
+            });
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Opening stock for "' . $product->item_name . '" has been deleted successfully.',
+                ]);
+            }
+
+            return redirect()->route('opening.stocks.index')->with('success', 'Opening stock for "' . $product->item_name . '" deleted successfully.');
+
+        } catch (\Exception $e) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['error' => 'Delete failed: ' . $e->getMessage()], 500);
+            }
+            return back()->with('error', 'Delete failed: ' . $e->getMessage());
         }
     }
 

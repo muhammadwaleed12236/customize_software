@@ -3,356 +3,627 @@
 @section('content')
 
 <style>
+    /* Reset & Base Styles - Pure Black High-Contrast POS Thermal */
     * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+        color: #000000 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
     body {
-        font-family: 'Courier New', monospace;
-        background: #f1f3f5;
-        font-size: 12px;
-        color: #000;
+        font-family: 'Courier New', Courier, 'Lucida Console', Monaco, monospace;
+        background: #eef2f5;
+        font-size: 11px;
+        line-height: 1.25;
+        color: #000000 !important;
+        font-weight: 600;
     }
 
+    /* Thermal Receipt Container (80mm) */
     .thermal-receipt {
         width: 80mm;
         max-width: 80mm;
-        margin: 20px auto;
-        background: #fff;
-        padding: 5mm;
-        border: 1px solid #ddd;
+        margin: 20px auto 40px auto;
+        background: #ffffff;
+        padding: 5mm 4mm;
+        border: 2px solid #000000;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        font-size: 11px;
     }
 
-    .header {
-        text-align: center;
-        border-bottom: 2px solid #000;
-        padding-bottom: 5px;
-        margin-bottom: 8px;
-    }
-
-    .header-title {
-        font-weight: bold;
-        font-size: 14px;
-        letter-spacing: 1px;
-    }
-
-    .header-subtitle {
-        font-size: 10px;
-        color: #333;
-    }
-
-    .company-name {
-        font-weight: bold;
-        font-size: 12px;
-        margin: 3px 0;
-    }
-
-    .company-details {
-        font-size: 9px;
-        line-height: 1.3;
-        color: #555;
-    }
-
-    .info-section {
-        border-bottom: 1px dashed #000;
-        padding: 5px 0;
-        margin: 5px 0;
-        font-size: 10px;
-    }
-
-    .info-row {
+    /* Top Action Bar (Screen Only) */
+    .receipt-action-bar {
+        width: 80mm;
+        max-width: 80mm;
+        margin: 15px auto 5px auto;
         display: flex;
         justify-content: space-between;
-        margin-bottom: 2px;
-        word-break: break-word;
+        align-items: center;
+        gap: 8px;
     }
 
-    .info-label {
-        font-weight: bold;
-        width: 45%;
+    .btn-thermal-print {
+        background: #000000 !important;
+        color: #ffffff !important;
+        border: 2px solid #000000 !important;
+        font-weight: 800 !important;
+        font-size: 13px !important;
+        padding: 8px 16px !important;
+        border-radius: 4px;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        text-transform: uppercase;
+        flex: 1;
+        justify-content: center;
     }
 
-    .info-value {
-        width: 55%;
-        text-align: right;
+    .btn-thermal-print * {
+        color: #ffffff !important;
     }
 
-    /* Items Table */
-    .items-section {
-        border-bottom: 1px dashed #000;
-        padding: 5px 0;
+    .btn-thermal-print:hover {
+        background: #222222 !important;
+        color: #ffffff !important;
+    }
+
+    .btn-thermal-close {
+        background: #ffffff !important;
+        color: #000000 !important;
+        border: 2px solid #000000 !important;
+        font-weight: 800 !important;
+        font-size: 13px !important;
+        padding: 8px 16px !important;
+        border-radius: 4px;
+        cursor: pointer;
+        text-transform: uppercase;
+    }
+
+    /* Dotted & Solid Separators */
+    .border-dotted-sep {
+        border: none;
+        border-top: 1px dotted #000000;
+        margin: 4px 0;
+    }
+
+    .border-dashed-sep {
+        border: none;
+        border-top: 1px dashed #000000;
         margin: 5px 0;
     }
 
-    .items-header {
-        display: grid;
-        grid-template-columns: 35% 12% 18% 18%;
-        gap: 2px;
-        border-bottom: 1px solid #000;
-        font-weight: bold;
-        font-size: 8px;
-        padding: 2px 0;
-        margin-bottom: 3px;
+    .border-double-sep {
+        border: none;
+        border-top: 3px double #000000;
+        margin: 6px 0;
     }
 
-    .item-row {
-        display: grid;
-        grid-template-columns: 35% 12% 18% 18%;
-        gap: 2px;
-        font-size: 9px;
-        padding: 2px 0;
-        border-bottom: 1px dotted #ccc;
+    .border-solid-thick {
+        border: none;
+        border-top: 2px solid #000000;
+        margin: 5px 0;
     }
 
-    .item-name {
-        word-break: break-word;
+    /* Header Section */
+    .receipt-header {
+        text-align: center;
+        padding-bottom: 4px;
+    }
+
+    .receipt-company-title {
+        font-size: 16px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+        line-height: 1.15;
+    }
+
+    .receipt-tagline {
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+        margin-bottom: 2px;
+    }
+
+    .receipt-contact {
+        font-size: 10px;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    /* Invoice Title Banner */
+    .receipt-banner {
+        text-align: center;
+        margin: 4px 0;
+        padding: 3px 0;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        border-top: 1px dashed #000000;
+        border-bottom: 1px dashed #000000;
+    }
+
+    /* Key-Value Details Rows */
+    .kv-table {
+        width: 100%;
+        margin: 4px 0;
+        border-collapse: collapse;
+    }
+
+    .kv-table td {
+        padding: 1.5px 0;
+        vertical-align: top;
+        font-size: 10.5px;
+    }
+
+    .kv-label {
+        font-weight: 800;
+        width: 32%;
         text-align: left;
     }
 
-    .item-qty,
-    .item-rate,
-    .item-amount {
+    .kv-value {
+        font-weight: 700;
+        width: 68%;
+        text-align: right;
+        word-break: break-word;
+    }
+
+    /* Items Table */
+    .receipt-items-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 4px 0;
+        table-layout: fixed;
+    }
+
+    .receipt-items-table th {
+        font-weight: 900;
+        font-size: 9.5px;
+        text-transform: uppercase;
+        padding: 3px 0;
+        border-top: 1px dashed #000000;
+        border-bottom: 1px dashed #000000;
+    }
+
+    .receipt-items-table td {
+        padding: 3px 0;
+        font-size: 10.5px;
+        vertical-align: top;
+    }
+
+    .receipt-items-table tbody tr {
+        border-bottom: 1px dotted #000000;
+    }
+
+    .receipt-items-table tbody tr:last-child {
+        border-bottom: none;
+    }
+
+    .col-sr {
+        width: 7%;
+        text-align: left;
+    }
+
+    .col-desc {
+        width: 45%;
+        text-align: left;
+        padding-right: 2px;
+    }
+
+    .col-qty {
+        width: 14%;
         text-align: right;
     }
 
-    /* Totals Section */
-    .totals-section {
-        border-bottom: 2px solid #000;
-        padding: 5px 0;
-        margin: 5px 0;
+    .col-rate {
+        width: 16%;
+        text-align: right;
+    }
+
+    .col-amt {
+        width: 18%;
+        text-align: right;
+    }
+
+    .item-primary-name {
+        font-weight: 800;
+        line-height: 1.15;
+    }
+
+    .item-secondary-info {
+        font-size: 9px;
+        font-weight: 700;
+        margin-top: 1px;
+    }
+
+    /* Summary & Totals */
+    .receipt-totals-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 4px 0;
+    }
+
+    .receipt-totals-table td {
+        padding: 2px 0;
+        font-size: 11px;
+    }
+
+    .total-title {
+        font-weight: 800;
+        text-align: left;
+    }
+
+    .total-amt {
+        font-weight: 800;
+        text-align: right;
+        white-space: nowrap;
+    }
+
+    /* Grand Payable Box */
+    .grand-payable-row {
+        border-top: 2px solid #000000;
+        border-bottom: 2px solid #000000;
+    }
+
+    .grand-payable-row td {
+        padding: 4px 0 !important;
+        font-size: 13px !important;
+        font-weight: 900 !important;
+    }
+
+    /* Closing Balance Box */
+    .closing-balance-row {
+        border-top: 2px dashed #000000;
+        border-bottom: 2px solid #000000;
+    }
+
+    .closing-balance-row td {
+        padding: 4px 0 !important;
+        font-size: 12.5px !important;
+        font-weight: 900 !important;
+    }
+
+    /* Footer Section */
+    .receipt-footer {
+        text-align: center;
+        margin-top: 6px;
+        padding-top: 4px;
+        border-top: 1px dashed #000000;
         font-size: 10px;
     }
 
-    .total-row {
-        display: flex;
-        justify-content: space-between;
-        padding: 3px 0;
+    .thank-you-title {
+        font-size: 11.5px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+        margin-bottom: 2px;
+        text-transform: uppercase;
     }
 
-    .total-label {
-        font-weight: bold;
-    }
-
-    .total-value {
-        text-align: right;
-        min-width: 50px;
-    }
-
-    .grand-total {
-        font-weight: bold;
-        font-size: 12px;
-        border-top: 1px solid #000;
-        padding-top: 3px;
-        color: #d32f2f;
-    }
-
-    .footer {
-        text-align: center;
+    .policy-note {
         font-size: 9px;
-        margin-top: 10px;
-        color: #666;
-        border-top: 1px dashed #000;
-        padding-top: 5px;
+        font-weight: 700;
+        line-height: 1.25;
+        margin: 3px 0;
     }
 
-    .thank-you {
+    .barcode-section {
+        margin: 5px 0 2px 0;
         text-align: center;
-        font-weight: bold;
-        margin: 5px 0;
     }
 
+    .barcode-text {
+        font-family: 'Courier New', monospace;
+        letter-spacing: 2px;
+        font-size: 12px;
+        font-weight: 900;
+    }
+
+    .timestamp-note {
+        font-size: 8.5px;
+        font-weight: 700;
+        margin-top: 3px;
+    }
+
+    /* PRINT SPECIFIC STYLES */
     @media print {
-        body {
-            background: #fff;
+        html, body {
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 80mm !important;
         }
-        .no-print {
+
+        .no-print,
+        .receipt-action-bar,
+        .navbar,
+        .app-header,
+        .sidebar,
+        .main-header,
+        .main-sidebar,
+        footer,
+        .footer {
             display: none !important;
         }
+
+        .content-wrapper,
+        .main-content,
+        .container-fluid,
+        .container {
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+        }
+
         .thermal-receipt {
-            box-shadow: none;
-            border: none;
-            margin: 0;
-            padding: 0;
-            width: 80mm;
+            border: none !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            padding: 2mm 3mm !important;
+            width: 80mm !important;
+            max-width: 80mm !important;
+        }
+
+        @page {
+            size: 80mm auto;
+            margin: 0mm;
         }
     }
 </style>
 
-<div class="container-fluid mt-4">
-    <div class="text-end mb-3 no-print">
-        <button onclick="window.print()" class="btn btn-dark">
-            🖨️ Print Thermal
+<div class="container-fluid p-0">
+    <!-- Screen-Only Action Bar -->
+    <div class="receipt-action-bar no-print">
+        <button onclick="window.print()" class="btn-thermal-print">
+            <i class="fas fa-print"></i> Print Thermal Receipt
         </button>
-        <button onclick="window.close()" class="btn btn-secondary ms-2">
-            ❌ Close
+        <button onclick="window.close()" class="btn-thermal-close">
+            Close
         </button>
     </div>
 
+    <!-- Thermal Receipt Card -->
     <div class="thermal-receipt">
-        {{-- HEADER --}}
-        <div class="header">
-            <div class="header-title">SALE INVOICE</div>
-            <div class="company-name">{{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}</div>
-            <div class="company-details">
-                Electronics & Home Appliances<br>
-                Lahore<br>
-                0300-0000000
-            </div>
-        </div>
-
-        {{-- INVOICE INFO --}}
-        <div class="info-section">
-            <div class="info-row">
-                <span class="info-label">Invoice #:</span>
-                <span class="info-value">{{ $sale->invoice_no }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Date:</span>
-                <span class="info-value">{{ $sale->created_at ? $sale->created_at->format('d-m-Y H:i') : date('d-m-Y H:i') }}</span>
-            </div>
-        </div>
-
-        {{-- CUSTOMER INFO --}}
-        <div class="info-section">
-            <div class="info-row">
-                <span class="info-label">Customer:</span>
-                <span class="info-value">{{ optional($sale->customer)->customer_name ?? $sale->sub_customer ?? 'N/A' }}</span>
-            </div>
-            <div class="info-row">
-                <span class="info-label">Type:</span>
-                <span class="info-value">{{ strtoupper($sale->party_type ?? 'CASH') }}</span>
-            </div>
-            @php $mobile = optional($sale->customer)->mobile_2 ?? $sale->tel ?? '-'; @endphp
-            <div class="info-row">
-                <span class="info-label">Mobile:</span>
-                <span class="info-value">{{ $mobile }}</span>
-            </div>
-        </div>
-
-        {{-- ITEMS --}}
-        <div class="items-section">
-            <div class="items-header">
-                <div class="item-name">ITEM</div>
-                <div class="item-qty">QTY</div>
-                <div class="item-rate">RATE</div>
-                <div class="item-amount">AMOUNT</div>
-            </div>
-
-            @foreach($sale->saleItems as $item)
-            @php
-                $rawUrdu = $item->product->item_name_urdu ?? $item->product->urdu_name ?? null;
-                $productUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
-                $productName = !empty($productUrdu) ? $productUrdu : ($item->product->item_name ?? $item->product->product_name ?? 'N/A');
-            @endphp
-            <div class="item-row">
-                <div class="item-name">
-                    {{ $productName }}
-                </div>
-                <div class="item-qty">{{ number_format($item->sales_qty ?? 0, 2) }}</div>
-                <div class="item-rate">{{ number_format($item->retail_price ?? $item->sales_price ?? 0, 2) }}</div>
-                <div class="item-amount">{{ number_format($item->amount ?? 0, 2) }}</div>
-            </div>
-            @endforeach
-        </div>
-
-        {{-- TOTALS --}}
-        <div class="totals-section">
-            @php
-                $subTotal = (float)($sale->sub_total1 ?? $sale->sub_total2 ?? 0);
-                $discountAmount = (float)($sale->discount_amount ?? 0);
-                $netTotal = $subTotal - $discountAmount;
-                $payableAmount = $netTotal;
-
-                // Get receipts from receipt vouchers for this invoice
-                $totalReceived = 0;
-                if(isset($sale) && isset($sale->invoice_no)){
-                    $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $sale->invoice_no)
-                        ->where('type', 'SALE_RECEIPT')
-                        ->get();
-                    $totalReceived = $receipts->sum('amount');
-                }
-                
-                // Get customer ledger data
-                $displayPrevious = 0;
-                $displayClosing = 0;
-                $isCreditCustomer = ($sale->party_type ?? '') === 'credit';
-                
-                if($isCreditCustomer && isset($sale->customer)){
-                    $ledgerData = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
-                        ->latest('id')
-                        ->first();
-                    
-                    if($ledgerData){
-                        $displayPrevious = floatval($ledgerData->previous_balance ?? 0);
-                        $displayClosing = floatval($ledgerData->closing_balance ?? 0);
-                    } else {
-                        $displayPrevious = floatval($sale->customer->opening_balance ?? 0);
-                        $displayClosing = $payableAmount - $totalReceived + $displayPrevious;
-                    }
-                } else {
-                    $displayClosing = $payableAmount - $totalReceived + $displayPrevious;
-                }
-            @endphp
-
-            <div class="total-row">
-                <span class="total-label">Sub Total:</span>
-                <span class="total-value">{{ number_format($subTotal, 2) }}</span>
-            </div>
-
-            @if($discountAmount > 0)
-            <div class="total-row">
-                <span class="total-label">Discount:</span>
-                <span class="total-value">-{{ number_format($discountAmount, 2) }}</span>
-            </div>
-            @endif
-
-            @if(($sale->additional_discount ?? 0) > 0)
-            <div class="total-row">
-                <span class="total-label">Add Discount:</span>
-                <span class="total-value">{{ number_format($sale->additional_discount ?? 0, 2) }}</span>
-            </div>
-            @endif
-
-            @if(($sale->extra_charges ?? 0) > 0)
-            <div class="total-row">
-                <span class="total-label">Extra Charges:</span>
-                <span class="total-value">{{ number_format($sale->extra_charges ?? 0, 2) }}</span>
-            </div>
-            @endif
-
-            <div class="total-row grand-total">
-                <span class="total-label">💰 TOTAL PAYABLE:</span>
-                <span class="total-value">{{ number_format($payableAmount, 2) }}</span>
-            </div>
-
-            @if($sale->party_type == 'credit')
-                @if($totalReceived > 0)
-                <div class="total-row">
-                    <span class="total-label">Received:</span>
-                    <span class="total-value">-{{ number_format($totalReceived, 2) }}</span>
-                </div>
+        {{-- 1. BUSINESS HEADER --}}
+        <div class="receipt-header">
+            <div class="receipt-company-title">{{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}</div>
+            <div class="receipt-tagline">Electronics & Home Appliances</div>
+            <div class="receipt-contact">
+                @if(!empty($branch->address))
+                    {{ $branch->address }}<br>
+                @else
+                    17th-Brandreth Road, Lahore<br>
                 @endif
-
-                <div class="total-row">
-                    <span class="total-label">Prev Balance:</span>
-                    <span class="total-value">{{ number_format($displayPrevious, 2) }}</span>
-                </div>
-
-                <div class="total-row grand-total">
-                    <span class="total-label">CLOSING BAL:</span>
-                    <span class="total-value">{{ number_format($displayClosing, 2) }}</span>
-                </div>
-            @endif
+                @if(!empty($branch->mobile) || !empty($branch->phone))
+                    Tel: {{ $branch->mobile ?? $branch->phone }}
+                @else
+                    Mob: 0300-4235114 / 042-37635383
+                @endif
+            </div>
         </div>
 
-        {{-- FOOTER --}}
-        <div class="footer">
-            <div class="thank-you">Thank You!</div>
-            <div>Please visit again</div>
-            <div style="margin-top: 5px; font-size: 8px;">
-                Printed: {{ now()->format('d-m-Y H:i:s') }}
+        {{-- 2. RECEIPT TYPE BANNER --}}
+        <div class="receipt-banner">
+            *** SALE INVOICE ***
+        </div>
+
+        {{-- 3. INVOICE META DETAILS --}}
+        <table class="kv-table">
+            <tr>
+                <td class="kv-label">INVOICE #:</td>
+                <td class="kv-value" style="font-size: 12px; font-weight: 900;">{{ $sale->invoice_no }}</td>
+            </tr>
+            <tr>
+                <td class="kv-label">DATE & TIME:</td>
+                <td class="kv-value">{{ $sale->created_at ? $sale->created_at->format('d-m-Y h:i A') : date('d-m-Y h:i A') }}</td>
+            </tr>
+            <tr>
+                <td class="kv-label">CUSTOMER:</td>
+                <td class="kv-value">
+                    @php
+                        $custName = optional($sale->customer)->customer_name ?? $sale->sub_customer ?? 'Walking Customer';
+                    @endphp
+                    <strong>{{ strtoupper($custName) }}</strong>
+                </td>
+            </tr>
+            @php 
+                $mobileNo = optional($sale->customer)->mobile_2 ?? optional($sale->customer)->mobile ?? $sale->tel ?? '';
+            @endphp
+            @if(!empty(trim($mobileNo)))
+            <tr>
+                <td class="kv-label">PHONE:</td>
+                <td class="kv-value">{{ $mobileNo }}</td>
+            </tr>
+            @endif
+            <tr>
+                <td class="kv-label">PAY TYPE:</td>
+                <td class="kv-value" style="font-weight: 900;">
+                    {{ strtoupper($sale->party_type ?? 'CASH') }}
+                </td>
+            </tr>
+            @if(!empty($sale->remarks))
+            <tr>
+                <td class="kv-label">NOTE:</td>
+                <td class="kv-value">{{ $sale->remarks }}</td>
+            </tr>
+            @endif
+        </table>
+
+        {{-- 4. ITEMS TABLE --}}
+        <table class="receipt-items-table">
+            <thead>
+                <tr>
+                    <th class="col-sr">#</th>
+                    <th class="col-desc">ITEM</th>
+                    <th class="col-qty">QTY</th>
+                    <th class="col-rate">RATE</th>
+                    <th class="col-amt">TOTAL</th>
+                </tr>
+            </thead>
+            <tbody>
+                @php
+                    $totalQtyCounter = 0;
+                @endphp
+                @foreach($sale->saleItems as $idx => $item)
+                @php
+                    $totalQtyCounter += (float)($item->sales_qty ?? 0);
+                    $engName = $item->product->item_name ?? $item->product->product_name ?? 'Item';
+                    $rawUrdu = $item->product->item_name_urdu ?? $item->product->urdu_name ?? null;
+                    $hasUrdu = !empty(trim($rawUrdu ?? ''));
+                    $itemDisc = (float)($item->discount_amount ?? 0);
+                @endphp
+                <tr>
+                    <td class="col-sr">{{ $idx + 1 }}</td>
+                    <td class="col-desc">
+                        <div class="item-primary-name">{{ $engName }}</div>
+                        @if($hasUrdu)
+                            <div class="item-secondary-info" style="direction: rtl; text-align: left;">{{ trim($rawUrdu) }}</div>
+                        @endif
+                        @if($itemDisc > 0)
+                            <div class="item-secondary-info">Disc: -{{ number_format($itemDisc, 2) }}</div>
+                        @endif
+                    </td>
+                    <td class="col-qty">{{ number_format($item->sales_qty ?? 0, 0) }}</td>
+                    <td class="col-rate">{{ number_format($item->retail_price ?? $item->sales_price ?? 0, 2) }}</td>
+                    <td class="col-amt">{{ number_format($item->amount ?? 0, 2) }}</td>
+                </tr>
+                @endforeach
+            </tbody>
+        </table>
+
+        {{-- ITEMS SUMMARY STRIP --}}
+        <div style="display: flex; justify-content: space-between; font-size: 10px; font-weight: 800; padding: 2px 0; border-top: 1px dotted #000000; border-bottom: 1px dashed #000000;">
+            <span>TOTAL ITEMS: {{ count($sale->saleItems) }}</span>
+            <span>TOTAL PCS: {{ number_format($totalQtyCounter, 0) }}</span>
+        </div>
+
+        {{-- 5. TOTALS & CALCULATIONS --}}
+        @php
+            $subTotal = (float)($sale->sub_total1 ?? $sale->sub_total2 ?? 0);
+            $lineDiscount = (float)($sale->discount_amount ?? 0);
+            $extraDiscount = (float)($sale->additional_discount ?? 0);
+            $extraCharges = (float)($sale->extra_charges ?? 0);
+            
+            $netPayable = (float)($sale->sub_total2 ?? ($subTotal - $lineDiscount - $extraDiscount + $extraCharges));
+
+            // Received from vouchers or sale
+            $totalReceived = 0;
+            if(isset($sale) && isset($sale->invoice_no)){
+                $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+                    ->where('type', 'SALE_RECEIPT')
+                    ->get();
+                $totalReceived = (float)$receipts->sum('amount');
+            }
+            if($totalReceived == 0 && isset($sale->receipt1)){
+                $totalReceived = (float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0);
+            }
+
+            // Customer ledger calculations for credit customers
+            $displayPrevious = 0;
+            $displayClosing = 0;
+            $isCreditCustomer = strtolower($sale->party_type ?? '') === 'credit';
+            
+            if($isCreditCustomer && isset($sale->customer)){
+                $ledgerData = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
+                    ->latest('id')
+                    ->first();
+                
+                if($ledgerData){
+                    $displayPrevious = floatval($ledgerData->previous_balance ?? 0);
+                    $displayClosing = floatval($ledgerData->closing_balance ?? 0);
+                } else {
+                    $displayPrevious = floatval($sale->customer->opening_balance ?? 0);
+                    $displayClosing = $netPayable - $totalReceived + $displayPrevious;
+                }
+            } else {
+                $displayClosing = $netPayable - $totalReceived;
+            }
+        @endphp
+
+        <table class="receipt-totals-table">
+            <tr>
+                <td class="total-title">SUB TOTAL (GROSS):</td>
+                <td class="total-amt">Rs. {{ number_format($subTotal, 2) }}</td>
+            </tr>
+
+            @if($lineDiscount > 0)
+            <tr>
+                <td class="total-title">ITEM DISCOUNT:</td>
+                <td class="total-amt">- Rs. {{ number_format($lineDiscount, 2) }}</td>
+            </tr>
+            @endif
+
+            @if($extraDiscount > 0)
+            <tr>
+                <td class="total-title">EXTRA DISCOUNT:</td>
+                <td class="total-amt">- Rs. {{ number_format($extraDiscount, 2) }}</td>
+            </tr>
+            @endif
+
+            @if($extraCharges > 0)
+            <tr>
+                <td class="total-title">EXTRA CHARGES:</td>
+                <td class="total-amt">+ Rs. {{ number_format($extraCharges, 2) }}</td>
+            </tr>
+            @endif
+
+            {{-- NET PAYABLE ROW --}}
+            <tr class="grand-payable-row">
+                <td class="total-title" style="letter-spacing: 0.5px;">NET TOTAL PAYABLE:</td>
+                <td class="total-amt">Rs. {{ number_format($netPayable, 2) }}</td>
+            </tr>
+
+            @if($totalReceived > 0)
+            <tr>
+                <td class="total-title" style="padding-top: 3px;">AMOUNT PAID / RCVD:</td>
+                <td class="total-amt" style="padding-top: 3px;">Rs. {{ number_format($totalReceived, 2) }}</td>
+            </tr>
+            @if(!$isCreditCustomer && ($totalReceived > $netPayable))
+            <tr>
+                <td class="total-title">CHANGE RETURN:</td>
+                <td class="total-amt">Rs. {{ number_format($totalReceived - $netPayable, 2) }}</td>
+            </tr>
+            @endif
+            @endif
+
+            {{-- CREDIT LEDGER DETAILS --}}
+            @if($isCreditCustomer)
+            <tr>
+                <td class="total-title" style="padding-top: 3px;">PREVIOUS BALANCE:</td>
+                <td class="total-amt" style="padding-top: 3px;">Rs. {{ number_format($displayPrevious, 2) }}</td>
+            </tr>
+            <tr class="closing-balance-row">
+                <td class="total-title" style="letter-spacing: 0.5px;">NET CLOSING BALANCE:</td>
+                <td class="total-amt">Rs. {{ number_format($displayClosing, 2) }}</td>
+            </tr>
+            @endif
+        </table>
+
+        {{-- 6. BARCODE SECTION --}}
+        <div class="barcode-section">
+            <div class="border-dotted-sep"></div>
+            <div class="barcode-text">*{{ $sale->invoice_no }}*</div>
+            <div class="border-dotted-sep"></div>
+        </div>
+
+        {{-- 7. FOOTER & POLICIES --}}
+        <div class="receipt-footer">
+            <div class="thank-you-title">*** THANK YOU FOR YOUR VISIT! ***</div>
+            <div class="policy-note">
+                • Please check items and warranty before leaving.<br>
+                • Goods once sold can be exchanged within 3 days with bill.<br>
+                • Warranty claims as per manufacturer policy.
+            </div>
+            <div class="timestamp-note">
+                Printed: {{ now()->format('d-m-Y h:i:s A') }} | POS v2.0
             </div>
         </div>
     </div>
