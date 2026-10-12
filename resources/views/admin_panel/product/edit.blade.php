@@ -6,95 +6,144 @@
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@500;600;700&family=Noto+Sans+Arabic:wght@500;600;700&display=swap');
 
-            /* Urdu Input Styling - Large Legible Font */
+            /* Urdu Input Styling - Compact yet Legible */
             .urdu-input, #item_name_urdu, input[name="item_name_urdu"] {
                 direction: rtl !important;
                 font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Segoe UI', 'Tahoma', sans-serif !important;
-                font-size: 18px !important;
+                font-size: 14.5px !important;
                 font-weight: 600 !important;
-                height: 44px !important;
-                line-height: 1.6 !important;
-                padding: 4px 12px !important;
+                height: 34px !important;
+                line-height: 1.4 !important;
+                padding: 2px 10px !important;
                 color: #0f172a !important;
             }
             .urdu-label {
                 font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', sans-serif !important;
-                font-size: 14px !important;
+                font-size: 12.5px !important;
                 font-weight: 700 !important;
             }
 
-            /* Layout Matching Product Create Screen */
-            .main-content-inner { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-            .form-section { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
-            .image-col { width: 240px; flex-shrink: 0; }
+            /* Compact Scroll-Free Layout */
+            .main-content-inner { background: #fff; padding: 14px 20px; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+            .form-section { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+            .image-col { width: 190px; flex-shrink: 0; }
             .fields-col { flex: 1; min-width: 0; }
             
             /* Field Styling */
-            .field-group { margin-bottom: 16px; flex: 1; min-width: 0; }
-            .field-label { display: block; font-weight: 600; color: #334155; margin-bottom: 6px; font-size: 13px; }
-            .field-label i { color: #2563eb; margin-right: 5px; }
+            .field-group { margin-bottom: 0px; flex: 1; min-width: 0; }
+            .field-label { display: block; font-weight: 600; color: #334155; margin-bottom: 3px; font-size: 11.5px; line-height: 1.2; }
+            .field-label i { color: #2563eb; margin-right: 4px; }
             
             .custom-input, .custom-select {
                 width: 100%;
                 border: 1px solid #cbd5e1 !important;
                 border-radius: 6px;
-                padding: 6px 12px;
-                height: 38px;
-                font-size: 13px;
+                padding: 4px 10px;
+                height: 34px;
+                font-size: 12.5px;
                 background-color: #fff;
                 transition: all 0.2s;
             }
-            .custom-input:focus, .custom-select:focus { border-color: #2563eb !important; outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+            .custom-input:focus, .custom-select:focus { border-color: #2563eb !important; outline: none; box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1); }
             
+            /* Grouped Currency Input (Seamless Rs. + input) */
+            .input-group-currency, .input-group {
+                display: flex !important;
+                flex-wrap: nowrap !important;
+                align-items: stretch !important;
+                width: 100% !important;
+                position: relative !important;
+            }
+            .input-group-currency .currency-addon, .input-group > .input-group-text {
+                display: inline-flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                background: #f1f5f9 !important;
+                color: #334155 !important;
+                font-weight: 700 !important;
+                font-size: 12px !important;
+                padding: 0 10px !important;
+                border: 1px solid #cbd5e1 !important;
+                border-right: none !important;
+                border-radius: 6px 0 0 6px !important;
+                white-space: nowrap !important;
+                user-select: none !important;
+                height: 34px !important;
+                flex-shrink: 0 !important;
+                box-sizing: border-box !important;
+            }
+            .input-group-currency .custom-input, .input-group > .custom-input {
+                flex: 1 1 auto !important;
+                width: 1% !important;
+                min-width: 0 !important;
+                border-top-left-radius: 0 !important;
+                border-bottom-left-radius: 0 !important;
+                height: 34px !important;
+                box-sizing: border-box !important;
+            }
+            .input-group-currency:focus-within .currency-addon, .input-group:focus-within > .input-group-text {
+                border-color: #2563eb !important;
+                color: #2563eb !important;
+                background: #eff6ff !important;
+            }
+            .input-group-currency:focus-within .custom-input, .input-group:focus-within > .custom-input {
+                border-color: #2563eb !important;
+            }
+
             /* Action Buttons (+ and Gen) */
             .btn-plus-sm, .btn-plus-inline { 
-                background: #2563eb; color: #fff; border: none; width: 36px; height: 38px; 
+                background: #2563eb; color: #fff; border: none; width: 32px; height: 34px; 
                 border-radius: 0 6px 6px 0 !important; display: flex; align-items: center; justify-content: center; 
-                cursor: pointer; font-size: 15px; font-weight: bold; flex-shrink: 0; transition: 0.2s; margin: 0 !important;
+                cursor: pointer; font-size: 14px; font-weight: bold; flex-shrink: 0; transition: 0.2s; margin: 0 !important;
             }
             .btn-plus-sm:hover, .btn-plus-inline:hover { background: #1d4ed8; }
             
             .btn-gen { 
-                background: #2563eb; color: #fff; border: none; padding: 0 14px; 
-                border-radius: 0 6px 6px 0 !important; height: 38px; cursor: pointer; font-size: 12px;
+                background: #2563eb; color: #fff; border: none; padding: 0 12px; 
+                border-radius: 0 6px 6px 0 !important; height: 34px; cursor: pointer; font-size: 11.5px;
                 transition: 0.2s; font-weight: 600; flex-shrink: 0;
             }
             .btn-gen:hover { background: #1d4ed8; }
             
             /* Row Layout */
-            .field-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 0; }
+            .field-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 14px; margin-bottom: 0; }
             
             /* Image Preview Area */
             .image-box { 
-                width: 100%; height: 220px; background: #f8fafc; 
-                border: 1px solid #e2e8f0; border-radius: 12px; 
+                width: 100%; height: 140px; background: #f8fafc; 
+                border: 1px solid #e2e8f0; border-radius: 8px; 
                 position: relative; overflow: hidden; display: flex; 
-                align-items: center; justify-content: center; margin-bottom: 12px;
+                align-items: center; justify-content: center; margin-bottom: 8px;
                 box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
             }
             #preview { max-width: 90%; max-height: 90%; object-fit: contain; }
             .close-img { 
-                position: absolute; top: 10px; right: 10px; background: rgba(15, 23, 42, 0.7); 
-                color: #fff; width: 26px; height: 26px; border-radius: 50%; 
+                position: absolute; top: 6px; right: 6px; background: rgba(15, 23, 42, 0.7); 
+                color: #fff; width: 22px; height: 22px; border-radius: 50%; 
                 display: flex; align-items: center; justify-content: center; cursor: pointer; border: none;
-                transition: 0.2s; font-size: 14px;
+                transition: 0.2s; font-size: 12px;
             }
             .close-img:hover { background: #ef4444; }
 
             /* Select2 Customization */
             .select2-container { width: 100% !important; }
-            .select2-container--default .select2-selection--multiple { border: 1px solid #cbd5e1 !important; min-height: 38px; border-radius: 6px; }
+            .select2-container--default .select2-selection--multiple { border: 1px solid #cbd5e1 !important; min-height: 34px; border-radius: 6px; padding: 1px 5px; }
             .select2-container--default.select2-container--focus .select2-selection--multiple { border-color: #2563eb !important; }
-            .select2-container--default .select2-selection--multiple { position: relative; padding-right: 30px; }
+            .select2-container--default .select2-selection--multiple { position: relative; padding-right: 25px; }
             .select2-container--default .select2-selection--multiple::after {
                 content: "\f107"; font-family: "Line Awesome Free"; font-weight: 900;
-                position: absolute; top: 50%; right: 10px; transform: translateY(-50%);
-                color: #888; pointer-events: none;
+                position: absolute; top: 50%; right: 8px; transform: translateY(-50%);
+                color: #888; pointer-events: none; font-size: 11px;
+            }
+            .select2-container--default .select2-selection--multiple .select2-selection__choice {
+                margin-top: 3px !important;
+                padding: 1px 6px !important;
+                font-size: 11px !important;
             }
 
             .btn-save-main {
                 background: #2563eb; color: #fff; border: none;
-                border-radius: 6px; font-weight: 700; font-size: 14px; 
+                border-radius: 6px; font-weight: 700; font-size: 13px; 
                 cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
                 display: flex; align-items: center; justify-content: center;
             }
@@ -102,31 +151,31 @@
 
             /* Mobile Responsiveness */
             @media (max-width: 1200px) {
-                .field-row { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+                .field-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
             }
             @media (max-width: 768px) {
-                .main-content-inner { padding: 15px; }
-                .form-section { flex-direction: column; gap: 20px; }
+                .main-content-inner { padding: 12px; }
+                .form-section { flex-direction: column; gap: 14px; }
                 .image-col { width: 100%; flex-shrink: 1; }
-                .image-box { height: 200px; }
+                .image-box { height: 160px; }
                 .fields-col { width: 100%; min-width: 100%; }
-                .field-row { grid-template-columns: 1fr; gap: 12px; }
-                .btn-save-main { width: 100%; height: 42px !important; }
+                .field-row { grid-template-columns: 1fr; gap: 10px; }
+                .btn-save-main { width: 100%; height: 38px !important; }
             }
             @media (max-width: 480px) {
                 .main-content-inner { padding: 10px; }
-                .field-label { font-size: 12.5px; margin-bottom: 4px; }
-                .custom-input, .custom-select { font-size: 12.5px; height: 36px; }
-                .btn-plus-inline, .btn-gen { height: 36px; width: 34px; }
+                .field-label { font-size: 11.5px; margin-bottom: 2px; }
+                .custom-input, .custom-select { font-size: 12px; height: 32px; }
+                .btn-plus-inline, .btn-gen { height: 32px; width: 30px; }
             }
         </style>
         @endsection
 
         <div class="main-content">
             <div class="main-content-inner">
-                <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3">
-                    <h5 class="m-0 font-weight-bold" style="color: #1e293b;">📋 Edit Product Profile</h5>
-                    <a href="{{ route('product') }}" class="btn btn-sm btn-outline-primary px-3">
+                <div class="d-flex justify-content-between align-items-center mb-2 border-bottom pb-2">
+                    <h6 class="m-0 font-weight-bold" style="color: #1e293b; font-size: 15px;">📋 Edit Product Profile</h6>
+                    <a href="{{ route('product') }}" class="btn btn-sm btn-outline-primary px-3 py-1" style="font-size: 12px;">
                         <i class="las la-arrow-left"></i> Back to List
                     </a>
                 </div>
@@ -153,8 +202,8 @@
                                 <button type="button" class="close-img" id="clearImageBtn" title="Remove Image">&times;</button>
                             </div>
                             <label class="field-label">Product Image</label>
-                            <input type="file" id="imageInput" name="image" class="custom-input mb-2" accept="image/*">
-                            <p class="small text-muted mb-0">📌 PNG/JPG up to 2MB</p>
+                            <input type="file" id="imageInput" name="image" class="custom-input mb-1" accept="image/*">
+                            <p class="text-muted mb-0" style="font-size: 11px;">📌 PNG/JPG up to 2MB</p>
                         </div>
 
                         <!-- Right: Fields Area -->
@@ -174,7 +223,7 @@
                                         <input type="text" class="custom-input bg-light" value="{{ $product->branch?->name ?? $branches->first()?->name ?? 'Default Branch' }}" readonly>
                                         <input type="hidden" name="branch_id" value="{{ $product->branch_id ?? 1 }}">
                                     @endif
-                                    <p class="text-danger mt-1 mb-0" style="font-size: 10.5px; line-height: 1.2;">📌 Select the branch this product belongs to</p>
+                                    <p class="text-danger mt-1 mb-0" style="font-size: 10px; line-height: 1.1;">📌 Select the branch this product belongs to</p>
                                 </div>
 
                                 <div class="field-group">
@@ -218,7 +267,7 @@
                             </div>
 
                             <!-- Row 2: Brand, Item Code, Barcode / SKU, Unit -->
-                            <div class="field-row mt-3">
+                            <div class="field-row mt-2">
                                 <div class="field-group">
                                     <label class="field-label">Brand</label>
                                     <div class="d-flex align-items-center">
@@ -263,14 +312,14 @@
                             @php
                                 $isCartonPrefill = ($product->pack_type === 'Customize' || ($product->piece_per_pack ?? 0) > 0);
                             @endphp
-                            <div id="packingDetailsBox" class="card p-3 my-3 shadow-sm" style="{{ $isCartonPrefill ? '' : 'display: none;' }} background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px;">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h6 class="font-weight-bold text-success m-0" style="font-size: 13.5px;">
+                            <div id="packingDetailsBox" class="card p-2 px-3 my-2 shadow-none" style="{{ $isCartonPrefill ? '' : 'display: none;' }} background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <h6 class="font-weight-bold text-success m-0" style="font-size: 12.5px;">
                                         <i class="fas fa-box-open mr-1"></i> 📦 Carton Packing Details (کارٹن / پیکنگ تفصیلات)
                                     </h6>
                                     <span class="badge badge-success px-2 py-1" style="font-size: 10px;">Carton Unit Enabled</span>
                                 </div>
-                                <div class="field-row" style="grid-template-columns: repeat(2, 1fr);">
+                                <div class="field-row" style="grid-template-columns: repeat(2, 1fr); gap: 10px;">
                                     <div class="field-group mb-0">
                                         <label class="field-label text-dark">Packing Type</label>
                                         <select name="packing_type" id="packing_type" class="custom-select">
@@ -287,7 +336,7 @@
                             </div>
 
                             <!-- Row 3: Item Description, Item Name (Urdu), Model, HS Code -->
-                            <div class="field-row mt-3">
+                            <div class="field-row mt-2">
                                 <div class="field-group">
                                     <label class="field-label">Item Description (English)</label>
                                     <input type="text" id="product_name" name="product_name" class="custom-input" value="{{ $product->item_name }}" placeholder="Product Name" required>
@@ -310,22 +359,22 @@
                             </div>
 
                             <!-- Row 4: Pricing & Stock Section -->
-                            <div class="card p-3 my-3" style="background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px;">
-                                <h6 class="font-weight-bold text-primary mb-3" style="font-size: 14px;"><i class="las la-tags me-1"></i> Pricing & Stock Details (قیمت اور اسٹاک)</h6>
+                            <div class="card p-2 px-3 my-2 shadow-none" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">
+                                <h6 class="font-weight-bold text-primary mb-2" style="font-size: 12.5px;"><i class="las la-tags me-1"></i> Pricing & Stock Details (قیمت اور اسٹاک)</h6>
                                 <div class="field-row">
                                     <div class="field-group mb-0">
                                         <label class="field-label">Wholesale Price (ہول سیل قیمت)</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light text-muted" style="border: 1px solid #cbd5e1; border-right: none; font-size: 12px; height: 38px;">Rs.</span>
-                                            <input type="number" step="0.01" min="0" name="wholesale_price" class="custom-input" value="{{ $product->wholesale_price ?? 0 }}" placeholder="0.00">
+                                        <div class="input-group-currency">
+                                            <span class="currency-addon">Rs.</span>
+                                            <input type="number" step="0.01" min="0" name="wholesale_price" class="custom-input fw-bold" value="{{ $product->wholesale_price ?? 0 }}" placeholder="0.00">
                                         </div>
                                     </div>
 
                                     <div class="field-group mb-0">
                                         <label class="field-label">Sale / Retail Price (ریٹیل قیمت)</label>
-                                        <div class="input-group">
-                                            <span class="input-group-text bg-light text-muted" style="border: 1px solid #cbd5e1; border-right: none; font-size: 12px; height: 38px;">Rs.</span>
-                                            <input type="number" step="0.01" min="0" name="price" class="custom-input" value="{{ $product->price ?? 0 }}" placeholder="0.00">
+                                        <div class="input-group-currency">
+                                            <span class="currency-addon">Rs.</span>
+                                            <input type="number" step="0.01" min="0" name="price" class="custom-input fw-bold" value="{{ $product->price ?? 0 }}" placeholder="0.00">
                                         </div>
                                     </div>
 
@@ -357,7 +406,7 @@
                                     }
                                 }
                             @endphp
-                            <div class="field-row mt-3 align-items-end">
+                            <div class="field-row mt-2 align-items-end">
                                 <div class="field-group mb-0">
                                     <label class="field-label">Color</label>
                                     <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
@@ -373,7 +422,7 @@
                                 </div>
 
                                 <div class="field-group mb-0" style="grid-column: span 3;">
-                                    <button type="submit" class="btn-save-main w-100" style="height: 40px; padding: 0; line-height: 40px;">
+                                    <button type="submit" class="btn-save-main w-100" style="height: 34px; padding: 0; line-height: 34px;">
                                         <i class="fas fa-save me-2"></i> UPDATE PRODUCT
                                     </button>
                                 </div>

@@ -26,28 +26,29 @@ public function store(Request $request)
         'category_id' => 'required',
     ]);
 
-   if ($validator->fails()) {
-
-    return redirect()->back()
-        ->withErrors($validator)
-        ->withInput()
-        ->with('catagory_swal_error', $validator->errors()->first());
-}
+    if ($validator->fails()) {
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'error' => $validator->errors()->first()
+            ], 422);
+        }
+        return redirect()->back()
+            ->withErrors($validator)
+            ->withInput()
+            ->with('catagory_swal_error', $validator->errors()->first());
+    }
 
     // UPDATE
     if ($request->filled('edit_id')) {
-
         $subcategory = Subcategory::find($request->edit_id);
-
         if (!$subcategory) {
             return response()->json([
                 'status' => 'error',
+                'error' => 'Record not found',
                 'message' => 'Record not found'
             ], 404);
         }
-
         $message = 'Subcategory Updated Successfully';
-
     }
     // CREATE
     else {
@@ -60,20 +61,19 @@ public function store(Request $request)
     $subcategory->save();
 
     // RESPONSE FOR ALERT
-       if ($request->page === 'product_edit') {
+    if ($request->page === 'product_edit') {
         return redirect()
             ->route('products.edit', $request->product_id)
             ->with('success', 'Subcategory added successfully');
+    } else if($request->page === 'product_page'){
+        return redirect()
+            ->route('store')
+            ->with('success', 'Subcategory added successfully');
+    }
 
-     }else if($request->page === 'product_page'){
-
-    
-    return redirect()
-        ->route('store')
-        ->with('success', 'Subctegory added successfully');
-}
     return response()->json([
         'status' => 'success',
+        'success' => $message,
         'message' => $message,
         'reload' => true
     ]);

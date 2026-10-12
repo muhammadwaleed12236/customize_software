@@ -23,13 +23,19 @@ class BrandController extends Controller
         'name' => 'required|unique:brands,name,' . $request->edit_id,
     ]);
 
-  if ($validator->fails()) {
-
-    return redirect()->back()
-        ->withErrors($validator)
-        ->withInput()
-        ->with('swal_error', $validator->errors()->first());
-}
+    if ($validator->fails()) {
+        if ($request->ajax()) {
+            return response()->json([
+                'status' => 'error',
+                'error' => $validator->errors()->first(),
+                'message' => $validator->errors()->first()
+            ], 422);
+        }
+        return redirect()->back()
+            ->withErrors($validator)
+            ->withInput()
+            ->with('swal_error', $validator->errors()->first());
+    }
 
 
     // UPDATE
@@ -72,6 +78,7 @@ class BrandController extends Controller
     // NORMAL RESPONSE
     return response()->json([
         'status' => 'success',
+        'success' => $message,
         'message' => $message,
         'reload' => true
     ]);

@@ -518,7 +518,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('/sales/{id}/recepit', [SaleController::class, 'salerecepit'])->middleware('permission:sale.receipt')->name('sales.recepit');
 // AJAX (no refresh)
     Route::post('/sale/ajax/save', [SaleController::class, 'ajaxSave'])->middleware('permission:sale.create|sale.edit')->name('sale.ajax.save');
-    Route::get('/sale/ajax/post', [SaleController::class, 'ajaxPost'])->middleware('permission:sale.view')->name('sale.ajax.post');
+    Route::match(['get', 'post'], '/sale/ajax/post', [SaleController::class, 'ajaxPost'])->middleware('permission:sale.view')->name('sale.ajax.post');
     Route::post('/sale/ajax/post-partial', [SaleController::class, 'ajaxPostPartialDelivery'])->middleware('permission:sale.create|sale.edit')->name('sale.ajax.post-partial');
     // Route::get('/sale/ajax/post-and-print2', [SaleController::class, 'ajaxPostAndPrint2'])->middleware('permission:sale.view')->name('sale.ajax.post-and-print2');
 

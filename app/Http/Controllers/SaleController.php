@@ -57,8 +57,18 @@ class SaleController extends Controller
                     ->lockForUpdate()
                     ->findOrFail($request->booking_id);
 
-                if (!$request->warehouse_id || !is_array($request->warehouse_id)) {
-                    abort(422, 'Warehouse selection required');
+                $warehouseInputs = $request->warehouse_id;
+                if (!is_array($warehouseInputs)) {
+                    $warehouseInputs = [];
+                    if (!empty($request->warehouse_id)) {
+                        foreach ($booking->items as $item) {
+                            $warehouseInputs[$item->product_id] = $request->warehouse_id;
+                        }
+                    } else {
+                        foreach ($booking->items as $item) {
+                            $warehouseInputs[$item->product_id] = $item->warehouse_id ?? auth()->user()->warehouse_id ?? 1;
+                        }
+                    }
                 }
 
                 // Enforce receipts requirement: posting a sale must include at least
@@ -100,14 +110,30 @@ class SaleController extends Controller
                     abort(422, 'Invoice already posted');
                 }
 
-                /* ================= UPDATE WAREHOUSE IDs ================= */
-                // warehouse_id can be NULL (branch stock) or actual warehouse_id (warehouse stock)
+                /* ================= UPDATE LOCATION / WAREHOUSE IDs ================= */
+                // warehouse_id can be NULL (branch/shop stock) or actual warehouse_id (warehouse stock)
                 foreach ($booking->items as $item) {
-                    $wid = $request->warehouse_id[$item->product_id] ?? null;
+                    $rawWid = $warehouseInputs[$item->product_id] ?? $item->warehouse_id;
+                    $wid = null;
+                    if ($rawWid) {
+                        if (is_string($rawWid) && str_starts_with($rawWid, 'branch_')) {
+                            $targetBranch = (int) str_replace('branch_', '', $rawWid);
+                            $item->branch_id = $targetBranch;
+                            $wid = null;
+                        } elseif (is_string($rawWid) && ($rawWid === 'branch' || $rawWid === 'shop')) {
+                            $wid = null;
+                        } elseif (is_string($rawWid) && str_starts_with($rawWid, 'warehouse_')) {
+                            $wid = (int) str_replace('warehouse_', '', $rawWid);
+                        } elseif (is_numeric($rawWid) && (int) $rawWid > 0) {
+                            $wid = (int) $rawWid;
+                        }
+                    } else {
+                        $wid = $item->warehouse_id;
+                    }
                     $item->warehouse_id = $wid;
                     $item->save();
                 }
-                Log::info('Updated booking items with warehouse selections', ['booking_id' => $booking->id]);
+                Log::info('Updated booking items with location selections', ['booking_id' => $booking->id]);
 
                 /* ================= CREATE SALE ================= */
                 // IMPORTANT: Sales have INDEPENDENT counter from Bookings
@@ -236,7 +262,11 @@ class SaleController extends Controller
                     $warehousestock = WarehouseStock::lockForUpdate()
                         ->where('product_id', $it->product_id)
                         ->where('branch_id', $branch_id)
-                        ->where('warehouse_id', $wid)  // NULL for branch, or warehouse_id for warehouse stock
+                        ->when(is_null($wid), function ($q) {
+                            $q->whereNull('warehouse_id');
+                        }, function ($q) use ($wid) {
+                            $q->where('warehouse_id', $wid);
+                        })
                         ->first();
 
                     if (!$warehousestock) {
@@ -494,6 +524,19 @@ class SaleController extends Controller
                                     }
                                     
                                     $save_result = $rowAccount->save();
+
+                                    // Post to Account Ledger
+                                    \App\Services\VoucherService::postLedgerEntry(
+                                        $acctId,
+                                        'receipt',
+                                        $sale->invoice_no ?? $rv->rvid,
+                                        $rv->id,
+                                        Carbon::today()->toDateString(),
+                                        "Sale Receipt — Invoice #" . ($sale->invoice_no ?? '') . " (Booking #" . ($booking->id ?? '') . ")",
+                                        $amt,
+                                        0,
+                                        auth()->id()
+                                    );
                                     
                                     // Verify the update
                                     $verifyAccount = Account::find($acctId);
@@ -1033,6 +1076,19 @@ class SaleController extends Controller
                                                 $rowAccount->opening_balance -= $amt;
                                             }
                                             $rowAccount->save();
+
+                                            // Post to Account Ledger
+                                            \App\Services\VoucherService::postLedgerEntry(
+                                                $acctId,
+                                                'receipt',
+                                                $sale->invoice_no ?? $rv->rvid,
+                                                $rv->id,
+                                                Carbon::today()->toDateString(),
+                                                "Sale Receipt — Invoice #" . ($sale->invoice_no ?? '') . " (Booking #" . ($booking->id ?? '') . ")",
+                                                $amt,
+                                                0,
+                                                auth()->id()
+                                            );
                                             Log::info('Updated account balance (Draft)', ['account_id' => $acctId, 'amount' => $amt, 'type' => $rowAccount->type]);
                                         }
                                     } catch (\Exception $e) {
@@ -1349,11 +1405,22 @@ class SaleController extends Controller
                     abort(422, 'Booking ID required');
                 }
 
+                Log::info('ajaxPostPartialDelivery received request', [
+                    'booking_id' => $request->booking_id,
+                    'warehouse_id' => $request->warehouse_id,
+                    'dispatch_qty' => $request->dispatch_qty
+                ]);
+
                 $booking = ProductBooking::with('items')
                     ->lockForUpdate()
                     ->findOrFail($request->booking_id);
 
                 if ($booking->is_posted) {
+                    Log::warning('ajaxPostPartialDelivery: booking already posted', [
+                        'booking_id' => $booking->id,
+                        'is_posted' => $booking->is_posted,
+                        'invoice_no' => $booking->invoice_no
+                    ]);
                     abort(422, 'Invoice already posted');
                 }
 
@@ -1681,7 +1748,9 @@ class SaleController extends Controller
 
                 return response()->json([
                     'ok'          => true,
+                    'success'     => true,
                     'sale_id'     => $sale->id,
+                    'dc_id'       => $sale->id,
                     'invoice_url' => route('sales.dc', $sale->id),
                     'msg'         => 'Partial Delivery Sale posted successfully!',
                 ]);
@@ -1835,10 +1904,28 @@ class SaleController extends Controller
                 $qty = (float) ($request->sales_qty[$i] ?? 0);
                 if (!$productId || $qty <= 0) continue;
 
-                // ✅ NEW: Extract warehouse_id if provided
+                // Extract warehouse_id / location if provided
+                $rawWh = null;
+                if (!empty($request->warehouse_id)) {
+                    if (is_array($request->warehouse_id)) {
+                        $rawWh = $request->warehouse_id[$i] ?? $request->warehouse_id[$productId] ?? null;
+                    } else {
+                        $rawWh = $request->warehouse_id;
+                    }
+                }
+                if (!$rawWh && $request->filled('global_warehouse_id')) {
+                    $rawWh = $request->global_warehouse_id;
+                }
+
                 $warehouseId = null;
-                if (!empty($request->warehouse_id) && is_array($request->warehouse_id)) {
-                    $warehouseId = $request->warehouse_id[$productId] ?? null;
+                if ($rawWh) {
+                    if (is_string($rawWh) && str_starts_with($rawWh, 'warehouse_')) {
+                        $warehouseId = (int) str_replace('warehouse_', '', $rawWh);
+                    } elseif (is_string($rawWh) && (str_starts_with($rawWh, 'branch_') || $rawWh === 'branch' || $rawWh === 'shop')) {
+                        $warehouseId = null; // NULL represents Branch / Shop stock in warehouse_stocks table
+                    } elseif (is_numeric($rawWh) && (int) $rawWh > 0) {
+                        $warehouseId = (int) $rawWh;
+                    }
                 }
 
                 ProductBookingItem::create([
@@ -1867,7 +1954,9 @@ class SaleController extends Controller
             // commits if posting fails.
 
             return response()->json([
-                'ok' => true,
+                'ok'         => true,
+                'success'    => true,
+                'id'         => $booking->id,
                 'booking_id' => $booking->id,
                 'invoice_no' => $booking->invoice_no
             ]);
@@ -2286,7 +2375,7 @@ public function finddc($invoice)
 
         $saleSettings = SaleSetting::getSettings();
 
-        return view('admin_panel.sale.add_sale222', compact('warehouse', 'allWarehouses', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings'));
+        return view('admin_panel.sale.add_sale222', compact('warehouse', 'allWarehouses', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings', 'defaultBranchId'));
     }
 
     public function getBranchSalesmen($branchId)
@@ -2352,15 +2441,48 @@ public function finddc($invoice)
     public function checkStock(Request $request)
     {
         $productId = $request->get('product_id');
-        $branchId  = Auth::check() ? (Auth::user()->branch_id ?? null) : null;
+        $branchId  = $request->get('branch_id') ?: (Auth::check() ? (Auth::user()->branch_id ?? null) : null);
+        $location  = $request->get('location_id') ?: $request->get('warehouse_id');
 
-        $stockQuery = WarehouseStock::where('product_id', $productId);
-        if ($branchId) {
-            $stockQuery->where('branch_id', $branchId);
+        // Overall stock across entire system
+        $overallStock = (float) WarehouseStock::where('product_id', $productId)->sum('quantity');
+        if ($overallStock == 0) {
+            $overallStock = (float) Stock::where('product_id', $productId)->sum('qty');
         }
-        $available = $stockQuery->sum('quantity');
 
-        return response()->json(['available' => (int) $available]);
+        // Branch total stock
+        $branchTotalStock = (float) WarehouseStock::where('product_id', $productId)
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->sum('quantity');
+
+        // Location specific stock
+        $locationStock = $branchTotalStock;
+        if ($location) {
+            if (str_starts_with($location, 'branch_')) {
+                $targetBranch = (int) str_replace('branch_', '', $location);
+                $locationStock = (float) WarehouseStock::where('product_id', $productId)
+                    ->where('branch_id', $targetBranch)
+                    ->whereNull('warehouse_id')
+                    ->sum('quantity');
+            } elseif ($location === 'branch' || $location === 'shop') {
+                $locationStock = (float) WarehouseStock::where('product_id', $productId)
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->whereNull('warehouse_id')
+                    ->sum('quantity');
+            } else {
+                $whId = (int) str_replace('warehouse_', '', $location);
+                $locationStock = (float) WarehouseStock::where('product_id', $productId)
+                    ->where('warehouse_id', $whId)
+                    ->sum('quantity');
+            }
+        }
+
+        return response()->json([
+            'available'      => $overallStock,
+            'overall_stock'  => $overallStock,
+            'branch_stock'   => $branchTotalStock,
+            'location_stock' => $locationStock,
+        ]);
     }
 
     public function store(Request $request)
@@ -2767,6 +2889,19 @@ public function finddc($invoice)
                                     $rowAccount->opening_balance -= $amt;
                                 }
                                 $rowAccount->save();
+
+                                // Post to Account Ledger
+                                \App\Services\VoucherService::postLedgerEntry(
+                                    $acctId,
+                                    'receipt',
+                                    $sale->invoice_no ?? $rv->rvid,
+                                    $rv->id,
+                                    Carbon::today()->toDateString(),
+                                    "Sale Receipt — Invoice #" . ($sale->invoice_no ?? '') . ($request->remarks ? " ({$request->remarks})" : ""),
+                                    $amt,
+                                    0,
+                                    auth()->id()
+                                );
                             }
 
                             $custPrev = CustomerLedger::where('customer_id', $customerId)->latest('id')->lockForUpdate()->value('closing_balance') ?? 0;
@@ -3655,10 +3790,36 @@ public function finddc($invoice)
         $saleSettings = \App\Models\SaleSetting::getSettings();
 
         // Fetch receipt vouchers for this sale
-        $receipts = ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+        $receipts = ReceiptsVoucher::where(function ($q) use ($sale) {
+                $q->where('sale_id', $sale->id)
+                  ->orWhere('reference_no', $sale->invoice_no);
+                if ($sale->booking_id) {
+                    $q->orWhere('booking_id', $sale->booking_id);
+                }
+            })
             ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
             ->orderBy('id', 'asc')
             ->get();
+
+        // If no explicit receipts in table, synthesize from receipt1/receipt2 or posted/cash sale amount
+        if ($receipts->isEmpty()) {
+            $paidAmt = (float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0);
+            if ($paidAmt <= 0 && ($sale->party_type === 'cash' || $sale->party_type === 'walking' || $sale->status === 'posted' || $sale->is_posted)) {
+                $paidAmt = (float)($sale->total_balance ?: ($sale->sub_total2 ?: ($sale->total_net ?: 0)));
+            }
+
+            if ($paidAmt > 0) {
+                $defaultAcc = $accounts->first(fn($a) => str_contains(strtolower($a->title), 'cash')) ?? $accounts->first();
+                $receipts = collect([
+                    (object) [
+                        'row_account_id' => $defaultAcc ? $defaultAcc->id : 1,
+                        'amount'         => $paidAmt,
+                        'total_amount'   => $paidAmt,
+                        'type'           => 'SALE_RECEIPT',
+                    ]
+                ]);
+            }
+        }
 
         // Fetch on-hand stock for all products
         $stockMap = DB::table('v_stock_onhand')
@@ -3751,9 +3912,14 @@ public function finddc($invoice)
 
         $partyType = $sale->partyType ?? $sale->party_type ?? 'credit';
 
+        $allWarehouses = Warehouse::all();
+        $sale_customer = $sale->customer;
+
         return view('admin_panel.sale.add_sale222', [
             'warehouse'         => $warehouse,
+            'allWarehouses'     => $allWarehouses,
             'customer'          => $customer,
+            'sale_customer'     => $sale_customer,
             'accounts'          => $accounts,
             'nextInvoiceNumber' => $sale->invoice_no,
             'products'          => $products,
@@ -3818,18 +3984,18 @@ public function finddc($invoice)
                 $partyType = $request->input('partyType', $sale->partyType ?? 'credit');
                 $customerName = null;
                 if ($partyType === 'walking') {
-                    $customerName = $request->input('customer') ?? $request->input('customer_display');
+                    $customerName = $request->input('walkin_name') ?? $request->input('customer') ?? $request->input('customer_display') ?? 'Walk-in Customer';
                 }
 
                 $sale->update([
-                    'customer_id'         => $customerId ?: $sale->customer_id,
-                    'customer_name'       => $customerName,
+                    'customer_id'         => ($partyType === 'walking' ? null : ($customerId ?: $sale->customer_id)),
+                    'sub_customer'        => $customerName,
                     'party_type'          => $partyType,
                     'salesman_id'         => $request->input('salesman_id', $sale->salesman_id),
                     'manual_invoice'      => $request->input('Invoice_main', $sale->manual_invoice),
                     'address'             => $request->input('address', $sale->address),
                     'tel'                 => $request->input('tel', $sale->tel),
-                    'remarks'             => $request->input('remarks', $sale->remarks),
+                    'remarks'             => $request->input('remarks', $request->input('reference', $sale->remarks)),
                     'sub_total1'          => $newSubTotal1,
                     'sub_total2'          => $newSubTotal2,
                     'additional_discount' => $newAddDiscount,
@@ -3863,7 +4029,15 @@ public function finddc($invoice)
                     $discPercent = floatval($discountPercentages[$i] ?? 0);
                     $discType = $discountTypes[$i] ?? 'percent';
                     $amount = floatval($salesAmounts[$i] ?? 0);
-                    $whId = is_array($warehouseIds) ? ($warehouseIds[$productId] ?? null) : null;
+                    $whId = null;
+                    if (is_array($warehouseIds)) {
+                        $whId = $warehouseIds[$i] ?? ($warehouseIds[$productId] ?? null);
+                    } elseif (!empty($warehouseIds)) {
+                        $whId = $warehouseIds;
+                    }
+                    if (!$whId) {
+                        $whId = $request->input('global_warehouse_id') ?? $sale->warehouse_id ?? null;
+                    }
                     $watt = floatval(is_array($watts) ? ($watts[$i] ?? 0) : ($request->input("watt.$i", 0)));
 
                     // Create new sale item
@@ -3945,7 +4119,10 @@ public function finddc($invoice)
                 }
 
                 /* ================= STEP 6: UPDATE RECEIPT VOUCHERS ================= */
-                ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+                ReceiptsVoucher::where(function ($q) use ($sale) {
+                        $q->where('reference_no', $sale->invoice_no)
+                          ->orWhere('sale_id', $sale->id);
+                    })
                     ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
                     ->delete();
 
@@ -3957,7 +4134,7 @@ public function finddc($invoice)
                         $amt = floatval($receiptAmounts[$i] ?? 0);
                         if ($amt <= 0 || !$accId) continue;
 
-                        ReceiptsVoucher::create([
+                        $rv = ReceiptsVoucher::create([
                             'branch_id'    => $branchId,
                             'rvid'         => ReceiptsVoucher::generateRVID(auth()->id()),
                             'receipt_date' => now()->toDateString(),
@@ -3982,6 +4159,19 @@ public function finddc($invoice)
                                     $rowAccount->opening_balance -= $amt;
                                 }
                                 $rowAccount->save();
+
+                                // Post to Account Ledger
+                                \App\Services\VoucherService::postLedgerEntry(
+                                    $accId,
+                                    'receipt',
+                                    $sale->invoice_no ?? $rv->rvid,
+                                    $rv->id,
+                                    now()->toDateString(),
+                                    "Sale Receipt — Invoice #" . ($sale->invoice_no ?? ''),
+                                    $amt,
+                                    0,
+                                    auth()->id()
+                                );
                             }
                         } catch (\Exception $e) {
                             \Log::warning('Failed to apply receipt to account', ['error' => $e->getMessage()]);

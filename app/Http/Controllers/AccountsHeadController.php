@@ -398,6 +398,9 @@ class AccountsHeadController extends Controller
             return redirect()->back()->with('error', 'Unauthorized.');
         }
 
+        // ✅ Automatically sync any unrecorded receipts or vouchers for this account
+        $this->syncAccountLedger($account);
+
         // Date filters
         $dateFrom = $request->input('date_from');
         $dateTo   = $request->input('date_to');
@@ -415,10 +418,12 @@ class AccountsHeadController extends Controller
 
         $entries = $query->get();
 
-        // Totals
-        $totalDebit  = $entries->sum('debit');
-        $totalCredit = $entries->sum('credit');
-        $initialOpening = (float)($account->opening_balance ?? 0);
+        // Get initial OB entry if exists
+        $obEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+            ->where('voucher_type', 'opening_balance')
+            ->first();
+        $initialOpening = $obEntry ? (float)$obEntry->running_balance : (float)($account->opening_balance ?? 0);
+
         if ($dateFrom) {
             $prevEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                 ->where('transaction_date', '<', $dateFrom)
@@ -428,6 +433,11 @@ class AccountsHeadController extends Controller
         } else {
             $openingBalance = $initialOpening;
         }
+
+        // Exclude OB entry from Total In to avoid double counting
+        $nonObEntries = $entries->where('voucher_type', '!=', 'opening_balance');
+        $totalDebit   = $nonObEntries->sum('debit');
+        $totalCredit  = $nonObEntries->sum('credit');
 
         // Closing balance = last entry running balance (or opening balance if no entries)
         $closingBalance = $entries->last()?->running_balance ?? $openingBalance;
@@ -443,6 +453,268 @@ class AccountsHeadController extends Controller
             'dateTo',
             'isSuperAdmin'
         ));
+    }
+
+    /**
+     * ✅ Auto-sync any unrecorded receipts or vouchers into account_ledger_entries.
+     */
+    private function syncAccountLedger($account)
+    {
+        $accountId = $account->id;
+        $accountType = trim(strtolower($account->type ?? 'debit'));
+
+        // Helper to extract account-specific amount from voucher fields
+        $getAccountAmount = function($rowAccountsRaw, $amountsRaw, $totalAmountRaw, $targetAccId) {
+            $accIds = is_array($rowAccountsRaw) ? $rowAccountsRaw : json_decode($rowAccountsRaw, true);
+            $amts = is_array($amountsRaw) ? $amountsRaw : json_decode($amountsRaw, true);
+
+            if (is_array($accIds)) {
+                $sum = 0;
+                foreach ($accIds as $idx => $id) {
+                    if ((int)$id === (int)$targetAccId) {
+                        $sum += is_array($amts) ? (float)($amts[$idx] ?? 0) : (float)$totalAmountRaw;
+                    }
+                }
+                return $sum;
+            } else {
+                if ((int)$rowAccountsRaw === (int)$targetAccId) {
+                    return (float)($totalAmountRaw ?: $amountsRaw);
+                }
+            }
+            return 0;
+        };
+
+        // 1. Gather all receipts vouchers that reference this account
+        $rvs = \App\Models\ReceiptsVoucher::where(function($q) use ($accountId) {
+            $q->where('row_account_id', $accountId)
+              ->orWhere('row_account_id', (string)$accountId)
+              ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
+              ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
+              ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
+              ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
+        })->orderBy('id', 'asc')->get();
+
+        $unrecordedReceipts = [];
+        $totalReceiptAmount = 0;
+        foreach ($rvs as $rv) {
+            $amt = $getAccountAmount($rv->row_account_id, $rv->amount, $rv->total_amount, $accountId);
+            if ($amt > 0) {
+                $totalReceiptAmount += $amt;
+                $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where(function($q) use ($rv) {
+                        $q->where('voucher_id', $rv->id)
+                          ->orWhere('voucher_no', $rv->rvid)
+                          ->orWhere('voucher_no', $rv->reference_no);
+                    })->exists();
+
+                if (!$alreadyRecorded) {
+                    $unrecordedReceipts[] = [
+                        'rv' => $rv,
+                        'amount' => $amt,
+                    ];
+                }
+            }
+        }
+
+        // 2. Gather all payment vouchers that reference this account
+        $pvs = \App\Models\PaymentVoucher::where(function($q) use ($accountId) {
+            $q->where('row_account_id', $accountId)
+              ->orWhere('row_account_id', (string)$accountId)
+              ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
+              ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
+              ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
+              ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
+        })->orderBy('id', 'asc')->get();
+
+        $unrecordedPayments = [];
+        foreach ($pvs as $pv) {
+            $amt = $getAccountAmount($pv->row_account_id, $pv->amount, $pv->total_amount, $accountId);
+            if ($amt > 0) {
+                $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where(function($q) use ($pv) {
+                        $q->where('voucher_id', $pv->id)
+                          ->orWhere('voucher_no', $pv->pvid)
+                          ->orWhere('voucher_no', $pv->reference_no);
+                    })->exists();
+
+                if (!$alreadyRecorded) {
+                    $unrecordedPayments[] = [
+                        'pv' => $pv,
+                        'amount' => $amt,
+                    ];
+                }
+            }
+        }
+
+        // 3. Gather all expense vouchers that reference this account
+        $evs = \App\Models\ExpenseVoucher::where(function($q) use ($accountId) {
+            $q->where('row_account_id', $accountId)
+              ->orWhere('row_account_id', (string)$accountId)
+              ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
+              ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
+              ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
+              ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
+        })->orderBy('id', 'asc')->get();
+
+        $unrecordedExpenses = [];
+        foreach ($evs as $ev) {
+            $amt = $getAccountAmount($ev->row_account_id, $ev->amount, $ev->total_amount, $accountId);
+            if ($amt > 0) {
+                $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where(function($q) use ($ev) {
+                        $q->where('voucher_id', $ev->id)
+                          ->orWhere('voucher_no', $ev->evid);
+                    })->exists();
+
+                if (!$alreadyRecorded) {
+                    $unrecordedExpenses[] = [
+                        'ev' => $ev,
+                        'amount' => $amt,
+                    ];
+                }
+            }
+        }
+
+        // If nothing unrecorded and an OB entry exists, no action needed
+        $hasAnyEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->exists();
+        if ($hasAnyEntry && empty($unrecordedReceipts) && empty($unrecordedPayments) && empty($unrecordedExpenses)) {
+            return;
+        }
+
+        // If no entries at all in AccountLedgerEntry, determine base initial opening balance
+        if (!$hasAnyEntry) {
+            $currentAccBal = (float)($account->opening_balance ?? 0);
+            $baseOpening = $currentAccBal - $totalReceiptAmount;
+            if ($baseOpening < 0) {
+                $baseOpening = 0;
+            }
+
+            // Create initial OB entry
+            $obEntryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'opening_balance');
+            \App\Models\AccountLedgerEntry::create([
+                'account_id'        => $accountId,
+                'branch_id'         => $account->branch_id ?? 0,
+                'voucher_type'      => 'opening_balance',
+                'voucher_no'        => null,
+                'voucher_id'        => null,
+                'entry_no'          => $obEntryNo,
+                'transaction_date'  => $account->created_at ? $account->created_at->toDateString() : now()->toDateString(),
+                'description'       => 'Opening Balance',
+                'debit'             => $baseOpening >= 0 ? $baseOpening : 0,
+                'credit'            => $baseOpening < 0 ? abs($baseOpening) : 0,
+                'running_balance'   => $baseOpening,
+                'created_by'        => auth()->id() ?? 1,
+            ]);
+
+            // Update account's opening_balance in DB to reflect the real initial OB
+            $account->opening_balance = $baseOpening;
+            $account->save();
+        }
+
+        // Post unrecorded receipts
+        foreach ($unrecordedReceipts as $item) {
+            $rv = $item['rv'];
+            $amt = $item['amount'];
+
+            $lastEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->orderByDesc('id')->first();
+            $prevBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
+            $newBal = $accountType === 'credit' ? ($prevBal - $amt) : ($prevBal + $amt);
+
+            $entryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'receipt');
+            $date = $rv->receipt_date ?: ($rv->entry_date ?: ($rv->created_at ? $rv->created_at->toDateString() : now()->toDateString()));
+            $date = is_string($date) ? explode(' ', $date)[0] : now()->toDateString();
+
+            $desc = "Sale Receipt — Voucher #" . ($rv->rvid ?? 'RV');
+            if ($rv->reference_no) {
+                $desc = "Sale Receipt — Invoice #" . $rv->reference_no;
+            }
+            if ($rv->booking_id) {
+                $desc .= " (Booking #" . $rv->booking_id . ")";
+            }
+
+            \App\Models\AccountLedgerEntry::create([
+                'account_id'        => $accountId,
+                'branch_id'         => $rv->branch_id ?? ($account->branch_id ?? 0),
+                'voucher_type'      => 'receipt',
+                'voucher_no'        => $rv->reference_no ?: $rv->rvid,
+                'voucher_id'        => $rv->id,
+                'entry_no'          => $entryNo,
+                'transaction_date'  => $date,
+                'description'       => $desc,
+                'debit'             => $amt,
+                'credit'            => 0,
+                'running_balance'   => $newBal,
+                'created_by'        => auth()->id() ?? 1,
+            ]);
+        }
+
+        // Post unrecorded payments
+        foreach ($unrecordedPayments as $item) {
+            $pv = $item['pv'];
+            $amt = $item['amount'];
+
+            $lastEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->orderByDesc('id')->first();
+            $prevBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
+            $newBal = $accountType === 'credit' ? ($prevBal + $amt) : ($prevBal - $amt);
+
+            $entryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'payment');
+            $date = $pv->receipt_date ?: ($pv->entry_date ?: ($pv->created_at ? $pv->created_at->toDateString() : now()->toDateString()));
+            $date = is_string($date) ? explode(' ', $date)[0] : now()->toDateString();
+
+            $desc = "Payment Voucher #" . ($pv->pvid ?? 'PV');
+            if ($pv->remarks) {
+                $desc .= " — " . $pv->remarks;
+            }
+
+            \App\Models\AccountLedgerEntry::create([
+                'account_id'        => $accountId,
+                'branch_id'         => $pv->branch_id ?? ($account->branch_id ?? 0),
+                'voucher_type'      => 'payment',
+                'voucher_no'        => $pv->pvid ?: $pv->reference_no,
+                'voucher_id'        => $pv->id,
+                'entry_no'          => $entryNo,
+                'transaction_date'  => $date,
+                'description'       => $desc,
+                'debit'             => 0,
+                'credit'            => $amt,
+                'running_balance'   => $newBal,
+                'created_by'        => auth()->id() ?? 1,
+            ]);
+        }
+
+        // Post unrecorded expenses
+        foreach ($unrecordedExpenses as $item) {
+            $ev = $item['ev'];
+            $amt = $item['amount'];
+
+            $lastEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->orderByDesc('id')->first();
+            $prevBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
+            $newBal = $accountType === 'credit' ? ($prevBal + $amt) : ($prevBal - $amt);
+
+            $entryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'expense');
+            $date = $ev->entry_date ?: ($ev->created_at ? $ev->created_at->toDateString() : now()->toDateString());
+            $date = is_string($date) ? explode(' ', $date)[0] : now()->toDateString();
+
+            $desc = "Expense Voucher #" . ($ev->evid ?? 'EV');
+            if ($ev->remarks) {
+                $desc .= " — " . $ev->remarks;
+            }
+
+            \App\Models\AccountLedgerEntry::create([
+                'account_id'        => $accountId,
+                'branch_id'         => $ev->branch_id ?? ($account->branch_id ?? 0),
+                'voucher_type'      => 'expense',
+                'voucher_no'        => $ev->evid,
+                'voucher_id'        => $ev->id,
+                'entry_no'          => $entryNo,
+                'transaction_date'  => $date,
+                'description'       => $desc,
+                'debit'             => 0,
+                'credit'            => $amt,
+                'running_balance'   => $newBal,
+                'created_by'        => auth()->id() ?? 1,
+            ]);
+        }
     }
 }
 

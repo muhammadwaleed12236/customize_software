@@ -254,14 +254,14 @@ class ProductController extends Controller
          ->get()
          ->map(function ($product) use ($request) {
              $branchId = $request->get('branch_id') ?: (Auth::check() ? Auth::user()->branch_id : null);
-             $stockQty = 0;
-             if ($branchId) {
-                 $stockQty = (float) DB::table('warehouse_stocks')
-                     ->where('product_id', $product->id)
-                     ->where('branch_id', $branchId)
-                     ->sum('quantity');
+             $overallStock = (float) DB::table('warehouse_stocks')
+                 ->where('product_id', $product->id)
+                 ->sum('quantity');
+             if ($overallStock == 0) {
+                 $overallStock = (float) DB::table('stocks')->where('product_id', $product->id)->sum('qty');
              }
-             $isPrimary = ($stockQty > 0);
+             $stockQty = $overallStock;
+             $isPrimary = ($overallStock > 0);
              
              return [
                  'id'           => $product->id,
@@ -324,15 +324,14 @@ public function searchProductsForSalebypagination(Request $request)
 
     // Add ownership information and Primary/Secondary status for each product
     $productsWithOwnership = $products->map(function($p) use ($branchId) {
-        // ✅ Check if product has stock in login branch
-        $stockQty = 0;
-        if ($branchId) {
-            $stockQty = (float) DB::table('warehouse_stocks')
-                ->where('product_id', $p->id)
-                ->where('branch_id', $branchId)
-                ->sum('quantity');
+        $overallStock = (float) DB::table('warehouse_stocks')
+            ->where('product_id', $p->id)
+            ->sum('quantity');
+        if ($overallStock == 0) {
+            $overallStock = (float) DB::table('stocks')->where('product_id', $p->id)->sum('qty');
         }
-        $isPrimary = ($stockQty > 0);
+        $stockQty = $overallStock;
+        $isPrimary = ($overallStock > 0);
         
         return [
             'id' => $p->id,

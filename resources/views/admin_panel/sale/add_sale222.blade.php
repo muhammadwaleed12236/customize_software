@@ -3,8 +3,8 @@
 @section('content')
     <!-- Loader Overlay -->
     <div id="pageLoader"
-        class="position-fixed top-0 start-0 w-100 h-100 flex-column gap-3 justify-content-center align-items-center {{ isset($sale) ? 'd-flex' : 'd-none' }}"
-        style="background: rgba(255,255,255,0.9); z-index: 1055; {{ isset($sale) ? 'display: flex;' : 'display: none !important;' }}">
+        class="position-fixed top-0 start-0 w-100 h-100 flex-column gap-3 justify-content-center align-items-center d-none"
+        style="background: rgba(255,255,255,0.9); z-index: 1055; display: none !important;">
         <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
             <span class="visually-hidden">Loading...</span>
         </div>
@@ -460,27 +460,30 @@
 
             <form id="saleForm" autocomplete="off">
                 @csrf
-                <input type="hidden" id="booking_id" name="booking_id" value="">
+                @if(isset($isEditMode) && $isEditMode && isset($sale))
+                    <input type="hidden" id="sale_id" name="sale_id" value="{{ $sale->id }}">
+                @endif
+                <input type="hidden" id="booking_id" name="booking_id" value="{{ $sale->booking_id ?? '' }}">
                 <input type="hidden" id="action" name="action" value="sale">
-                <input type="hidden" id="is_posted" name="is_posted" value="0">
+                <input type="hidden" id="is_posted" name="is_posted" value="{{ $sale->is_posted ?? 0 }}">
                 <input type="hidden" id="is_finalized" name="is_finalized" value="0">
-                <input type="hidden" name="Invoice_date" id="Invoice_date" value="{{ date('Y-m-d') }}">
+                <input type="hidden" name="Invoice_date" id="Invoice_date" value="{{ isset($sale) ? date('Y-m-d', strtotime($sale->created_at ?? date('Y-m-d'))) : date('Y-m-d') }}">
                 <input type="hidden" name="estimated_delivery_date" id="estimated_delivery_date" value="{{ date('Y-m-d', strtotime('+15 days')) }}">
-                <input type="hidden" id="customer_id" name="customer_id" value="">
-                <input type="hidden" id="customer" name="customer" value="">
-                <input type="hidden" id="address" name="address" value="">
-                <input type="hidden" id="tel" name="tel" value="">
-                <input type="hidden" id="previousBalance" value="0">
+                <input type="hidden" id="customer_id" name="customer_id" value="{{ $sale->customer_id ?? '' }}">
+                <input type="hidden" id="customer" name="customer" value="{{ $sale->customer_id ?? '' }}">
+                <input type="hidden" id="address" name="address" value="{{ $sale->address ?? '' }}">
+                <input type="hidden" id="tel" name="tel" value="{{ $sale->tel ?? '' }}">
+                <input type="hidden" id="previousBalance" value="{{ $sale->previous_balance ?? 0 }}">
                 <input type="hidden" id="rangeBalance" value="0">
                 <input type="hidden" id="creditLimit" value="0">
                 <input type="hidden" id="noCreditLimit" value="0">
-                <input type="hidden" name="Invoice_no" id="inputInvoiceNo" value="{{ $nextInvoiceNumber }}">
+                <input type="hidden" name="Invoice_no" id="inputInvoiceNo" value="{{ $sale->invoice_no ?? $nextInvoiceNumber }}">
                 
                 {{-- Hidden Party Type Radio Group for JS compatibility --}}
                 <div class="d-none" id="partyTypeGroup">
-                    <input type="radio" name="partyType" value="credit" id="typeCustomers" checked>
-                    <input type="radio" name="partyType" value="cash" id="typeWalkin">
-                    <input type="radio" name="partyType" value="walking" id="typewalking">
+                    <input type="radio" name="partyType" value="credit" id="typeCustomers" {{ ($partyType ?? $sale->partyType ?? $sale->party_type ?? 'credit') === 'credit' ? 'checked' : '' }}>
+                    <input type="radio" name="partyType" value="cash" id="typeWalkin" {{ ($partyType ?? $sale->partyType ?? $sale->party_type ?? 'credit') === 'cash' ? 'checked' : '' }}>
+                    <input type="radio" name="partyType" value="walking" id="typewalking" {{ ($partyType ?? $sale->partyType ?? $sale->party_type ?? 'credit') === 'walking' ? 'checked' : '' }}>
                 </div>
 
                 {{-- TOP HEADER BAR WITH INVOICE NO BADGE & SALE SETTINGS BUTTON --}}
@@ -489,12 +492,12 @@
                         <a href="{{ route('sale.index') }}" class="btn btn-sm btn-light border rounded-circle" title="Back"><i class="fas fa-arrow-left text-secondary"></i></a>
                         <div>
                             <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2" style="font-size: 1.05rem;">
-                                <i class="fas fa-shopping-cart text-primary"></i> New Sale
+                                <i class="fas fa-{{ isset($isEditMode) && $isEditMode ? 'edit text-warning' : 'shopping-cart text-primary' }}"></i> {{ isset($isEditMode) && $isEditMode ? 'Edit Sale #' . ($sale->invoice_no ?? '') : 'New Sale' }}
                                 <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace px-2 py-1 rounded-pill" style="font-size: 0.78rem; background: #e6fcf5;">
-                                    <i class="fas fa-file-invoice me-1"></i><span id="activePrefixLabelHeader">{{ $activePrefix ?? 'INV' }}</span>-<span id="headerInvoiceNoDisplay">{{ $nextInvoiceNumber }}</span>
+                                    <i class="fas fa-file-invoice me-1"></i><span id="activePrefixLabelHeader">{{ $activePrefix ?? 'INV' }}</span>-<span id="headerInvoiceNoDisplay">{{ $sale->invoice_no ?? $nextInvoiceNumber }}</span>
                                 </span>
                             </h5>
-                            <small class="text-muted" style="font-size: 0.7rem;">Create a new invoice</small>
+                            <small class="text-muted" style="font-size: 0.7rem;">{{ isset($isEditMode) && $isEditMode ? 'Modify existing sale record' : 'Create a new invoice' }}</small>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -518,7 +521,7 @@
                             @if (Auth::user() && Auth::user()->hasRole('super admin'))
                                 <select class="form-select fw-bold border-primary shadow-xs" name="branch_id" id="branch_id" style="font-size:0.78rem; height: 30px;">
                                     @foreach($branches as $b)
-                                        <option value="{{ $b->id }}" {{ (isset($defaultBranchId) && $defaultBranchId == $b->id) || (Auth::user()->branch_id == $b->id) ? 'selected' : '' }}>
+                                        <option value="{{ $b->id }}" {{ (isset($sale) && $sale->branch_id == $b->id) || (!isset($sale) && ((isset($defaultBranchId) && $defaultBranchId == $b->id) || (Auth::user()->branch_id == $b->id))) ? 'selected' : '' }}>
                                             {{ $b->name }}
                                         </option>
                                     @endforeach
@@ -527,21 +530,37 @@
                                 <div class="form-control form-control-sm bg-light fw-bold text-primary text-truncate border-secondary-subtle" style="font-size:0.78rem; height: 30px; line-height: 22px;">
                                     <i class="fas fa-store me-1"></i>{{ Auth::user()->branch->name ?? 'Default Branch' }}
                                 </div>
-                                <input type="hidden" name="branch_id" id="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
+                                <input type="hidden" name="branch_id" id="branch_id" value="{{ $sale->branch_id ?? Auth::user()->branch_id ?? 1 }}">
                             @endif
                         </div>
 
-                        <!-- Warehouse Selection -->
+                        <!-- Location Selection (Shop / Warehouse) -->
                         <div class="col-xl-2 col-lg-2 col-md-4 col-sm-6">
                             <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
-                                <i class="fas fa-warehouse text-info me-1"></i>Warehouse
+                                <i class="fas fa-map-marker-alt text-info me-1"></i>Location
                             </label>
-                            <select class="form-select fw-bold shadow-xs" name="warehouse_id" id="globalWarehouseSelect" style="font-size:0.78rem; height: 30px;">
-                                @foreach($allWarehouses as $w)
-                                    <option value="{{ $w->id }}" {{ (Auth::user()->warehouse_id == $w->id) ? 'selected' : '' }}>
-                                        {{ $w->warehouse_name ?? $w->name }}
-                                    </option>
-                                @endforeach
+                            <select class="form-select fw-bold shadow-xs" name="global_warehouse_id" id="globalWarehouseSelect" style="font-size:0.78rem; height: 30px;">
+                                @if(isset($branches) && count($branches) > 0)
+                                    <optgroup label="🏬 Shops / Branches (Shop Stock)">
+                                        @foreach($branches as $b)
+                                            <option value="branch_{{ $b->id }}" {{ (isset($defaultBranchId) && $defaultBranchId == $b->id) || (!isset($sale) && $loop->first) || (isset($sale) && is_null($sale->warehouse_id) && $sale->branch_id == $b->id) ? 'selected' : '' }}>
+                                                {{ $b->name }} (Shop)
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @php
+                                    $whItems = (isset($allWarehouses) && count($allWarehouses) > 0) ? $allWarehouses : ((isset($warehouse) && count($warehouse) > 0) ? $warehouse : \App\Models\Warehouse::all());
+                                @endphp
+                                @if(isset($whItems) && count($whItems) > 0)
+                                    <optgroup label="🏭 Warehouses (Godown Stock)">
+                                        @foreach($whItems as $w)
+                                            <option value="warehouse_{{ $w->id }}" {{ (isset($sale) && $sale->warehouse_id == $w->id) ? 'selected' : '' }}>
+                                                {{ $w->warehouse_name ?? $w->name }}
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
                             </select>
                         </div>
 
@@ -550,7 +569,7 @@
                             <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
                                 <i class="far fa-calendar-alt text-success me-1"></i>Date
                             </label>
-                            <input type="date" name="sale_date" class="form-control text-center fw-bold shadow-xs" id="displayDateInput" value="{{ date('Y-m-d') }}" style="font-size:0.78rem; height: 30px;">
+                            <input type="date" name="sale_date" class="form-control text-center fw-bold shadow-xs" id="displayDateInput" value="{{ isset($sale) && $sale->created_at ? (is_string($sale->created_at) ? substr($sale->created_at, 0, 10) : $sale->created_at->format('Y-m-d')) : date('Y-m-d') }}" style="font-size:0.78rem; height: 30px;">
                         </div>
 
                         <!-- Salesman Selection Dropdown -->
@@ -583,7 +602,7 @@
                             <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
                                 <i class="fas fa-sticky-note text-secondary me-1"></i>M.Bill / Remarks
                             </label>
-                            <input type="text" class="form-control shadow-xs" name="reference" id="remarks" placeholder="Enter remarks or ref no..." style="font-size:0.78rem; height: 30px;">
+                            <input type="text" class="form-control shadow-xs" name="reference" id="remarks" value="{{ $sale->remarks ?? $sale->manual_invoice ?? '' }}" placeholder="Enter remarks or ref no..." style="font-size:0.78rem; height: 30px;">
                         </div>
 
                         <!-- Customer Input Group -->
@@ -618,9 +637,6 @@
                             <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
                                 <div class="d-flex align-items-center gap-2">
                                     <div class="section-title mb-0" style="font-size:0.8rem;">Order Items (<span id="itemsRowCount">0</span>)</div>
-                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold" data-bs-toggle="offcanvas" data-bs-target="#quickProductsOffcanvas" style="font-size:0.72rem;">
-                                        <i class="fas fa-th me-1"></i>Quick Products Panel
-                                    </button>
                                 </div>
 
                                 <div class="d-flex gap-1 ms-auto">
@@ -720,7 +736,7 @@
                                 </div>
 
                                 <button type="button" class="btn btn-save-complete w-100 mt-auto py-2" id="btnSaveAndComplete">
-                                    <i class="fas fa-save me-2"></i>Save & Complete (F9)
+                                    <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? 'Update Sale' : 'Save & Complete (F9)' }}
                                 </button>
                             </div>
                         </div>
@@ -737,7 +753,7 @@
                     <div class="d-flex align-items-center gap-2">
                         <span class="text-muted fw-semibold" style="font-size:0.8rem;">Discount (Rs.)</span>
                         <div class="input-group input-group-sm" style="width: 130px;">
-                            <input type="number" class="form-control text-end fw-bold text-danger" id="walkinDiscountRs" name="additional_discount" value="0" placeholder="0">
+                            <input type="number" class="form-control text-end fw-bold text-danger" id="walkinDiscountRs" name="additional_discount" value="{{ isset($sale) ? ($sale->additional_discount ?? 0) : 0 }}" placeholder="0">
                             <input type="hidden" id="discountPercent" value="0">
                             <span class="input-group-text bg-light text-muted">%</span>
                         </div>
@@ -754,7 +770,7 @@
                     </div>
 
                     <button type="button" class="btn btn-save-complete" id="btnSaveAndComplete2">
-                        <i class="fas fa-save me-2"></i>Save & Complete (F9)
+                        <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? 'Update Sale' : 'Save & Complete (F9)' }}
                     </button>
                 </div>
 
@@ -768,137 +784,27 @@
 
                 {{-- ACTION BUTTONS ROW WITH 3 MAIN ACTION BUTTONS & PRINTING --}}
                 <div class="d-flex flex-wrap gap-2 justify-content-center py-2 px-3 mt-2 border-top bg-white rounded-3 shadow-sm">
-                    <button type="button" class="btn btn-primary btn-sm px-4 py-2 fw-bold shadow-sm" id="btnSave" style="background:#2563eb !important; border-color:#2563eb !important;">
-                        <i class="fas fa-file-invoice me-1"></i>Save Booking (Draft)
-                    </button>
-                    <button type="button" class="btn btn-success btn-sm px-5 py-2 fw-bold fs-6 shadow-sm" id="btnPosted" style="background:#16a34a !important; border-color:#16a34a !important;">
-                        <i class="fas fa-shopping-cart me-1"></i>Process Sale / POS
-                    </button>
-                    <button type="button" class="btn btn-warning btn-sm px-4 py-2 fw-bold text-dark shadow-sm" id="btnPartialSale" style="background:#f59e0b !important; border-color:#d97706 !important;">
-                        <i class="fas fa-truck-loading me-1"></i>Partially Sale
-                    </button>
+                    @if(isset($isEditMode) && $isEditMode)
+                        <button type="button" class="btn btn-success btn-sm px-5 py-2 fw-bold fs-6 shadow-sm" id="btnPosted" style="background:#16a34a !important; border-color:#16a34a !important;">
+                            <i class="fas fa-save me-1"></i>Update Sale
+                        </button>
+                    @else
+                        <button type="button" class="btn btn-primary btn-sm px-4 py-2 fw-bold shadow-sm" id="btnSave" style="background:#2563eb !important; border-color:#2563eb !important;">
+                            <i class="fas fa-file-invoice me-1"></i>Save Booking (Draft)
+                        </button>
+                        <button type="button" class="btn btn-success btn-sm px-5 py-2 fw-bold fs-6 shadow-sm" id="btnPosted" style="background:#16a34a !important; border-color:#16a34a !important;">
+                            <i class="fas fa-shopping-cart me-1"></i>Process Sale / POS
+                        </button>
+                        <button type="button" class="btn btn-warning btn-sm px-4 py-2 fw-bold text-dark shadow-sm" id="btnPartialSale" style="background:#f59e0b !important; border-color:#d97706 !important;">
+                            <i class="fas fa-truck-loading me-1"></i>Partially Sale
+                        </button>
+                    @endif
                     <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-bold" id="btnPrint"><i class="fas fa-print me-1"></i>A4 Print</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-bold" id="btnEstimate"><i class="fas fa-file-invoice me-1"></i>Estimate</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-bold" id="btnPrint2"><i class="fas fa-receipt me-1"></i>Thermal Print</button>
                     <button type="button" class="btn btn-outline-secondary btn-sm px-3 fw-bold" id="btnDcThermal"><i class="fas fa-truck me-1"></i>DC</button>
                 </div>
             </form>
-        </div>
-    </div>
-
-    <!-- Quick Products Offcanvas Drawer (Bulk Product Add) -->
-    <div class="offcanvas offcanvas-start shadow-lg" tabindex="-1" id="quickProductsOffcanvas" style="width: 550px;">
-        <div class="offcanvas-header bg-dark text-white py-2 border-bottom">
-            <h6 class="offcanvas-title fw-bold text-white mb-0 d-flex align-items-center gap-2">
-                <i class="fas fa-layer-group text-primary fs-5"></i> Quick Products Panel (Bulk Add)
-            </h6>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
-        </div>
-        <div class="offcanvas-body p-2 d-flex flex-column" style="background-color: #f8fafc;">
-            <!-- Top Controls Toolbar -->
-            <div class="card p-2 mb-2 border-0 shadow-sm" style="background:#ffffff; border-radius: 8px;">
-                <!-- Search Box -->
-                <div class="input-group input-group-sm mb-2">
-                    <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                    <input type="text" class="form-control border-start-0 ps-0 fw-semibold" id="sidebarProductSearch" placeholder="Search products by name, code or SKU...">
-                    <button class="btn btn-outline-secondary" type="button" id="btnClearSearch"><i class="fas fa-times"></i></button>
-                </div>
-
-                <!-- Global Default Qty & Disc Controls -->
-                <div class="row g-2 align-items-center mb-2">
-                    <div class="col-4">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light fw-bold" style="font-size:0.7rem;">Qty</span>
-                            <input type="number" step="any" class="form-control text-center fw-bold" id="globalBulkQty" value="1" min="0.01">
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <div class="input-group input-group-sm">
-                            <span class="input-group-text bg-light fw-bold" style="font-size:0.7rem;">Disc %</span>
-                            <input type="number" step="any" class="form-control text-center fw-bold" id="globalBulkDisc" value="0" min="0" max="100">
-                        </div>
-                    </div>
-                    <div class="col-4">
-                        <button type="button" class="btn btn-sm btn-outline-primary w-100 fw-bold py-1" id="btnApplyGlobalQtyDisc" style="font-size:0.72rem;">
-                            <i class="fas fa-sync-alt me-1"></i> Apply All
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Master Checkbox & Selection Bar -->
-                <div class="d-flex justify-content-between align-items-center bg-light p-2 rounded-2 border mb-2">
-                    <div class="form-check mb-0">
-                        <input class="form-check-input" type="checkbox" id="masterSelectAllProducts" checked>
-                        <label class="form-check-label fw-bold text-dark" for="masterSelectAllProducts" style="font-size:0.78rem;">
-                            Select All (<span id="totalVisibleProductCount">0</span>)
-                        </label>
-                    </div>
-                    <small class="text-muted fw-bold" style="font-size:0.75rem;">
-                        <span id="selectedProductCountBadge" class="badge bg-primary px-2 py-1">0</span> Selected
-                    </small>
-                </div>
-
-                <!-- Main Action Buttons -->
-                <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-success btn-sm flex-fill fw-bold py-2 shadow-sm d-flex align-items-center justify-content-center gap-2" id="btnAddSelectedBulkProducts">
-                        <i class="fas fa-cart-plus fs-6"></i> Add Selected Products (<span id="btnSelectedCount">0</span>)
-                    </button>
-                    <button type="button" class="btn btn-outline-primary btn-sm fw-bold px-3 py-2" id="btnAddAllProductsDirect" title="Add ALL products to grid immediately">
-                        <i class="fas fa-layer-group me-1"></i> Add ALL
-                    </button>
-                </div>
-            </div>
-
-            <!-- Product Items List Table Container -->
-            <div class="overflow-auto flex-grow-1 border rounded-2 bg-white" id="sidebarProductContainer" style="max-height: calc(100vh - 270px);">
-                @php
-                    $productList = (isset($recentProducts) && count($recentProducts) > 0) ? $recentProducts : ($products ?? []);
-                @endphp
-                <table class="table table-sm table-hover mb-0 align-middle" style="font-size: 0.78rem;" id="bulkProductsTable">
-                    <thead class="table-light sticky-top" style="z-index: 1;">
-                        <tr>
-                            <th class="text-center" style="width: 32px;">#</th>
-                            <th>Product Name</th>
-                            <th class="text-end" style="width: 80px;">Price</th>
-                            <th class="text-center" style="width: 65px;">Qty</th>
-                            <th class="text-center" style="width: 60px;">Disc%</th>
-                            <th class="text-center" style="width: 40px;">+</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach($productList as $prod)
-                            @php
-                                $price = $prod->retail_price ?? $prod->sale_price_per_box ?? $prod->purchase_price_per_piece ?? 0;
-                                $stock = $prod->total_pieces ?? $prod->piece_quantity ?? 0;
-                            @endphp
-                            <tr class="bulk-product-row" data-id="{{ $prod->id }}" data-name="{{ strtolower($prod->item_name) }}">
-                                <td class="text-center">
-                                    <input type="checkbox" class="form-check-input bulk-product-checkbox" data-id="{{ $prod->id }}" checked>
-                                </td>
-                                <td>
-                                    <div class="fw-bold text-dark product-name-text">{{ $prod->item_name }}</div>
-                                    <small class="text-muted" style="font-size:0.68rem;">Stock: <span class="badge bg-success-subtle text-success border px-1">{{ $stock }} Pcs</span></small>
-                                </td>
-                                <td class="text-end fw-bold text-primary">
-                                    {{ number_format($price, 2) }}
-                                    <input type="hidden" class="bulk-item-price" value="{{ $price }}">
-                                </td>
-                                <td>
-                                    <input type="number" step="any" class="form-control form-control-sm text-center fw-bold bulk-item-qty px-1" value="1" min="0.01" style="height:26px;">
-                                </td>
-                                <td>
-                                    <input type="number" step="any" class="form-control form-control-sm text-center bulk-item-disc px-1" value="0" min="0" max="100" placeholder="0" style="height:26px;">
-                                </td>
-                                <td class="text-center">
-                                    <button type="button" class="btn btn-sm btn-primary py-0 px-2 btn-add-single-bulk-product" data-id="{{ $prod->id }}" title="Add single product to grid" style="height:26px; line-height:1;">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
         </div>
     </div>
 
@@ -1043,7 +949,7 @@
                     <div class="alert alert-warning py-2 px-3 mb-3 small d-flex align-items-center gap-2 border-warning">
                         <i class="fas fa-info-circle fs-5 text-dark"></i>
                         <div class="text-dark">
-                            Select the warehouse and specify the quantity to dispatch out <strong>NOW</strong>. 
+                            Select the location (Shop / Warehouse) and specify the quantity to dispatch out <strong>NOW</strong>. 
                             A Delivery Challan (DC) will be generated for dispatched items, and the remaining stock will be saved in 
                             <strong>Pending Deliveries</strong> until fully issued.
                         </div>
@@ -1051,11 +957,11 @@
 
                     <div class="row g-2 mb-3 align-items-center bg-light p-2 rounded border">
                         <div class="col-md-3">
-                            <label class="form-label fw-bold small mb-0"><i class="fas fa-warehouse me-1 text-primary"></i> Dispatch Warehouse:</label>
+                            <label class="form-label fw-bold small mb-0"><i class="fas fa-map-marker-alt me-1 text-primary"></i> Dispatch Location:</label>
                         </div>
                         <div class="col-md-9">
                             <select class="form-select form-select-sm border-primary fw-semibold" id="partial_warehouse_id">
-                                <option value="">-- Select Dispatch Location / Warehouse --</option>
+                                <option value="">-- Select Dispatch Location (Shop / Warehouse) --</option>
                                 @if(isset($branches) && count($branches) > 0)
                                     <optgroup label="🏬 Shops / Main Store">
                                         @foreach($branches as $b)
@@ -1163,6 +1069,7 @@
             // --- Add Row Logic (Model & Product Only - Size & Color Removed) ---
             function addNewRow() {
                 const rowCount = $('#salesTableBody tr').length + 1;
+                const currentLoc = $('#globalWarehouseSelect').val() || '';
                 const rowHtml = `
                     <tr>
                         <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;">${rowCount}</td>
@@ -1175,8 +1082,8 @@
                             <input type="hidden" class="item-code-display">
                         </td>
                         <td class="col-stock">
-                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="0">
-                            <input type="hidden" class="warehouse" name="warehouse_id[]" value="{{ auth()->user()->warehouse_id ?? 1 }}">
+                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="0" title="Overall Stock">
+                            <input type="hidden" class="warehouse" name="warehouse_id[]" value="${currentLoc}">
                         </td>
                         <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
                             <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="1" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
@@ -1218,10 +1125,36 @@
                 updateGrandTotals();
             });
 
-            // Initial row if empty
-            if ($('#salesTableBody tr').length === 0) {
+            // Initial row if empty (only for new sale mode)
+            if (!window.IS_EDIT_MODE && $('#salesTableBody tr').length === 0) {
                 addNewRow();
             }
+
+            // --- Helper: Fetch Live Stock for a Row ---
+            function fetchRowStock($row, prodId) {
+                if (!prodId) return;
+                let loc = $('#globalWarehouseSelect').val() || '';
+                let branchId = $('#branch_id').val() || '';
+                $.get("{{ route('sale.check.stock') }}", { product_id: prodId, location_id: loc, branch_id: branchId }, function(res) {
+                    if (res) {
+                        let displayStock = (res.overall_stock !== undefined) ? res.overall_stock : res.available;
+                        $row.find('.stock').val(displayStock);
+                        $row.find('.stock').attr('title', `Overall Stock: ${res.overall_stock} | Location Stock: ${res.location_stock}`);
+                    }
+                });
+            }
+
+            // --- Location Dropdown Change Event ---
+            $('#globalWarehouseSelect').on('change', function() {
+                let loc = $(this).val();
+                $('.warehouse').val(loc);
+                $('#salesTableBody tr').each(function() {
+                    let pId = $(this).find('.product-select').val();
+                    if (pId) {
+                        fetchRowStock($(this), pId);
+                    }
+                });
+            });
 
             // --- Product Select2 Init ---
             function initProductSelect2($select) {
@@ -1248,9 +1181,10 @@
                             params.page = params.page || 1;
                             let results = [];
                             const mapProduct = function(p) {
+                                let stockVal = (p.stock !== undefined && p.stock !== null) ? p.stock : (p.overall_stock || 0);
                                 return {
                                     id: p.id,
-                                    text: (p.item_code ? p.item_code + ' — ' : '') + (p.item_name || p.name || ''),
+                                    text: (p.item_code ? p.item_code + ' — ' : '') + (p.item_name || p.name || '') + ' [Stock: ' + stockVal + ']',
                                     product: p
                                 };
                             };
@@ -1276,9 +1210,11 @@
                 const prod = data ? data.product : null;
 
                 if (prod) {
-                    $row.find('.stock').val(prod.piece_quantity || prod.total_pieces || 0);
-                    $row.find('.retail-price').val(prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
+                    let initialStock = (prod.stock !== undefined && prod.stock !== null) ? prod.stock : (prod.overall_stock || 0);
+                    $row.find('.stock').val(initialStock);
+                    $row.find('.retail-price').val(prod.retail_price || prod.price || prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
                     $row.find('.total-pieces').val($row.find('.sales-qty').val() || 1);
+                    fetchRowStock($row, prodId);
                     computeRow($row);
                     updateGrandTotals();
                 }
@@ -1450,8 +1386,10 @@
                 }
             });
 
-            // Default to Customer Select mode on page load
-            $('#walkinToggle').prop('checked', false).trigger('change');
+            // Default to Customer Select mode on page load (new sale only)
+            if (!window.IS_EDIT_MODE) {
+                $('#walkinToggle').prop('checked', false).trigger('change');
+            }
 
             // --- Dynamic Branch Selection Change Handler ---
             $(document).on('change', '#branch_id', function() {
@@ -1459,7 +1397,7 @@
                 if (!selectedBranchId) return;
 
                 // 1. Update Invoice Counter
-                if (window.BRANCH_COUNTERS && window.BRANCH_COUNTERS[selectedBranchId] !== undefined) {
+                if (!window.IS_EDIT_MODE && window.BRANCH_COUNTERS && window.BRANCH_COUNTERS[selectedBranchId] !== undefined) {
                     let nextCounter = parseInt(window.BRANCH_COUNTERS[selectedBranchId]) + 1;
                     let formattedNo = 'INV-' + String(nextCounter).padStart(4, '0');
                     $('#inputInvoiceNo').val(formattedNo);
@@ -1473,11 +1411,13 @@
                     dataType: 'json',
                     success: function(salesmen) {
                         let $smSelect = $('#salesmanSelect');
+                        let currentSmId = $smSelect.val();
                         $smSelect.empty().append('<option value="">Select Salesman</option>');
                         if (Array.isArray(salesmen) && salesmen.length > 0) {
                             salesmen.forEach(function(sm) {
                                 let name = sm.name || sm.salesman_name || sm.full_name || ('Salesman #' + sm.id);
-                                $smSelect.append(`<option value="${sm.id}">${name}</option>`);
+                                let isSel = (currentSmId && currentSmId == sm.id) ? 'selected' : '';
+                                $smSelect.append(`<option value="${sm.id}" ${isSel}>${name}</option>`);
                             });
                         }
                     },
@@ -1487,12 +1427,14 @@
                 });
 
                 // 3. Reset customer selection upon branch change
-                $('#customerSelect').val(null).trigger('change');
-                $('#customer_id').val('');
-                $('#customer').val('');
-                $('#address').val('');
-                $('#tel').val('');
-                $('#previousBalance').val('0.00');
+                if (!window.IS_EDIT_MODE) {
+                    $('#customerSelect').val(null).trigger('change');
+                    $('#customer_id').val('');
+                    $('#customer').val('');
+                    $('#address').val('');
+                    $('#tel').val('');
+                    $('#previousBalance').val('0.00');
+                }
             });
 
             // --- Customer Select2 AJAX Search ---
@@ -1539,47 +1481,184 @@
             function ensureSaved() {
                 return new Promise((resolve, reject) => {
                     let formData = $('#saleForm').serialize();
+                    let isEdit = window.IS_EDIT_MODE && window.UPDATE_URL;
+                    let targetUrl = isEdit ? window.UPDATE_URL : "{{ route('sale.ajax.save') }}";
+                    let targetMethod = isEdit ? 'POST' : 'POST';
+
+                    if (isEdit) {
+                        formData += '&_method=PUT';
+                    }
+
                     $.ajax({
-                        url: "{{ route('sales.store') }}",
-                        type: 'POST',
+                        url: targetUrl,
+                        type: targetMethod,
                         data: formData,
                         success: function(res) {
-                            if (res.success || res.id) {
-                                resolve(res.id || res.sale_id || res.booking_id);
+                            let bId = res.booking_id || res.id || res.sale_id;
+                            if (bId) {
+                                if (!isEdit) {
+                                    $('#booking_id').val(bId);
+                                }
+                                resolve(bId);
                             } else {
-                                showAlert('success', 'Saved successfully');
-                                resolve(res.id || 1);
+                                showAlert('error', 'Response ID not returned from server.');
+                                reject(new Error('Response ID not returned'));
                             }
                         },
                         error: function(err) {
-                            showAlert('error', 'Failed to save sale form.');
+                            let msg = isEdit ? 'Failed to update sale.' : 'Failed to save sale form.';
+                            if (err.responseJSON && err.responseJSON.message) {
+                                msg = err.responseJSON.message;
+                            } else if (err.responseJSON && err.responseJSON.error) {
+                                msg = err.responseJSON.error;
+                            }
+                            showAlert('error', msg);
                             reject(err);
                         }
                     });
                 });
             }
 
-            // Process Sale Button
+            // Process Sale / Save & Complete Button (Posts transaction, deducts stock, creates INV invoice)
             $('#btnPosted, #btnHeaderSaveSale, #btnSaveAndComplete, #btnSaveAndComplete2').on('click', function() {
-                $('#action').val('sale');
-                ensureSaved().then(id => {
-                    showAlert('success', 'Sale completed successfully!');
-                    setTimeout(() => {
-                        window.location.href = "{{ route('sale.index') }}";
-                    }, 1200);
+                // Validation
+                let hasProducts = false;
+                $('#salesTableBody tr').each(function() {
+                    let pId = $(this).find('.product-select').val();
+                    let qty = toNum($(this).find('.sales-qty').val());
+                    if (pId && qty > 0) hasProducts = true;
                 });
+                if (!hasProducts) {
+                    showAlert('error', 'Please add at least one product with quantity > 0.');
+                    return;
+                }
+
+                const $activeBtns = $('#btnPosted, #btnHeaderSaveSale, #btnSaveAndComplete, #btnSaveAndComplete2');
+                $activeBtns.prop('disabled', true);
+
+                if (window.IS_EDIT_MODE) {
+                    $('#action').val('sale');
+                    ensureSaved().then(id => {
+                        showAlert('success', 'Sale updated successfully!');
+                        setTimeout(() => {
+                            window.location.href = "{{ route('sale.index') }}";
+                        }, 1200);
+                    }).catch(err => {
+                        $activeBtns.prop('disabled', false);
+                    });
+                    return;
+                }
+
+                // If New Sale / POS: Save booking first, then immediately POST it (stock deduction, invoice INV-XXXX, ledger update)
+                $('#action').val('sale');
+                
+                // Show loading state
+                const origCompleteText1 = $('#btnSaveAndComplete').html();
+                const origCompleteText2 = $('#btnSaveAndComplete2').html();
+                $('#btnSaveAndComplete, #btnSaveAndComplete2').html('<i class="fas fa-spinner fa-spin me-2"></i>Posting Sale...');
+
+                ensureSaved().then(bookingId => {
+                    // Prepare data for sale.ajax.post
+                    let postData = {
+                        _token: '{{ csrf_token() }}',
+                        booking_id: bookingId,
+                        warehouse_id: {},
+                        receipt_account_id: [],
+                        receipt_amount: []
+                    };
+
+                    let globalWh = $('#globalWarehouseSelect').val() || '1';
+                    $('#salesTableBody tr').each(function() {
+                        let pId = $(this).find('.product-select').val();
+                        let wh = $(this).find('.warehouse').val() || globalWh;
+                        if (pId) {
+                            postData.warehouse_id[pId] = wh;
+                        }
+                    });
+
+                    $('.rv-account').each(function(i) {
+                        let acc = $(this).val();
+                        let amt = $('.rv-amount').eq(i).val() || '';
+                        if (acc && toNum(amt) > 0) {
+                            postData.receipt_account_id.push(acc);
+                            postData.receipt_amount.push(amt);
+                        }
+                    });
+
+                    $.ajax({
+                        url: "{{ route('sale.ajax.post') }}",
+                        type: 'POST',
+                        data: postData,
+                        success: function(res) {
+                            if (res && res.ok) {
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'SALE POSTED!',
+                                    text: 'Sale completed & posted successfully. Stock deducted!',
+                                    timer: 1800,
+                                    showConfirmButton: false
+                                }).then(() => {
+                                    if (res.invoice_url) {
+                                        window.open(res.invoice_url, '_blank');
+                                    }
+                                    window.location.href = "{{ route('sale.index') }}";
+                                });
+                            } else {
+                                $activeBtns.prop('disabled', false);
+                                $('#btnSaveAndComplete').html(origCompleteText1);
+                                $('#btnSaveAndComplete2').html(origCompleteText2);
+                                showAlert('error', (res && res.msg) ? res.msg : 'Failed to post sale.');
+                            }
+                        },
+                        error: function(xhr) {
+                            $activeBtns.prop('disabled', false);
+                            $('#btnSaveAndComplete').html(origCompleteText1);
+                            $('#btnSaveAndComplete2').html(origCompleteText2);
+                            let msg = 'Server error while posting sale.';
+                            if (xhr.responseJSON && xhr.responseJSON.message) {
+                                msg = xhr.responseJSON.message;
+                            } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                                msg = xhr.responseJSON.error;
+                            }
+                            showAlert('error', msg);
+                        }
+                    });
+                }).catch(err => {
+                    $activeBtns.prop('disabled', false);
+                    $('#btnSaveAndComplete').html(origCompleteText1);
+                    $('#btnSaveAndComplete2').html(origCompleteText2);
+                });
+            });
+
+            // F9 Keyboard Shortcut for Save & Complete
+            $(document).on('keydown', function(e) {
+                if (e.key === 'F9' || e.keyCode === 120) {
+                    e.preventDefault();
+                    $('#btnSaveAndComplete').trigger('click');
+                }
             });
 
             // Booking / Draft Button
             $('#btnSave').on('click', function() {
                 $('#action').val('booking');
                 ensureSaved().then(id => {
-                    showAlert('success', 'Booking saved successfully!');
+                    showAlert('success', 'Booking draft saved successfully!');
                 });
             });
 
             // Partial Sale Button Logic
             $('#btnPartialSale').on('click', function() {
+                let hasProducts = false;
+                $('#salesTableBody tr').each(function() {
+                    let pId = $(this).find('.product-select').val();
+                    let qty = toNum($(this).find('.sales-qty').val());
+                    if (pId && qty > 0) hasProducts = true;
+                });
+                if (!hasProducts) {
+                    showAlert('error', 'Please add at least one product with quantity > 0 before proceeding with Partial Sale.');
+                    return;
+                }
+
                 $('#action').val('booking');
                 ensureSaved().then(bookingId => {
                     $('#booking_id').val(bookingId);
@@ -1606,6 +1685,8 @@
                     });
                     $('#partialSaleTableBody').html(html);
                     $('#partialSaleModal').modal('show');
+                }).catch(err => {
+                    console.error('ensureSaved failed:', err);
                 });
             });
 
@@ -1649,15 +1730,18 @@
                     data: dispatchData,
                     success: function(res) {
                         btn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Confirm & Issue Partial DC');
-                        if (res.success || res.dc_id) {
+                        if (res.success || res.dc_id || res.ok || res.sale_id) {
                             $('#partialSaleModal').modal('hide');
-                            showAlert('success', 'Partial DC created successfully!');
-                            if (res.dc_id) {
-                                window.open('{{ url('sales') }}/' + res.dc_id + '/dc-thermal', '_blank');
+                            showAlert('success', res.msg || 'Partial DC created successfully!');
+                            let dcId = res.dc_id || res.sale_id;
+                            if (dcId) {
+                                window.open('{{ url('/sale/dc') }}/' + dcId + '/thermal', '_blank');
                             }
                             setTimeout(() => {
                                 window.location.href = "{{ route('sale.index') }}";
                             }, 1200);
+                        } else if (res.error) {
+                            showAlert('error', res.error);
                         }
                     },
                     error: function(err) {
@@ -1665,6 +1749,9 @@
                         let msg = 'Error creating partial delivery.';
                         if (err.responseJSON && err.responseJSON.message) {
                             msg = err.responseJSON.message;
+                        }
+                        if (err.responseJSON && err.responseJSON.error) {
+                            msg = err.responseJSON.error;
                         }
                         showAlert('error', msg);
                     }
@@ -1749,9 +1836,10 @@
                 }
 
                 let rowsHtml = '';
-                const currentWarehouse = $('#branch_id').val() || '1';
+                const defaultWarehouse = $('#globalWarehouseSelect').val() || $('#branch_id').val() || '1';
 
                 itemsList.forEach(item => {
+                    const currentWarehouse = item.warehouse_id || defaultWarehouse;
                     const prodId = item.id;
                     const prodName = item.item_name || item.name || '';
                     const price = parseFloat(item.price || item.retail_price || 0) || 0;
@@ -1819,11 +1907,15 @@
 
                 $('#salesTableBody').append(rowsHtml);
 
-                // Initialize Select2 on any uninitialized row
+                // Initialize Select2 on any uninitialized row and fetch stock
                 $('#salesTableBody tr').each(function() {
                     const $select = $(this).find('.product-select');
                     if (!$select.data('select2')) {
                         initProductSelect2($select);
+                    }
+                    const pId = $select.val();
+                    if (pId) {
+                        fetchRowStock($(this), pId);
                     }
                 });
 
@@ -1953,9 +2045,115 @@
                 });
             }
 
-            // Initial calculations & hide page loader
-            updateGrandTotals();
-            $('#pageLoader').addClass('d-none').css('display', 'none');
+            // ================= EDIT MODE INITIALIZATION =================
+            try {
+                if (window.IS_EDIT_MODE && window.EDIT_SALE) {
+                    // 1. Customer initialization
+                    let pType = window.EDIT_SALE.party_type || window.EDIT_SALE.partyType || 'credit';
+                    if (pType === 'walking' || !window.EDIT_SALE.customer_id) {
+                        $('#walkinToggle').prop('checked', true).trigger('change');
+                        $('#walkinNameInput').val(window.EDIT_SALE.customer_name || window.EDIT_SALE.sub_customer || 'Walk-in Customer');
+                    } else {
+                        $('#walkinToggle').prop('checked', false).trigger('change');
+                        if (window.EDIT_SALE.customer_id) {
+                            let cust = window.EDIT_SALE.customer || {};
+                            let custText = (cust.customer_id ? cust.customer_id + ' — ' : '') + (cust.customer_name || 'Customer #' + window.EDIT_SALE.customer_id);
+                            let opt = new Option(custText, window.EDIT_SALE.customer_id, true, true);
+                            $('#customerSelect').append(opt).trigger('change.select2');
+                            $('#customer_id').val(window.EDIT_SALE.customer_id);
+                            $('#customer').val(window.EDIT_SALE.customer_id);
+                            $('#address').val(window.EDIT_SALE.address || cust.address || '');
+                            $('#tel').val(window.EDIT_SALE.tel || cust.mobile || '');
+                            $('#previousBalance').val(parseFloat(window.EDIT_SALE.previous_balance || cust.previous_balance || 0).toFixed(2));
+                        }
+                    }
+
+                    if (window.EDIT_SALE.salesman_id) {
+                        $('#salesmanSelect').val(window.EDIT_SALE.salesman_id);
+                    }
+
+                    if (window.EDIT_SALE.warehouse_id) {
+                        $('#globalWarehouseSelect').val(window.EDIT_SALE.warehouse_id);
+                    }
+
+                    if (window.EDIT_SALE.remarks || window.EDIT_SALE.manual_invoice) {
+                        $('#remarks').val(window.EDIT_SALE.remarks || window.EDIT_SALE.manual_invoice || '');
+                    }
+
+                    if (window.EDIT_SALE.additional_discount) {
+                        $('#walkinDiscountRs').val(parseFloat(window.EDIT_SALE.additional_discount) || 0);
+                    }
+
+                    // 2. Populate Order Items
+                    if (window.EDIT_SALE_ITEMS && window.EDIT_SALE_ITEMS.length > 0) {
+                        $('#salesTableBody').empty();
+                        let formattedItems = window.EDIT_SALE_ITEMS.map(it => {
+                            let discType = it.discount_type || (parseFloat(it.discount_percent) > 0 ? 'percent' : 'pkr');
+                            let discVal = (discType === 'percent') ? (parseFloat(it.discount_percent) || 0) : (parseFloat(it.discount_amount) || parseFloat(it.discount) || 0);
+                            return {
+                                id: it.product_id,
+                                item_name: it.item_name,
+                                item_code: it.item_code,
+                                price: parseFloat(it.retail_price || it.sales_price || it.price || 0),
+                                qty: parseFloat(it.sales_qty || it.qty || 1),
+                                stock: parseFloat(it.onhand_qty || 0),
+                                disc: discVal,
+                                discType: discType,
+                                warehouse_id: it.warehouse_id
+                            };
+                        });
+                        addMultipleProductsToGrid(formattedItems);
+                    }
+
+                    // 3. Populate Receipts
+                    if (window.EDIT_RECEIPTS && window.EDIT_RECEIPTS.length > 0) {
+                        $('#rvWrapper').empty();
+                        window.EDIT_RECEIPTS.forEach(rv => {
+                            let optionsHtml = '';
+                            if (window.RECEIPT_ACCOUNTS && Array.isArray(window.RECEIPT_ACCOUNTS)) {
+                                window.RECEIPT_ACCOUNTS.forEach(function(acc) {
+                                    let isSel = (acc.id == rv.row_account_id) ? 'selected' : '';
+                                    optionsHtml += `<option value="${acc.id}" ${isSel}>${acc.title}</option>`;
+                                });
+                            }
+                            let rvAmt = parseFloat(rv.total_amount || rv.amount || 0).toFixed(2);
+                            const $row = $(`
+                                <div class="d-flex gap-1 align-items-center mb-2 rv-row">
+                                    <select class="form-select form-select-sm rv-account bg-light fw-bold" name="receipt_account_id[]" style="font-size:0.75rem;">
+                                        ${optionsHtml}
+                                    </select>
+                                    <input type="number" step="0.01" class="form-control form-control-sm text-end rv-amount fw-bold" name="receipt_amount[]" value="${rvAmt}" placeholder="0.00" style="width: 110px; font-size:0.75rem;">
+                                    <button type="button" class="btn btn-sm btn-outline-danger btnRemRV py-0 px-1">&times;</button>
+                                </div>
+                            `);
+                            $('#rvWrapper').append($row);
+                        });
+                    } else {
+                        // Fallback: If no receipt voucher records found, check sale's payment amounts
+                        let fallbackPaid = 0;
+                        if (window.EDIT_SALE) {
+                            let r1 = parseFloat(window.EDIT_SALE.receipt1) || 0;
+                            let r2 = parseFloat(window.EDIT_SALE.receipt2) || 0;
+                            if (r1 + r2 > 0) {
+                                fallbackPaid = r1 + r2;
+                            } else if (window.EDIT_SALE.party_type === 'cash' || window.EDIT_SALE.party_type === 'walking' || window.EDIT_SALE.status === 'posted' || window.EDIT_SALE.is_posted) {
+                                fallbackPaid = parseFloat(window.EDIT_SALE.total_balance || window.EDIT_SALE.sub_total2 || window.EDIT_SALE.total_net || 0);
+                            }
+                        }
+                        if (fallbackPaid > 0) {
+                            $('#rvWrapper .rv-amount').first().val(fallbackPaid.toFixed(2));
+                        }
+                    }
+                } else if ($('#salesTableBody tr').length === 0) {
+                    addNewRow();
+                }
+            } catch (err) {
+                console.error('Error during edit mode initialization:', err);
+            } finally {
+                // Initial calculations & hide page loader
+                updateGrandTotals();
+                $('#pageLoader').addClass('d-none').css('display', 'none');
+            }
         });
     </script>
 @endsection
