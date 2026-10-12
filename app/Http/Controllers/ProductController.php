@@ -1745,7 +1745,15 @@ public function searchProductsForSalebypagination(Request $request)
         if ($isSuperAdmin) {
             $allBranches = Branch::orderBy('name')->get();
 
-            // Find every branch where this product has warehouse_stocks entries (any qty)
+            // Which branch is selected? Query param > user's branch > product's branch > first branch
+            $requestedBranch = $request->get('branch_id');
+            if ($requestedBranch && $allBranches->contains('id', (int) $requestedBranch)) {
+                $selectedBranchId = (int) $requestedBranch;
+            } else {
+                $selectedBranchId = (int) ($userBranchId ?: ($product->branch_id ?: ($allBranches->first()?->id ?? 1)));
+            }
+
+            // Find branches where this product has stock (for badges)
             $branchIdsWithStock = DB::table('warehouse_stocks')
                 ->where('product_id', $id)
                 ->pluck('branch_id')
@@ -1757,23 +1765,32 @@ public function searchProductsForSalebypagination(Request $request)
                 ->orderBy('name')
                 ->get();
 
-            // Which branch is selected? Query param > user's branch > product's branch
-            $selectedBranchId = (int) $request->get('branch_id', $userBranchId ?: $product->branch_id);
-
-            if (!$branchIdsWithStock->contains($selectedBranchId)) {
-                $selectedBranchId = (int) ($userBranchId ?: $product->branch_id);
-            }
-
         } else {
             $allBranches       = collect();
             $availableBranches = collect();
-            $selectedBranchId  = (int) ($userBranchId ?: $product->branch_id);
+            $selectedBranchId  = (int) ($userBranchId ?: ($product->branch_id ?: 1));
         }
 
-        // 1. Fetch ONLY warehouses belonging to the selected branch
-        $warehouses = \App\Models\Warehouse::whereHas('branches', function($q) use ($selectedBranchId) {
+        $selectedBranch = Branch::find($selectedBranchId);
+
+        // Current warehouse allocations for the SELECTED branch
+        $currentAllocs = DB::table('warehouse_stocks')
+            ->where('product_id', $id)
+            ->where('branch_id', $selectedBranchId)
+            ->get();
+
+        // 1. Fetch warehouses belonging to the selected branch + any allocated warehouses
+        $branchWarehouses = \App\Models\Warehouse::whereHas('branches', function($q) use ($selectedBranchId) {
             $q->where('branch_id', $selectedBranchId);
         })->orderBy('warehouse_name')->get();
+
+        $allocatedWhIds = $currentAllocs->pluck('warehouse_id')->filter()->unique();
+        if ($allocatedWhIds->isNotEmpty()) {
+            $extraWarehouses = \App\Models\Warehouse::whereIn('id', $allocatedWhIds)->get();
+            $warehouses = $branchWarehouses->merge($extraWarehouses)->unique('id')->sortBy('warehouse_name')->values();
+        } else {
+            $warehouses = $branchWarehouses;
+        }
 
         // 2. Global Stock Summary (for Super Admin to see where stock is)
         $globalStockSummary = [];
@@ -1785,12 +1802,6 @@ public function searchProductsForSalebypagination(Request $request)
                 ->select('branches.name as branch_name', 'stocks.qty', 'stocks.branch_id')
                 ->get();
         }
-
-        // Current warehouse allocations for the SELECTED branch
-        $currentAllocs = DB::table('warehouse_stocks')
-            ->where('product_id', $id)
-            ->where('branch_id', $selectedBranchId)
-            ->get();
 
         // Current stock for the SELECTED branch
         $currentStock = (float) DB::table('warehouse_stocks')
@@ -1809,7 +1820,7 @@ public function searchProductsForSalebypagination(Request $request)
         return view('admin_panel.product.opening-stock-edit', compact(
             'product', 'isSuperAdmin', 'allBranches', 'availableBranches',
             'warehouses', 'currentAllocs', 'currentStock', 'selectedBranchId',
-            'globalStockSummary'
+            'selectedBranch', 'globalStockSummary'
         ));
     }
 
@@ -1889,6 +1900,14 @@ public function searchProductsForSalebypagination(Request $request)
 
             $this->applyWarehouseAllocation($id, $branchId, $retail, $allocData, $newQty);
         });
+
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success'      => true,
+                'message'      => 'Opening stock updated successfully!',
+                'redirect_url' => route('opening.stocks.index')
+            ]);
+        }
 
         return redirect()->route('opening.stocks.edit', ['id' => $id, 'branch_id' => $branchId])
                          ->with('success', 'Opening stock updated successfully!');
