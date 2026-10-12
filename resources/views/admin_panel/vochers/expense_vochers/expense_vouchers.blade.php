@@ -214,10 +214,23 @@
                             <label class="form-label">Entry Date <span class="text-danger">*</span></label>
                             <input type="date" name="entry_date" class="form-control" value="{{ now()->toDateString() }}" required>
                         </div>
-                        <div class="col-md-9">
+                        <div class="col-md-6">
                             <label class="form-label">Voucher Remarks</label>
                             <input type="text" name="remarks" class="form-control" placeholder="e.g. Paid for office supplies...">
                         </div>
+                        @if($isSuperAdmin)
+                        <div class="col-md-3">
+                            <label class="form-label">Branch <span class="text-danger">*</span></label>
+                            <select name="branch_id" id="branch_id" class="form-select" required>
+                                <option value="">— Select Branch —</option>
+                                @foreach ($Branch as $b)
+                                    <option value="{{ $b->id }}" {{ $currentBranch == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        @else
+                        <input type="hidden" name="branch_id" id="branch_id" value="{{ $currentBranch }}">
+                        @endif
                     </div>
                 </div>
             </div>
@@ -411,11 +424,21 @@ $(document).ready(function () {
         }
     });
 
-    // ─── PARTY TYPE → LOAD PARTY LIST (AJAX) ────────────────────────────────
-    $('#vendor_type').on('change', function () {
+    // ─── PARTY TYPE OR BRANCH → LOAD PARTY LIST (AJAX) ─────────────────────
+    $('#vendor_type, #branch_id').on('change', function () {
         var type = $('#vendor_type').val();
         var kind = $('#vendor_type').find(':selected').data('kind'); // "party" or "account"
+        var branchId = $('#branch_id').val() || '';
         var $partySelect = $('#vendor_id');
+
+        // If branch changed, also trigger row account head reloads if any are selected
+        if ($(this).attr('id') === 'branch_id') {
+            $('.rowAccountHead').each(function () {
+                if ($(this).val()) {
+                    $(this).trigger('change');
+                }
+            });
+        }
 
         // Toggle Walk-in Name Field
         if (type === 'walkin') {
@@ -454,7 +477,7 @@ $(document).ready(function () {
         }
 
         if (kind === 'party') {
-            $.getJSON('{{ route("receipt.party.list") }}', { type: type }, function (data) {
+            $.getJSON('{{ route("receipt.party.list") }}', { type: type, branch_id: branchId }, function (data) {
                 var html = '<option value="">— Select ' + (type === 'vendor' ? 'Vendor' : 'Customer') + ' —</option>';
                 data.forEach(function (item) {
                     html += '<option value="' + item.id + '" '
@@ -471,7 +494,7 @@ $(document).ready(function () {
                 $partySelect.html('<option value="">Error loading data</option>');
             });
         } else if (kind === 'account') {
-            $.getJSON('{{ url("get-accounts-by-head") }}/' + type, function (data) {
+            $.getJSON('{{ url("get-accounts-by-head") }}/' + type, { branch_id: branchId }, function (data) {
                 var html = '<option value="">— Select Account —</option>';
                 data.forEach(function (acc) {
                     html += '<option value="' + acc.id + '" '
@@ -514,6 +537,7 @@ $(document).ready(function () {
     // ─── ACCOUNT HEAD CHANGE → LOAD SUB-ACCOUNTS ────────────────────────────
     $(document).on('change', '.rowAccountHead', function () {
         var headId     = $(this).val();
+        var branchId   = $('#branch_id').val() || '';
         var $subSelect = $(this).closest('tr').find('.rowAccountSub');
 
         $subSelect.html('<option value="" class="select-loading">Loading...</option>');
@@ -523,7 +547,7 @@ $(document).ready(function () {
             return;
         }
 
-        $.getJSON('{{ url("get-accounts-by-head") }}/' + headId, function (res) {
+        $.getJSON('{{ url("get-accounts-by-head") }}/' + headId, { branch_id: branchId }, function (res) {
             var html = '<option value="">— Select Account —</option>';
             res.forEach(function (acc) {
                 html += '<option value="' + acc.id + '">' + acc.title + '</option>';

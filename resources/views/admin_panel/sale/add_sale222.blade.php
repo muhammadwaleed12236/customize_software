@@ -2073,7 +2073,13 @@
                     }
 
                     if (window.EDIT_SALE.warehouse_id) {
-                        $('#globalWarehouseSelect').val(window.EDIT_SALE.warehouse_id);
+                        let whVal = String(window.EDIT_SALE.warehouse_id);
+                        if (!whVal.startsWith('warehouse_') && !whVal.startsWith('branch_')) {
+                            whVal = 'warehouse_' + whVal;
+                        }
+                        $('#globalWarehouseSelect').val(whVal);
+                    } else if (window.EDIT_SALE.branch_id) {
+                        $('#globalWarehouseSelect').val('branch_' + window.EDIT_SALE.branch_id);
                     }
 
                     if (window.EDIT_SALE.remarks || window.EDIT_SALE.manual_invoice) {
@@ -2090,6 +2096,13 @@
                         let formattedItems = window.EDIT_SALE_ITEMS.map(it => {
                             let discType = it.discount_type || (parseFloat(it.discount_percent) > 0 ? 'percent' : 'pkr');
                             let discVal = (discType === 'percent') ? (parseFloat(it.discount_percent) || 0) : (parseFloat(it.discount_amount) || parseFloat(it.discount) || 0);
+                            let itWh = it.warehouse_id;
+                            if (itWh) {
+                                let sWh = String(itWh);
+                                if (!sWh.startsWith('warehouse_') && !sWh.startsWith('branch_')) {
+                                    itWh = 'warehouse_' + sWh;
+                                }
+                            }
                             return {
                                 id: it.product_id,
                                 item_name: it.item_name,
@@ -2099,7 +2112,7 @@
                                 stock: parseFloat(it.onhand_qty || 0),
                                 disc: discVal,
                                 discType: discType,
-                                warehouse_id: it.warehouse_id
+                                warehouse_id: itWh
                             };
                         });
                         addMultipleProductsToGrid(formattedItems);

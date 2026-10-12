@@ -45,6 +45,17 @@ class ExpenseVoucher extends Model
     }
 
 
+    // Branch
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id', 'id');
+    }
+
+    public function Customer()
+    {
+        return $this->belongsTo(Customer::class, 'party_id', 'id');
+    }
+
     // Account Head
     public function AccountHead()
     {

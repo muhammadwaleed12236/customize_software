@@ -1341,6 +1341,11 @@ public function getOpeningBalance($type, $id)
             ->pluck('narration', 'id');
         $AccountHeads = AccountHead::get();
 
+        // Branch info
+        $isSuperAdmin = Auth::user()->hasRole('super admin');
+        $currentBranch = Auth::user()->branch_id;
+        $Branch = \App\Models\Branch::all();
+
         // Last RVID nikalna
         $lastVoucher = \App\Models\ExpenseVoucher::latest('id')->first();
 
@@ -1348,13 +1353,20 @@ public function getOpeningBalance($type, $id)
         $nextId = $lastVoucher ? $lastVoucher->id + 1 : 1;
         $nextRvid = 'EVID-' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
 
-        return view('admin_panel.vochers.expense_vochers.expense_vouchers', compact('narrations', 'AccountHeads', 'nextRvid'));
+        return view('admin_panel.vochers.expense_vochers.expense_vouchers', compact('narrations', 'AccountHeads', 'nextRvid', 'isSuperAdmin', 'currentBranch', 'Branch'));
     }
 
     public function store_expense_vochers(Request $request)
     {
         DB::beginTransaction();
         try {
+            // Branch resolution
+            if (Auth::user()->hasRole('super admin') && $request->has('branch_id') && $request->branch_id != '') {
+                $branchId = (int) $request->branch_id;
+            } else {
+                $branchId = (int) (auth()->user()->branch_id ?? 1);
+            }
+
             $evid = ExpenseVoucher::generateInvoiceNo();
             $narrationIds = [];
 
@@ -1381,12 +1393,13 @@ public function getOpeningBalance($type, $id)
             }
             $voucherData = [
                 'evid'             => $evid,
+                'branch_id'        => $branchId,
                 'entry_date'       => $request->entry_date,
                 'type'             => $request->vendor_type,
                 'party_id'         => $request->vendor_id,
                 'tel'              => $request->tel,
                 'remarks'          => $request->remarks,
-                'narration_id' => json_encode($narrationIds),
+                'narration_id'     => json_encode($narrationIds),
                 'row_account_head' => json_encode($request->row_account_head),
                 'row_account_id'   => json_encode($request->row_account_id),
                 'amount'           => json_encode($request->amount),
@@ -1418,7 +1431,6 @@ public function getOpeningBalance($type, $id)
              * STEP 2: Party side → MINUS
              */
             if ($request->vendor_type === 'vendor') {
-                $branchId = auth()->user()->branch_id ?? 0;
                 $lastLedger = VendorLedger::where('vendor_id', $request->vendor_id)
                     ->where('branch_id', $branchId)
                     ->orderBy('id', 'desc')
@@ -1476,9 +1488,24 @@ public function getOpeningBalance($type, $id)
         }
     }
 
-    public function all_expense_vochers()
+    public function all_expense_vochers(Request $request)
     {
-        $receipts = \App\Models\ExpenseVoucher::orderBy('id', 'DESC')->get();
+        $isSuperAdmin = Auth::user()->hasRole('super admin');
+        $userBranchId = Auth::user()->branch_id;
+        $branches = \App\Models\Branch::all();
+        $selectedBranch = $request->get('branch_id', 'all');
+
+        $query = \App\Models\ExpenseVoucher::with('branch');
+
+        if (!$isSuperAdmin) {
+            $query->where('branch_id', $userBranchId);
+        } else {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $query->where('branch_id', $request->branch_id);
+            }
+        }
+
+        $receipts = $query->orderBy('id', 'DESC')->get();
 
         foreach ($receipts as $voucher) {
             $partyName = '-';
@@ -1511,9 +1538,10 @@ public function getOpeningBalance($type, $id)
             // 🔗 Attach extra fields for Blade
             $voucher->type_label = $typeLabel;
             $voucher->party_name = $partyName;
+            $voucher->branch_name = $voucher->branch ? $voucher->branch->name : '-';
         }
 
-        return view('admin_panel.vochers.expense_vochers.all_expense_vochers', compact('receipts'));
+        return view('admin_panel.vochers.expense_vochers.all_expense_vochers', compact('receipts', 'branches', 'selectedBranch', 'isSuperAdmin'));
     }
 
     public function destroy_expense($id)

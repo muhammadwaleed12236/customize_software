@@ -31,8 +31,21 @@
             <div class="alert alert-danger mt-2"><strong>Error!</strong> {{ session('error') }}</div>
         @endif
 
-        <div class="card-header mt-2 d-flex justify-content-between align-items-center">
-            <h4 class="mb-0">📋 Expense Vouchers</h4>
+        <div class="card-header mt-2 d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div class="d-flex align-items-center gap-3">
+                <h4 class="mb-0">📋 Expense Vouchers</h4>
+                @if($isSuperAdmin)
+                    <form method="GET" action="{{ route('all-expense-vochers') }}" class="d-flex align-items-center gap-2 m-0">
+                        <label class="small text-muted mb-0 fw-bold">Branch:</label>
+                        <select name="branch_id" class="form-select form-select-sm" style="width: auto; min-width: 170px;" onchange="this.form.submit()">
+                            <option value="all" {{ ($selectedBranch == 'all' || empty($selectedBranch)) ? 'selected' : '' }}>🏢 All Branches</option>
+                            @foreach($branches as $b)
+                                <option value="{{ $b->id }}" {{ (string)$selectedBranch === (string)$b->id ? 'selected' : '' }}>🏢 {{ $b->name }}</option>
+                            @endforeach
+                        </select>
+                    </form>
+                @endif
+            </div>
             @can('expense.voucher.create')
             <a class="btn btn-primary" href="{{ route('expense-vochers') }}"><i class="bi bi-plus-lg me-1"></i> Add Expense Voucher</a>
             @endcan
@@ -44,6 +57,9 @@
                         <thead class="table-dark">
                             <tr>
                                 <th>ID</th>
+                                @if($isSuperAdmin)
+                                    <th>Branch</th>
+                                @endif
                                 <th>Voucher No</th>
                                 <th>Expense Date</th>
                                 <th>Source Type</th>
@@ -68,6 +84,9 @@
                             @endphp
                             <tr>
                                 <td>{{ $item->id }}</td>
+                                @if($isSuperAdmin)
+                                    <td><span class="badge bg-info text-dark">{{ $item->branch_name }}</span></td>
+                                @endif
                                 <td><strong>{{ $item->evid }}</strong></td>
                                 <td>{{ $item->entry_date }}</td>
                                 <td><span class="badge bg-secondary text-white">{{ $item->type_label }}</span></td>

@@ -39,7 +39,7 @@ class HomeController extends Controller
             // Branch filter logic
             $selectedBranchId = null;
             if ($isSuperAdmin) {
-                $selectedBranchId = $request->get('branch_id');
+                $selectedBranchId = $request->filled('branch_id') ? $request->get('branch_id') : null;
             } else {
                 $selectedBranchId = $user->branch_id ?? 1;
             }
@@ -53,19 +53,25 @@ class HomeController extends Controller
             // Stats Counters
             $categoryCount = DB::table('categories')->count();
             $subcategoryCount = DB::table('subcategories')->count();
-            $productCount = DB::table('products')->count();
+            $productCount = DB::table('products')
+                ->when($selectedBranchId, fn($q) => $q->where('branch_id', $selectedBranchId))
+                ->count();
 
             $customersQuery = DB::table('customers');
             $purchasesQuery = DB::table('purchases');
             $purchaseReturnsQuery = DB::table('purchase_returns');
             $salesQuery = DB::table('sales');
             $salesReturnsQuery = DB::table('sales_returns');
-            $expensesQuery = DB::table('expense_vouchers');
+            $expensesQuery = DB::table('expense_vouchers')
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                });
 
             if ($selectedBranchId) {
                 $customersQuery->where('branch_id', $selectedBranchId);
                 $purchasesQuery->where('branch_id', $selectedBranchId);
                 $salesQuery->where('branch_id', $selectedBranchId);
+                $expensesQuery->where('branch_id', $selectedBranchId);
 
                 $purchaseReturnsQuery->whereExists(function ($query) use ($selectedBranchId) {
                     $query->select(DB::raw(1))
@@ -100,25 +106,51 @@ class HomeController extends Controller
             // Today
             $todaySalesQuery = DB::table('sales')->whereDate('created_at', $today);
             $todayPurchasesQuery = DB::table('purchases')->whereDate('created_at', $today);
-            $todayExpensesQuery = DB::table('expense_vouchers')->whereDate('created_at', $today);
+            $todayExpensesQuery = DB::table('expense_vouchers')
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                })
+                ->where(function ($q) use ($today) {
+                    $q->whereDate('created_at', $today)->orWhereDate('entry_date', $today);
+                });
 
             // This Month
             $monthSalesQuery = DB::table('sales')->whereMonth('created_at', $thisMonth)->whereYear('created_at', $thisYear);
             $monthPurchasesQuery = DB::table('purchases')->whereMonth('created_at', $thisMonth)->whereYear('created_at', $thisYear);
-            $monthExpensesQuery = DB::table('expense_vouchers')->whereMonth('created_at', $thisMonth)->whereYear('created_at', $thisYear);
+            $monthExpensesQuery = DB::table('expense_vouchers')
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                })
+                ->where(function ($q) use ($thisMonth, $thisYear) {
+                    $q->where(function ($sub) use ($thisMonth, $thisYear) {
+                        $sub->whereMonth('created_at', $thisMonth)->whereYear('created_at', $thisYear);
+                    })->orWhere(function ($sub) use ($thisMonth, $thisYear) {
+                        $sub->whereMonth('entry_date', $thisMonth)->whereYear('entry_date', $thisYear);
+                    });
+                });
 
             // Last Month
             $lastMonthSalesQuery = DB::table('sales')->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd]);
             $lastMonthPurchasesQuery = DB::table('purchases')->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd]);
-            $lastMonthExpensesQuery = DB::table('expense_vouchers')->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd]);
+            $lastMonthExpensesQuery = DB::table('expense_vouchers')
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                })
+                ->where(function ($q) use ($lastMonthStart, $lastMonthEnd) {
+                    $q->whereBetween('created_at', [$lastMonthStart, $lastMonthEnd])
+                      ->orWhereBetween('entry_date', [$lastMonthStart, $lastMonthEnd]);
+                });
 
             if ($selectedBranchId) {
                 $todaySalesQuery->where('branch_id', $selectedBranchId);
                 $todayPurchasesQuery->where('branch_id', $selectedBranchId);
+                $todayExpensesQuery->where('branch_id', $selectedBranchId);
                 $monthSalesQuery->where('branch_id', $selectedBranchId);
                 $monthPurchasesQuery->where('branch_id', $selectedBranchId);
+                $monthExpensesQuery->where('branch_id', $selectedBranchId);
                 $lastMonthSalesQuery->where('branch_id', $selectedBranchId);
                 $lastMonthPurchasesQuery->where('branch_id', $selectedBranchId);
+                $lastMonthExpensesQuery->where('branch_id', $selectedBranchId);
             }
 
             $todaySales = (float) $todaySalesQuery->sum('total_net');
@@ -153,10 +185,20 @@ class HomeController extends Controller
                 return (float) $q->sum('net_amount');
             });
 
-            $dailyExpenseData = $dailyLabels->map(function ($date) {
-                $q = DB::table('expense_vouchers')->whereDate('created_at', $date);
+            $dailyExpenseData = $dailyLabels->map(function ($date) use ($selectedBranchId) {
+                $q = DB::table('expense_vouchers')
+                    ->where(function ($w) {
+                        $w->whereNull('status')->orWhere('status', '!=', 'voided');
+                    })
+                    ->where(function ($w) use ($date) {
+                        $w->whereDate('created_at', $date)->orWhereDate('entry_date', $date);
+                    });
+                if ($selectedBranchId) {
+                    $q->where('branch_id', $selectedBranchId);
+                }
                 return (float) ($q->sum('total_amount') ?: $q->sum('amount') ?: 0);
             });
+
 
             // Weekly & Monthly Sales/Purchase Data
             $weeklyLabels = ['2 Weeks Ago', 'Last Week', 'This Week'];
@@ -214,7 +256,8 @@ class HomeController extends Controller
 
             // Low Stock Products
             $lowStockProducts = Product::with(['category_relation'])
-                ->select('id', 'item_code', 'item_name', 'item_name_urdu', 'alert_quantity', 'category_id')
+                ->select('id', 'item_code', 'item_name', 'item_name_urdu', 'alert_quantity', 'category_id', 'branch_id')
+                ->when($selectedBranchId, fn($q) => $q->where('branch_id', $selectedBranchId))
                 ->latest()
                 ->take(6)
                 ->get();
@@ -232,7 +275,7 @@ class HomeController extends Controller
                 ->take(5)
                 ->get();
 
-            // Top Selling Products (aggregated from SaleItem or fallback to Product catalog)
+            // Top Selling Products (aggregated from SaleItem or fallback to empty)
             $topProductsQuery = DB::table('sale_items')
                 ->select('product_id', DB::raw('SUM(sales_qty) as total_qty'), DB::raw('SUM(amount) as total_amount'))
                 ->groupBy('product_id')
@@ -259,15 +302,7 @@ class HomeController extends Controller
                     ];
                 });
             } else {
-                $topProducts = Product::take(6)->get()->map(function ($prod) {
-                    return (object) [
-                        'name' => $prod->item_name,
-                        'name_urdu' => $prod->item_name_urdu,
-                        'total_qty' => rand(20, 200),
-                        'total_amount' => (float) ($prod->retail_price ?? 1000) * rand(10, 50),
-                        'image' => $prod->image,
-                    ];
-                });
+                $topProducts = collect([]);
             }
 
             return view('admin_panel.dashboard', compact(

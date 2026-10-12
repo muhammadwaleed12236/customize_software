@@ -802,7 +802,15 @@ class SaleController extends Controller
 
                 /* ================= UPDATE WAREHOUSE IDs (Optional) ================= */
                 foreach ($booking->items as $item) {
-                    $wid = $warehouseMap[$item->product_id] ?? null;
+                    $rawWid = $warehouseMap[$item->product_id] ?? null;
+                    $wid = null;
+                    if ($rawWid) {
+                        if (is_string($rawWid) && str_starts_with($rawWid, 'warehouse_')) {
+                            $wid = (int) str_replace('warehouse_', '', $rawWid);
+                        } elseif (is_numeric($rawWid) && (int) $rawWid > 0) {
+                            $wid = (int) $rawWid;
+                        }
+                    }
                     $item->warehouse_id = $wid;
                     $item->save();
                 }
@@ -2759,36 +2767,58 @@ public function finddc($invoice)
                 $productId = is_numeric($itemVal) ? (int) $itemVal : ($request->product_id[$i] ?? $request->input("product_name.$i") ?? null);
                 if (!$productId) continue;
 
-                $warehouse_id = null;
+                $rawWid = null;
                 if (is_array($request->warehouse_id) && isset($request->warehouse_id[$i])) {
-                    $warehouse_id = $request->warehouse_id[$i];
+                    $rawWid = $request->warehouse_id[$i];
                 } elseif (is_array($request->warehouse_name) && isset($request->warehouse_name[$i])) {
-                    $warehouse_id = $request->warehouse_name[$i];
+                    $rawWid = $request->warehouse_name[$i];
                 } else {
-                    $warehouse_id = $request->input('warehouse_id') ?? auth()->user()->warehouse_id ?? 1;
+                    $rawWid = $request->input('warehouse_id') ?? $request->input('global_warehouse_id') ?? null;
                 }
 
-                if (empty($warehouse_id)) {
-                    $warehouse_id = auth()->user()->warehouse_id ?? 1;
+                $itemBranch = $sale->branch_id ?? $branch->id ?? 1;
+                $cleanWhId = null;
+
+                if (!empty($rawWid)) {
+                    if (is_string($rawWid) && str_starts_with($rawWid, 'branch_')) {
+                        $itemBranch = (int) str_replace('branch_', '', $rawWid);
+                        $cleanWhId = null;
+                    } elseif (is_string($rawWid) && ($rawWid === 'branch' || $rawWid === 'shop')) {
+                        $cleanWhId = null;
+                    } elseif (is_string($rawWid) && str_starts_with($rawWid, 'warehouse_')) {
+                        $cleanWhId = (int) str_replace('warehouse_', '', $rawWid);
+                    } elseif (is_numeric($rawWid) && (int) $rawWid > 0) {
+                        if (Warehouse::where('id', (int) $rawWid)->exists()) {
+                            $cleanWhId = (int) $rawWid;
+                        } else {
+                            $itemBranch = (int) $rawWid;
+                            $cleanWhId = null;
+                        }
+                    }
                 }
 
                 $saleQty = (float) ($request->sales_qty[$i] ?? $request->qty[$i] ?? $request->carton_qty[$i] ?? $request->input("sales-qty.$i", 0));
                 if ($saleQty <= 0) continue;
 
-                // Per-warehouse stock (allow negative)
-                $ws = WarehouseStock::where('warehouse_id', $warehouse_id)
-                    ->where('product_id', $productId)
-                    ->first();
+                // Per-location warehouse stock (allow negative)
+                $wsQuery = WarehouseStock::where('product_id', $productId)
+                    ->where('branch_id', $itemBranch);
+                if ($cleanWhId) {
+                    $wsQuery->where('warehouse_id', $cleanWhId);
+                } else {
+                    $wsQuery->whereNull('warehouse_id');
+                }
+                $ws = $wsQuery->first();
 
                 if ($ws) {
                     $ws->quantity = ($ws->quantity ?? 0) - $saleQty;
                     $ws->save();
                 } else {
                     WarehouseStock::create([
-                        'branch_id' => $sale->branch_id ?? $branch->id ?? 1,
-                        'warehouse_id' => $warehouse_id,
-                        'product_id' => $productId,
-                        'quantity' => -1 * $saleQty,
+                        'branch_id'    => $itemBranch,
+                        'warehouse_id' => $cleanWhId,
+                        'product_id'   => $productId,
+                        'quantity'     => -1 * $saleQty,
                     ]);
                 }
 
@@ -3933,6 +3963,7 @@ public function finddc($invoice)
             'saleItems'         => $items,
             'receipts'          => $receipts,
             'partyType'         => $partyType,
+            'defaultBranchId'   => $branchId,
         ]);
     }
 
@@ -3948,29 +3979,71 @@ public function finddc($invoice)
                 $sale = Sale::with(['saleItems', 'customer'])->lockForUpdate()->findOrFail($id);
                 $oldTotal = floatval($sale->total_net ?? 0);
                 $customerId = $request->input('customer_id');
-                $branchId = $sale->branch_id ?? (auth()->user()->branch_id ?? 1);
+
+                $requestedBranchId = $request->input('branch_id');
+                $branchId = $requestedBranchId ? (int)$requestedBranchId : ($sale->branch_id ?? (auth()->user()->branch_id ?? 1));
+
+                $globalLoc = $request->input('global_warehouse_id');
+                if (!$requestedBranchId && !empty($globalLoc) && is_string($globalLoc) && str_starts_with($globalLoc, 'branch_')) {
+                    $extractedBranch = (int) str_replace('branch_', '', $globalLoc);
+                    if ($extractedBranch > 0) {
+                        $branchId = $extractedBranch;
+                    }
+                }
 
                 /* ================= STEP 1: REVERSE OLD STOCK (Add back) ================= */
                 foreach ($sale->saleItems as $oldItem) {
-                    if ($oldItem->warehouse_id) {
-                        $whStock = WarehouseStock::lockForUpdate()
-                            ->where('product_id', $oldItem->product_id)
-                            ->where('branch_id', $branchId)
-                            ->where('warehouse_id', $oldItem->warehouse_id)
-                            ->first();
-                        if ($whStock) {
-                            $whStock->quantity += $oldItem->sales_qty;
-                            $whStock->save();
+                    $itemBranchId = $oldItem->branch_id ?: $branchId;
+                    $rawOldWid = $oldItem->warehouse_id;
+                    $oldWid = null;
+
+                    if ($rawOldWid) {
+                        if (is_string($rawOldWid) && str_starts_with($rawOldWid, 'warehouse_')) {
+                            $oldWid = (int) str_replace('warehouse_', '', $rawOldWid);
+                        } elseif (is_numeric($rawOldWid) && (int)$rawOldWid > 0) {
+                            $oldWid = (int)$rawOldWid;
                         }
                     }
 
+                    // Restore warehouse_stocks (shop stock has warehouse_id = null)
+                    $whStockQuery = WarehouseStock::lockForUpdate()
+                        ->where('product_id', $oldItem->product_id)
+                        ->where('branch_id', $itemBranchId);
+
+                    if ($oldWid) {
+                        $whStockQuery->where('warehouse_id', $oldWid);
+                    } else {
+                        $whStockQuery->whereNull('warehouse_id');
+                    }
+
+                    $whStock = $whStockQuery->first();
+                    if ($whStock) {
+                        $whStock->quantity += $oldItem->sales_qty;
+                        $whStock->save();
+                    } else {
+                        WarehouseStock::create([
+                            'branch_id'    => $itemBranchId,
+                            'warehouse_id' => $oldWid,
+                            'product_id'   => $oldItem->product_id,
+                            'quantity'     => $oldItem->sales_qty,
+                        ]);
+                    }
+
+                    // Restore main stock (branch-level overall)
                     $mainStock = Stock::lockForUpdate()
                         ->where('product_id', $oldItem->product_id)
-                        ->where('branch_id', $branchId)
+                        ->where('branch_id', $itemBranchId)
                         ->first();
                     if ($mainStock) {
                         $mainStock->qty += $oldItem->sales_qty;
                         $mainStock->save();
+                    } else {
+                        Stock::create([
+                            'branch_id'    => $itemBranchId,
+                            'product_id'   => $oldItem->product_id,
+                            'qty'          => $oldItem->sales_qty,
+                            'reserved_qty' => 0,
+                        ]);
                     }
                 }
 
@@ -3988,6 +4061,7 @@ public function finddc($invoice)
                 }
 
                 $sale->update([
+                    'branch_id'           => $branchId,
                     'customer_id'         => ($partyType === 'walking' ? null : ($customerId ?: $sale->customer_id)),
                     'sub_customer'        => $customerName,
                     'party_type'          => $partyType,
@@ -4017,7 +4091,6 @@ public function finddc($invoice)
                 $discountTypes = $request->input('discount_type', []);
                 $salesAmounts = $request->input('sales_amount', []);
                 $warehouseIds = $request->input('warehouse_id', []);
-
                 $watts = $request->input('watt', []);
 
                 foreach ($productIds as $i => $productId) {
@@ -4029,23 +4102,58 @@ public function finddc($invoice)
                     $discPercent = floatval($discountPercentages[$i] ?? 0);
                     $discType = $discountTypes[$i] ?? 'percent';
                     $amount = floatval($salesAmounts[$i] ?? 0);
-                    $whId = null;
+
+                    // Extract raw location identifier for this line item
+                    $rawLoc = null;
                     if (is_array($warehouseIds)) {
-                        $whId = $warehouseIds[$i] ?? ($warehouseIds[$productId] ?? null);
+                        $rawLoc = $warehouseIds[$i] ?? ($warehouseIds[$productId] ?? null);
                     } elseif (!empty($warehouseIds)) {
-                        $whId = $warehouseIds;
+                        $rawLoc = $warehouseIds;
                     }
-                    if (!$whId) {
-                        $whId = $request->input('global_warehouse_id') ?? $sale->warehouse_id ?? null;
+                    if (!$rawLoc) {
+                        $rawLoc = $globalLoc ?? $sale->warehouse_id ?? null;
                     }
+
+                    // Cleanly parse branch vs warehouse
+                    $itemBranchId = $branchId;
+                    $cleanWarehouseId = null;
+                    $deliveryLocationType = 'branch';
+
+                    if (!empty($rawLoc)) {
+                        if (is_string($rawLoc) && str_starts_with($rawLoc, 'branch_')) {
+                            $itemBranchId = (int) str_replace('branch_', '', $rawLoc);
+                            $cleanWarehouseId = null;
+                            $deliveryLocationType = 'branch';
+                        } elseif (is_string($rawLoc) && ($rawLoc === 'branch' || $rawLoc === 'shop')) {
+                            $cleanWarehouseId = null;
+                            $deliveryLocationType = 'branch';
+                        } elseif (is_string($rawLoc) && str_starts_with($rawLoc, 'warehouse_')) {
+                            $cleanWarehouseId = (int) str_replace('warehouse_', '', $rawLoc);
+                            $deliveryLocationType = 'warehouse';
+                        } elseif (is_numeric($rawLoc) && (int) $rawLoc > 0) {
+                            if (Warehouse::where('id', (int) $rawLoc)->exists()) {
+                                $cleanWarehouseId = (int) $rawLoc;
+                                $deliveryLocationType = 'warehouse';
+                            } else {
+                                $itemBranchId = (int) $rawLoc;
+                                $cleanWarehouseId = null;
+                                $deliveryLocationType = 'branch';
+                            }
+                        }
+                    }
+
+                    if (!$itemBranchId) {
+                        $itemBranchId = $branchId;
+                    }
+
                     $watt = floatval(is_array($watts) ? ($watts[$i] ?? 0) : ($request->input("watt.$i", 0)));
 
                     // Create new sale item
-                    SaleItem::create([
+                    $itemData = [
                         'invoice_no'       => $sale->invoice_no,
-                        'branch_id'        => $branchId,
+                        'branch_id'        => $itemBranchId,
                         'sale_id'          => $sale->id,
-                        'warehouse_id'     => $whId,
+                        'warehouse_id'     => $cleanWarehouseId, // Valid integer or NULL (never string like 'branch_12')
                         'product_id'       => $productId,
                         'watt'             => $watt,
                         'sales_qty'        => $qty,
@@ -4054,33 +4162,43 @@ public function finddc($invoice)
                         'discount_amount'  => $discAmount,
                         'discount_type'    => $discType,
                         'amount'           => $amount,
-                    ]);
+                    ];
+                    if (\Illuminate\Support\Facades\Schema::hasColumn('sale_items', 'delivery_location_type')) {
+                        $itemData['delivery_location_type'] = $deliveryLocationType;
+                    }
+                    SaleItem::create($itemData);
 
-                    // Deduct new warehouse stock
-                    if ($whId) {
-                        $whStock = WarehouseStock::lockForUpdate()
-                            ->where('product_id', $productId)
-                            ->where('branch_id', $branchId)
-                            ->where('warehouse_id', $whId)
-                            ->first();
+                    // Deduct from warehouse_stocks (unified inventory table)
+                    // If cleanWarehouseId is null -> deduct from branch/shop stock (warehouse_id IS NULL)
+                    // If cleanWarehouseId is integer -> deduct from specific warehouse
+                    $whStockQuery = WarehouseStock::lockForUpdate()
+                        ->where('product_id', $productId)
+                        ->where('branch_id', $itemBranchId);
 
-                        if ($whStock) {
-                            $whStock->quantity -= $qty;
-                            $whStock->save();
-                        } else {
-                            WarehouseStock::create([
-                                'branch_id'    => $branchId,
-                                'warehouse_id' => $whId,
-                                'product_id'   => $productId,
-                                'quantity'     => -$qty,
-                            ]);
-                        }
+                    if ($cleanWarehouseId) {
+                        $whStockQuery->where('warehouse_id', $cleanWarehouseId);
+                    } else {
+                        $whStockQuery->whereNull('warehouse_id');
                     }
 
-                    // Deduct new main stock
+                    $whStock = $whStockQuery->first();
+
+                    if ($whStock) {
+                        $whStock->quantity -= $qty;
+                        $whStock->save();
+                    } else {
+                        WarehouseStock::create([
+                            'branch_id'    => $itemBranchId,
+                            'warehouse_id' => $cleanWarehouseId,
+                            'product_id'   => $productId,
+                            'quantity'     => -$qty,
+                        ]);
+                    }
+
+                    // Deduct from main stock (branch-level overall)
                     $mainStock = Stock::lockForUpdate()
                         ->where('product_id', $productId)
-                        ->where('branch_id', $branchId)
+                        ->where('branch_id', $itemBranchId)
                         ->first();
 
                     if ($mainStock) {
@@ -4088,7 +4206,7 @@ public function finddc($invoice)
                         $mainStock->save();
                     } else {
                         Stock::create([
-                            'branch_id'    => $branchId,
+                            'branch_id'    => $itemBranchId,
                             'product_id'   => $productId,
                             'qty'          => -$qty,
                             'reserved_qty' => 0,
@@ -4778,9 +4896,11 @@ public function finddc($invoice)
                         $qty = floatval($item->sales_qty);
 
                         // WarehouseStock
+                        $itemBranch = $item->branch_id ?? $sale->branch_id ?? 1;
                         if ($item->warehouse_id) {
                             $whStock = WarehouseStock::where('product_id', $item->product_id)
                                 ->where('warehouse_id', $item->warehouse_id)
+                                ->where('branch_id', $itemBranch)
                                 ->first();
 
                             if ($whStock) {
@@ -4788,7 +4908,25 @@ public function finddc($invoice)
                                 $whStock->save();
                             } else {
                                 WarehouseStock::create([
+                                    'branch_id'    => $itemBranch,
                                     'warehouse_id' => $item->warehouse_id,
+                                    'product_id'   => $item->product_id,
+                                    'quantity'     => $qty,
+                                ]);
+                            }
+                        } else {
+                            $whStock = WarehouseStock::where('product_id', $item->product_id)
+                                ->where('branch_id', $itemBranch)
+                                ->whereNull('warehouse_id')
+                                ->first();
+
+                            if ($whStock) {
+                                $whStock->quantity += $qty;
+                                $whStock->save();
+                            } else {
+                                WarehouseStock::create([
+                                    'branch_id'    => $itemBranch,
+                                    'warehouse_id' => null,
                                     'product_id'   => $item->product_id,
                                     'quantity'     => $qty,
                                 ]);
