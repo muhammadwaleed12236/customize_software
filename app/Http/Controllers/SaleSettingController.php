@@ -27,6 +27,8 @@ class SaleSettingController extends Controller
             'show_gst' => $request->has('show_gst'),
             'show_line_discount' => $request->has('show_line_discount'),
             'show_overall_discount' => $request->has('show_overall_discount'),
+            'show_watt' => $request->has('show_watt'),
+            'warehouse_mode' => $request->input('warehouse_mode', 'global') === 'product_wise' ? 'product_wise' : 'global',
         ]);
 
         return redirect()->route('sale.settings.index')

@@ -251,9 +251,11 @@
 
         /* Column Widths - Product column stretches to 100% fill */
         .col-product { width: auto !important; }
+        .col-warehouse { width: 140px !important; min-width: 140px !important; }
         .col-stock { width: 55px !important; min-width: 55px !important; }
         .col-qty { width: 85px !important; min-width: 85px !important; }
         .col-pieces { width: 50px !important; min-width: 50px !important; }
+        .col-watt { width: 75px !important; min-width: 75px !important; }
         .col-price-p { width: 75px !important; min-width: 75px !important; }
         .col-disc { width: 75px !important; min-width: 75px !important; }
         .col-amount { width: 85px !important; min-width: 85px !important; }
@@ -285,39 +287,104 @@
             cursor: pointer;
         }
 
+        .pos-main-row {
+            --bs-gutter-x: 2px !important;
+            --bs-gutter-y: 2px !important;
+            margin-left: -1px !important;
+            margin-right: -1px !important;
+        }
+        .pos-main-row > [class*="col-"],
+        .pos-main-row > .pos-left-main,
+        .pos-main-row > .pos-right-summary {
+            padding-left: 1px !important;
+            padding-right: 1px !important;
+        }
+        @media (min-width: 992px) {
+            .pos-left-main {
+                flex: 1 1 0% !important;
+                max-width: none !important;
+                width: auto !important;
+                min-width: 0 !important;
+            }
+            .pos-right-summary {
+                flex: 0 0 330px !important;
+                max-width: 330px !important;
+                width: 330px !important;
+            }
+        }
+        @media (max-width: 991.98px) {
+            .pos-left-main,
+            .pos-right-summary {
+                flex: 0 0 100% !important;
+                max-width: 100% !important;
+                width: 100% !important;
+            }
+        }
+
+        /* Top info fields - tight zero-gap flow */
+        .top-info-fields-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            gap: 4px;
+            margin-bottom: 2px;
+            width: 100%;
+        }
+        .top-info-fields-row .form-control,
+        .top-info-fields-row .form-select {
+            width: 100% !important;
+        }
+        .top-field-branch { flex: 0 0 155px; max-width: 155px; }
+        .top-field-loc { flex: 0 0 185px; max-width: 185px; }
+        .top-field-date { flex: 0 0 130px; max-width: 130px; }
+        .top-field-salesman { flex: 0 0 155px; max-width: 155px; }
+        .top-field-crdays { flex: 0 0 65px; max-width: 65px; }
+        .top-field-remarks { flex: 1 1 180px; min-width: 140px; }
+        @media (max-width: 767.98px) {
+            .top-field-branch,
+            .top-field-loc,
+            .top-field-date,
+            .top-field-salesman,
+            .top-field-crdays,
+            .top-field-remarks {
+                flex: 1 1 calc(50% - 4px);
+                max-width: 100%;
+            }
+        }
+
         .summary-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 6px 0;
+            padding: 2.5px 0 !important;
             border-bottom: 1px dashed #e2e8f0;
-            font-size: 0.8rem;
+            font-size: 0.77rem;
         }
         .summary-val-net {
             font-weight: 800;
             color: #2563eb;
-            font-size: 1rem;
+            font-size: 0.92rem;
         }
         .summary-val-change {
             background: #ffe4e6;
             color: #e11d48;
             font-weight: 800;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-size: 0.95rem;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.85rem;
         }
 
         .bottom-summary-strip {
             background: #ffffff;
             border: 1px solid #cbd5e1;
-            border-radius: 8px;
-            padding: 10px 16px;
-            margin-top: 10px;
+            border-radius: 6px;
+            padding: 5px 12px;
+            margin-top: 5px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 8px;
         }
         .btn-save-complete {
             background: #10b981 !important;
@@ -487,7 +554,7 @@
                 </div>
 
                 {{-- TOP HEADER BAR WITH INVOICE NO BADGE & SALE SETTINGS BUTTON --}}
-                <div class="d-flex justify-content-between align-items-center mb-2 px-1">
+                <div class="d-flex justify-content-between align-items-center mb-1 px-1">
                     <div class="d-flex align-items-center gap-2">
                         <a href="{{ route('sale.index') }}" class="btn btn-sm btn-light border rounded-circle" title="Back"><i class="fas fa-arrow-left text-secondary"></i></a>
                         <div>
@@ -511,15 +578,15 @@
                 </div>
 
                 <!-- TOP INFORMATION PANEL -->
-                <div class="card-panel mb-2 p-2 bg-white border rounded-3 shadow-xs">
-                    <div class="row g-2 align-items-end">
+                <div class="card-panel mb-1 bg-white border rounded-3 shadow-xs" style="padding: 4px 6px !important;">
+                    <div class="top-info-fields-row">
                         <!-- Branch Selection (Super Admin dropdown, Regular User readonly/badge) -->
-                        <div class="col-xl-2 col-lg-2 col-md-4 col-sm-6">
-                            <label class="form-label fw-bold text-uppercase text-primary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
+                        <div class="top-field-branch">
+                            <label class="form-label fw-bold text-uppercase text-primary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                                 <i class="fas fa-building me-1"></i>Branch
                             </label>
                             @if (Auth::user() && Auth::user()->hasRole('super admin'))
-                                <select class="form-select fw-bold border-primary shadow-xs" name="branch_id" id="branch_id" style="font-size:0.78rem; height: 30px;">
+                                <select class="form-select fw-bold border-primary shadow-xs" name="branch_id" id="branch_id" style="font-size:0.78rem; height: 28px;">
                                     @foreach($branches as $b)
                                         <option value="{{ $b->id }}" {{ (isset($sale) && $sale->branch_id == $b->id) || (!isset($sale) && ((isset($defaultBranchId) && $defaultBranchId == $b->id) || (Auth::user()->branch_id == $b->id))) ? 'selected' : '' }}>
                                             {{ $b->name }}
@@ -527,7 +594,7 @@
                                     @endforeach
                                 </select>
                             @else
-                                <div class="form-control form-control-sm bg-light fw-bold text-primary text-truncate border-secondary-subtle" style="font-size:0.78rem; height: 30px; line-height: 22px;">
+                                <div class="form-control form-control-sm bg-light fw-bold text-primary text-truncate border-secondary-subtle" style="font-size:0.78rem; height: 28px; line-height: 20px;">
                                     <i class="fas fa-store me-1"></i>{{ Auth::user()->branch->name ?? 'Default Branch' }}
                                 </div>
                                 <input type="hidden" name="branch_id" id="branch_id" value="{{ $sale->branch_id ?? Auth::user()->branch_id ?? 1 }}">
@@ -535,11 +602,11 @@
                         </div>
 
                         <!-- Location Selection (Shop / Warehouse) -->
-                        <div class="col-xl-2 col-lg-2 col-md-4 col-sm-6">
-                            <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
-                                <i class="fas fa-map-marker-alt text-info me-1"></i>Location
+                        <div class="top-field-loc">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
+                                <i class="fas fa-map-marker-alt text-info me-1"></i>Location {{ (isset($saleSettings) && $saleSettings->warehouse_mode === 'product_wise') ? '(Default)' : '' }}
                             </label>
-                            <select class="form-select fw-bold shadow-xs" name="global_warehouse_id" id="globalWarehouseSelect" style="font-size:0.78rem; height: 30px;">
+                            <select class="form-select fw-bold shadow-xs" name="global_warehouse_id" id="globalWarehouseSelect" style="font-size:0.78rem; height: 28px;">
                                 @if(isset($branches) && count($branches) > 0)
                                     <optgroup label="🏬 Shops / Branches (Shop Stock)">
                                         @foreach($branches as $b)
@@ -565,19 +632,19 @@
                         </div>
 
                         <!-- Date with Calendar -->
-                        <div class="col-xl-2 col-lg-2 col-md-4 col-sm-6">
-                            <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
+                        <div class="top-field-date">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                                 <i class="far fa-calendar-alt text-success me-1"></i>Date
                             </label>
-                            <input type="date" name="sale_date" class="form-control text-center fw-bold shadow-xs" id="displayDateInput" value="{{ isset($sale) && $sale->created_at ? (is_string($sale->created_at) ? substr($sale->created_at, 0, 10) : $sale->created_at->format('Y-m-d')) : date('Y-m-d') }}" style="font-size:0.78rem; height: 30px;">
+                            <input type="date" name="sale_date" class="form-control text-center fw-bold shadow-xs" id="displayDateInput" value="{{ isset($sale) && $sale->created_at ? (is_string($sale->created_at) ? substr($sale->created_at, 0, 10) : $sale->created_at->format('Y-m-d')) : date('Y-m-d') }}" style="font-size:0.78rem; height: 28px;">
                         </div>
 
                         <!-- Salesman Selection Dropdown -->
-                        <div class="col-xl-2 col-lg-2 col-md-4 col-sm-6">
-                            <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
+                        <div class="top-field-salesman">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                                 <i class="fas fa-user-tie text-warning me-1"></i>Salesman
                             </label>
-                            <select class="form-select fw-bold shadow-xs" name="salesman_id" id="salesmanSelect" style="font-size:0.78rem; height: 30px;">
+                            <select class="form-select fw-bold shadow-xs" name="salesman_id" id="salesmanSelect" style="font-size:0.78rem; height: 28px;">
                                 <option value="">Select Salesman</option>
                                 @if(isset($salesmen) && count($salesmen) > 0)
                                     @foreach($salesmen as $sm)
@@ -590,51 +657,51 @@
                         </div>
 
                         <!-- Cr. Days -->
-                        <div class="col-xl-1 col-lg-1 col-md-2 col-sm-6">
-                            <label class="form-label fw-bold text-uppercase text-secondary mb-1 text-truncate d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
+                        <div class="top-field-crdays">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 text-truncate d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                                 <i class="fas fa-clock text-danger me-1"></i>Cr. Days
                             </label>
-                            <input type="number" class="form-control text-center fw-bold shadow-xs" name="credit_days" placeholder="0" min="0" value="{{ $sale->credit_days ?? '0' }}" style="font-size:0.78rem; height: 30px;">
+                            <input type="number" class="form-control text-center fw-bold shadow-xs" name="credit_days" placeholder="0" min="0" value="{{ $sale->credit_days ?? '0' }}" style="font-size:0.78rem; height: 28px;">
                         </div>
 
                         <!-- M.Bill / Remarks -->
-                        <div class="col-xl-3 col-lg-3 col-md-10 col-sm-6">
-                            <label class="form-label fw-bold text-uppercase text-secondary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
+                        <div class="top-field-remarks">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                                 <i class="fas fa-sticky-note text-secondary me-1"></i>M.Bill / Remarks
                             </label>
-                            <input type="text" class="form-control shadow-xs" name="reference" id="remarks" value="{{ $sale->remarks ?? $sale->manual_invoice ?? '' }}" placeholder="Enter remarks or ref no..." style="font-size:0.78rem; height: 30px;">
+                            <input type="text" class="form-control shadow-xs" name="reference" id="remarks" value="{{ $sale->remarks ?? $sale->manual_invoice ?? '' }}" placeholder="Enter remarks or ref no..." style="font-size:0.78rem; height: 28px;">
                         </div>
+                    </div>
 
-                        <!-- Customer Input Group -->
-                        <div class="col-12 mt-2">
-                            <label class="form-label fw-bold text-uppercase text-primary mb-1 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
-                                <i class="fas fa-user-circle text-primary me-1"></i>Customer Selection
-                            </label>
-                            <div id="customerInputWrapper" class="input-group input-group-sm shadow-xs rounded">
-                                <div id="customerSelectBoxContainer" class="flex-grow-1" style="min-width: 0;">
-                                    <select class="form-select" id="customerSelect" name="customer" style="width:100%">
-                                        <option value=""></option>
-                                    </select>
-                                </div>
-                                <input type="text" class="form-control fw-bold d-none" name="walkin_name" id="walkinNameInput" value="Walk-in Customer" placeholder="Enter Walk-in Name...">
-                                <button type="button" class="btn btn-outline-primary fw-bold px-3 d-flex align-items-center gap-1" id="btnWalkinToggle">
-                                    <i class="fas fa-walking"></i> Walk-in
-                                </button>
-                                <button type="button" class="btn btn-outline-success fw-bold px-3 d-flex align-items-center gap-1" id="btnAddNewCustomerModal" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
-                                    <i class="fas fa-user-plus"></i> New
-                                </button>
-                                <input type="checkbox" id="walkinToggle" name="is_walkin" value="1" class="d-none">
+                    <!-- Customer Input Group -->
+                    <div style="margin-top: 3px;">
+                        <label class="form-label fw-bold text-uppercase text-primary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
+                            <i class="fas fa-user-circle text-primary me-1"></i>Customer Selection
+                        </label>
+                        <div id="customerInputWrapper" class="input-group input-group-sm shadow-xs rounded">
+                            <div id="customerSelectBoxContainer" class="flex-grow-1" style="min-width: 0;">
+                                <select class="form-select" id="customerSelect" name="customer" style="width:100%">
+                                    <option value=""></option>
+                                </select>
                             </div>
+                            <input type="text" class="form-control fw-bold d-none" name="walkin_name" id="walkinNameInput" value="Walk-in Customer" placeholder="Enter Walk-in Name...">
+                            <button type="button" class="btn btn-outline-primary fw-bold px-3 d-flex align-items-center gap-1" id="btnWalkinToggle">
+                                <i class="fas fa-walking"></i> Walk-in
+                            </button>
+                            <button type="button" class="btn btn-outline-success fw-bold px-3 d-flex align-items-center gap-1" id="btnAddNewCustomerModal" data-bs-toggle="modal" data-bs-target="#addCustomerModal">
+                                <i class="fas fa-user-plus"></i> New
+                            </button>
+                            <input type="checkbox" id="walkinToggle" name="is_walkin" value="1" class="d-none">
                         </div>
                     </div>
                 </div>
 
                 <!-- 2-COLUMN RESPONSIVE POS LAYOUT -->
-                <div class="row g-1 align-items-stretch">
+                <div class="row pos-main-row align-items-stretch">
                     <!-- LEFT MAIN AREA: Items Grid Table -->
-                    <div class="col-lg-8 col-xl-9">
-                        <div class="card-panel d-flex flex-column h-100 p-2 bg-white" style="border-radius:6px;">
-                            <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-2">
+                    <div class="col-12 col-lg-8 col-xl-9 pos-left-main">
+                        <div class="card-panel d-flex flex-column h-100 bg-white" style="border-radius:4px; padding: 6px 8px !important;">
+                            <div class="d-flex justify-content-between align-items-center mb-1 flex-wrap gap-1">
                                 <div class="d-flex align-items-center gap-2">
                                     <div class="section-title mb-0" style="font-size:0.8rem;">Order Items (<span id="itemsRowCount">0</span>)</div>
                                 </div>
@@ -655,11 +722,19 @@
                                         <tr>
                                             <th style="width:25px;" class="text-center">#</th>
                                             <th class="col-product" style="min-width: 140px;">PRODUCT / MODEL</th>
+                                            @if(isset($saleSettings) && $saleSettings->warehouse_mode === 'product_wise')
+                                                <th class="col-warehouse" style="width: 140px;">WAREHOUSE</th>
+                                            @endif
                                             <th class="col-stock" style="width: 55px;">STOCK</th>
                                             <th class="col-qty" style="width: 85px;">QTY</th>
                                             <th class="col-pieces" style="width: 50px;">PCS</th>
+                                            @if(isset($saleSettings) && $saleSettings->show_watt)
+                                                <th class="col-watt" style="width: 75px;">WATT</th>
+                                            @endif
                                             <th class="col-price-p" style="width: 80px;">PRICE</th>
-                                            <th class="col-disc" style="width: 80px;">DISCOUNT</th>
+                                            @if(!isset($saleSettings) || $saleSettings->show_line_discount)
+                                                <th class="col-disc" style="width: 80px;">DISCOUNT</th>
+                                            @endif
                                             <th class="col-amount" style="width: 90px;">AMOUNT</th>
                                             <th class="col-action" style="width: 32px;">×</th>
                                         </tr>
@@ -669,7 +744,13 @@
                                     </tbody>
                                     <tfoot>
                                         <tr>
-                                            <td colspan="7" class="text-end fw-bold text-uppercase text-secondary" style="font-size:0.78rem;">Grid Total:</td>
+                                            @php
+                                                $colsBeforeAmount = 5
+                                                    + ((isset($saleSettings) && $saleSettings->warehouse_mode === 'product_wise') ? 1 : 0)
+                                                    + ((isset($saleSettings) && $saleSettings->show_watt) ? 1 : 0)
+                                                    + ((!isset($saleSettings) || $saleSettings->show_line_discount) ? 1 : 0);
+                                            @endphp
+                                            <td colspan="{{ $colsBeforeAmount }}" class="text-end fw-bold text-uppercase text-secondary" style="font-size:0.78rem;">Grid Total:</td>
                                             <td class="text-end fw-bold text-success fs-6"><span id="totalAmount">0.00</span></td>
                                             <td></td>
                                         </tr>
@@ -680,13 +761,13 @@
                     </div>
 
                     <!-- RIGHT PANEL: Summary & Payment Methods -->
-                    <div class="col-lg-4 col-xl-3">
-                        <div class="d-flex flex-column h-100 gap-2">
+                    <div class="col-12 col-lg-4 col-xl-3 pos-right-summary">
+                        <div class="d-flex flex-column h-100" style="gap: 5px !important;">
                             <!-- Executive Summary Card -->
-                            <div class="card-panel p-3 bg-white" style="border-radius:6px;">
-                                <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom">
-                                    <span class="fw-bold text-dark" style="font-size:0.85rem;"><i class="fas fa-calculator text-primary me-1"></i>Summary</span>
-                                    <span class="badge bg-primary rounded-pill px-2 py-1" style="font-size:0.7rem;">Live</span>
+                            <div class="card-panel bg-white" style="border-radius:4px; padding: 6px 8px !important;">
+                                <div class="d-flex justify-content-between align-items-center mb-1 pb-1 border-bottom">
+                                    <span class="fw-bold text-dark" style="font-size:0.82rem;"><i class="fas fa-calculator text-primary me-1"></i>Summary</span>
+                                    <span class="badge bg-primary rounded-pill px-2 py-0" style="font-size:0.68rem; line-height: 18px;">Live</span>
                                 </div>
                                 
                                 <div class="summary-row">
@@ -718,24 +799,24 @@
                             </div>
 
                             <!-- Payment Methods Card -->
-                            <div class="card-panel p-3 bg-white flex-grow-1 d-flex flex-column" style="border-radius:6px;">
-                                <div class="d-flex align-items-center justify-content-between mb-2 pb-1 border-bottom">
-                                    <span class="fw-bold text-dark" style="font-size:0.82rem;"><i class="fas fa-wallet text-success me-1"></i>Payment Methods</span>
+                            <div class="card-panel bg-white flex-grow-1 d-flex flex-column" style="border-radius:4px; padding: 6px 8px !important;">
+                                <div class="d-flex align-items-center justify-content-between mb-1 pb-1 border-bottom">
+                                    <span class="fw-bold text-dark" style="font-size:0.8rem;"><i class="fas fa-wallet text-success me-1"></i>Payment Methods</span>
                                     <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-bold" id="btnAddRV" style="font-size:0.7rem;"><i class="fas fa-plus me-1"></i>Add Account</button>
                                 </div>
 
-                                <div id="rvWrapper" class="mb-2">
-                                    <div class="d-flex gap-1 align-items-center mb-2 rv-row">
+                                <div id="rvWrapper" class="mb-1">
+                                    <div class="d-flex gap-1 align-items-center mb-1 rv-row">
                                         <select class="form-select form-select-sm rv-account bg-light fw-bold" name="receipt_account_id[]" style="font-size:0.75rem;">
                                             @foreach ($accounts as $acc)
                                                 <option value="{{ $acc->id }}" {{ str_contains(strtolower($acc->title), 'cash') || str_contains(strtolower($acc->title), 'easypaisa') ? 'selected' : '' }}>{{ $acc->title }}</option>
                                             @endforeach
                                         </select>
-                                        <input type="number" step="0.01" class="form-control form-control-sm text-end rv-amount fw-bold" name="receipt_amount[]" placeholder="0.00" style="width: 110px; font-size:0.75rem;">
+                                        <input type="number" step="0.01" class="form-control form-control-sm text-end rv-amount fw-bold" name="receipt_amount[]" placeholder="0.00" style="width: 100px; font-size:0.75rem;">
                                     </div>
                                 </div>
 
-                                <button type="button" class="btn btn-save-complete w-100 mt-auto py-2" id="btnSaveAndComplete">
+                                <button type="button" class="btn btn-save-complete w-100 mt-auto py-1.5" id="btnSaveAndComplete" style="padding: 6px 12px !important; font-size: 0.85rem !important;">
                                     <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? 'Update Sale' : 'Save & Complete (F9)' }}
                                 </button>
                             </div>
@@ -1028,8 +1109,10 @@
         window.IS_ADMIN = {{ Auth::user() && Auth::user()->hasRole('super admin') ? 'true' : 'false' }};
         window.saleSettings = {
             show_gst: {{ (isset($saleSettings) && $saleSettings->show_gst) ? 'true' : 'false' }},
-            show_line_discount: {{ (isset($saleSettings) && $saleSettings->show_line_discount) ? 'true' : 'false' }},
-            show_overall_discount: {{ (isset($saleSettings) && $saleSettings->show_overall_discount) ? 'true' : 'false' }}
+            show_line_discount: {{ (!isset($saleSettings) || $saleSettings->show_line_discount) ? 'true' : 'false' }},
+            show_overall_discount: {{ (isset($saleSettings) && $saleSettings->show_overall_discount) ? 'true' : 'false' }},
+            show_watt: {{ (isset($saleSettings) && $saleSettings->show_watt) ? 'true' : 'false' }},
+            warehouse_mode: '{{ $saleSettings->warehouse_mode ?? 'global' }}'
         };
         window.USER_BRANCH_ID = {{ Auth::user()->branch_id ?? 1 }};
         window.IS_EDIT_MODE = {{ isset($isEditMode) && $isEditMode ? 'true' : 'false' }};
@@ -1066,10 +1149,134 @@
                 $('#itemsRowCount').text($('#salesTableBody tr').length);
             }
 
+            window.PRODUCT_LOCATION_STOCKS = {};
+
+            function getProductLocationStock(prodId, locKey) {
+                if (!prodId) return null;
+                const pIdStr = String(prodId);
+                if (window.PRODUCT_LOCATION_STOCKS[pIdStr] && window.PRODUCT_LOCATION_STOCKS[pIdStr][locKey] !== undefined) {
+                    return window.PRODUCT_LOCATION_STOCKS[pIdStr][locKey];
+                }
+                if (window.WAREHOUSE_STOCKS && window.WAREHOUSE_STOCKS.length > 0) {
+                    let total = 0;
+                    let pIdNum = parseInt(prodId);
+                    if (locKey.startsWith('branch_')) {
+                        let bIdNum = parseInt(locKey.replace('branch_', ''));
+                        window.WAREHOUSE_STOCKS.forEach(function(ws) {
+                            if (parseInt(ws.product_id) === pIdNum && parseInt(ws.branch_id) === bIdNum && (!ws.warehouse_id || parseInt(ws.warehouse_id) === 0)) {
+                                total += parseFloat(ws.quantity || 0);
+                            }
+                        });
+                    } else if (locKey.startsWith('warehouse_')) {
+                        let wIdNum = parseInt(locKey.replace('warehouse_', ''));
+                        window.WAREHOUSE_STOCKS.forEach(function(ws) {
+                            if (parseInt(ws.product_id) === pIdNum && parseInt(ws.warehouse_id) === wIdNum) {
+                                total += parseFloat(ws.quantity || 0);
+                            }
+                        });
+                    }
+                    return total;
+                }
+                return 0;
+            }
+
+            function buildWarehouseOptionsHtml(selectedVal, prodId) {
+                let html = '';
+                let sVal = String(selectedVal || '');
+                if (window.BRANCHES && window.BRANCHES.length > 0) {
+                    html += '<optgroup label="🏬 Shops / Branches">';
+                    window.BRANCHES.forEach(function(b) {
+                        const val = 'branch_' + b.id;
+                        const isSel = (sVal === val || sVal === String(b.id)) ? 'selected' : '';
+                        let stockBadge = '';
+                        if (prodId) {
+                            let st = getProductLocationStock(prodId, val);
+                            stockBadge = ` — [Stock: ${st !== null ? st : 0}]`;
+                        }
+                        html += `<option value="${val}" ${isSel}>${b.name} (Shop)${stockBadge}</option>`;
+                    });
+                    html += '</optgroup>';
+                }
+                if (window.ALL_WAREHOUSES && window.ALL_WAREHOUSES.length > 0) {
+                    html += '<optgroup label="🏭 Warehouses">';
+                    window.ALL_WAREHOUSES.forEach(function(w) {
+                        const val = 'warehouse_' + w.id;
+                        const isSel = (sVal === val || sVal === String(w.id)) ? 'selected' : '';
+                        let stockBadge = '';
+                        if (prodId) {
+                            let st = getProductLocationStock(prodId, val);
+                            stockBadge = ` — [Stock: ${st !== null ? st : 0}]`;
+                        }
+                        html += `<option value="${val}" ${isSel}>${w.warehouse_name || w.name}${stockBadge}</option>`;
+                    });
+                    html += '</optgroup>';
+                }
+                return html;
+            }
+
             // --- Add Row Logic (Model & Product Only - Size & Color Removed) ---
             function addNewRow() {
                 const rowCount = $('#salesTableBody tr').length + 1;
                 const currentLoc = $('#globalWarehouseSelect').val() || '';
+                const isProductWise = (window.saleSettings.warehouse_mode === 'product_wise');
+                const isShowWatt = !!window.saleSettings.show_watt;
+                const isShowLineDisc = !!window.saleSettings.show_line_discount;
+
+                let whCellHtml = '';
+                let stockCellHtml = '';
+                if (isProductWise) {
+                    whCellHtml = `
+                        <td class="col-warehouse">
+                            <select class="form-select warehouse warehouse-select shadow-none" name="warehouse_id[]" style="width: 100%; height: 26px; font-size: 0.78rem; padding: 2px 4px; font-weight: 600;">
+                                ${buildWarehouseOptionsHtml(currentLoc)}
+                            </select>
+                        </td>
+                    `;
+                    stockCellHtml = `
+                        <td class="col-stock">
+                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="0" title="Warehouse Stock">
+                        </td>
+                    `;
+                } else {
+                    stockCellHtml = `
+                        <td class="col-stock">
+                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="0" title="Overall Stock">
+                            <input type="hidden" class="warehouse" name="warehouse_id[]" value="${currentLoc}">
+                        </td>
+                    `;
+                }
+
+                let wattCellHtml = '';
+                if (isShowWatt) {
+                    wattCellHtml = `
+                        <td class="col-watt">
+                            <input type="number" step="any" class="form-control item-watt text-center" name="watt[]" placeholder="0" min="0" value="0" style="width: 100%; height: 26px; font-size: 0.85rem; padding: 2px 4px; font-weight: 700;">
+                        </td>
+                    `;
+                } else {
+                    wattCellHtml = `<input type="hidden" class="item-watt" name="watt[]" value="0">`;
+                }
+
+                let discCellHtml = '';
+                if (isShowLineDisc) {
+                    discCellHtml = `
+                        <td class="col-disc">
+                            <div class="discount-wrapper">
+                                <input type="number" class="form-control discount-value text-end" name="discount_percentage[]" placeholder="0">
+                                <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
+                                <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="percent" tabindex="-1">%</button>
+                            </div>
+                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="0">
+                        </td>
+                    `;
+                } else {
+                    discCellHtml = `
+                        <input type="hidden" class="discount-value" name="discount_percentage[]" value="0">
+                        <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
+                        <input type="hidden" class="discount-amount" name="discount_amount[]" value="0">
+                    `;
+                }
+
                 const rowHtml = `
                     <tr>
                         <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;">${rowCount}</td>
@@ -1081,10 +1288,8 @@
                             <input type="hidden" class="variant-data-hidden" name="color[]">
                             <input type="hidden" class="item-code-display">
                         </td>
-                        <td class="col-stock">
-                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="0" title="Overall Stock">
-                            <input type="hidden" class="warehouse" name="warehouse_id[]" value="${currentLoc}">
-                        </td>
+                        ${whCellHtml}
+                        ${stockCellHtml}
                         <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
                             <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="1" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
                             <input type="hidden" name="sales_qty[]" class="sales-qty-mirror" value="1">
@@ -1093,18 +1298,12 @@
                             <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="1">
                             <input type="hidden" class="sales-qty-hidden" name="qty[]" value="1">
                         </td>
+                        ${wattCellHtml}
                         <td class="col-price-p">
                             <input type="text" class="form-control visible-price retail-price text-end" name="retail_price[]" placeholder="0" style="width: 100%;">
                             <input type="hidden" class="price-per-piece" name="price_per_piece[]">
                         </td>
-                        <td class="col-disc">
-                            <div class="discount-wrapper">
-                                <input type="number" class="form-control discount-value text-end" name="discount_percentage[]" placeholder="0">
-                                <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
-                                <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="percent" tabindex="-1">%</button>
-                            </div>
-                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="0">
-                        </td>
+                        ${discCellHtml}
                         <td class="col-amount">
                             <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="0.00" readonly tabindex="-1">
                             <input type="hidden" class="gross-amount">
@@ -1133,11 +1332,27 @@
             // --- Helper: Fetch Live Stock for a Row ---
             function fetchRowStock($row, prodId) {
                 if (!prodId) return;
-                let loc = $('#globalWarehouseSelect').val() || '';
+                let loc = $row.find('.warehouse-select, .warehouse').val() || $('#globalWarehouseSelect').val() || '';
                 let branchId = $('#branch_id').val() || '';
                 $.get("{{ route('sale.check.stock') }}", { product_id: prodId, location_id: loc, branch_id: branchId }, function(res) {
                     if (res) {
-                        let displayStock = (res.overall_stock !== undefined) ? res.overall_stock : res.available;
+                        if (res.location_breakdown) {
+                            const pIdStr = String(prodId);
+                            if (!window.PRODUCT_LOCATION_STOCKS[pIdStr]) {
+                                window.PRODUCT_LOCATION_STOCKS[pIdStr] = {};
+                            }
+                            Object.assign(window.PRODUCT_LOCATION_STOCKS[pIdStr], res.location_breakdown);
+                        }
+
+                        // Update warehouse options with fresh live stock labels for this row
+                        const $whSelect = $row.find('.warehouse-select');
+                        if ($whSelect.length) {
+                            const currentWh = $whSelect.val() || loc;
+                            $whSelect.html(buildWarehouseOptionsHtml(currentWh, prodId));
+                        }
+
+                        let isProductWise = (window.saleSettings.warehouse_mode === 'product_wise');
+                        let displayStock = isProductWise ? (res.location_stock !== undefined ? res.location_stock : (res.stock || res.overall_stock || 0)) : ((res.overall_stock !== undefined) ? res.overall_stock : res.available);
                         $row.find('.stock').val(displayStock);
                         $row.find('.stock').attr('title', `Overall Stock: ${res.overall_stock} | Location Stock: ${res.location_stock}`);
                     }
@@ -1147,13 +1362,24 @@
             // --- Location Dropdown Change Event ---
             $('#globalWarehouseSelect').on('change', function() {
                 let loc = $(this).val();
-                $('.warehouse').val(loc);
-                $('#salesTableBody tr').each(function() {
-                    let pId = $(this).find('.product-select').val();
-                    if (pId) {
-                        fetchRowStock($(this), pId);
-                    }
-                });
+                if (window.saleSettings.warehouse_mode !== 'product_wise') {
+                    $('.warehouse').val(loc);
+                    $('#salesTableBody tr').each(function() {
+                        let pId = $(this).find('.product-select').val();
+                        if (pId) {
+                            fetchRowStock($(this), pId);
+                        }
+                    });
+                }
+            });
+
+            // --- Product-wise Warehouse Change Event ---
+            $(document).on('change', '.warehouse-select', function() {
+                const $row = $(this).closest('tr');
+                const pId = $row.find('.product-select').val();
+                if (pId) {
+                    fetchRowStock($row, pId);
+                }
             });
 
             // --- Product Select2 Init ---
@@ -1214,6 +1440,30 @@
                     $row.find('.stock').val(initialStock);
                     $row.find('.retail-price').val(prod.retail_price || prod.price || prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
                     $row.find('.total-pieces').val($row.find('.sales-qty').val() || 1);
+
+                    // Auto-detect Watt if watt column is enabled
+                    if (window.saleSettings && window.saleSettings.show_watt) {
+                        let pName = prod.item_name || prod.name || '';
+                        let detectedWatt = 0;
+                        let match = pName.match(/\b(\d{3,4})\s*(?:watts?|w)\b/i);
+                        if (match) {
+                            detectedWatt = parseFloat(match[1]);
+                        } else {
+                            let match2 = pName.match(/\b(645|585|590|575|580|550|540|530|700|650)\b/i);
+                            if (match2) {
+                                detectedWatt = parseFloat(match2[1]);
+                            }
+                        }
+                        if (detectedWatt > 0) {
+                            $row.find('.item-watt').val(detectedWatt);
+                        }
+                    }
+
+                    const $whSel = $row.find('.warehouse-select');
+                    if ($whSel.length) {
+                        $whSel.html(buildWarehouseOptionsHtml($whSel.val(), prodId));
+                    }
+
                     fetchRowStock($row, prodId);
                     computeRow($row);
                     updateGrandTotals();
@@ -1224,10 +1474,11 @@
             function computeRow($row) {
                 const price = toNum($row.find('.retail-price').val());
                 const qty = toNum($row.find('.sales-qty').val());
+                const watt = (window.saleSettings && window.saleSettings.show_watt) ? toNum($row.find('.item-watt').val()) : 0;
                 let discVal = toNum($row.find('.discount-value').val());
                 const discType = $row.find('.discount-toggle').data('type') || 'percent';
 
-                let gross = price * qty;
+                let gross = (watt > 0) ? (price * watt * qty) : (price * qty);
                 let discAmt = 0;
 
                 if (discVal > 0) {
@@ -1257,8 +1508,9 @@
                     const $r = $(this);
                     const price = toNum($r.find('.retail-price').val());
                     const qty = toNum($r.find('.sales-qty').val());
+                    const watt = (window.saleSettings && window.saleSettings.show_watt) ? toNum($r.find('.item-watt').val()) : 0;
                     const discAmt = toNum($r.find('.discount-amount').val());
-                    const gross = price * qty;
+                    const gross = (watt > 0) ? (price * watt * qty) : (price * qty);
                     const net = Math.max(0, gross - discAmt);
 
                     tGross += gross;
@@ -1300,7 +1552,7 @@
             }
 
             // Events on grid inputs
-            $(document).on('input', '.sales-qty, .retail-price, .discount-value', function() {
+            $(document).on('input', '.sales-qty, .carton-qty, .retail-price, .discount-value, .item-watt', function() {
                 computeRow($(this).closest('tr'));
                 updateGrandTotals();
             });
@@ -1838,6 +2090,10 @@
                 let rowsHtml = '';
                 const defaultWarehouse = $('#globalWarehouseSelect').val() || $('#branch_id').val() || '1';
 
+                const isProductWise = (window.saleSettings.warehouse_mode === 'product_wise');
+                const isShowWatt = !!window.saleSettings.show_watt;
+                const isShowLineDisc = !!window.saleSettings.show_line_discount;
+
                 itemsList.forEach(item => {
                     const currentWarehouse = item.warehouse_id || defaultWarehouse;
                     const prodId = item.id;
@@ -1848,7 +2104,17 @@
                     const discVal = parseFloat(item.disc || item.discount || 0) || 0;
                     const discType = item.discType || 'percent';
 
-                    let gross = price * qty;
+                    let wattVal = parseFloat(item.watt || 0) || 0;
+                    if (!wattVal && isShowWatt) {
+                        let match = prodName.match(/\b(\d{3,4})\s*(?:watts?|w)\b/i);
+                        if (match) wattVal = parseFloat(match[1]);
+                        else {
+                            let match2 = prodName.match(/\b(645|585|590|575|580|550|540|530|700|650)\b/i);
+                            if (match2) wattVal = parseFloat(match2[1]);
+                        }
+                    }
+
+                    let gross = (wattVal > 0) ? (price * wattVal * qty) : (price * qty);
                     let discAmt = 0;
                     if (discVal > 0) {
                         if (discType === 'percent') {
@@ -1858,6 +2124,61 @@
                         }
                     }
                     let net = Math.max(0, gross - discAmt);
+
+                    let whCellHtml = '';
+                    let stockCellHtml = '';
+                    if (isProductWise) {
+                        whCellHtml = `
+                            <td class="col-warehouse">
+                                <select class="form-select warehouse warehouse-select shadow-none" name="warehouse_id[]" style="width: 100%; height: 26px; font-size: 0.78rem; padding: 2px 4px; font-weight: 600;">
+                                    ${buildWarehouseOptionsHtml(currentWarehouse, prodId)}
+                                </select>
+                            </td>
+                        `;
+                        stockCellHtml = `
+                            <td class="col-stock">
+                                <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="${stock}">
+                            </td>
+                        `;
+                    } else {
+                        stockCellHtml = `
+                            <td class="col-stock">
+                                <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="${stock}">
+                                <input type="hidden" class="warehouse" name="warehouse_id[]" value="${currentWarehouse}">
+                            </td>
+                        `;
+                    }
+
+                    let wattCellHtml = '';
+                    if (isShowWatt) {
+                        wattCellHtml = `
+                            <td class="col-watt">
+                                <input type="number" step="any" class="form-control item-watt text-center" name="watt[]" placeholder="0" min="0" value="${wattVal}" style="width: 100%; height: 26px; font-size: 0.85rem; padding: 2px 4px; font-weight: 700;">
+                            </td>
+                        `;
+                    } else {
+                        wattCellHtml = `<input type="hidden" class="item-watt" name="watt[]" value="${wattVal}">`;
+                    }
+
+                    let discCellHtml = '';
+                    if (isShowLineDisc) {
+                        discCellHtml = `
+                            <td class="col-disc">
+                                <div class="discount-wrapper">
+                                    <input type="number" class="form-control discount-value text-end" name="discount_percentage[]" value="${discVal > 0 ? discVal : ''}" placeholder="0">
+                                    <input type="hidden" class="discount-type-field" name="discount_type[]" value="${discType}">
+                                    <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="${discType}" tabindex="-1">${discType === 'percent' ? '%' : 'Rs'}</button>
+                                </div>
+                                <input type="hidden" class="discount-amount" name="discount_amount[]" value="${discAmt.toFixed(2)}">
+                            </td>
+                        `;
+                    } else {
+                        discCellHtml = `
+                            <input type="hidden" class="discount-value" name="discount_percentage[]" value="${discVal > 0 ? discVal : '0'}">
+                            <input type="hidden" class="discount-type-field" name="discount_type[]" value="${discType}">
+                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="${discAmt.toFixed(2)}">
+                        `;
+                    }
 
                     rowsHtml += `
                         <tr>
@@ -1870,10 +2191,8 @@
                                 <input type="hidden" class="variant-data-hidden" name="color[]" value="">
                                 <input type="hidden" class="item-code-display" value="${item.item_code || ''}">
                             </td>
-                            <td class="col-stock">
-                                <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="${stock}">
-                                <input type="hidden" class="warehouse" name="warehouse_id[]" value="${currentWarehouse}">
-                            </td>
+                            ${whCellHtml}
+                            ${stockCellHtml}
                             <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
                                 <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="${qty}" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
                                 <input type="hidden" name="sales_qty[]" class="sales-qty-mirror" value="${qty}">
@@ -1882,18 +2201,12 @@
                                 <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="${qty}">
                                 <input type="hidden" class="sales-qty-hidden" name="qty[]" value="${qty}">
                             </td>
+                            ${wattCellHtml}
                             <td class="col-price-p">
                                 <input type="text" class="form-control visible-price retail-price text-end" name="retail_price[]" value="${price.toFixed(2)}" placeholder="0" style="width: 100%;">
                                 <input type="hidden" class="price-per-piece" name="price_per_piece[]" value="${price.toFixed(2)}">
                             </td>
-                            <td class="col-disc">
-                                <div class="discount-wrapper">
-                                    <input type="number" class="form-control discount-value text-end" name="discount_percentage[]" value="${discVal > 0 ? discVal : ''}" placeholder="0">
-                                    <input type="hidden" class="discount-type-field" name="discount_type[]" value="${discType}">
-                                    <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="${discType}" tabindex="-1">${discType === 'percent' ? '%' : 'Rs'}</button>
-                                </div>
-                                <input type="hidden" class="discount-amount" name="discount_amount[]" value="${discAmt.toFixed(2)}">
-                            </td>
+                            ${discCellHtml}
                             <td class="col-amount">
                                 <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="${net.toFixed(2)}" readonly tabindex="-1">
                                 <input type="hidden" class="gross-amount" value="${gross.toFixed(2)}">
@@ -2112,7 +2425,8 @@
                                 stock: parseFloat(it.onhand_qty || 0),
                                 disc: discVal,
                                 discType: discType,
-                                warehouse_id: itWh
+                                warehouse_id: itWh,
+                                watt: parseFloat(it.watt || 0) || 0
                             };
                         });
                         addMultipleProductsToGrid(formattedItems);
@@ -2157,6 +2471,32 @@
                             $('#rvWrapper .rv-amount').first().val(fallbackPaid.toFixed(2));
                         }
                     }
+                } else if (window.BOOKING_ITEMS && window.BOOKING_ITEMS.length > 0) {
+                    $('#salesTableBody').empty();
+                    let formattedItems = window.BOOKING_ITEMS.map(it => {
+                        let discType = it.discount_type || (parseFloat(it.discount_percent) > 0 ? 'percent' : 'pkr');
+                        let discVal = (discType === 'percent') ? (parseFloat(it.discount_percent) || 0) : (parseFloat(it.discount_amount) || parseFloat(it.discount) || 0);
+                        let itWh = it.warehouse_id;
+                        if (itWh) {
+                            let sWh = String(itWh);
+                            if (!sWh.startsWith('warehouse_') && !sWh.startsWith('branch_')) {
+                                itWh = 'warehouse_' + sWh;
+                            }
+                        }
+                        return {
+                            id: it.product_id,
+                            item_name: it.product ? it.product.item_name : (it.item_name || ''),
+                            item_code: it.product ? it.product.item_code : (it.item_code || ''),
+                            price: parseFloat(it.retail_price || it.sales_price || it.price || 0),
+                            qty: parseFloat(it.sales_qty || it.qty || 1),
+                            stock: parseFloat(it.stock || 0),
+                            disc: discVal,
+                            discType: discType,
+                            warehouse_id: itWh,
+                            watt: parseFloat(it.watt || 0) || 0
+                        };
+                    });
+                    addMultipleProductsToGrid(formattedItems);
                 } else if ($('#salesTableBody tr').length === 0) {
                     addNewRow();
                 }

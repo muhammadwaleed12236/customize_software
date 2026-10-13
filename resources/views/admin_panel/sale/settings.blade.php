@@ -14,7 +14,7 @@
                         </span>
                         <h3 class="fw-bold mb-1"><i class="fas fa-cog text-warning me-2"></i>Sale Screen Customization Settings</h3>
                         <p class="text-white-50 mb-0 small">
-                            Choose which features and fields to display on the Sale Creation screen (<code class="text-warning">/sale/create</code>).
+                            Choose which features, fields, and warehouse modes to display on the Sale Creation screen (<code class="text-warning">/sale/create</code>).
                         </p>
                     </div>
                     <div>
@@ -35,16 +35,17 @@
             <form action="{{ route('sale.settings.update') }}" method="POST">
                 @csrf
 
+                {{-- CARD 1: VISIBLE COMPONENTS --}}
                 <div class="card border-0 rounded-4 shadow-sm mb-4">
                     <div class="card-header bg-white py-3 px-4 border-bottom">
                         <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
                             <i class="fas fa-eye text-primary"></i> Visible Screen Components
                         </h5>
-                        <small class="text-muted">Disable options if your business does not use GST or discounts on invoices.</small>
+                        <small class="text-muted">Disable or enable columns and options according to your business workflow.</small>
                     </div>
 
                     <div class="card-body p-4">
-                        <div class="d-flex flex-column gap-4">
+                        <div class="d-flex flex-column gap-3">
 
                             {{-- TOGGLE 1: GST / TAX --}}
                             <div class="p-3 rounded-3 border bg-light-subtle d-flex align-items-center justify-content-between flex-wrap gap-3 hover-shadow transition-all">
@@ -115,6 +116,71 @@
                                 </div>
                             </div>
 
+                            {{-- TOGGLE 4: WATT (SOLAR / POWER RATING) --}}
+                            <div class="p-3 rounded-3 border bg-light-subtle d-flex align-items-center justify-content-between flex-wrap gap-3 hover-shadow transition-all">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="bg-info-subtle text-info p-3 rounded-3 fs-4">
+                                        <i class="fas fa-bolt"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-1 text-dark">4. Watt (Power / Solar Panel Rating)</h6>
+                                        <p class="text-muted small mb-0">
+                                            Enable or disable the <strong>WATT</strong> column on each product row. When enabled, calculation supports solar rate (<em>Watt &times; Price &times; Qty</em>).
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch form-switch-md">
+                                    <input class="form-check-input style-switch" type="checkbox" name="show_watt" id="show_watt" {{ $settings->show_watt ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-bold" for="show_watt">
+                                        <span class="badge {{ $settings->show_watt ? 'bg-info text-dark' : 'bg-secondary' }}" id="badge_watt">
+                                            {{ $settings->show_watt ? 'Show Watt' : 'Hidden' }}
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                {{-- CARD 2: WAREHOUSE SELECTION MODE --}}
+                <div class="card border-0 rounded-4 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3 px-4 border-bottom">
+                        <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                            <i class="fas fa-warehouse text-primary"></i> Warehouse Selection Mode
+                        </h5>
+                        <small class="text-muted">Choose whether warehouse/godown is selected globally for the invoice or separately per item row.</small>
+                    </div>
+
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            {{-- OPTION 1: GLOBAL WAREHOUSE --}}
+                            <div class="col-md-6">
+                                <label class="mode-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 {{ ($settings->warehouse_mode ?? 'global') === 'global' ? 'active-mode' : '' }}" for="mode_global">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <input class="form-check-input mt-0 mode-radio" type="radio" name="warehouse_mode" id="mode_global" value="global" {{ ($settings->warehouse_mode ?? 'global') === 'global' ? 'checked' : '' }}>
+                                        <span class="fs-5 text-primary"><i class="fas fa-globe"></i></span>
+                                        <h6 class="fw-bold mb-0 text-dark">Global Warehouse</h6>
+                                    </div>
+                                    <p class="small text-muted mb-0 ps-4">
+                                        Header mein aik single <strong>Location / Warehouse</strong> dropdown show hoga jo poori sale invoice ke tamam items par apply hoga.
+                                    </p>
+                                </label>
+                            </div>
+
+                            {{-- OPTION 2: PRODUCT-WISE WAREHOUSE --}}
+                            <div class="col-md-6">
+                                <label class="mode-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 {{ ($settings->warehouse_mode ?? 'global') === 'product_wise' ? 'active-mode' : '' }}" for="mode_product_wise">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <input class="form-check-input mt-0 mode-radio" type="radio" name="warehouse_mode" id="mode_product_wise" value="product_wise" {{ ($settings->warehouse_mode ?? 'global') === 'product_wise' ? 'checked' : '' }}>
+                                        <span class="fs-5 text-success"><i class="fas fa-boxes"></i></span>
+                                        <h6 class="fw-bold mb-0 text-dark">Product-Wise Warehouse</h6>
+                                    </div>
+                                    <p class="small text-muted mb-0 ps-4">
+                                        Har product line ke sath table mein <strong>Warehouse</strong> column display hoga (<code class="text-primary">Product | Warehouse | Qty</code>). User har item ka alag godown select kar sakega.
+                                    </p>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -134,7 +200,7 @@
                 <div class="card-body p-4">
                     <h6 class="fw-bold text-dark mb-2"><i class="fas fa-info-circle text-info me-1"></i> Preview Summary</h6>
                     <p class="small text-muted mb-0">
-                        When options are unchecked, the corresponding input boxes, dropdowns, and header labels are automatically removed from the Sale Screen, simplifying your daily invoicing process.
+                        In settings ko save karne par Sale Screen (<a href="{{ route('sale.add') }}" class="fw-bold text-decoration-none">/sale/create</a>) par selected columns aur warehouse controls instant update ho jayenge.
                     </p>
                 </div>
             </div>
@@ -155,6 +221,24 @@
     .hover-shadow:hover {
         box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
         background-color: #ffffff !important;
+    }
+    .mode-card {
+        transition: all 0.2s ease-in-out;
+        background: #f8fafc;
+        border-color: #e2e8f0 !important;
+    }
+    .mode-card:hover {
+        background: #ffffff;
+        border-color: #cbd5e1 !important;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.04);
+    }
+    .mode-card.active-mode {
+        background: #f0f7ff;
+        border-color: #3b82f6 !important;
+        box-shadow: 0 0 0 1px #3b82f6;
+    }
+    .cursor-pointer {
+        cursor: pointer;
     }
 </style>
 
@@ -179,6 +263,24 @@
         overallSwitch.addEventListener('change', function() {
             badgeOverall.className = this.checked ? 'badge bg-warning text-dark' : 'badge bg-secondary';
             badgeOverall.textContent = this.checked ? 'Show Overall Discount' : 'Hidden';
+        });
+
+        const wattSwitch = document.getElementById('show_watt');
+        const badgeWatt = document.getElementById('badge_watt');
+        wattSwitch.addEventListener('change', function() {
+            badgeWatt.className = this.checked ? 'badge bg-info text-dark' : 'badge bg-secondary';
+            badgeWatt.textContent = this.checked ? 'Show Watt' : 'Hidden';
+        });
+
+        // Mode cards selection toggle
+        const radios = document.querySelectorAll('.mode-radio');
+        radios.forEach(r => {
+            r.addEventListener('change', function() {
+                document.querySelectorAll('.mode-card').forEach(c => c.classList.remove('active-mode'));
+                if (this.checked) {
+                    this.closest('.mode-card').classList.add('active-mode');
+                }
+            });
         });
     });
 </script>

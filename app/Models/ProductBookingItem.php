@@ -14,6 +14,7 @@ class ProductBookingItem extends Model
         'branch_id',
         'warehouse_id',
         'product_id',
+        'watt',
         'stock',
         'price_level',
         'sales_price',

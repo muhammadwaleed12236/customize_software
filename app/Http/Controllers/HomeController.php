@@ -32,30 +32,38 @@ class HomeController extends Controller
 
         if ($usertype == 'user') {
             return view('user_panel.dashboard', ['userId' => $user->id]);
-        } elseif ($usertype == 'admin' || $user->hasRole('admin') || $user->hasRole('super admin')) {
-            $isSuperAdmin = $user->hasRole('super admin');
-            $branches = Branch::select('id', 'name')->get();
+        } elseif ($usertype == 'admin' || $user->hasRole('admin') || $user->hasRole('super admin') || empty($user->branch_id)) {
+            $isSuperAdmin = $user->hasRole('super admin') 
+                || $user->hasRole('Super Admin') 
+                || $user->hasRole('admin') 
+                || $user->hasRole('Admin') 
+                || $user->usertype === 'super admin'
+                || empty($user->branch_id);
+
+            $branches = Branch::all();
 
             // Branch filter logic
             $selectedBranchId = null;
-            if ($isSuperAdmin) {
-                $selectedBranchId = $request->filled('branch_id') ? $request->get('branch_id') : null;
+            if ($isSuperAdmin || empty($user->branch_id)) {
+                $isSuperAdmin = true;
+                $selectedBranchId = $request->filled('branch_id') ? (int) $request->get('branch_id') : null;
             } else {
-                $selectedBranchId = $user->branch_id ?? 1;
+                $selectedBranchId = (int) ($user->branch_id ?? 1);
             }
 
             $currentBranchName = 'All Branches';
             if ($selectedBranchId) {
-                $branchObj = $branches->firstWhere('id', $selectedBranchId);
-                $currentBranchName = $branchObj ? $branchObj->name : 'Selected Branch';
+                $branchObj = $branches->first(fn($b) => (int)$b->id === (int)$selectedBranchId);
+                if (!$branchObj) {
+                    $branchObj = Branch::find($selectedBranchId);
+                }
+                $currentBranchName = $branchObj ? ($branchObj->name ?? $branchObj->branch_name ?? "Branch #{$selectedBranchId}") : "Branch #{$selectedBranchId}";
             }
 
             // Stats Counters
             $categoryCount = DB::table('categories')->count();
             $subcategoryCount = DB::table('subcategories')->count();
-            $productCount = DB::table('products')
-                ->when($selectedBranchId, fn($q) => $q->where('branch_id', $selectedBranchId))
-                ->count();
+            $productCount = DB::table('products')->count();
 
             $customersQuery = DB::table('customers');
             $purchasesQuery = DB::table('purchases');

@@ -333,6 +333,7 @@ class SaleController extends Controller
                         'sale_id'       => $sale->id,
                         'warehouse_id'  => $wid,
                         'product_id'    => $it->product_id,
+                        'watt'          => (float) ($it->watt ?? 0),
                         'sales_qty'     => $it->sales_qty,
                         'retail_price'  => $it->retail_price,
                         'discount_percent' => (float) ($it->discount_percent ?? 0),
@@ -1941,6 +1942,7 @@ class SaleController extends Controller
                     'booking_id' => $booking->id,
                     'branch_id'  => $branchId,
                     'product_id' => $productId,
+                    'watt' => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
                     'sales_qty' => $qty,
                     'retail_price' => $request->retail_price[$i] ?? 0,
                     'discount_amount' => $request->discount_amount[$i] ?? 0,
@@ -2485,11 +2487,36 @@ public function finddc($invoice)
             }
         }
 
+        // Location breakdown map for all branches and warehouses
+        $locationBreakdown = [];
+        if ($productId) {
+            $bStocks = WarehouseStock::where('product_id', $productId)
+                ->whereNull('warehouse_id')
+                ->select('branch_id', DB::raw('SUM(quantity) as total_qty'))
+                ->groupBy('branch_id')
+                ->pluck('total_qty', 'branch_id')
+                ->toArray();
+            foreach ($bStocks as $bId => $qty) {
+                $locationBreakdown['branch_' . $bId] = (float) $qty;
+            }
+
+            $wStocks = WarehouseStock::where('product_id', $productId)
+                ->whereNotNull('warehouse_id')
+                ->select('warehouse_id', DB::raw('SUM(quantity) as total_qty'))
+                ->groupBy('warehouse_id')
+                ->pluck('total_qty', 'warehouse_id')
+                ->toArray();
+            foreach ($wStocks as $wId => $qty) {
+                $locationBreakdown['warehouse_' . $wId] = (float) $qty;
+            }
+        }
+
         return response()->json([
-            'available'      => $overallStock,
-            'overall_stock'  => $overallStock,
-            'branch_stock'   => $branchTotalStock,
-            'location_stock' => $locationStock,
+            'available'          => $overallStock,
+            'overall_stock'      => $overallStock,
+            'branch_stock'       => $branchTotalStock,
+            'location_stock'     => $locationStock,
+            'location_breakdown' => $locationBreakdown,
         ]);
     }
 
@@ -3161,6 +3188,7 @@ public function finddc($invoice)
             'booking'         => $booking,
             'booking_customer' => $booking_customer,
             'bookingItems'    => $items,
+            'saleSettings'    => SaleSetting::getSettings(),
         ]);
     }
 
@@ -4840,46 +4868,159 @@ public function finddc($invoice)
             $branch = $user->branch ?? (object)['name' => 'ZAIN TRADERS'];
         }
 
-    $groupedItems = $sale->saleItems->groupBy('warehouse_id');
+        // 1. Check if warehouse_orders already exist for this sale (same as saleDc)
+        $existingOrders = \App\Models\WarehouseOrder::where('sale_id', $sale->id)
+            ->with(['warehouse', 'branch'])
+            ->orderBy('id', 'asc')
+            ->get();
 
-    $dcData = [];
+        $dcData = [];
 
-    foreach ($groupedItems as $warehouseId => $items) {
-        // If a specific warehouse is requested, skip others
-        if ($request->has('warehouse') && (string)$request->get('warehouse') !== (string)$warehouseId) {
-            continue;
+        if ($existingOrders->count() > 0) {
+            foreach ($existingOrders as $order) {
+                // If a specific warehouse filter is requested, filter accordingly
+                if ($request->has('warehouse')) {
+                    $requestedWh = (string) $request->get('warehouse');
+                    $currentWh = (string) ($order->warehouse_id ?? '');
+                    if ($requestedWh !== $currentWh) {
+                        continue;
+                    }
+                }
+
+                $locationName = '-';
+                if ($order->delivery_location_type === 'branch' && $order->branch) {
+                    $locationName = $order->branch->name ?? '-';
+                } elseif ($order->warehouse) {
+                    $locationName = $order->warehouse->warehouse_name ?? '-';
+                } elseif ($order->branch) {
+                    $locationName = $order->branch->name ?? '-';
+                }
+
+                // Map stored items into rich objects for the thermal view
+                $storedItems = is_string($order->items) ? json_decode($order->items, true) : (is_array($order->items) ? $order->items : []);
+                $itemsList = [];
+
+                if (!empty($storedItems)) {
+                    foreach ($storedItems as $si) {
+                        $pId = $si['product_id'] ?? null;
+                        $product = $pId ? \App\Models\Product::find($pId) : null;
+                        $whId = $si['warehouse_id'] ?? $order->warehouse_id ?? null;
+                        $whObj = $whId ? \App\Models\Warehouse::find($whId) : null;
+
+                        $itemsList[] = (object) [
+                            'sales_qty'    => $si['qty'] ?? $si['sales_qty'] ?? 0,
+                            'qty'          => $si['qty'] ?? $si['sales_qty'] ?? 0,
+                            'product_id'   => $pId,
+                            'product'      => $product,
+                            'product_name' => $si['product_name'] ?? optional($product)->item_name ?? '-',
+                            'item_code'    => $si['item_code'] ?? optional($product)->item_code ?? '',
+                            'warehouse_id' => $whId,
+                            'warehouse'    => $whObj,
+                            'retail_price' => $si['retail_price'] ?? null,
+                            'amount'       => $si['amount'] ?? null,
+                        ];
+                    }
+                } else {
+                    // Fallback to saleItems for this warehouse/branch if items column is empty
+                    $itemsList = $sale->saleItems->filter(function($si) use ($order) {
+                        if ($order->delivery_location_type === 'warehouse' && $order->warehouse_id) {
+                            return (string)$si->warehouse_id === (string)$order->warehouse_id;
+                        }
+                        return empty($si->warehouse_id) || $si->warehouse_id == 0;
+                    })->values();
+                }
+
+                $dcData[] = [
+                    'dc_no'                  => $order->dc_no,
+                    'warehouse_id'           => $order->warehouse_id,
+                    'warehouse'              => $order->warehouse,
+                    'branch'                 => $order->branch ?? $branch,
+                    'delivery_location_type' => $order->delivery_location_type,
+                    'location_name'          => $locationName,
+                    'items'                  => $itemsList,
+                    'order'                  => $order,
+                    'warehouse_order_id'     => $order->id,
+                ];
+            }
+        } else {
+            // 2. No warehouse_orders exist yet: create them cleanly matching saleDc
+            $groupedItems = $sale->saleItems->groupBy('warehouse_id');
+
+            foreach ($groupedItems as $warehouseId => $items) {
+                $whId = (!empty($warehouseId) && $warehouseId != '0') ? (int) $warehouseId : null;
+                $deliveryLocationType = $whId ? 'warehouse' : 'branch';
+
+                if ($request->has('warehouse')) {
+                    $requestedWh = (string) $request->get('warehouse');
+                    $currentWh = (string) ($whId ?? '');
+                    if ($requestedWh !== $currentWh) {
+                        continue;
+                    }
+                }
+
+                // Dedicated DC counter per branch
+                $branchForCounter = Branch::lockForUpdate()->find($branch->id ?? 1) ?? Branch::lockForUpdate()->find(1);
+                $branchForCounter->dc_counter = ($branchForCounter->dc_counter ?? 0) + 1;
+                $branchForCounter->save();
+                $dcNo = 'DC-' . str_pad($branchForCounter->dc_counter, 4, '0', STR_PAD_LEFT);
+
+                $warehouseOrder = new \App\Models\WarehouseOrder();
+                $warehouseOrder->dc_no = $dcNo;
+                $warehouseOrder->warehouse_id = $whId; // correctly null if branch delivery
+                $warehouseOrder->delivery_location_type = $deliveryLocationType;
+                $warehouseOrder->branch_id = $sale->branch_id ?? 1;
+                $warehouseOrder->customer_id = $sale->customer_id;
+                $warehouseOrder->sale_id = $sale->id;
+                $warehouseOrder->status = 'pending';
+                $warehouseOrder->remarks = $sale->remarks ?? null;
+                $warehouseOrder->prepared_by = auth()->user()->name ?? null;
+                $warehouseOrder->created_by = auth()->id();
+                $warehouseOrder->updated_by = auth()->id();
+
+                $itemsArray = $items->map(function($si) use ($whId) {
+                    return [
+                        'sale_item_id' => $si->id ?? null,
+                        'product_id'   => $si->product_id ?? null,
+                        'product_name' => optional($si->product)->item_name ?? $si->product_name ?? null,
+                        'item_code'    => optional($si->product)->item_code ?? null,
+                        'qty'          => $si->sales_qty ?? $si->qty ?? 0,
+                        'warehouse_id' => $whId,
+                        'retail_price' => isset($si->retail_price) ? (float) $si->retail_price : null,
+                        'amount'       => isset($si->amount) ? (float) $si->amount : null,
+                    ];
+                })->values()->toArray();
+
+                $warehouseOrder->items = $itemsArray;
+                $warehouseOrder->save();
+
+                $locationName = '-';
+                if (!$whId) {
+                    $locationName = $branch->name ?? $branch->branch_name ?? 'Branch';
+                } else {
+                    $whObj = \App\Models\Warehouse::find($whId);
+                    $locationName = $whObj->warehouse_name ?? '-';
+                }
+
+                $dcData[] = [
+                    'dc_no'                  => $dcNo,
+                    'warehouse_id'           => $whId,
+                    'warehouse'              => $whId ? \App\Models\Warehouse::find($whId) : null,
+                    'branch'                 => $branch,
+                    'delivery_location_type' => $deliveryLocationType,
+                    'location_name'          => $locationName,
+                    'items'                  => $items,
+                    'order'                  => $warehouseOrder,
+                    'warehouse_order_id'     => $warehouseOrder->id,
+                ];
+            }
         }
 
-        $dcNo = $sale->invoice_no . '-WH' . $warehouseId;
-
-        // Ensure warehouse order/DC record exists (same behavior as saleDc)
-        $warehouseOrder = \App\Models\WarehouseOrder::updateOrCreate(
-            ['dc_no' => $dcNo],
-            [
-                'warehouse_id' => $warehouseId,
-                'customer_id' => $sale->customer_id,
-                'status' => 'pending',
-                'remarks' => $sale->remarks ?? null,
-                'prepared_by' => auth()->user()->name ?? null,
-                'created_by' => auth()->id() ?? null,
-                'updated_by' => auth()->id() ?? null,
-            ]
-        );
-
-        $dcData[] = [
-            'dc_no' => $dcNo,
-            'warehouse_id' => $warehouseId,
-            'warehouse' => $items->first()->warehouse,
-            'items' => $items
-        ];
+        return view('admin_panel.sale.booking.prints.dc2_thermal', [
+            'sale'   => $sale,
+            'dcData' => $dcData,
+            'branch' => $branch
+        ]);
     }
-
-    return view('admin_panel.sale.booking.prints.dc2_thermal', [
-        'sale' => $sale,
-        'dcData' => $dcData,
-        'branch' => $branch
-    ]);
-}
     /**
      * Delete a sale record
      */

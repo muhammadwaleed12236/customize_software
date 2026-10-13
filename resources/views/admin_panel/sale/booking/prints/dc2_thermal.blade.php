@@ -102,13 +102,13 @@
 <body onload="setTimeout(function(){ window.print(); }, 300)">
     <div class="no-print" style="text-align:right;margin:8px 0;">
         @foreach($dcData as $dc)
-            <button type="button" class="btn btn-sm btn-secondary" style="margin-left:6px;" onclick="printDCInline('{{ $dc['warehouse_id'] }}')">Print {{ $dc['dc_no'] }}</button>
+            <button type="button" class="btn btn-sm btn-secondary" style="margin-left:6px;" onclick="printDCInline('{{ $dc['warehouse_id'] ?? '' }}')">Print {{ $dc['dc_no'] }}</button>
         @endforeach
     </div>
 
     <div class="therm-wrap">
         @foreach($dcData as $dc)
-            <div id="dc-block-{{ $dc['warehouse_id'] }}">
+            <div id="dc-block-{{ $dc['warehouse_id'] ?? $loop->index }}">
                 <div class="center">
                     <div class="company">{{ strtoupper($branch->name ?? 'ZAIN TRADERS') }}</div>
                     <div class="muted">Electronics &amp; Glass Dealer</div>
@@ -160,69 +160,64 @@
                 <table>
                     <thead>
                         <tr>
-                                <th class="small">#</th>
-                                <th class="small">Product</th>
-                                <th class="small">Color</th>
-                                <th class="small">Warehouse</th>
-                                <th class="small qty">Qty</th>
-                            </tr>
+                            <th class="small">#</th>
+                            <th class="small">Product</th>
+                            <th class="small">Warehouse</th>
+                            <th class="small qty">Qty</th>
+                        </tr>
                     </thead>
                     <tbody>
                         @php $i = 1; $totalQty = 0; @endphp
                         @foreach($dc['items'] as $item)
                             @php
-                                $q = (float) ($item->sales_qty ?? 0); $totalQty += $q;
-                                $colorRaw = $item->product->color ?? '-';
-                                $color = '-';
-                                if (is_array($colorRaw)) {
-                                    $color = count($colorRaw) > 0 ? $colorRaw[0] : '-';
-                                } elseif (is_string($colorRaw) && strpos($colorRaw, '[') === 0) {
-                                    $decoded = json_decode($colorRaw, true);
-                                    if (is_array($decoded) && count($decoded) > 0) {
-                                        $color = $decoded[0];
-                                    } else {
-                                        $color = $colorRaw;
-                                    }
-                                } else {
-                                    $color = $colorRaw;
+                                $isObj = is_object($item);
+                                $q = (float) ($isObj ? ($item->sales_qty ?? $item->qty ?? 0) : ($item['qty'] ?? $item['sales_qty'] ?? 0));
+                                $totalQty += $q;
+
+                                $prod = $isObj ? ($item->product ?? null) : null;
+                                if (!$prod && isset($item->product_id)) {
+                                    $prod = \App\Models\Product::find($item->product_id);
+                                } elseif (!$prod && is_array($item) && isset($item['product_id'])) {
+                                    $prod = \App\Models\Product::find($item['product_id']);
                                 }
+
+                                $rawUrdu = $prod->item_name_urdu ?? null;
+                                $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
+                                $pName = !empty($pUrdu) ? $pUrdu : ($prod->item_name ?? ($isObj ? ($item->product_name ?? '-') : ($item['product_name'] ?? '-')));
+                                $pCode = $prod->item_code ?? ($isObj ? ($item->item_code ?? '') : ($item['item_code'] ?? ''));
+
+                                $whName = $isObj ? (optional($item->warehouse)->warehouse_name ?? ($dc['location_name'] ?? '-')) : ($dc['location_name'] ?? '-');
                             @endphp
                             <tr>
                                 <td class="small">{{ $i++ }}</td>
-                                    @php
-                                        $rawUrdu = $item->product->item_name_urdu ?? null;
-                                        $pUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
-                                        $pName = !empty($pUrdu) ? $pUrdu : ($item->product->item_name ?? '-');
-                                    @endphp
+                                <td class="small">
                                     <div>{{ $pName }}</div>
-                                    <div class="col-code">{{ $item->product->item_code ?? '' }}</div>
+                                    <div class="col-code">{{ $pCode }}</div>
                                 </td>
-                                <td class="small">{{ $color }}</td>
-                                <td class="small">{{ $item->warehouse->warehouse_name ?? ($item->warehouse_id ?? '-') }}</td>
+                                <td class="small">{{ $whName }}</td>
                                 <td class="small qty">{{ (int)$q == $q ? (int)$q : rtrim(rtrim(number_format($q,2,'.',''),'0'),'.') }}</td>
                             </tr>
                         @endforeach
 
                         <tr>
-                            <td colspan="4" class="small right"><strong>Total Quantity</strong></td>
+                            <td colspan="3" class="small right"><strong>Total Quantity</strong></td>
                             <td class="small qty"><strong>{{ $totalQty }}</strong></td>
                         </tr>
 
                         <!-- ✅ ERP Standard: Show Delivery Tracking -->
                         @php
-                            // Fetch warehouse_orders to get delivered/remaining tracking
-                            $warehouseOrderId = $warehouseOrder->id ?? null;
-                            $deliveredQty = (float)($warehouseOrder->delivered_qty ?? 0);
-                            $remainingQty = (float)($warehouseOrder->remaining_qty ?? 0);
+                            $orderObj = $dc['order'] ?? null;
+                            $deliveredQty = (float)($orderObj->delivered_qty ?? 0);
+                            $remainingQty = (float)($orderObj->remaining_qty ?? 0);
                         @endphp
 
                         @if($deliveredQty > 0 || $remainingQty > 0)
                         <tr style="background:#f0f5ff;">
-                            <td colspan="4" class="small right"><strong>Delivered</strong></td>
+                            <td colspan="3" class="small right"><strong>Delivered</strong></td>
                             <td class="small qty"><strong>{{ $deliveredQty }}</strong></td>
                         </tr>
                         <tr style="background:#f0f5ff;">
-                            <td colspan="4" class="small right"><strong>Remaining</strong></td>
+                            <td colspan="3" class="small right"><strong>Remaining</strong></td>
                             <td class="small qty"><strong>{{ $remainingQty }}</strong></td>
                         </tr>
                         @endif

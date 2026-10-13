@@ -786,9 +786,12 @@
                                                 </button>
                                                 <button type="button" 
                                                         class="btn-action-edit btn-edit-account"
-                                                        data-account="{{ json_encode($account) }}"
-                                                        data-toggle="modal" 
-                                                        data-target="#editAccountModal"
+                                                        data-id="{{ $account->id }}"
+                                                        data-title="{{ addslashes($account->title) }}"
+                                                        data-head-id="{{ $account->head_id }}"
+                                                        data-type="{{ $account->type }}"
+                                                        data-opening="{{ $account->opening_balance ?? 0 }}"
+                                                        data-status="{{ $account->status }}"
                                                         title="Edit Account Details">
                                                     <i class="fas fa-pencil-alt"></i>
                                                 </button>
@@ -806,120 +809,6 @@
     </div>
 </div>
 
-{{-- Category Filter Script --}}
-<script>
-    function filterByHead(slug, element) {
-        $('.filter-pill').removeClass('active');
-        $(element).addClass('active');
-
-        if (slug === 'all') {
-            $('.account-item-row').show();
-        } else {
-            $('.account-item-row').hide();
-            $(`.account-item-row[data-head-slug="${slug}"]`).show();
-        }
-    }
-
-    $(document).ready(function() {
-        // Account Edit History Modal Handler
-        $(document).on('click', '.btn-view-account-history', function() {
-            const accountId    = $(this).data('id');
-            const accountTitle = $(this).data('title');
-            const accountCode  = $(this).data('code');
-
-            $('#accModalTitle').text(accountTitle);
-            $('#accModalCode').text(accountCode);
-            $('#accHistoryLoading').show();
-            $('#accHistoryContent').hide();
-            $('#accHistoryTableBody').empty();
-
-            $('#accountEditHistoryModal').modal('show');
-
-            $.ajax({
-                url: "{{ url('coa/account') }}/" + accountId + "/history",
-                type: "GET",
-                success: function(response) {
-                    $('#accHistoryLoading').hide();
-                    $('#accHistoryContent').show();
-
-                    if (response.success && response.histories.length > 0) {
-                        let rowsHtml = '';
-                        $.each(response.histories, function(index, item) {
-                            let diffBadge = '';
-                            if (item.diff > 0) {
-                                diffBadge = `<span class="badge bg-success text-white">+ PKR ${numberFormatAcc(item.diff)}</span>`;
-                            } else if (item.diff < 0) {
-                                diffBadge = `<span class="badge bg-danger text-white">- PKR ${numberFormatAcc(Math.abs(item.diff))}</span>`;
-                            } else {
-                                diffBadge = `<span class="badge bg-secondary text-white">No Change</span>`;
-                            }
-
-                            rowsHtml += `
-                                <tr>
-                                    <td class="ps-3 font-monospace">${index + 1}</td>
-                                    <td>
-                                        <span class="badge bg-light text-dark border font-weight-bold">
-                                            <i class="fas fa-user text-primary mr-1"></i> ${item.user_name}
-                                        </span>
-                                    </td>
-                                    <td><i class="fas fa-clock text-muted mr-1"></i> ${item.date}</td>
-                                    <td class="text-end font-monospace">PKR ${numberFormatAcc(item.old_opening_balance)}</td>
-                                    <td class="text-end font-monospace fw-bold text-dark">PKR ${numberFormatAcc(item.new_opening_balance)}</td>
-                                    <td class="text-center">${diffBadge}</td>
-                                    <td class="text-end font-monospace fw-bold text-primary bg-light">PKR ${numberFormatAcc(item.resulting_current_balance)}</td>
-                                    <td class="pe-3 text-secondary small">${item.changes_summary}</td>
-                                </tr>
-                            `;
-                        });
-                        $('#accHistoryTableBody').html(rowsHtml);
-                    } else {
-                        $('#accHistoryTableBody').html(`
-                            <tr>
-                                <td colspan="8" class="text-center py-4 text-muted">
-                                    <i class="fas fa-info-circle fa-2x mb-2 d-block text-secondary"></i>
-                                    No edit history found for this account.
-                                </td>
-                            </tr>
-                        `);
-                    }
-                },
-                error: function() {
-                    $('#accHistoryLoading').hide();
-                    $('#accHistoryContent').show();
-                    $('#accHistoryTableBody').html(`
-                        <tr>
-                            <td colspan="8" class="text-center py-4 text-danger">
-                                <i class="fas fa-exclamation-circle mr-1"></i> Failed to load account edit history.
-                            </td>
-                        </tr>
-                    `);
-                }
-            });
-        });
-
-        function numberFormatAcc(num) {
-            return parseFloat(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
-
-        // Edit Account Modal Handler
-        $('.btn-edit-account').on('click', function() {
-            const account = $(this).data('account');
-            const $modal = $('#editAccountModal');
-            
-            $modal.find('form').attr('action', `{{ url('coa/account') }}/${account.id}`);
-            $modal.find('[name="head_id"]').val(account.head_id);
-            $modal.find('[name="title"]').val(account.title);
-            $modal.find('[name="type"]').val(account.type);
-            $modal.find('[name="opening_balance"]').val(account.opening_balance);
-            
-            if (account.status == 1 || account.status == 'active' || account.status === null) {
-                $modal.find('[name="status"]').prop('checked', true);
-            } else {
-                $modal.find('[name="status"]').prop('checked', false);
-            }
-        });
-    });
-</script>
 
 <!-- Modal: Create Account Head -->
 <div class="modal fade" id="createHeadModal" tabindex="-1" aria-labelledby="createHeadLabel" aria-hidden="true">
@@ -1182,4 +1071,127 @@
     </div>
 </div>
 
+@endsection
+
+@section('js')
+<script>
+    function filterByHead(slug, element) {
+        $('.filter-pill').removeClass('active');
+        $(element).addClass('active');
+
+        if (slug === 'all') {
+            $('.account-item-row').show();
+        } else {
+            $('.account-item-row').hide();
+            $(`.account-item-row[data-head-slug="${slug}"]`).show();
+        }
+    }
+
+    $(document).ready(function() {
+        // Account Edit History Modal Handler
+        $(document).on('click', '.btn-view-account-history', function() {
+            const accountId    = $(this).data('id');
+            const accountTitle = $(this).data('title');
+            const accountCode  = $(this).data('code');
+
+            $('#accModalTitle').text(accountTitle);
+            $('#accModalCode').text(accountCode);
+            $('#accHistoryLoading').show();
+            $('#accHistoryContent').hide();
+            $('#accHistoryTableBody').empty();
+
+            $('#accountEditHistoryModal').modal('show');
+
+            $.ajax({
+                url: "{{ url('coa/account') }}/" + accountId + "/history",
+                type: "GET",
+                success: function(response) {
+                    $('#accHistoryLoading').hide();
+                    $('#accHistoryContent').show();
+
+                    if (response.success && response.histories.length > 0) {
+                        let rowsHtml = '';
+                        $.each(response.histories, function(index, item) {
+                            let diffBadge = '';
+                            if (item.diff > 0) {
+                                diffBadge = `<span class="badge bg-success text-white">+ PKR ${numberFormatAcc(item.diff)}</span>`;
+                            } else if (item.diff < 0) {
+                                diffBadge = `<span class="badge bg-danger text-white">- PKR ${numberFormatAcc(Math.abs(item.diff))}</span>`;
+                            } else {
+                                diffBadge = `<span class="badge bg-secondary text-white">No Change</span>`;
+                            }
+
+                            rowsHtml += `
+                                <tr>
+                                    <td class="ps-3 font-monospace">${index + 1}</td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border font-weight-bold">
+                                            <i class="fas fa-user text-primary mr-1"></i> ${item.user_name}
+                                        </span>
+                                    </td>
+                                    <td><i class="fas fa-clock text-muted mr-1"></i> ${item.date}</td>
+                                    <td class="text-end font-monospace">PKR ${numberFormatAcc(item.old_opening_balance)}</td>
+                                    <td class="text-end font-monospace fw-bold text-dark">PKR ${numberFormatAcc(item.new_opening_balance)}</td>
+                                    <td class="text-center">${diffBadge}</td>
+                                    <td class="text-end font-monospace fw-bold text-primary bg-light">PKR ${numberFormatAcc(item.resulting_current_balance)}</td>
+                                    <td class="pe-3 text-secondary small">${item.changes_summary}</td>
+                                </tr>
+                            `;
+                        });
+                        $('#accHistoryTableBody').html(rowsHtml);
+                    } else {
+                        $('#accHistoryTableBody').html(`
+                            <tr>
+                                <td colspan="8" class="text-center py-4 text-muted">
+                                    <i class="fas fa-info-circle fa-2x mb-2 d-block text-secondary"></i>
+                                    No edit history found for this account.
+                                </td>
+                            </tr>
+                        `);
+                    }
+                },
+                error: function() {
+                    $('#accHistoryLoading').hide();
+                    $('#accHistoryContent').show();
+                    $('#accHistoryTableBody').html(`
+                        <tr>
+                            <td colspan="8" class="text-center py-4 text-danger">
+                                <i class="fas fa-exclamation-circle mr-1"></i> Failed to load account edit history.
+                            </td>
+                        </tr>
+                    `);
+                }
+            });
+        });
+
+        function numberFormatAcc(num) {
+            return parseFloat(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Edit Account Modal Handler
+        var coaAccountUrl = "{{ url('coa/account') }}";
+        $(document).on('click', '.btn-edit-account', function() {
+            var id      = $(this).data('id');
+            var title   = $(this).attr('data-title');
+            var headId  = $(this).data('head-id');
+            var type    = $(this).data('type');
+            var opening = $(this).data('opening');
+            var status  = $(this).data('status');
+            var $modal  = $('#editAccountModal');
+            
+            $modal.find('form').attr('action', coaAccountUrl + '/' + id);
+            $modal.find('[name="head_id"]').val(headId).trigger('change');
+            $modal.find('[name="title"]').val(title);
+            $modal.find('[name="type"]').val(type).trigger('change');
+            $modal.find('[name="opening_balance"]').val(opening);
+            
+            if (status == 1 || status == 'active' || status == '' || status == null || status == undefined) {
+                $modal.find('[name="status"]').prop('checked', true);
+            } else {
+                $modal.find('[name="status"]').prop('checked', false);
+            }
+            $modal.modal('show');
+        });
+    });
+</script>
 @endsection

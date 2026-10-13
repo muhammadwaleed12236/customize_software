@@ -2,83 +2,193 @@
 
 @section('content')
     <style>
-        .osm-wrap { font-family:'Inter',sans-serif; background:#f1f5f9; min-height:100vh; padding:1.5rem; }
-        .osm-header { display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem; }
-        .osm-title  { font-size:20px;font-weight:800;color:#1e293b; }
-        .osm-title small { font-size:12px;font-weight:500;color:#64748b;margin-left:8px; }
+        :root {
+            --inw-navy:       #0f172a;
+            --inw-navy-mid:   #1e293b;
+            --inw-blue:       #2563eb;
+            --inw-blue-light: #3b82f6;
+            --inw-border:     #e2e8f0;
+            --inw-bg:         #f1f5f9;
+            --inw-muted:      #64748b;
+        }
 
-        .branch-card { background:#fff;border-radius:12px;border:1px solid #e2e8f0;padding:1.2rem;margin-bottom:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,.06); }
-        .branch-card h6 { font-weight:700;font-size:14px;color:#1e293b;margin-bottom:1rem; border-bottom:1px solid #eef2f7; padding-bottom:10px; }
+        .osm-wrap { font-family:'Plus Jakarta Sans',sans-serif; background:var(--inw-bg); min-height:100vh; padding:16px 20px 50px; }
 
-        .table-card { background:#fff;border-radius:14px;border:1px solid #e2e8f0;box-shadow:0 2px 8px rgba(0,0,0,.07);overflow:hidden; }
-        .osm-thead { background:linear-gradient(135deg,#1e293b,#334155);color:#fff; }
-        .osm-thead th { padding:12px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;border:none;white-space:nowrap; }
+        /* Top Banner */
+        .inw-banner {
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #2c5282 100%);
+            border-radius: 12px; padding: 14px 22px;
+            display: flex; align-items: center; justify-content: space-between; gap: 12px;
+            margin-bottom: 14px; box-shadow: 0 4px 18px rgba(15,23,42,.18);
+        }
+        .inw-banner-left { display: flex; align-items: center; gap: 12px; }
+        .inw-banner-icon {
+            width: 40px; height: 40px; border-radius: 10px;
+            background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 18px; color: #fcd34d; flex-shrink: 0;
+        }
+        .inw-banner-title { font-size: 18px; font-weight: 800; color: #fff; margin: 0; }
+        .inw-banner-badge {
+            background: rgba(252,211,77,.15); border: 1px solid rgba(252,211,77,.4);
+            color: #fcd34d; font-size: 10px; font-weight: 800;
+            padding: 2px 9px; border-radius: 20px; text-transform: uppercase;
+        }
+        .inw-banner-sub { font-size: 11.5px; color: rgba(255,255,255,.65); margin-top: 2px; }
+        .inw-banner-actions { display: flex; align-items: center; gap: 8px; }
+        .btn-inw-outline {
+            background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
+            color: #fff !important; padding: 7px 14px; border-radius: 7px;
+            font-size: 12px; font-weight: 700; text-decoration: none !important;
+            display: inline-flex; align-items: center; gap: 5px; transition: .2s;
+        }
+        .btn-inw-outline:hover { background: rgba(255,255,255,.2); }
+        .btn-inw-submit {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8); border: none;
+            color: #fff !important; padding: 8px 22px; border-radius: 7px;
+            font-size: 12.5px; font-weight: 800; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px;
+            box-shadow: 0 3px 12px rgba(37,99,235,.35); transition: .2s;
+        }
+        .btn-inw-submit:hover { transform: translateY(-1px); box-shadow: 0 5px 16px rgba(37,99,235,.45); }
 
-        .osm-row td { vertical-align:middle;padding:10px 8px;border-bottom:1px solid #f1f5f9;background:#fff; }
-        .osm-row:hover td { background:#fafbff; }
-
-        .fi { border:1.5px solid #e2e8f0;border-radius:7px;padding:8px 10px;font-size:13px;width:100%;transition:.2s;background:#f8fafc; }
-        .fi:focus { border-color:#6366f1;background:#fff;outline:none;box-shadow:0 0 0 3px rgba(99,102,241,.1); }
-        .fi-label { font-size:10px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:3px; }
-
-        /* Select2 */
-        .select2-container--default .select2-selection--single { border:1.5px solid #e2e8f0;border-radius:7px;height:38px;background:#f8fafc; }
-        .select2-container--default .select2-selection--single .select2-selection__rendered { line-height:36px;font-size:13px;color:#1e293b;padding-left:10px; }
-        .select2-container--default .select2-selection--single .select2-selection__arrow { height:36px; }
-        .select2-container--default.select2-container--focus .select2-selection--single { border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.1); }
-
-        .osm-footer { background:#f8fafc;border-top:1px solid #e2e8f0;padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-radius:0 0 14px 14px; }
-        .btn-add-row { background:#fff;border:2px dashed #6366f1;color:#6366f1;border-radius:9px;padding:9px 20px;font-size:13px;font-weight:700;cursor:pointer;transition:.2s; }
-        .btn-add-row:hover { background:#eef2ff; }
-        .btn-save-all { background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;border-radius:9px;padding:10px 30px;font-size:14px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(99,102,241,.3);transition:.2s; }
-        .btn-save-all:hover { transform:translateY(-1px); }
+        /* Compact Form Card */
+        .inw-fields-card {
+            background: #fff; border-radius: 10px;
+            border: 1px solid var(--inw-border);
+            box-shadow: 0 2px 8px rgba(0,0,0,.04);
+            padding: 16px 20px; margin-bottom: 14px;
+        }
+        .inw-label {
+            font-size: 10px; font-weight: 700; color: var(--inw-muted);
+            text-transform: uppercase; letter-spacing: .04em;
+            margin-bottom: 4px; display: block;
+        }
         
-        .btn-del-row { background:#fee2e2;color:#dc2626;border:none;border-radius:7px;padding:6px 10px;cursor:pointer;font-size:13px;font-weight:700;transition:.2s; }
-        .btn-del-row:hover { background:#dc2626;color:#fff; }
+        /* Clean white inputs (replacing gray background) */
+        .fi {
+            border: 1.5px solid var(--inw-border); border-radius: 7px;
+            padding: 7px 10px; font-size: 12.5px; font-weight: 600;
+            width: 100%; transition: .2s; background: #ffffff !important;
+            color: #0f172a; outline: none;
+        }
+        .fi:focus {
+            border-color: var(--inw-blue-light); background: #ffffff !important;
+            box-shadow: 0 0 0 3px rgba(59,130,246,.1);
+        }
 
-        /* Color Breakdown Styles */
+        /* Clean Select2 dropdown styling */
+        .select2-container--default .select2-selection--single {
+            border: 1.5px solid var(--inw-border) !important;
+            border-radius: 7px !important; height: 36px !important;
+            background: #ffffff !important; display: flex !important; align-items: center !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 34px !important; font-size: 12.5px !important;
+            font-weight: 600 !important; color: #0f172a !important; padding-left: 10px !important;
+        }
+        .select2-container--default .select2-selection--single .select2-selection__arrow {
+            height: 34px !important; right: 6px !important;
+        }
+        .select2-container--default.select2-container--focus .select2-selection--single {
+            border-color: var(--inw-blue-light) !important;
+            box-shadow: 0 0 0 3px rgba(59,130,246,.1) !important;
+        }
+
+        /* Table Card */
+        .table-card {
+            background: #fff; border-radius: 10px;
+            border: 1px solid var(--inw-border);
+            box-shadow: 0 2px 8px rgba(0,0,0,.04); overflow: hidden;
+        }
+        .osm-thead { background: var(--inw-navy-mid); color: #fff; }
+        .osm-thead th {
+            padding: 10px 12px; font-size: 10.5px; font-weight: 700;
+            text-transform: uppercase; letter-spacing: .04em; border: none; white-space: nowrap;
+        }
+        .osm-row td { vertical-align: middle; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; background: #fff; }
+        .osm-row:hover td { background: #fafcff; }
+
+        .osm-footer {
+            background: #f8fafc; border-top: 1px solid var(--inw-border);
+            padding: 12px 20px; display: flex; justify-content: space-between;
+            align-items: center; border-radius: 0 0 10px 10px;
+        }
+        .btn-add-row {
+            background: #fff; border: 1.5px dashed var(--inw-blue);
+            color: var(--inw-blue); border-radius: 7px; padding: 7px 18px;
+            font-size: 12.5px; font-weight: 700; cursor: pointer; transition: .2s;
+        }
+        .btn-add-row:hover { background: #eff6ff; }
+        .btn-save-all {
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff; border: none; border-radius: 7px; padding: 9px 24px;
+            font-size: 13px; font-weight: 800; cursor: pointer;
+            box-shadow: 0 3px 12px rgba(37,99,235,.3); transition: .2s;
+        }
+        .btn-save-all:hover { transform: translateY(-1px); }
+
+        .btn-del-row {
+            background: #fee2e2; color: #dc2626; border: 1px solid #fecaca;
+            border-radius: 6px; width: 28px; height: 28px; display: inline-flex;
+            align-items: center; justify-content: center; cursor: pointer; font-size: 12px; transition: .2s;
+        }
+        .btn-del-row:hover { background: #dc2626; color: #fff; }
+
+        /* Color Breakdown */
         .color-breakdown-row td { background: #fdfdfd !important; padding: 0 !important; border-bottom: 2px solid #eef2f7 !important; }
-        .breakdown-container { padding: 15px 25px; background: #fafafa; border-left: 4px solid #6366f1; margin: 5px 0; }
-        .breakdown-title { font-size: 11px; font-weight: 800; color: #475569; text-transform: uppercase; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
-        .breakdown-item { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; animation: fadeIn 0.3s ease; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .breakdown-container { padding: 12px 20px; background: #fafbff; border-left: 4px solid var(--inw-blue); margin: 4px 0; }
+        .breakdown-title { font-size: 11px; font-weight: 800; color: #334155; text-transform: uppercase; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .breakdown-item { display: flex; gap: 8px; align-items: center; margin-bottom: 7px; }
         .breakdown-qty { width: 100px; }
-        .btn-remove-color { color: #ef4444; cursor: pointer; padding: 5px; transition: 0.2s; }
+        .btn-remove-color { color: #ef4444; cursor: pointer; padding: 4px; transition: 0.2s; }
         .btn-remove-color:hover { color: #b91c1c; transform: scale(1.1); }
-        .qty-readonly { background-color: #f1f5f9 !important; font-weight: 700; color: #475569; }
+        .qty-readonly { background-color: #f0fdf4 !important; font-weight: 800; color: #065f46; }
     </style>
 
     <div class="osm-wrap">
 
-        <div class="osm-header">
-            <div>
-                <div class="osm-title">📦 
-                    @if($purchase)
-                        Receive Purchase #{{ $purchase->id }}
-                    @elseif(isset($po) && $po)
-                        Receive PO #{{ $po->po_number }}
-                    @else
-                        Add Inward Gatepass
-                    @endif
-                    <small>ERP Standard</small>
+        {{-- Top Navy Banner --}}
+        <div class="inw-banner">
+            <div class="inw-banner-left">
+                <div class="inw-banner-icon">
+                    <i class="fas fa-boxes"></i>
                 </div>
-                <div style="font-size:12px;color:#94a3b8;margin-top:2px;">
-                    @if($purchase)
-                        Create inward gatepass for purchase from {{ $purchase->vendor->name ?? 'N/A' }}
-                    @elseif(isset($po) && $po)
-                        Create inward gatepass for PO from {{ $po->vendor->name ?? 'N/A' }}
-                    @else
-                        Create & manage inward stock entries
-                    @endif
+                <div>
+                    <h4 class="inw-banner-title">
+                        @if($purchase)
+                            Receive Purchase #{{ $purchase->id }}
+                        @elseif(isset($po) && $po)
+                            Receive PO #{{ $po->po_number }}
+                        @else
+                            Add Inward Gatepass
+                        @endif
+                        <span class="inw-banner-badge">ERP Standard</span>
+                    </h4>
+                    <div class="inw-banner-sub">
+                        @if($purchase)
+                            Create inward gatepass for purchase from {{ $purchase->vendor->name ?? 'N/A' }}
+                        @elseif(isset($po) && $po)
+                            Create inward gatepass for PO from {{ $po->vendor->name ?? 'N/A' }}
+                        @else
+                            Create &amp; manage inward stock entries
+                        @endif
+                    </div>
                 </div>
             </div>
-            <a href="{{ route('store') }}" class="btn btn-md btn-primary">Item</a>
-            <a href="{{ route('InwardGatepass.home') }}" class="btn btn-sm btn-outline-secondary">← Back</a>
+            <div class="inw-banner-actions">
+                <a href="{{ route('InwardGatepass.home') }}" class="btn-inw-outline">
+                    <i class="fas fa-arrow-left"></i> Back to List
+                </a>
+                <button type="button" class="btn-inw-submit" onclick="$('#gatepassForm').submit()">
+                    <i class="fas fa-save"></i> Save Gatepass
+                </button>
+            </div>
         </div>
 
         <div class="gp-body">
             @if ($errors->any())
-                <div class="alert alert-danger py-2 px-3 mb-2">
+                <div class="alert alert-danger py-2 px-3 mb-2 small fw-bold border-0" style="border-left:4px solid #ef4444!important;border-radius:8px;">
                     <ul class="mb-0">
                         @foreach ($errors->all() as $error)
                             <li>{{ $error }}</li>
@@ -87,10 +197,10 @@
                 </div>
             @endif
             @if (session('success'))
-                <div class="alert alert-success py-2 px-3 mb-2">{{ session('success') }}</div>
+                <div class="alert alert-success py-2 px-3 mb-2 small fw-bold border-0" style="border-left:4px solid #10b981!important;border-radius:8px;">{{ session('success') }}</div>
             @endif
             @if (session('error'))
-                <div class="alert alert-danger py-2 px-3 mb-2">{{ session('error') }}</div>
+                <div class="alert alert-danger py-2 px-3 mb-2 small fw-bold border-0" style="border-left:4px solid #ef4444!important;border-radius:8px;">{{ session('error') }}</div>
             @endif
 
             <form action="{{ route('store.InwardGatepass') }}" method="POST" id="gatepassForm">
@@ -107,147 +217,133 @@
                     <input type="hidden" id="isFromPurchase" value="0">
                 @endif
 
-                {{-- Top fields --}}
-                {{-- Top fields in 2 columns --}}
-                <div class="row mb-3">
+                {{-- ── Compact All-In-One Fields Card (No separate headers, White Inputs) ── --}}
+                <div class="inw-fields-card">
+                    <div class="row g-2">
 
-                    <!-- LEFT : Bill / Gatepass Info -->
-                    <div class="col-md-5">
-                        <div class="branch-card h-100 mb-0" style="display:block;">
-                            <h6>📑 Bill / Gatepass Info</h6>
-
-                            <div class="row g-2">
-                                <div class="col-md-6">
-                                    <div class="fi-label">Date</div>
-                                    <input type="date" name="gatepass_date" class="fi"
-                                        value="{{ old('gatepass_date', date('Y-m-d')) }}">
-                                </div>
-
-                                @if($isSuperAdmin)
-                                    <div class="col-md-6">
-                                        <div class="fi-label">Branch</div>
-                                        <select name="branch_id" class="form-select select2">
-                                            <option value="">Select One</option>
-                                            @foreach ($branches as $item)
-                                                <option value="{{ $item->id }}"
-                                                    {{ old('branch_id', ($purchase?->branch_id ?? $po?->branch_id)) == $item->id ? 'selected' : '' }}>
-                                                    {{ $item->name }}
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-                                @else
-                                    <input type="hidden" name="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
-                                @endif
-
-                                <div class="col-md-6">
-                                    <div class="fi-label">Warehouse</div>
-                                    <select name="warehouse_id" class="form-select select2">
-                                        <option value="">Select One</option>
-                                        @foreach ($warehouses as $item)
-                                            <option value="{{ $item->id }}"
-                                                {{ old('warehouse_id', ($purchase?->warehouse_id ?? $po?->warehouse_id)) == $item->id ? 'selected' : '' }}>
-                                                {{ $item->warehouse_name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-
-                                <div class="col-md-6">
-                                    <div class="fi-label">Delivery Challan No <small>(Optional)</small></div>
-                                    <input type="text" name="delivery_challan_no" class="fi"
-                                        value="{{ old('delivery_challan_no') }}">
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="fi-label">Bilty No</div>
-                                    <input type="text" name="bilty_no" class="fi"
-                                        value="{{ old('bilty_no') }}">
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="fi-label">Freight Charges</div>
-                                    <input type="number" step="0.01" min="0" name="freight_charges" class="fi"
-                                        value="{{ old('freight_charges', 0) }}">
-                                </div>
-                                
-                                <div class="col-md-6">
-                                    <div class="fi-label">Freight Provider (Audit)</div>
-                                    <select name="freight_vendor_id" class="form-select select2">
-                                        <option value="">Select Transporter/Vendor</option>
-                                        @foreach ($vendors as $item)
-                                            <option value="{{ $item->id }}" {{ old('freight_vendor_id') == $item->id ? 'selected' : '' }}>
-                                                {{ $item->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-                                <div class="col-md-12">
-                                    <div class="fi-label">Note</div>
-                                    <input type="text" name="note" class="fi" value="{{ old('note', ($purchase ? 'Ref: Purchase #'.$purchase->id : '')) }}">
-                                </div>
-                            </div>
+                        {{-- Date --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Date <span class="text-danger">*</span></label>
+                            <input type="date" name="gatepass_date" class="fi" value="{{ old('gatepass_date', date('Y-m-d')) }}" required>
                         </div>
-                    </div>
 
-                    <!-- RIGHT : Vendor / Transport Info -->
-                    <div class="col-md-7">
-                        <div class="branch-card h-100 mb-0" style="display:block;">
-                            <h6>🚚 Vendor / Transport Info</h6>
-
-                            <div class="row g-2">
-                                <div class="col-md-4">
-                                    <div class="fi-label">Vendor</div>
-                                    <select name="vendor_id" id="vendor_id" class="form-select select2">
-                                        <option value="">Select One</option>
-                                        @foreach ($vendors as $item)
-                                            <option value="{{ $item->id }}"
-                                                {{ old('vendor_id', ($purchase?->vendor_id ?? $po?->vendor_id)) == $item->id ? 'selected' : '' }}>
-                                                {{ $item->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                </div>
-
-                                <div class="col-md-8">
-                                    <div class="fi-label">Transport Name</div>
-                                    <input type="text" name="transport_name" class="fi"
-                                        value="{{ old('transport_name', ($purchase?->note ? 'From Purchase #'.$purchase->id : '')) }}">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="fi-label">Vehicle Type</div>
-                                    <input type="text" name="vehicle_type" class="fi"
-                                        value="{{ old('vehicle_type') }}" placeholder="e.g., Truck, Van">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="fi-label">Vehicle No</div>
-                                    <input type="text" name="vehicle_no" class="fi"
-                                        value="{{ old('vehicle_no') }}">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="fi-label">Dispatch Date</div>
-                                    <input type="date" name="dispatch_date" class="fi"
-                                        value="{{ old('dispatch_date') }}">
-                                </div>
-
-                                <div class="col-md-4">
-                                    <div class="fi-label">Driver Name</div>
-                                    <input type="text" name="driver_name" class="fi"
-                                        value="{{ old('driver_name') }}">
-                                </div>
-
-                                <div class="col-md-8">
-                                    <div class="fi-label">Driver Contact No</div>
-                                    <input type="text" name="driver_no" class="fi"
-                                        value="{{ old('driver_no') }}">
-                                </div>
+                        {{-- Branch (Super Admin) --}}
+                        @if($isSuperAdmin)
+                            <div class="col-6 col-md-2">
+                                <label class="inw-label">Branch <span class="text-danger">*</span></label>
+                                <select name="branch_id" class="form-select select2">
+                                    <option value="">Select Branch</option>
+                                    @foreach ($branches as $item)
+                                        <option value="{{ $item->id }}" {{ old('branch_id', ($purchase?->branch_id ?? $po?->branch_id)) == $item->id ? 'selected' : '' }}>
+                                            {{ $item->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
                             </div>
-                        </div>
-                    </div>
+                        @else
+                            <input type="hidden" name="branch_id" value="{{ Auth::user()->branch_id ?? 1 }}">
+                        @endif
 
+                        {{-- Warehouse --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Warehouse <span class="text-danger">*</span></label>
+                            <select name="warehouse_id" class="form-select select2" required>
+                                <option value="">Select Warehouse</option>
+                                @foreach ($warehouses as $item)
+                                    <option value="{{ $item->id }}" {{ old('warehouse_id', ($purchase?->warehouse_id ?? $po?->warehouse_id)) == $item->id ? 'selected' : '' }}>
+                                        {{ $item->warehouse_name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Vendor --}}
+                        <div class="col-6 col-md-3">
+                            <label class="inw-label">Vendor <span class="text-danger">*</span></label>
+                            <select name="vendor_id" id="vendor_id" class="form-select select2" required>
+                                <option value="">Select Vendor</option>
+                                @foreach ($vendors as $item)
+                                    <option value="{{ $item->id }}" {{ old('vendor_id', ($purchase?->vendor_id ?? $po?->vendor_id)) == $item->id ? 'selected' : '' }}>
+                                        {{ $item->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Delivery Challan No --}}
+                        <div class="col-6 col-md-3">
+                            <label class="inw-label">Delivery Challan No <span class="text-muted small">(Optional)</span></label>
+                            <input type="text" name="delivery_challan_no" class="fi" value="{{ old('delivery_challan_no') }}" placeholder="Challan #">
+                        </div>
+
+                        {{-- Bilty No --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Bilty No</label>
+                            <input type="text" name="bilty_no" class="fi" value="{{ old('bilty_no') }}" placeholder="Bilty #">
+                        </div>
+
+                        {{-- Freight Charges --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Freight Charges (PKR)</label>
+                            <input type="number" step="0.01" min="0" name="freight_charges" class="fi" value="{{ old('freight_charges', 0) }}" placeholder="0.00">
+                        </div>
+
+                        {{-- Freight Provider --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Freight Provider</label>
+                            <select name="freight_vendor_id" class="form-select select2">
+                                <option value="">Select Provider</option>
+                                @foreach ($vendors as $item)
+                                    <option value="{{ $item->id }}" {{ old('freight_vendor_id') == $item->id ? 'selected' : '' }}>
+                                        {{ $item->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        {{-- Transport Name --}}
+                        <div class="col-6 col-md-3">
+                            <label class="inw-label">Transport Name</label>
+                            <input type="text" name="transport_name" class="fi" value="{{ old('transport_name', ($purchase?->note ? 'From Purchase #'.$purchase->id : '')) }}" placeholder="e.g. Bilal Goods">
+                        </div>
+
+                        {{-- Vehicle Type --}}
+                        <div class="col-6 col-md-3">
+                            <label class="inw-label">Vehicle Type</label>
+                            <input type="text" name="vehicle_type" class="fi" value="{{ old('vehicle_type') }}" placeholder="e.g. Truck, Mazda, Van">
+                        </div>
+
+                        {{-- Vehicle No --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Vehicle No</label>
+                            <input type="text" name="vehicle_no" class="fi" value="{{ old('vehicle_no') }}" placeholder="e.g. LES-1234">
+                        </div>
+
+                        {{-- Dispatch Date --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Dispatch Date</label>
+                            <input type="date" name="dispatch_date" class="fi" value="{{ old('dispatch_date') }}">
+                        </div>
+
+                        {{-- Driver Name --}}
+                        <div class="col-6 col-md-2">
+                            <label class="inw-label">Driver Name</label>
+                            <input type="text" name="driver_name" class="fi" value="{{ old('driver_name') }}" placeholder="Driver Name">
+                        </div>
+
+                        {{-- Driver Contact --}}
+                        <div class="col-6 col-md-3">
+                            <label class="inw-label">Driver Contact No</label>
+                            <input type="text" name="driver_no" class="fi" value="{{ old('driver_no') }}" placeholder="03001234567">
+                        </div>
+
+                        {{-- Note --}}
+                        <div class="col-12 col-md-3">
+                            <label class="inw-label">Note / Instructions</label>
+                            <input type="text" name="note" class="fi" value="{{ old('note', ($purchase ? 'Ref: Purchase #'.$purchase->id : '')) }}" placeholder="Any instructions…">
+                        </div>
+
+                    </div>
                 </div>
 
                 {{-- Delivery Type Indicator (ERP Standard) --}}

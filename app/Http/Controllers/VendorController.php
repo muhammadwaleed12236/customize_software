@@ -149,6 +149,21 @@ class VendorController extends Controller
             ]);
         }
 
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Vendor created successfully!',
+                'vendor'  => [
+                    'id'            => $vendor->id,
+                    'name'          => $vendor->name,
+                    'phone'         => $vendor->phone,
+                    'address'       => $vendor->address,
+                    'company_names' => $vendor->company_names ?? [],
+                    'company_str'   => is_array($vendor->company_names) ? implode(', ', $vendor->company_names) : ($vendor->company_names ?? ''),
+                ]
+            ]);
+        }
+
         return redirect()->back()->with('success', 'Vendor saved successfully!');
     }
 

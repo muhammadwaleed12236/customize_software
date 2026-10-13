@@ -807,14 +807,11 @@ class InwardgatepassController extends Controller
 
         $query = Product::with(['brand', 'unit']);
         
-        // Filter by vendor brands if vendor_id is provided
+        // Filter by vendor brands if vendor_id is provided AND vendor has brand restrictions
         if ($vendorId) {
             $vendor = Vendor::find($vendorId);
-            if ($vendor && !empty($vendor->brand_ids)) {
+            if ($vendor && !empty($vendor->brand_ids) && is_array($vendor->brand_ids)) {
                 $query->whereIn('brand_id', $vendor->brand_ids);
-            } else if ($vendor) {
-                // If vendor has NO brands assigned, they see NO products
-                $query->whereRaw('1=0');
             }
         }
 

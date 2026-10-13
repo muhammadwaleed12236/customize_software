@@ -13,12 +13,16 @@ class SaleSetting extends Model
         'show_gst',
         'show_line_discount',
         'show_overall_discount',
+        'show_watt',
+        'warehouse_mode',
     ];
 
     protected $casts = [
         'show_gst' => 'boolean',
         'show_line_discount' => 'boolean',
         'show_overall_discount' => 'boolean',
+        'show_watt' => 'boolean',
+        'warehouse_mode' => 'string',
     ];
 
     /**
@@ -30,6 +34,8 @@ class SaleSetting extends Model
             'show_gst' => true,
             'show_line_discount' => true,
             'show_overall_discount' => true,
+            'show_watt' => false,
+            'warehouse_mode' => 'global',
         ]);
     }
 }

@@ -272,17 +272,17 @@
 
                     <div class="d-flex align-items-center gap-2 flex-wrap">
                         @if($isSuperAdmin)
-                            <form method="GET" action="{{ route('home') }}" class="m-0 d-flex align-items-center gap-2">
+                            <div class="m-0 d-flex align-items-center gap-2">
                                 <i class="fas fa-filter text-white-50 small"></i>
-                                <select name="branch_id" class="branch-select-box" onchange="this.form.submit()">
+                                <select name="branch_id" id="dashboardBranchSwitcher" class="branch-select-box" onchange="onDashboardBranchChange(this.value)">
                                     <option value="">🏢 All Branches</option>
                                     @foreach($branches as $b)
-                                        <option value="{{ $b->id }}" {{ (string)$selectedBranchId === (string)$b->id ? 'selected' : '' }}>
-                                            🏢 {{ $b->name }}
+                                        <option value="{{ $b->id }}" {{ (!empty($selectedBranchId) && (int)$selectedBranchId === (int)$b->id) ? 'selected' : '' }}>
+                                            🏢 {{ $b->name ?? $b->branch_name ?? ('Branch #' . $b->id) }}
                                         </option>
                                     @endforeach
                                 </select>
-                            </form>
+                            </div>
                         @endif
 
                         <a href="{{ route('sale.add') }}" class="btn-quick-act btn-quick-act-light">
@@ -703,6 +703,16 @@
 @section('js')
 <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 <script>
+    function onDashboardBranchChange(branchId) {
+        const url = new URL(window.location.href);
+        if (branchId && branchId !== '') {
+            url.searchParams.set('branch_id', branchId);
+        } else {
+            url.searchParams.delete('branch_id');
+        }
+        window.location.href = url.pathname + (url.searchParams.toString() ? '?' + url.searchParams.toString() : '');
+    }
+
     document.addEventListener("DOMContentLoaded", function() {
         const salesStats = @json($salesChartStats);
         const purchaseStats = @json($purchaseChartStats);

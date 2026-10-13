@@ -203,7 +203,6 @@ class PurchaseOrderController extends Controller
                     'notification_date' => now()->toDateString(),
                     'branch_id'         => $branchId,
                     'warehouse_id'      => $warehouseId,
-                    'sale_id'           => $order->id,
                     'created_by'        => Auth::id(),
                 ]);
             }
