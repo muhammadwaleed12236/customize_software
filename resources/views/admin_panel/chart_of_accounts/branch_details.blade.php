@@ -947,9 +947,10 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <form action="" method="POST">
+            <form id="editAccountForm" action="{{ route('coa.account.update', 0) }}" method="POST">
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="account_id" id="editAccountId" value="">
                 <div class="modal-body p-4 bg-white">
                     <div class="row">
                         <div class="col-md-6 mb-3">
@@ -1170,7 +1171,8 @@
 
         // Edit Account Modal Handler
         var coaAccountUrl = "{{ url('coa/account') }}";
-        $(document).on('click', '.btn-edit-account', function() {
+        $(document).on('click', '.btn-edit-account', function(e) {
+            e.preventDefault();
             var id      = $(this).data('id');
             var title   = $(this).attr('data-title');
             var headId  = $(this).data('head-id');
@@ -1179,6 +1181,7 @@
             var status  = $(this).data('status');
             var $modal  = $('#editAccountModal');
             
+            $('#editAccountId').val(id);
             $modal.find('form').attr('action', coaAccountUrl + '/' + id);
             $modal.find('[name="head_id"]').val(headId).trigger('change');
             $modal.find('[name="title"]').val(title);
@@ -1191,6 +1194,21 @@
                 $modal.find('[name="status"]').prop('checked', false);
             }
             $modal.modal('show');
+        });
+
+        // Safeguard form submission
+        $('#editAccountForm').on('submit', function(e) {
+            var action = $(this).attr('action');
+            var id = $('#editAccountId').val();
+            if (!action || action === '' || action.endsWith('/0')) {
+                if (id) {
+                    $(this).attr('action', coaAccountUrl + '/' + id);
+                } else {
+                    e.preventDefault();
+                    alert('Please select an account to edit.');
+                    return false;
+                }
+            }
         });
     });
 </script>

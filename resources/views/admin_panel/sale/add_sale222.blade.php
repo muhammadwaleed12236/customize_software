@@ -757,7 +757,115 @@
                                         </tr>
                                     </thead>
                                     <tbody id="salesTableBody">
-                                        <!-- Table rows are dynamically rendered by JS -->
+                                        @if(isset($isEditMode) && $isEditMode && !empty($saleItems))
+                                            @foreach($saleItems as $index => $item)
+                                                <tr>
+                                                    <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;">{{ $index + 1 }}</td>
+                                                    <td class="col-product">
+                                                        <select class="form-select product product-select" name="product_id[]" style="width:100%">
+                                                            <option value="{{ $item['product_id'] }}" selected>{{ $item['item_name'] }}</option>
+                                                        </select>
+                                                        <input type="hidden" class="product-id-hidden" name="product_id_hidden[]" value="{{ $item['product_id'] }}">
+                                                        <input type="hidden" class="variant-data-hidden" name="color[]" value="">
+                                                        <input type="hidden" class="item-code-display" value="{{ $item['item_code'] ?? '' }}">
+                                                    </td>
+
+                                                    @if(isset($saleSettings) && $saleSettings->warehouse_mode === 'product_wise')
+                                                        <td class="col-warehouse">
+                                                            <select class="form-select warehouse warehouse-select shadow-none" name="warehouse_id[]" style="width: 100%; height: 26px; font-size: 0.78rem; padding: 2px 4px; font-weight: 600;">
+                                                                @php
+                                                                    $itemWh = $item['warehouse_id'] ?? null;
+                                                                    if ($itemWh && !str_starts_with((string)$itemWh, 'warehouse_') && !str_starts_with((string)$itemWh, 'branch_')) {
+                                                                        $itemWh = 'warehouse_' . $itemWh;
+                                                                    }
+                                                                    if (!$itemWh) {
+                                                                        $itemWh = isset($sale) && $sale->branch_id ? ('branch_' . $sale->branch_id) : 'branch_1';
+                                                                    }
+                                                                @endphp
+                                                                @if(isset($branches) && count($branches) > 0)
+                                                                    <optgroup label="🏬 Shops / Branches">
+                                                                        @foreach($branches as $b)
+                                                                            <option value="branch_{{ $b->id }}" {{ $itemWh === 'branch_'.$b->id ? 'selected' : '' }}>
+                                                                                {{ $b->name }} (Shop)
+                                                                            </option>
+                                                                        @endforeach
+                                                                    </optgroup>
+                                                                @endif
+                                                                @php
+                                                                    $whList = (isset($allWarehouses) && count($allWarehouses) > 0) ? $allWarehouses : ((isset($warehouse) && count($warehouse) > 0) ? $warehouse : []);
+                                                                @endphp
+                                                                @if(count($whList) > 0)
+                                                                    <optgroup label="🏭 Warehouses">
+                                                                        @foreach($whList as $w)
+                                                                            <option value="warehouse_{{ $w->id }}" {{ $itemWh === 'warehouse_'.$w->id ? 'selected' : '' }}>
+                                                                                {{ $w->warehouse_name ?? $w->name }}
+                                                                            </option>
+                                                                        @endforeach
+                                                                    </optgroup>
+                                                                @endif
+                                                            </select>
+                                                        </td>
+                                                        <td class="col-stock">
+                                                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="{{ $item['onhand_qty'] ?? 0 }}">
+                                                        </td>
+                                                    @else
+                                                        <td class="col-stock">
+                                                            <input type="text" class="form-control stock text-center input-readonly" readonly tabindex="-1" value="{{ $item['onhand_qty'] ?? 0 }}">
+                                                            <input type="hidden" class="warehouse" name="warehouse_id[]" value="{{ $item['warehouse_id'] ?? '' }}">
+                                                        </td>
+                                                    @endif
+
+                                                    <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
+                                                        <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="{{ $item['sales_qty'] ?? 1 }}" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                                                        <input type="hidden" name="sales_qty[]" class="sales-qty-mirror" value="{{ $item['sales_qty'] ?? 1 }}">
+                                                    </td>
+                                                    <td class="col-pieces">
+                                                        <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="{{ $item['sales_qty'] ?? 1 }}">
+                                                        <input type="hidden" class="sales-qty-hidden" name="qty[]" value="{{ $item['sales_qty'] ?? 1 }}">
+                                                    </td>
+
+                                                    @if(isset($saleSettings) && $saleSettings->show_watt)
+                                                        <td class="col-watt">
+                                                            <input type="number" step="any" class="form-control item-watt text-center" name="watt[]" placeholder="0" min="0" value="{{ $item['watt'] ?? 0 }}" style="width: 100%; height: 26px; font-size: 0.85rem; padding: 2px 4px; font-weight: 700;">
+                                                        </td>
+                                                    @else
+                                                        <td class="d-none">
+                                                            <input type="hidden" class="item-watt" name="watt[]" value="{{ $item['watt'] ?? 0 }}">
+                                                        </td>
+                                                    @endif
+
+                                                    <td class="col-price-p">
+                                                        <input type="text" class="form-control visible-price retail-price text-end" name="retail_price[]" value="{{ number_format($item['retail_price'] ?? 0, 2, '.', '') }}" placeholder="0" style="width: 100%;">
+                                                        <input type="hidden" class="price-per-piece" name="price_per_piece[]" value="{{ number_format($item['retail_price'] ?? 0, 2, '.', '') }}">
+                                                    </td>
+
+                                                    @if(!isset($saleSettings) || $saleSettings->show_line_discount)
+                                                        <td class="col-disc">
+                                                            <div class="discount-wrapper">
+                                                                <input type="number" class="form-control discount-value text-end" name="discount_percentage[]" value="{{ ($item['discount_percent'] ?? 0) > 0 ? $item['discount_percent'] : (($item['discount_amount'] ?? 0) > 0 ? $item['discount_amount'] : '') }}" placeholder="0">
+                                                                <input type="hidden" class="discount-type-field" name="discount_type[]" value="{{ $item['discount_type'] ?? 'percent' }}">
+                                                                <button type="button" class="btn btn-outline-secondary discount-toggle" data-type="{{ $item['discount_type'] ?? 'percent' }}" tabindex="-1">{{ ($item['discount_type'] ?? 'percent') === 'percent' ? '%' : 'Rs' }}</button>
+                                                            </div>
+                                                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="{{ number_format($item['discount_amount'] ?? 0, 2, '.', '') }}">
+                                                        </td>
+                                                    @else
+                                                        <td class="d-none">
+                                                            <input type="hidden" class="discount-value" name="discount_percentage[]" value="{{ ($item['discount_percent'] ?? 0) > 0 ? $item['discount_percent'] : (($item['discount_amount'] ?? 0) > 0 ? $item['discount_amount'] : '0') }}">
+                                                            <input type="hidden" class="discount-type-field" name="discount_type[]" value="{{ $item['discount_type'] ?? 'percent' }}">
+                                                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="{{ number_format($item['discount_amount'] ?? 0, 2, '.', '') }}">
+                                                        </td>
+                                                    @endif
+
+                                                    <td class="col-amount">
+                                                        <input type="text" class="form-control sales-amount text-end input-readonly" name="sales_amount[]" value="{{ number_format($item['amount'] ?? 0, 2, '.', '') }}" readonly tabindex="-1">
+                                                        <input type="hidden" class="gross-amount" value="{{ number_format($item['amount'] ?? 0, 2, '.', '') }}">
+                                                    </td>
+                                                    <td class="col-action text-center">
+                                                        <button type="button" class="btn btn-sm btn-outline-danger del-row" tabindex="-1">&times;</button>
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        @endif
                                     </tbody>
                                     <tfoot>
                                         <tr>
@@ -768,7 +876,7 @@
                                                     + ((!isset($saleSettings) || $saleSettings->show_line_discount) ? 1 : 0);
                                             @endphp
                                             <td colspan="{{ $colsBeforeAmount }}" class="text-end fw-bold text-uppercase text-secondary" style="font-size:0.78rem;">Grid Total:</td>
-                                            <td class="text-end fw-bold text-success fs-6"><span id="totalAmount">0.00</span></td>
+                                            <td class="text-end fw-bold text-success fs-6"><span id="totalAmount">{{ isset($sale) ? number_format($sale->total_net ?? $sale->sub_total2 ?? 0, 2, '.', '') : '0.00' }}</span></td>
                                             <td></td>
                                         </tr>
                                     </tfoot>
@@ -789,7 +897,7 @@
                                 
                                 <div class="summary-row">
                                     <span class="text-muted">Total Amount</span>
-                                    <span class="fw-bold text-dark" id="tGross">0.00</span>
+                                    <span class="fw-bold text-dark" id="tGross">{{ isset($sale) ? number_format($sale->sub_total1 ?? $sale->total_net ?? 0, 2, '.', '') : '0.00' }}</span>
                                 </div>
                                 <div class="summary-row">
                                     <span class="text-muted">Line Discount</span>
@@ -797,23 +905,31 @@
                                 </div>
                                 <div class="summary-row">
                                     <span class="fw-bold text-dark">Current Net</span>
-                                    <span class="summary-val-net" id="tSub">0.00</span>
+                                    <span class="summary-val-net" id="tSub">{{ isset($sale) ? number_format($sale->total_net ?? $sale->sub_total2 ?? 0, 2, '.', '') : '0.00' }}</span>
                                 </div>
                                 <div class="summary-row" id="rowPrevBalance">
                                     <span class="text-muted">Prev. Balance</span>
-                                    <span class="fw-bold text-danger" id="displayPrevBalance">0.00</span>
+                                    <span class="fw-bold text-danger" id="displayPrevBalance">{{ isset($sale) && $sale->party_type !== 'walking' ? number_format($sale->previous_balance ?? 0, 2, '.', '') : '0.00' }}</span>
                                 </div>
                                 <div class="summary-row" id="rowTotalPayable">
                                     <span class="fw-bold text-primary">Total Payable</span>
-                                    <span class="fw-bold text-primary" id="displayTotalPayable">0.00</span>
+                                    <span class="fw-bold text-primary" id="displayTotalPayable">{{ isset($sale) ? number_format($sale->total_balance ?? $sale->total_net ?? 0, 2, '.', '') : '0.00' }}</span>
                                 </div>
                                 <div class="summary-row">
                                     <span class="text-muted">Total Paid</span>
-                                    <span class="fw-bold text-success" id="receiptsTotalBadge">0.00</span>
+                                    @php
+                                        $initialPaid = 0;
+                                        if (isset($receipts) && count($receipts) > 0) {
+                                            $initialPaid = $receipts->sum(fn($r) => floatval($r->total_amount ?? $r->amount ?? 0));
+                                        } elseif (isset($sale)) {
+                                            $initialPaid = floatval($sale->receipt1 ?? 0) + floatval($sale->receipt2 ?? 0);
+                                        }
+                                    @endphp
+                                    <span class="fw-bold text-success" id="receiptsTotalBadge">{{ number_format($initialPaid, 2, '.', '') }}</span>
                                 </div>
                                 <div class="summary-row pt-1">
                                     <span class="fw-bold text-danger" id="lblChangeOrDue">Balance Due</span>
-                                    <span class="summary-val-change" id="walkinChange">0.00</span>
+                                    <span class="summary-val-change" id="walkinChange">{{ isset($sale) ? number_format(max(0, ($sale->total_balance ?? $sale->total_net ?? 0) - $initialPaid), 2, '.', '') : '0.00' }}</span>
                                 </div>
 
                                 {{-- Hidden elements for backward compatibility --}}
@@ -1279,7 +1395,7 @@
                         </td>
                     `;
                 } else {
-                    wattCellHtml = `<input type="hidden" class="item-watt" name="watt[]" value="0">`;
+                    wattCellHtml = `<td class="d-none"><input type="hidden" class="item-watt" name="watt[]" value="0"></td>`;
                 }
 
                 let discCellHtml = '';
@@ -1296,9 +1412,11 @@
                     `;
                 } else {
                     discCellHtml = `
-                        <input type="hidden" class="discount-value" name="discount_percentage[]" value="0">
-                        <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
-                        <input type="hidden" class="discount-amount" name="discount_amount[]" value="0">
+                        <td class="d-none">
+                            <input type="hidden" class="discount-value" name="discount_percentage[]" value="0">
+                            <input type="hidden" class="discount-type-field" name="discount_type[]" value="percent">
+                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="0">
+                        </td>
                     `;
                 }
 
@@ -1501,7 +1619,7 @@
                 const qty = toNum($row.find('.sales-qty').val());
                 const watt = (window.saleSettings && window.saleSettings.show_watt) ? toNum($row.find('.item-watt').val()) : 0;
                 let discVal = toNum($row.find('.discount-value').val());
-                const discType = $row.find('.discount-toggle').data('type') || 'percent';
+                const discType = $row.find('.discount-toggle').data('type') || $row.find('.discount-type-field').val() || 'percent';
 
                 let gross = (watt > 0) ? (price * watt * qty) : (price * qty);
                 let discAmt = 0;
@@ -1571,15 +1689,21 @@
 
                 if (isWalkin) {
                     $('#rowPrevBalance').hide();
-                    $('#rowTotalPayable').hide();
-                    $('#lblChangeOrDue').text('Change');
-                    $('#walkinChange').text(changeVal.toFixed(2));
-                    $('#bottomChangeVal').text(changeVal.toFixed(2));
+                    $('#rowTotalPayable').show();
+                    if (changeVal >= 0) {
+                        $('#lblChangeOrDue').text('Change');
+                        $('#walkinChange').text(changeVal.toFixed(2)).removeClass('text-danger').addClass('text-success');
+                        $('#bottomChangeVal').text(changeVal.toFixed(2));
+                    } else {
+                        $('#lblChangeOrDue').text('Balance Due');
+                        $('#walkinChange').text(Math.abs(changeVal).toFixed(2)).removeClass('text-success').addClass('text-danger');
+                        $('#bottomChangeVal').text(Math.abs(changeVal).toFixed(2));
+                    }
                 } else {
                     $('#rowPrevBalance').show();
                     $('#rowTotalPayable').show();
                     $('#lblChangeOrDue').text('Balance Due');
-                    $('#walkinChange').text(remainingDue.toFixed(2));
+                    $('#walkinChange').text(remainingDue.toFixed(2)).removeClass('text-success').addClass('text-danger');
                     $('#bottomChangeVal').text(remainingDue.toFixed(2));
                 }
 
@@ -2124,55 +2248,13 @@
                 }, 20);
             });
 
-            // Global Arrow Up / Arrow Down / Enter navigation across Select2 dropdown rows
+            // Global Enter key navigation for open Select2 dropdown
             $(document).on('keydown', function(e) {
                 const $openContainer = $('.select2-container--open');
                 if (!$openContainer.length) return;
 
                 const key = e.key;
                 const keyCode = e.keyCode;
-
-                // Arrow Down (Down Button) or Arrow Up (Up Button) in open dropdown
-                if (key === 'ArrowDown' || keyCode === 40 || key === 'ArrowUp' || keyCode === 38) {
-                    const $options = $openContainer.find('.select2-results__option[aria-selected="false"], .select2-results__option[aria-selected="true"]');
-                    if (!$options.length) return;
-
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-
-                    const searchInput = $openContainer.find('.select2-search__field')[0];
-                    if (searchInput && document.activeElement !== searchInput) {
-                        searchInput.focus();
-                    }
-
-                    let $curr = $options.filter('.select2-results__option--highlighted');
-                    let $target;
-
-                    if (key === 'ArrowDown' || keyCode === 40) {
-                        if ($curr.length) {
-                            let idx = $options.index($curr);
-                            $target = (idx < $options.length - 1) ? $options.eq(idx + 1) : $options.first();
-                        } else {
-                            $target = $options.first();
-                        }
-                    } else {
-                        if ($curr.length) {
-                            let idx = $options.index($curr);
-                            $target = (idx > 0) ? $options.eq(idx - 1) : $options.last();
-                        } else {
-                            $target = $options.last();
-                        }
-                    }
-
-                    if ($target && $target.length) {
-                        $options.removeClass('select2-results__option--highlighted');
-                        $target.addClass('select2-results__option--highlighted');
-                        if ($target[0].scrollIntoView) {
-                            $target[0].scrollIntoView({ block: 'nearest' });
-                        }
-                    }
-                    return;
-                }
 
                 // Enter Key in open dropdown -> select highlighted option
                 if (key === 'Enter' || keyCode === 13) {
@@ -2635,7 +2717,7 @@
                             </td>
                         `;
                     } else {
-                        wattCellHtml = `<input type="hidden" class="item-watt" name="watt[]" value="${wattVal}">`;
+                        wattCellHtml = `<td class="d-none"><input type="hidden" class="item-watt" name="watt[]" value="${wattVal}"></td>`;
                     }
 
                     let discCellHtml = '';
@@ -2652,9 +2734,11 @@
                         `;
                     } else {
                         discCellHtml = `
-                            <input type="hidden" class="discount-value" name="discount_percentage[]" value="${discVal > 0 ? discVal : '0'}">
-                            <input type="hidden" class="discount-type-field" name="discount_type[]" value="${discType}">
-                            <input type="hidden" class="discount-amount" name="discount_amount[]" value="${discAmt.toFixed(2)}">
+                            <td class="d-none">
+                                <input type="hidden" class="discount-value" name="discount_percentage[]" value="${discVal > 0 ? discVal : '0'}">
+                                <input type="hidden" class="discount-type-field" name="discount_type[]" value="${discType}">
+                                <input type="hidden" class="discount-amount" name="discount_amount[]" value="${discAmt.toFixed(2)}">
+                            </td>
                         `;
                     }
 
@@ -2887,7 +2971,20 @@
                     }
 
                     // 2. Populate Order Items
-                    if (window.EDIT_SALE_ITEMS && window.EDIT_SALE_ITEMS.length > 0) {
+                    if ($('#salesTableBody tr').length > 0) {
+                        $('#salesTableBody tr').each(function() {
+                            const $r = $(this);
+                            const $select = $r.find('.product-select');
+                            if (!$select.data('select2')) {
+                                initProductSelect2($select);
+                            }
+                            const pId = $select.val() || $r.find('.product-id-hidden').val();
+                            if (pId) {
+                                fetchRowStock($r, pId);
+                            }
+                        });
+                        updateRowIndexNumbers();
+                    } else if (window.EDIT_SALE_ITEMS && window.EDIT_SALE_ITEMS.length > 0) {
                         $('#salesTableBody').empty();
                         let formattedItems = window.EDIT_SALE_ITEMS.map(it => {
                             let discType = it.discount_type || (parseFloat(it.discount_percent) > 0 ? 'percent' : 'pkr');
@@ -2909,7 +3006,8 @@
                                 disc: discVal,
                                 discType: discType,
                                 warehouse_id: itWh,
-                                watt: parseFloat(it.watt || 0) || 0
+                                watt: parseFloat(it.watt || 0) || 0,
+                                amount: parseFloat(it.amount || it.total || 0) || 0
                             };
                         });
                         addMultipleProductsToGrid(formattedItems);

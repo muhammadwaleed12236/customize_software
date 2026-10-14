@@ -318,6 +318,9 @@ class SaleController extends Controller
                     CustomerLedger::create([
                         'customer_id'        => $customerId,
                         'admin_or_user_id'   => auth()->id(),
+                        'transaction_type'   => 'Sale',
+                        'reference_id'       => (string) $sale->id,
+                        'description'        => 'Sale Invoice #' . $sale->invoice_no,
                         'opening_balance'    => $customerOpeningBalance,
                         'previous_balance'   => $previousBalance,
                         'total_debit'        => $saleAmount,
@@ -2292,6 +2295,11 @@ public function finddc($invoice)
         $branchTotalStock = (float) WarehouseStock::where('product_id', $productId)
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->sum('quantity');
+        if ($branchTotalStock == 0) {
+            $branchTotalStock = (float) Stock::where('product_id', $productId)
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->sum('qty');
+        }
 
         // Location specific stock
         $locationStock = $branchTotalStock;
@@ -2302,11 +2310,21 @@ public function finddc($invoice)
                     ->where('branch_id', $targetBranch)
                     ->whereNull('warehouse_id')
                     ->sum('quantity');
+                if ($locationStock == 0) {
+                    $locationStock = (float) Stock::where('product_id', $productId)
+                        ->where('branch_id', $targetBranch)
+                        ->sum('qty');
+                }
             } elseif ($location === 'branch' || $location === 'shop') {
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
                     ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                     ->whereNull('warehouse_id')
                     ->sum('quantity');
+                if ($locationStock == 0) {
+                    $locationStock = (float) Stock::where('product_id', $productId)
+                        ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                        ->sum('qty');
+                }
             } else {
                 $whId = (int) str_replace('warehouse_', '', $location);
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
@@ -2336,6 +2354,18 @@ public function finddc($invoice)
                 ->toArray();
             foreach ($wStocks as $wId => $qty) {
                 $locationBreakdown['warehouse_' . $wId] = (float) $qty;
+            }
+
+            // Also include branches from stocks table if not in warehouse_stocks
+            $shopStocks = Stock::where('product_id', $productId)
+                ->select('branch_id', DB::raw('SUM(qty) as total_qty'))
+                ->groupBy('branch_id')
+                ->pluck('total_qty', 'branch_id')
+                ->toArray();
+            foreach ($shopStocks as $bId => $qty) {
+                if (!isset($locationBreakdown['branch_' . $bId])) {
+                    $locationBreakdown['branch_' . $bId] = (float) $qty;
+                }
             }
         }
 
@@ -2841,13 +2871,18 @@ public function finddc($invoice)
                 $newClosingBalance = $previousBalance + $saleAmount;
 
                 CustomerLedger::create([
-                    'customer_id' => $customerId,
+                    'customer_id'      => $customerId,
                     'admin_or_user_id' => auth()->id(),
+                    'transaction_type' => 'Sale',
+                    'reference_id'     => (string)$sale->id,
+                    'description'      => 'Sale Invoice #' . $sale->invoice_no,
                     'previous_balance' => $previousBalance,
-                    'opening_balance' => 0,  // یہ sale transaction ہے
-                    'closing_balance' => $newClosingBalance,
-                    'created_at' => $directSaleDateTime,
-                    'updated_at' => $directSaleDateTime,
+                    'opening_balance'  => 0,
+                    'total_debit'      => $saleAmount,
+                    'total_credit'     => 0,
+                    'closing_balance'  => $newClosingBalance,
+                    'created_at'       => $directSaleDateTime,
+                    'updated_at'       => $directSaleDateTime,
                 ]);
             }
 
@@ -3731,14 +3766,39 @@ public function finddc($invoice)
             }
         }
 
-        // Fetch on-hand stock for all products
-        $stockMap = DB::table('v_stock_onhand')
-            ->pluck('onhand_qty', 'product_id');
+        // Fetch accurate stock map from WarehouseStock and Stock tables
+        $whStockMap = WarehouseStock::select('product_id', DB::raw('SUM(quantity) as qty'))
+            ->groupBy('product_id')
+            ->pluck('qty', 'product_id');
+
+        $mainStockMap = Stock::select('product_id', DB::raw('SUM(qty) as qty'))
+            ->groupBy('product_id')
+            ->pluck('qty', 'product_id');
+
+        $vStockMap = DB::table('v_stock_onhand')->pluck('onhand_qty', 'product_id');
 
         $items = [];
         if ($sale->saleItems && $sale->saleItems->count() > 0) {
             foreach ($sale->saleItems as $saleItem) {
                 $product = $saleItem->product;
+                $pid = $saleItem->product_id;
+                $onhand = 0;
+                if ($saleItem->warehouse_id) {
+                    $locStock = WarehouseStock::where('product_id', $pid)->where('warehouse_id', $saleItem->warehouse_id)->sum('quantity');
+                    $onhand = (float)$locStock;
+                } elseif ($branchId) {
+                    $locStock = WarehouseStock::where('product_id', $pid)->where('branch_id', $branchId)->whereNull('warehouse_id')->sum('quantity');
+                    if ($locStock != 0) {
+                        $onhand = (float)$locStock;
+                    } else {
+                        $bStock = Stock::where('product_id', $pid)->where('branch_id', $branchId)->sum('qty');
+                        $onhand = (float)$bStock;
+                    }
+                }
+                if ($onhand == 0) {
+                    $onhand = (float)($whStockMap[$pid] ?? ($mainStockMap[$pid] ?? ($vStockMap[$pid] ?? 0)));
+                }
+
                 $itemWatt = floatval($saleItem->watt ?? 0);
                 if ($itemWatt == 0 && $product) {
                     if (preg_match('/\b(\d{3,4})\s*(?:watts?|w)\b/i', $product->item_name ?? '', $matches)) {
@@ -3775,7 +3835,7 @@ public function finddc($invoice)
                     'qty'              => floatval($saleItem->sales_qty ?? 0),
                     'amount'           => floatval($saleItem->amount ?? 0),
                     'total'            => floatval($saleItem->amount ?? 0),
-                    'onhand_qty'       => floatval($stockMap[$saleItem->product_id] ?? 0),
+                    'onhand_qty'       => $onhand,
                     'warehouse_id'     => $saleItem->warehouse_id,
                 ];
             }
@@ -4952,12 +5012,6 @@ public function finddc($invoice)
                 // 2. REVERSE RECEIPTS, ACCOUNTS & TRANSACTIONS
                 $receipts = ReceiptsVoucher::where('reference_no', $sale->invoice_no)
                     ->orWhere('sale_id', $sale->id)
-                    ->orWhere(function ($q) use ($sale) {
-                        if ($sale->customer_id) {
-                            $q->where('party_id', $sale->customer_id)
-                              ->where('type', 'SALE_RECEIPT');
-                        }
-                    })
                     ->get();
 
                 foreach ($receipts as $rv) {
@@ -4972,41 +5026,21 @@ public function finddc($invoice)
                     ->where('reference_id', $sale->id)
                     ->delete();
 
-                // 3. REVERSE CUSTOMER LEDGER (IF CUSTOMER EXISTS)
+                // 3. SETTLE CUSTOMER LEDGER (IF CUSTOMER EXISTS)
                 if ($sale->customer_id) {
-                    $saleAmount = floatval($sale->total_net ?? 0);
+                    $customerId = $sale->customer_id;
 
                     // Delete ledger entries created for this sale
-                    CustomerLedger::where('customer_id', $sale->customer_id)
+                    CustomerLedger::where('customer_id', $customerId)
                         ->where(function ($q) use ($sale) {
                             $q->where('reference_id', (string) $sale->id)
                               ->orWhere('reference_id', (string) $sale->invoice_no)
-                              ->orWhere('transaction_type', 'Sale')
-                              ->orWhere('transaction_type', 'Sale Finalization')
-                              ->orWhere('transaction_type', 'Sale Post');
+                              ->orWhere('description', 'like', '%' . $sale->invoice_no . '%');
                         })
                         ->delete();
 
-                    // Record reversal ledger entry for audit trail and net balance adjustment
-                    $latestLedger = CustomerLedger::where('customer_id', $sale->customer_id)
-                        ->latest('id')
-                        ->first();
-
-                    if ($latestLedger && $saleAmount > 0) {
-                        $newClosing = $latestLedger->closing_balance - $saleAmount;
-                        CustomerLedger::create([
-                            'customer_id'      => $sale->customer_id,
-                            'admin_or_user_id' => auth()->id() ?? 1,
-                            'opening_balance'  => $latestLedger->closing_balance,
-                            'previous_balance' => $latestLedger->closing_balance,
-                            'total_debit'      => 0,
-                            'total_credit'     => $saleAmount,
-                            'closing_balance'  => $newClosing,
-                            'transaction_type' => 'Sale Delete',
-                            'reference_id'     => (string) $sale->id,
-                            'description'      => 'Sale Deleted - Invoice #' . $sale->invoice_no,
-                        ]);
-                    }
+                    // Recalculate customer running balance so balance automatically settles
+                    self::recalculateCustomerLedger($customerId);
                 }
 
                 // 4. RESET LINKED PRODUCT BOOKING (IF CONVERTED FROM BOOKING)
@@ -5061,6 +5095,48 @@ public function finddc($invoice)
             }
 
             return redirect()->back()->with('error', 'Sale deletion failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Recalculates the running balance chain in CustomerLedger for a specific customer.
+     * Ensures previous_balance and closing_balance are mathematically accurate across all entries.
+     */
+    public static function recalculateCustomerLedger($customerId)
+    {
+        $customer = Customer::find($customerId);
+        if (!$customer) {
+            return;
+        }
+
+        $ledgers = CustomerLedger::where('customer_id', $customerId)
+            ->orderBy('id', 'asc')
+            ->get();
+
+        if ($ledgers->isEmpty()) {
+            return;
+        }
+
+        $runningBalance = (float)($customer->opening_balance ?? 0);
+
+        foreach ($ledgers as $index => $ledger) {
+            if ($index === 0 && floatval($ledger->total_debit) == 0 && floatval($ledger->total_credit) == 0 && (empty($ledger->transaction_type) || $ledger->transaction_type === 'Opening Balance')) {
+                $runningBalance = (float)($customer->opening_balance ?? 0);
+                $ledger->previous_balance = 0;
+                $ledger->opening_balance  = $runningBalance;
+                $ledger->closing_balance  = $runningBalance;
+                $ledger->save();
+                continue;
+            }
+
+            $prev = $runningBalance;
+            $debit = (float)$ledger->total_debit;
+            $credit = (float)$ledger->total_credit;
+            $runningBalance = $prev + $debit - $credit;
+
+            $ledger->previous_balance = $prev;
+            $ledger->closing_balance  = $runningBalance;
+            $ledger->save();
         }
     }
 
@@ -5203,15 +5279,16 @@ public function finddc($invoice)
                     $newClosingBalance = $previousBalance + $saleAmount - $totalReceiptsProcessed;
 
                     CustomerLedger::create([
-                        'customer_id' => $sale->customer_id,
+                        'customer_id'      => $sale->customer_id,
                         'admin_or_user_id' => auth()->id(),
-                        'opening_balance' => $previousBalance,
+                        'transaction_type' => 'Sale',
+                        'reference_id'     => (string)$sale->id,
+                        'description'      => 'Sale Invoice #' . $sale->invoice_no,
+                        'opening_balance'  => $previousBalance,
                         'previous_balance' => $previousBalance,
-                        'total_debit' => $saleAmount,
-                        'total_credit' => $totalReceiptsProcessed,
-                        'closing_balance' => $newClosingBalance,
-                        'reference_type' => 'Sale Finalization',
-                        'reference_id' => $sale->id,
+                        'total_debit'      => $saleAmount,
+                        'total_credit'     => $totalReceiptsProcessed,
+                        'closing_balance'  => $newClosingBalance,
                     ]);
 
                     Log::info('Customer ledger created', [

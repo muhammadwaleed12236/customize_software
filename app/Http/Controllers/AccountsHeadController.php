@@ -276,7 +276,7 @@ class AccountsHeadController extends Controller
             'title'           => 'required|string|max:150',
             'type'            => 'required|in:Debit,Credit',
             'opening_balance' => 'nullable|numeric',
-            'status'          => 'nullable|in:on',
+            'status'          => 'nullable',
         ];
 
         $request->validate($rules);
@@ -292,7 +292,7 @@ class AccountsHeadController extends Controller
         $newOpening = (float)($request->opening_balance ?? 0);
         $newHeadId  = (int)$request->head_id;
         $newType    = $request->type;
-        $newStatus  = $request->status === 'on' ? 1 : 0;
+        $newStatus  = ($request->status === 'on' || $request->status == '1' || $request->status === true || $request->status === 'active') ? 1 : 0;
 
         $data = [
             'title'           => $newTitle,

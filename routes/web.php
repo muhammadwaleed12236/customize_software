@@ -662,7 +662,22 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('vouchers/{type}', [VoucherController::class, 'index'])->middleware('permission:voucher.view')->name('vouchers.index');
     Route::post('vouchers/store', [VoucherController::class, 'store'])->middleware('permission:voucher.view')->name('vouchers.store');
     Route::get('/view_all', [AccountsHeadController::class, 'index'])->middleware('permission:chart.of.accounts.view')->name('view_all');
+    Route::match(['put', 'post'], '/view_all', function (\Illuminate\Http\Request $request) {
+        $accountId = $request->account_id ?? $request->id;
+        if ($accountId) {
+            return app(AccountsHeadController::class)->updateAccount($request, $accountId);
+        }
+        return redirect()->route('view_all')->with('error', 'Invalid account update request.');
+    })->middleware('permission:chart.of.accounts.create');
+
     Route::get('/branch-accounts/{branchId}', [AccountsHeadController::class, 'showBranchAccounts'])->middleware('permission:chart.of.accounts.view')->name('branch.accounts');
+    Route::match(['put', 'post'], '/branch-accounts/{branchId}', function (\Illuminate\Http\Request $request, $branchId) {
+        $accountId = $request->account_id ?? $request->id;
+        if ($accountId) {
+            return app(AccountsHeadController::class)->updateAccount($request, $accountId);
+        }
+        return redirect()->route('branch.accounts', $branchId)->with('error', 'Invalid account update request.');
+    })->middleware('permission:chart.of.accounts.create');
     // ✅ ERP STANDARD: Per-Account General Ledger
     Route::get('/account-ledger/{accountId}', [AccountsHeadController::class, 'accountLedger'])->middleware('permission:chart.of.accounts.view')->name('account.ledger');
     // ✅ Permission removed - getVendorBalance now accessible
@@ -768,7 +783,7 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
         Route::get('/', [AccountsHeadController::class, 'index'])->name('coa.index');
         Route::post('/head', [AccountsHeadController::class, 'storeHead'])->middleware('permission:chart.of.accounts.create')->name('coa.head.store');
         Route::post('/account', [AccountsHeadController::class, 'storeAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.store');
-        Route::put('/account/{id}', [AccountsHeadController::class, 'updateAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.update');
+        Route::match(['put', 'post'], '/account/{id}', [AccountsHeadController::class, 'updateAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.update');
         Route::get('/account/{id}/history', [AccountsHeadController::class, 'getAccountHistory'])->name('coa.account.history');
         Route::delete('/account/{id}', [AccountsHeadController::class, 'destroyAccount'])->middleware('permission:chart.of.accounts.create')->name('coa.account.delete');
                     
