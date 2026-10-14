@@ -1890,19 +1890,23 @@ class SaleController extends Controller
         // Retrieve the latest ledger entry for the customer
         $latestLedger = CustomerLedger::where('customer_id', $id)->latest()->first();
 
-        // If a ledger entry exists, use its closing_balance; otherwise, set it to 0
-        $previous_balance = $latestLedger ? $latestLedger->closing_balance : 0;
+        // If a ledger entry exists, use its closing_balance; otherwise, use opening_balance
+        $previous_balance = $latestLedger ? (float)$latestLedger->closing_balance : (float)($c->opening_balance ?? 0);
 
         return response()->json([
+            'id' => $c->id,
+            'customer_id' => $c->customer_id,
+            'customer_name' => $c->customer_name,
             'filer_type' => $c->filer_type,
             'customer_type' => $c->customer_type,
             'address' => $c->address,
             'mobile' => $c->mobile,
             'remarks' => $c->remarks ?? '',
-            'previous_balance' => $previous_balance, // Use the latest closing_balance
-            'credit_upto' => $c->credit_upto,  // ✅ نیا
-            'credit_limit' => $c->credit_limit,  // ✅ نیا
-            'opening_balance' => $c->opening_balance,  // ✅ نیا
+            'previous_balance' => $previous_balance,
+            'closing_balance' => $previous_balance,
+            'credit_upto' => $c->credit_upto,
+            'credit_limit' => $c->credit_limit,
+            'opening_balance' => (float)($c->opening_balance ?? 0),
         ]);
     }
 

@@ -1567,6 +1567,7 @@
                 $('#receiptsTotal').text(receipts.toFixed(2));
                 $('#tPrev').text(prevBal.toFixed(2));
                 $('#tPayable').text(totalPayable.toFixed(2));
+                $('#badgeCustomerPrevBal').text('Rs ' + prevBal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
 
                 if (isWalkin) {
                     $('#rowPrevBalance').hide();
@@ -1729,7 +1730,7 @@
 
                 // 2. Fetch Salesmen for Selected Branch
                 $.ajax({
-                    url: "{{ url('/sale/get-branch-salesmen') }}/" + selectedBranchId,
+                    url: "/sale/get-branch-salesmen/" + selectedBranchId,
                     type: 'GET',
                     dataType: 'json',
                     success: function(salesmen) {
@@ -1761,7 +1762,7 @@
                     $('#displayPrevBalance').text('0.00');
                     updateGrandTotals();
 
-                    $.get('{{ route("salecustomers.index") }}', { branch_id: selectedBranchId }, function(data) {
+                    $.get('/sale/customers', { branch_id: selectedBranchId }, function(data) {
                         let $cs = $('#customerSelect');
                         $cs.empty().append('<option value="">Select or search customer...</option>');
                         if (Array.isArray(data)) {
@@ -1784,11 +1785,31 @@
             $('#customerSelect').select2({
                 placeholder: 'Search Customer...',
                 allowClear: true,
-                width: '100%'
+                width: '100%',
+                ajax: {
+                    url: '/sale/customers',
+                    dataType: 'json',
+                    delay: 250,
+                    data: function(params) {
+                        let activeBranch = $('#branch_id').val() || $('[name="branch_id"]').val() || '';
+                        return { search: params.term || '', branch_id: activeBranch };
+                    },
+                    processResults: function(data) {
+                        return {
+                            results: data.map(function(c) {
+                                return {
+                                    id: c.id,
+                                    text: (c.customer_id || '') + ' — ' + c.customer_name,
+                                    customer: c
+                                };
+                            })
+                        };
+                    }
+                }
             });
 
-            $('#customerSelect').on('change select2:select', function(e) {
-                const id = $(this).val();
+            $('#customerSelect').on('select2:select change', function(e) {
+                const id = (e.params && e.params.data && e.params.data.id) ? e.params.data.id : $(this).val();
                 if (!id) {
                     $('#previousBalance').val('0.00');
                     $('#badgeCustomerPrevBal').text('Rs 0.00');
@@ -1801,21 +1822,36 @@
                     return;
                 }
 
-                // If selected option has dataset, populate immediately (no lag)
-                let $opt = $(this).find('option:selected');
-                if ($opt.length && $opt.data('prev-balance') !== undefined) {
-                    window.applyCustomerData({
-                        id: id,
-                        mobile: $opt.data('mobile') || '',
-                        address: $opt.data('address') || '',
-                        previous_balance: $opt.data('prev-balance')
-                    });
+                // 1. If customer data is directly attached in e.params.data, use it right away!
+                if (e.params && e.params.data && e.params.data.customer) {
+                    window.applyCustomerData(e.params.data.customer);
+                } else {
+                    // 2. Check if option in DOM has data-prev-balance
+                    let $opt = $(this).find(`option[value="${id}"]`);
+                    let optPrev = $opt.attr('data-prev-balance') || $opt.data('prev-balance') || $opt.data('prevBalance');
+                    if (optPrev !== undefined && optPrev !== null && optPrev !== '') {
+                        window.applyCustomerData({
+                            id: id,
+                            mobile: $opt.attr('data-mobile') || '',
+                            address: $opt.attr('data-address') || '',
+                            previous_balance: optPrev
+                        });
+                    }
                 }
 
-                // Fetch latest fresh details and closing balance from server
-                $.get("{{ url('sale/customers') }}/" + id, function(d) {
-                    if (d && d.id) {
-                        window.applyCustomerData(d);
+                // 3. Fetch latest live balance from server via relative URL (100% immune to CORS)
+                $.ajax({
+                    url: '/sale/customers/' + id,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(d) {
+                        if (d) {
+                            d.id = d.id || id;
+                            window.applyCustomerData(d);
+                        }
+                    },
+                    error: function(err) {
+                        console.error('Error fetching customer balance:', err);
                     }
                 });
             });
