@@ -50,7 +50,12 @@ class AccountsHeadController extends Controller
         // Calculate totals for each branch
         $branchesWithTotals = $branches->map(function ($branch) {
             $accounts = $branch->accounts;
-            $openingSum = (float)$accounts->sum('opening_balance');
+            $openingSum = (float)$accounts->sum(function ($acc) {
+                $obEntry = AccountLedgerEntry::where('account_id', $acc->id)
+                    ->where('voucher_type', 'opening_balance')
+                    ->first();
+                return $obEntry ? (float)$obEntry->running_balance : (float)($acc->opening_balance ?? 0);
+            });
             $currentSum = (float)$accounts->sum(function ($acc) {
                 $lastEntry = AccountLedgerEntry::where('account_id', $acc->id)->latest('id')->first();
                 return $lastEntry ? (float)$lastEntry->running_balance : (float)($acc->opening_balance ?? 0);
@@ -109,8 +114,13 @@ class AccountsHeadController extends Controller
 
         // ✅ Get accounts with current running balances from ledger
         $allAccounts = $branch->accounts()->with('head')->get()->map(function ($acc) {
+            $obEntry = AccountLedgerEntry::where('account_id', $acc->id)
+                ->where('voucher_type', 'opening_balance')
+                ->first();
+            $acc->opening_balance = $obEntry ? (float)$obEntry->running_balance : (float)($acc->opening_balance ?? 0);
+
             $lastEntry = AccountLedgerEntry::where('account_id', $acc->id)->latest('id')->first();
-            $acc->current_balance = $lastEntry ? (float)$lastEntry->running_balance : (float)($acc->opening_balance ?? 0);
+            $acc->current_balance = $lastEntry ? (float)$lastEntry->running_balance : (float)$acc->opening_balance;
             return $acc;
         });
 
@@ -211,16 +221,36 @@ class AccountsHeadController extends Controller
         // ✅ Set status (1 = active, 0 = inactive)
         $status = $request->status === 'on' ? 1 : 0;
 
+        $openingBal = (float)($request->opening_balance ?? 0);
+
         // ✅ Create account with auto-generated code
-        Account::create([
+        $account = Account::create([
             'branch_id'       => $branchId,
             'head_id'         => $request->head_id,
             'account_code'    => $accountCode,
             'title'           => $request->title,
             'type'            => $request->type,
-            'opening_balance' => $request->opening_balance ?? 0,
+            'opening_balance' => $openingBal,
             'status'          => $status,
         ]);
+
+        if ($openingBal != 0) {
+            $obEntryNo = AccountLedgerEntry::generateEntryNo($account->id, 'opening_balance');
+            AccountLedgerEntry::create([
+                'account_id'       => $account->id,
+                'branch_id'        => $branchId,
+                'voucher_type'     => 'opening_balance',
+                'voucher_no'       => null,
+                'voucher_id'       => null,
+                'entry_no'         => $obEntryNo,
+                'transaction_date' => now()->toDateString(),
+                'description'      => 'Opening Balance',
+                'debit'            => $openingBal >= 0 ? $openingBal : 0,
+                'credit'           => $openingBal < 0 ? abs($openingBal) : 0,
+                'running_balance'  => $openingBal,
+                'created_by'       => $user->id,
+            ]);
+        }
 
         return redirect()->back()
             ->with('success', "Account '{$accountCode}' created successfully for {$branch->name}.");
@@ -317,6 +347,19 @@ class AccountsHeadController extends Controller
                 'new_title'                 => $newTitle,
                 'changes_summary'           => implode('; ', $changes),
             ]);
+        }
+
+        if (abs($diff) > 0.0001) {
+            $obEntry = AccountLedgerEntry::where('account_id', $account->id)
+                ->where('voucher_type', 'opening_balance')
+                ->first();
+            if ($obEntry) {
+                $obEntry->update([
+                    'debit'           => $newOpening >= 0 ? $newOpening : 0,
+                    'credit'          => $newOpening < 0 ? abs($newOpening) : 0,
+                    'running_balance' => $newOpening,
+                ]);
+            }
         }
 
         $account->update($data);

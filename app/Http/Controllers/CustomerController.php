@@ -30,20 +30,22 @@ class CustomerController extends Controller
 
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
 
-        // Super-admin: require explicit branch selection — otherwise return empty
         if ($isSuper) {
             if (!empty($branchParam)) {
-                $query->where('branch_id', (int)$branchParam);
-            } else {
-                return response()->json([]);
+                $query->where(function ($q) use ($branchParam) {
+                    $q->where('branch_id', (int)$branchParam)
+                      ->orWhereNull('branch_id');
+                });
             }
         } else {
-            // Restrict to branch for non-super-admin users
             if (Auth::check()) {
                 $branchId = Auth::user()->branch_id ?? 0;
-                $query->where('branch_id', $branchId);
-            } else {
-                return response()->json([]);
+                if ($branchId) {
+                    $query->where(function ($q) use ($branchId) {
+                        $q->where('branch_id', $branchId)
+                          ->orWhereNull('branch_id');
+                    });
+                }
             }
         }
 
@@ -52,7 +54,17 @@ class CustomerController extends Controller
             $query->where('customer_type', '=', $type);
         }
 
-        // Get customers and append closing_balance accessor
+        // ✅ Filter by search term if provided (Select2 AJAX sends 'search' param)
+        $search = $request->query('search') ?? $request->query('q') ?? '';
+        if (!empty($search)) {
+            $query->where(function ($sq) use ($search) {
+                $sq->where('customer_name', 'like', '%' . $search . '%')
+                   ->orWhere('customer_id', 'like', '%' . $search . '%')
+                   ->orWhere('mobile', 'like', '%' . $search . '%');
+            });
+        }
+
+        // Get customers
         $customers = $query->get();
 
         return response()->json($customers);
@@ -85,6 +97,7 @@ class CustomerController extends Controller
             'customer_type'    => $customer->customer_type,
             'opening_balance'  => (float) ($customer->opening_balance ?? 0),
             'closing_balance'  => $closingBalance,
+            'previous_balance' => $closingBalance,
             'remarks'          => $customer->remarks ?? '',
             'filer_type'       => $customer->filer_type,
             'status'           => $customer->status,

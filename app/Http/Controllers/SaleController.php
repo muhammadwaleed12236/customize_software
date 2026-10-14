@@ -48,177 +48,247 @@ class SaleController extends Controller
         try {
             return DB::transaction(function () use ($request) {
 
-                /* ================= VALIDATION & FETCH BOOKING ================= */
-                if (!$request->booking_id) {
-                    abort(422, 'Booking ID required');
+                /* ================= VALIDATION & DATA INITIALIZATION ================= */
+                // ✅ Support user-selected custom sale date (past or today)
+                $selectedDate = $request->input('sale_date') ?? $request->input('Invoice_date') ?? null;
+                $entryDateTime = Carbon::now();
+                if (!empty($selectedDate)) {
+                    try {
+                        $parsedDate = Carbon::parse($selectedDate);
+                        $entryDateTime = $parsedDate->setTime(now()->hour, now()->minute, now()->second);
+                    } catch (\Exception $e) {
+                        $entryDateTime = Carbon::now();
+                    }
                 }
 
-                $booking = ProductBooking::with('items')
-                    ->lockForUpdate()
-                    ->findOrFail($request->booking_id);
+                $booking = null;
+                $items = [];
 
-                $warehouseInputs = $request->warehouse_id;
-                if (!is_array($warehouseInputs)) {
-                    $warehouseInputs = [];
-                    if (!empty($request->warehouse_id)) {
-                        foreach ($booking->items as $item) {
-                            $warehouseInputs[$item->product_id] = $request->warehouse_id;
+                if ($request->filled('booking_id')) {
+                    /* ================= PATH A: POST AN EXISTING BOOKING ================= */
+                    $booking = ProductBooking::with('items')
+                        ->lockForUpdate()
+                        ->findOrFail($request->booking_id);
+
+                    if ($booking->is_posted) {
+                        abort(422, 'Invoice already posted');
+                    }
+
+                    $branchId = (int) ($booking->branch_id ?? 1);
+                    $partyType = $booking->party_type ?? 'walking';
+                    $customerId = $booking->customer_id;
+                    $subCustomer = ($partyType === 'walking') ? ($booking->customer_name ?? null) : null;
+                    $manualInvoice = $booking->manual_invoice;
+                    $salesmanId = $booking->salesman_id ?? $request->salesman_id ?? null;
+                    $address = $booking->address;
+                    $tel = $booking->tel;
+                    $remarks = $booking->remarks;
+                    $subTotal1 = (float) ($booking->sub_total1 ?? 0);
+                    $subTotal2 = (float) ($booking->sub_total2 ?? 0);
+                    $discountPercent = (float) ($booking->discount_percent ?? 0);
+                    $discountAmount = (float) ($booking->discount_amount ?? 0);
+                    $additionalDiscount = (float) ($booking->additional_discount ?? 0);
+                    $extraCharges = (float) ($booking->extra_charges ?? 0);
+                    $previousBalance = (float) ($booking->previous_balance ?? 0);
+                    $totalBalance = (float) ($booking->total_balance ?? 0);
+
+                    $warehouseInputs = $request->warehouse_id;
+                    if (!is_array($warehouseInputs)) {
+                        $warehouseInputs = [];
+                        if (!empty($request->warehouse_id)) {
+                            foreach ($booking->items as $item) {
+                                $warehouseInputs[$item->product_id] = $request->warehouse_id;
+                            }
+                        } else {
+                            foreach ($booking->items as $item) {
+                                $warehouseInputs[$item->product_id] = $item->warehouse_id ?? auth()->user()->warehouse_id ?? 1;
+                            }
+                        }
+                    }
+
+                    foreach ($booking->items as $item) {
+                        $rawWid = $warehouseInputs[$item->product_id] ?? $item->warehouse_id;
+                        $wid = null;
+                        if ($rawWid) {
+                            if (is_string($rawWid) && str_starts_with($rawWid, 'branch_')) {
+                                $wid = null;
+                            } elseif (is_string($rawWid) && ($rawWid === 'branch' || $rawWid === 'shop')) {
+                                $wid = null;
+                            } elseif (is_string($rawWid) && str_starts_with($rawWid, 'warehouse_')) {
+                                $wid = (int) str_replace('warehouse_', '', $rawWid);
+                            } elseif (is_numeric($rawWid) && (int) $rawWid > 0) {
+                                $wid = (int) $rawWid;
+                            }
+                        } else {
+                            $wid = $item->warehouse_id;
+                        }
+
+                        $item->warehouse_id = $wid;
+                        $item->save();
+
+                        $items[] = (object) [
+                            'product_id'       => $item->product_id,
+                            'watt'             => (float) ($item->watt ?? 0),
+                            'sales_qty'        => (float) $item->sales_qty,
+                            'retail_price'     => (float) $item->retail_price,
+                            'discount_percent' => (float) ($item->discount_percent ?? 0),
+                            'discount_amount'  => (float) ($item->discount_amount ?? 0),
+                            'amount'           => (float) $item->amount,
+                            'warehouse_id'     => $wid,
+                        ];
+                    }
+                } else {
+                    /* ================= PATH B: DIRECT SALE (NO BOOKING CREATED) ================= */
+                    $branchId = 1;
+                    if (Auth::check()) {
+                        $user = Auth::user();
+                        if ($user->hasRole('super admin')) {
+                            $branchId = (int) ($request->input('branch_id') ?? $user->branch_id ?? 1);
+                        } else {
+                            $branchId = (int) ($user->branch_id ?? 1);
                         }
                     } else {
-                        foreach ($booking->items as $item) {
-                            $warehouseInputs[$item->product_id] = $item->warehouse_id ?? auth()->user()->warehouse_id ?? 1;
-                        }
+                        $branchId = (int) ($request->input('branch_id') ?? 1);
                     }
-                }
 
-                // Enforce receipts requirement: posting a sale must include at least
-                // one receipt row with a valid account and an amount > 0, OR there
-                // must be at least one unprocessed receipt already saved for this booking.
-                $hasValidReceipt = false;
-                if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
-                    foreach ($request->receipt_account_id as $i => $accId) {
-                        $amt = (float) ($request->receipt_amount[$i] ?? 0);
-                        if ($amt > 0 && !empty($accId) && is_numeric($accId)) {
-                            $hasValidReceipt = true;
-                            break;
-                        }
-                    }
-                }
-
-                // Check DB for existing unprocessed receipts for this booking (legacy or new)
-                $existsDbReceipts = ReceiptsVoucher::where(function ($q) use ($booking) {
-                    $q->where('booking_id', $booking->id)
-                        ->orWhere('reference_no', $booking->invoice_no)
-                        ->orWhere('reference_no', 'like', '%"' . $booking->invoice_no . '"%')
-                        ->orWhere('reference_no', 'like', '%' . $booking->invoice_no . '%');
-                })
-                    ->where('type', 'SALE_RECEIPT')
-                    ->where(function ($q) {
-                        $q->where('processed', false)->orWhereNull('processed');
-                    })
-                    ->exists();
-
-                // If no receipt rows provided and no existing unprocessed receipts,
-                // allow the booking to be posted anyway. Previously this aborted
-                // the request; we now permit posting without an upfront receipt
-                // and treat the sale as credit to the customer (ledger increases).
-                if (! $hasValidReceipt && ! $existsDbReceipts) {
-                    Log::info('No receipt rows provided; proceeding to post sale as credit', ['booking' => $booking->id]);
-                }
-
-                if ($booking->is_posted) {
-                    abort(422, 'Invoice already posted');
-                }
-
-                /* ================= UPDATE LOCATION / WAREHOUSE IDs ================= */
-                // warehouse_id can be NULL (branch/shop stock) or actual warehouse_id (warehouse stock)
-                foreach ($booking->items as $item) {
-                    $rawWid = $warehouseInputs[$item->product_id] ?? $item->warehouse_id;
-                    $wid = null;
-                    if ($rawWid) {
-                        if (is_string($rawWid) && str_starts_with($rawWid, 'branch_')) {
-                            $targetBranch = (int) str_replace('branch_', '', $rawWid);
-                            $item->branch_id = $targetBranch;
-                            $wid = null;
-                        } elseif (is_string($rawWid) && ($rawWid === 'branch' || $rawWid === 'shop')) {
-                            $wid = null;
-                        } elseif (is_string($rawWid) && str_starts_with($rawWid, 'warehouse_')) {
-                            $wid = (int) str_replace('warehouse_', '', $rawWid);
-                        } elseif (is_numeric($rawWid) && (int) $rawWid > 0) {
-                            $wid = (int) $rawWid;
-                        }
+                    $partyType = $request->input('partyType') ?? 'walking';
+                    if ($partyType === 'walking') {
+                        $customerId = null;
+                        $subCustomer = $request->input('walkin_name') ?? $request->input('customer_display') ?? $request->input('customer') ?? 'Walk-in Customer';
                     } else {
-                        $wid = $item->warehouse_id;
+                        $customerId = $request->input('customer_id') ?? $request->input('customer') ?? null;
+                        $subCustomer = null;
                     }
-                    $item->warehouse_id = $wid;
-                    $item->save();
+
+                    $manualInvoice = $request->input('Invoice_main');
+                    $salesmanId = $request->input('salesman_id') ?? null;
+                    $address = $request->input('address');
+                    $tel = $request->input('tel');
+                    $remarks = $request->input('remarks');
+                    $subTotal1 = (float) ($request->input('subTotal1') ?? 0);
+                    $subTotal2 = (float) ($request->input('subTotal2') ?? 0);
+                    $discountPercent = (float) ($request->input('discountPercent') ?? 0);
+                    $discountAmount = (float) ($request->input('discountAmount') ?? 0);
+                    $additionalDiscount = (float) ($request->input('additional_discount') ?? 0);
+                    $extraCharges = (float) ($request->input('extra_charges') ?? 0);
+                    $previousBalance = (float) ($request->input('previousBalance') ?? 0);
+                    $totalBalance = (float) ($request->input('totalBalance') ?? 0);
+
+                    // Parse items from input arrays
+                    $productIds = $request->input('product_id') ?? [];
+                    $salesQtys = $request->input('sales_qty') ?? [];
+                    $retailPrices = $request->input('retail_price') ?? [];
+                    $discPercents = $request->input('discount_percentage') ?? [];
+                    $discAmounts = $request->input('discount_amount') ?? [];
+                    $salesAmounts = $request->input('sales_amount') ?? [];
+                    $watts = $request->input('watt') ?? [];
+                    $whInputs = $request->input('warehouse_id') ?? [];
+                    $globalWh = $request->input('global_warehouse_id');
+
+                    foreach ($productIds as $i => $pId) {
+                        $qty = (float) ($salesQtys[$i] ?? 0);
+                        if (!$pId || $qty <= 0) continue;
+
+                        $rawWid = null;
+                        if (is_array($whInputs)) {
+                            $rawWid = $whInputs[$i] ?? $whInputs[$pId] ?? null;
+                        } else {
+                            $rawWid = $whInputs;
+                        }
+                        if (!$rawWid) {
+                            $rawWid = $globalWh;
+                        }
+
+                        $wid = null;
+                        if ($rawWid) {
+                            if (is_string($rawWid) && str_starts_with($rawWid, 'warehouse_')) {
+                                $wid = (int) str_replace('warehouse_', '', $rawWid);
+                            } elseif (is_string($rawWid) && (str_starts_with($rawWid, 'branch_') || $rawWid === 'branch' || $rawWid === 'shop')) {
+                                $wid = null;
+                            } elseif (is_numeric($rawWid) && (int) $rawWid > 0) {
+                                $wid = (int) $rawWid;
+                            }
+                        }
+
+                        $items[] = (object) [
+                            'product_id'       => (int) $pId,
+                            'watt'             => (float) (is_array($watts) ? ($watts[$i] ?? 0) : 0),
+                            'sales_qty'        => $qty,
+                            'retail_price'     => (float) ($retailPrices[$i] ?? 0),
+                            'discount_percent' => (float) ($discPercents[$i] ?? 0),
+                            'discount_amount'  => (float) ($discAmounts[$i] ?? 0),
+                            'amount'           => (float) ($salesAmounts[$i] ?? 0),
+                            'warehouse_id'     => $wid,
+                        ];
+                    }
+
+                    if (empty($items)) {
+                        abort(422, 'Please add at least one product with quantity > 0.');
+                    }
                 }
-                Log::info('Updated booking items with location selections', ['booking_id' => $booking->id]);
 
                 /* ================= CREATE SALE ================= */
-                // IMPORTANT: Sales have INDEPENDENT counter from Bookings
-                // Each branch has its own invoice counter (branch.invoice_counter)
-                // Sales use: INV-0001, INV-0002, INV-0003, etc.
-                // Bookings use: BINV-001, BINV-002, BINV-003, etc. (separate)
-                
                 $invoiceNo = null;
                 try {
-                    if ($booking->branch_id) {
-                        $branch = Branch::lockForUpdate()->find($booking->branch_id);
+                    if ($branchId) {
+                        $branch = Branch::lockForUpdate()->find($branchId);
                         if ($branch) {
                             $branch->invoice_counter = ((int) ($branch->invoice_counter ?? 0)) + 1;
                             $branch->save();
                             $invoiceNo = 'INV-' . str_pad($branch->invoice_counter, 4, '0', STR_PAD_LEFT);
-                            Log::info('Generated sale invoice for branch', ['branch_id' => $booking->branch_id, 'invoice_no' => $invoiceNo, 'counter' => $branch->invoice_counter]);
+                            Log::info('Generated sale invoice for branch', ['branch_id' => $branchId, 'invoice_no' => $invoiceNo, 'counter' => $branch->invoice_counter]);
                         }
                     }
                 } catch (\Exception $e) {
-                    Log::error('Failed to generate branch invoice counter', ['branch_id' => $booking->branch_id, 'error' => $e->getMessage()]);
+                    Log::error('Failed to generate branch invoice counter', ['branch_id' => $branchId, 'error' => $e->getMessage()]);
                 }
                 
-                // Fallback if something went wrong (should rarely happen)
+                // Fallback if counter not available
                 if (!$invoiceNo) {
-                    $maxSaleId = Sale::where('branch_id', $booking->branch_id)->max('id') ?? 0;
+                    $maxSaleId = Sale::where('branch_id', $branchId)->max('id') ?? 0;
                     $invoiceNo = 'INV-' . str_pad($maxSaleId + 1, 4, '0', STR_PAD_LEFT);
                     Log::warning('Using fallback sale invoice (counter not available)', ['invoice_no' => $invoiceNo]);
                 }
 
                 $saleData = [
-                    'invoice_no'       => $invoiceNo,
-                    'manual_invoice'   => $booking->manual_invoice,
-                    'customer_id'      => $booking->customer_id,
-                    'salesman_id'      => $booking->salesman_id ?? $request->salesman_id ?? null,
-                    'sub_customer'     => (($booking->party_type ?? '') === 'walking') ? ($booking->customer_name ?? null) : null,
-                    'party_type'       => $booking->party_type,
-                    'address'          => $booking->address,
-                    'tel'              => $booking->tel,
-                    'remarks'          => $booking->remarks,
-                    'sub_total1'       => $booking->sub_total1,
-                    'sub_total2'       => $booking->sub_total2,
-                    'discount_percent' => $booking->discount_percent,
-                    'discount_amount'  => $booking->discount_amount,
-                    'additional_discount' => $booking->additional_discount ?? 0,
-                    'extra_charges'    => $booking->extra_charges ?? 0,
-                    'previous_balance' => $booking->previous_balance,
-                    'total_balance'    => $booking->total_balance,
-                    'total_net'        => $booking->sub_total2 ?? 0,
+                    'invoice_no'          => $invoiceNo,
+                    'manual_invoice'      => $manualInvoice,
+                    'customer_id'         => $customerId,
+                    'salesman_id'         => $salesmanId,
+                    'sub_customer'        => $subCustomer,
+                    'party_type'          => $partyType,
+                    'address'             => $address,
+                    'tel'                 => $tel,
+                    'remarks'             => $remarks,
+                    'sub_total1'          => $subTotal1,
+                    'sub_total2'          => $subTotal2,
+                    'discount_percent'    => $discountPercent,
+                    'discount_amount'     => $discountAmount,
+                    'additional_discount' => $additionalDiscount,
+                    'extra_charges'       => $extraCharges,
+                    'previous_balance'    => $previousBalance,
+                    'total_balance'       => $totalBalance,
+                    'total_net'           => $subTotal2,
+                    'branch_id'           => $branchId,
+                    'booking_id'          => $booking ? $booking->id : null,
+                    'created_at'          => $entryDateTime,
+                    'updated_at'          => $entryDateTime,
                 ];
-
-                // ✅ ERP Standard: Only add branch_id and booking_id if columns exist in DB
-                if (\Illuminate\Support\Facades\Schema::hasColumn('sales', 'branch_id')) {
-                    $saleData['branch_id'] = $booking->branch_id;
-                }
-                if (\Illuminate\Support\Facades\Schema::hasColumn('sales', 'booking_id')) {
-                    $saleData['booking_id'] = $booking->id;
-                }
 
                 $sale = Sale::create($saleData);
 
                 /* ================= CUSTOMER LEDGER (ONLY FOR CREDIT CUSTOMERS) ================= */
-                // Only create ledger entries for credit customers
-                if(($booking->party_type ?? '') === 'credit' && $booking->customer_id){
-                    
-                    // Get the LAST ledger entry for this customer
-                    $lastLedger = CustomerLedger::where('customer_id', $booking->customer_id)
+                if ($partyType === 'credit' && $customerId) {
+                    $lastLedger = CustomerLedger::where('customer_id', $customerId)
                         ->latest('id')
                         ->lockForUpdate()
                         ->first();
 
-                    // Get customer's static opening balance
-                    $customer = Customer::find($booking->customer_id);
+                    $customer = Customer::find($customerId);
                     $customerOpeningBalance = $customer->opening_balance ?? 0;
+                    $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)$customerOpeningBalance;
+                    $saleAmount = $subTotal2 - $additionalDiscount + $extraCharges;
 
-                    // 🔹 SIMPLIFIED BUSINESS LOGIC
-                    // Step 1: Get previous balance from last ledger (or use customer opening if first time)
-                    $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : $customerOpeningBalance;
-                    
-                    // Step 2: Use the total_balance from the frontend (this is the calculated closing balance)
-                    $closingBalance = (float)($booking->total_balance ?? 0);
-                    
-                    // Step 3: Calculate debit (sale amount)
-                    $saleAmount = ($booking->sub_total2 ?? 0) - ($booking->additional_discount ?? 0) + ($booking->extra_charges ?? 0);
-                    
-                    // Step 4: Get total receipts from CURRENT transaction
                     $totalReceipts = 0;
                     if (!empty($request->receipt_amount) && is_array($request->receipt_amount)) {
                         foreach ($request->receipt_amount as $amt) {
@@ -227,41 +297,46 @@ class SaleController extends Controller
                         }
                     }
 
+                    $expectedClosing = $previousBalance + $saleAmount - $totalReceipts;
+                    $closingBalance = ($totalBalance > 0 && abs($totalBalance - $expectedClosing) < 1) ? (float)$totalBalance : $expectedClosing;
+
+                    // Sync accurate previous_balance and total_balance on the sale model
+                    $sale->previous_balance = $previousBalance;
+                    $sale->total_balance    = $closingBalance;
+                    $sale->save();
+
                     Log::info('Creating customer ledger entry for credit sale', [
-                        'invoice' => $booking->invoice_no,
-                        'customer_id' => $booking->customer_id,
+                        'invoice' => $sale->invoice_no,
+                        'customer_id' => $customerId,
                         'previous_balance' => $previousBalance,
                         'opening_balance' => $customerOpeningBalance,
                         'new_sale_amount' => $saleAmount,
                         'receipts_paid' => $totalReceipts,
-                        'closing_balance_from_frontend' => $closingBalance,
+                        'closing_balance' => $closingBalance,
                     ]);
 
-                    // Create SINGLE ledger entry with frontend's closing balance
                     CustomerLedger::create([
-                        'customer_id'        => $booking->customer_id,
+                        'customer_id'        => $customerId,
                         'admin_or_user_id'   => auth()->id(),
                         'opening_balance'    => $customerOpeningBalance,
                         'previous_balance'   => $previousBalance,
                         'total_debit'        => $saleAmount,
                         'total_credit'       => $totalReceipts,
-                        'closing_balance'    => $closingBalance,   // Use total_balance value from booking
+                        'closing_balance'    => $closingBalance,
+                        'created_at'         => $entryDateTime,
+                        'updated_at'         => $entryDateTime,
                     ]);
                 }
 
-                /* ================= SALE ITEMS & STOCK ================= */
-                foreach ($booking->items as $it) {
-
+                /* ================= SALE ITEMS & STOCK DEDUCTION ================= */
+                foreach ($items as $it) {
                     $wid = $it->warehouse_id;
-                    $branch_id = $booking->branch_id;
+                    $itemBranchId = $branchId;
 
                     // Deduct from warehouse_stocks (unified inventory table)
-                    // - If wid = NULL: deduct from branch stock (warehouse_id IS NULL)
-                    // - If wid = actual ID: deduct from that warehouse stock
-                    
                     $warehousestock = WarehouseStock::lockForUpdate()
                         ->where('product_id', $it->product_id)
-                        ->where('branch_id', $branch_id)
+                        ->where('branch_id', $itemBranchId)
                         ->when(is_null($wid), function ($q) {
                             $q->whereNull('warehouse_id');
                         }, function ($q) use ($wid) {
@@ -272,12 +347,12 @@ class SaleController extends Controller
                     if (!$warehousestock) {
                         Log::info('Stock record not found, creating initial 0 stock row', [
                             'product_id' => $it->product_id,
-                            'branch_id' => $branch_id,
+                            'branch_id' => $itemBranchId,
                             'warehouse_id' => $wid ?? 'NULL (branch stock)',
                         ]);
                         $warehousestock = WarehouseStock::create([
                             'product_id'   => $it->product_id,
-                            'branch_id'    => $branch_id,
+                            'branch_id'    => $itemBranchId,
                             'warehouse_id' => $wid,
                             'quantity'     => 0,
                         ]);
@@ -291,54 +366,50 @@ class SaleController extends Controller
 
                     Log::info('Deducted from warehouse_stocks', [
                         'product_id' => $it->product_id,
-                        'branch_id' => $branch_id,
+                        'branch_id' => $itemBranchId,
                         'warehouse_id' => $wid ?? 'NULL (branch stock)',
                         'qty_before' => $currentWhQty,
                         'qty_after' => $newWhQty,
                     ]);
 
                     /* ================= DEDUCT FROM STOCK (BRANCH-LEVEL) ================= */
-                    // Stock table: branch-level overall inventory (independent of warehouse_id)
-                    // Always decrement from main Stock table regardless of warehouse selection
-                    
                     $stock = Stock::lockForUpdate()
                         ->where('product_id', $it->product_id)
-                        ->where('branch_id', $branch_id)
+                        ->where('branch_id', $itemBranchId)
                         ->first();
 
                     if (!$stock) {
                         $stock = Stock::create([
                             'product_id' => $it->product_id,
-                            'branch_id'  => $branch_id,
+                            'branch_id'  => $itemBranchId,
                             'qty'        => 0,
                         ]);
                     }
 
                     $stockBefore = $stock->qty ?? 0;
-                    $stock->qty = $stockBefore - $it->sales_qty;  // Allow negative stock for branch-level overall inventory
+                    $stock->qty = $stockBefore - $it->sales_qty;
                     $stock->save();
                     
                     Log::info('Deducted from stocks (branch-level)', [
                         'product_id' => $it->product_id,
-                        'branch_id' => $branch_id,
+                        'branch_id' => $itemBranchId,
                         'qty_before' => $stockBefore,
                         'qty_after' => $stock->qty,
                     ]);
 
-                    // Sale Item - include line-item discounts from booking items
-                    // CRITICAL: Use $sale->invoice_no (INV-XXXX), NOT booking's invoice_no (INVSLE-XXXX)
+                    // Sale Item
                     SaleItem::create([
-                        'invoice_no'    => $sale->invoice_no,
-                        'branch_id'     => $sale->branch_id,
-                        'sale_id'       => $sale->id,
-                        'warehouse_id'  => $wid,
-                        'product_id'    => $it->product_id,
-                        'watt'          => (float) ($it->watt ?? 0),
-                        'sales_qty'     => $it->sales_qty,
-                        'retail_price'  => $it->retail_price,
+                        'invoice_no'       => $sale->invoice_no,
+                        'branch_id'        => $sale->branch_id,
+                        'sale_id'          => $sale->id,
+                        'warehouse_id'     => $wid,
+                        'product_id'       => $it->product_id,
+                        'watt'             => (float) ($it->watt ?? 0),
+                        'sales_qty'        => $it->sales_qty,
+                        'retail_price'     => $it->retail_price,
                         'discount_percent' => (float) ($it->discount_percent ?? 0),
-                        'discount_amount' => (float) ($it->discount_amount ?? 0),
-                        'amount'        => $it->amount,
+                        'discount_amount'  => (float) ($it->discount_amount ?? 0),
+                        'amount'           => $it->amount,
                     ]);
 
                     // Stock Movement
@@ -348,70 +419,41 @@ class SaleController extends Controller
                         'qty'           => $it->sales_qty,
                         'ref_type'      => 'SALE',
                         'ref_id'        => $sale->id,
-                        'ref_uuid'      => $booking->invoice_no,
+                        'ref_uuid'      => $booking ? $booking->invoice_no : $sale->invoice_no,
                         'is_auto_pluck' => 1,
-                        'note'          => 'Sale Invoice ' . $booking->invoice_no . ($wid ? ' (Warehouse: ' . $wid . ')' : ' (Branch Stock)'),
+                        'note'          => 'Sale Invoice ' . $sale->invoice_no . ($wid ? ' (Warehouse: ' . $wid . ')' : ' (Branch Stock)'),
                     ]);
 
                     /* ================= CHECK STOCK ALERT ================= */
-                    StockAlertService::checkAndCreateAlert($it->product_id, $wid ?? $branch_id);
+                    StockAlertService::checkAndCreateAlert($it->product_id, $wid ?? $itemBranchId);
                 }
 
                 /* ================= ACCOUNT UPDATE ================= */
-                // Avoid hardcoding account ID. Find an account under the "Sales" head
-                // and credit it with the sale total. If no Sales account found, skip
-                // to avoid accidentally posting the sale total to a bank (e.g., MCB).
                 $salesHead = AccountHead::where('name', 'like', '%Sales%')->first();
-                Log::info('Looking for Sales account head', ['found' => $salesHead ? true : false, 'head_name' => $salesHead->name ?? null]);
-                
                 if ($salesHead) {
                     $saleAccount = Account::lockForUpdate()->where('head_id', $salesHead->id)->first();
                     if ($saleAccount) {
-                        $balanceBefore = $saleAccount->opening_balance ?? 0;
-                        $saleAccount->opening_balance += $sale->total_net;
-                        $saleAccount->save();
-                        
-                        Log::info('Updated Sales account', [
+                        Log::info('Found Sales account', [
                             'account_id' => $saleAccount->id,
                             'account_title' => $saleAccount->title,
-                            'balance_before' => $balanceBefore,
-                            'balance_after' => $saleAccount->opening_balance,
                             'sale_total' => $sale->total_net,
                         ]);
-                    } else {
-                        Log::warning('No Sales account found under head', ['head_id' => $salesHead->id, 'head_name' => $salesHead->name]);
                     }
-                } else {
-                    Log::warning('Sales account head not found in database');
                 }
 
-                /* ================= PROCESS PAYMENT RECEIPTS (multiple payments) ================= */
-                // If the request supplied receipt rows, create them inside this
-                // transaction so they are part of the same atomic operation.
+                /* ================= PROCESS PAYMENT RECEIPTS ================= */
                 Log::info('===== RECEIPT PROCESSING START =====', [
-                    'booking_id' => $booking->id,
-                    'booking_invoice' => $booking->invoice_no,
+                    'booking_id' => $booking ? $booking->id : null,
                     'sale_id' => $sale->id,
                     'sale_invoice' => $sale->invoice_no,
                 ]);
-                
-                Log::info('📥 Incoming request data', [
-                    'receipt_account_id' => $request->receipt_account_id ?? 'NOT PROVIDED',
-                    'receipt_amount' => $request->receipt_amount ?? 'NOT PROVIDED',
-                    'is_receipt_account_id_array' => is_array($request->receipt_account_id),
-                    'count_receipt_account_id' => count($request->receipt_account_id ?? []),
-                    'count_receipt_amount' => count($request->receipt_amount ?? []),
-                ]);
 
                 if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
-                    // Build arrays of provided receipt account IDs and amounts
                     $rowAccountIds = [];
                     $rowAmounts = [];
                     foreach ($request->receipt_account_id as $i => $accId) {
                         $acc = $accId;
                         $amt = (float) ($request->receipt_amount[$i] ?? 0);
-                        Log::debug('Processing receipt row', ['index' => $i, 'account_id' => $acc, 'amount' => $amt]);
-                        // Server-side validation: if amount > 0, account must be present
                         if ($amt > 0 && (empty($acc) || !is_numeric($acc))) {
                             abort(422, 'Invalid receipt row: amount provided but account missing or invalid at row ' . ($i + 1));
                         }
@@ -420,320 +462,107 @@ class SaleController extends Controller
                         $rowAmounts[] = $amt;
                     }
 
-                    Log::info('✅ Built receipt arrays', ['accounts_count' => count($rowAccountIds), 'accounts' => $rowAccountIds, 'amounts' => $rowAmounts]);
-
                     if (!empty($rowAccountIds)) {
-                        // Idempotency: if a processed receipt already exists for this booking
-                        // invoice, do not create another one. This prevents duplicate
-                        // application if the same booking is posted more than once.
-                        $existsProcessed = ReceiptsVoucher::where('reference_no', $booking->invoice_no)
-                            ->where('type', 'SALE_RECEIPT')
-                            ->where('processed', true)
-                            ->exists();
+                        $unique = [];
+                        $uniqueAccountIds = [];
+                        $uniqueAmounts = [];
+                        foreach ($rowAccountIds as $i => $acctId) {
+                            $amt = $rowAmounts[$i] ?? ($rowAmounts[0] ?? 0);
+                            if ($amt <= 0) continue;
+                            $sig = $acctId . '|' . number_format((float)$amt, 2, '.', '');
+                            if (isset($unique[$sig])) continue;
+                            $unique[$sig] = true;
+                            $uniqueAccountIds[] = $acctId;
+                            $uniqueAmounts[] = $amt;
+                        }
 
-                        if ($existsProcessed) {
-                            Log::info('Processed SALE_RECEIPT already exists; skipping creation', ['reference' => $booking->invoice_no]);
-                        } else {
-                            // If there are already unprocessed SALE_RECEIPT rows for this
-                            // booking, do not create new ones here. This prevents creating
-                            // duplicate receipts when the UI or another process already
-                            // saved payment rows before posting.
-                            $existsUnprocessed = ReceiptsVoucher::where('reference_no', $booking->invoice_no)
-                                ->where('type', 'SALE_RECEIPT')
-                                ->where(function ($q) {
-                                    $q->where('processed', false)->orWhereNull('processed');
-                                })
-                                ->exists();
+                        foreach ($uniqueAccountIds as $i => $acctId) {
+                            $amt = $uniqueAmounts[$i];
+                            $rv = ReceiptsVoucher::create([
+                                'branch_id'        => $sale->branch_id ?? ($branchId ?? 1),
+                                'rvid'             => ReceiptsVoucher::generateRVID(auth()->id()),
+                                'receipt_date'     => $entryDateTime->toDateString(),
+                                'entry_date'       => $entryDateTime,
+                                'type'             => 'SALE_RECEIPT',
+                                'party_id'         => $customerId,
+                                'booking_id'       => $booking ? $booking->id : null,
+                                'sale_id'          => $sale->id,
+                                'tel'              => $tel,
+                                'remarks'          => $remarks,
+                                'reference_no'     => $sale->invoice_no,
+                                'row_account_head' => 'Cash/Bank',
+                                'row_account_id'   => is_array($acctId) ? json_encode($acctId) : $acctId,
+                                'amount'           => is_array($amt) ? json_encode($amt) : $amt,
+                                'total_amount'     => $amt,
+                                'processed'        => true,
+                                'created_at'       => $entryDateTime,
+                                'updated_at'       => $entryDateTime,
+                            ]);
 
-                            if ($existsUnprocessed) {
-                                Log::info('Unprocessed SALE_RECEIPT(s) exist for booking; skipping creation', ['reference' => $booking->invoice_no]);
-                            } else {
-                                // Deduplicate account+amount pairs to avoid creating duplicate
-                                // receipts when the request accidentally contains repeated rows.
-                                $unique = [];
-                                $uniqueAccountIds = [];
-                                $uniqueAmounts = [];
-                                foreach ($rowAccountIds as $i => $acctId) {
-                                    $amt = $rowAmounts[$i] ?? ($rowAmounts[0] ?? 0);
-                                    if ($amt <= 0) continue;
-                                    $sig = $acctId . '|' . number_format((float)$amt, 2, '.', '');
-                                    if (isset($unique[$sig])) continue;
-                                    $unique[$sig] = true;
-                                    $uniqueAccountIds[] = $acctId;
-                                    $uniqueAmounts[] = $amt;
-                                }
-
-                                foreach ($uniqueAccountIds as $i => $acctId) {
-                                    $amt = $uniqueAmounts[$i];
-                                    
-                                    Log::info('Creating receipt voucher for account', ['account_id' => $acctId, 'amount' => $amt]);
-                                    
-                                    $rv = ReceiptsVoucher::create([
-                                        'branch_id' => $sale->branch_id ?? ($booking->branch_id ?? (auth()->user()->branch_id ?? 1)),
-                                        'rvid' => ReceiptsVoucher::generateRVID(auth()->id()),
-                                        'receipt_date' => Carbon::today(),
-                                        'entry_date' => Carbon::now(),
-                                        'type' => 'SALE_RECEIPT',
-                                        'party_id' => $booking->customer_id,
-                                        'booking_id' => $booking->id,
-                                        'sale_id' => $sale->id,
-                                        'tel' => $booking->tel,
-                                        'remarks' => $booking->remarks,
-                                        'reference_no' => $sale->invoice_no,
-                                        'row_account_head' => 'Cash/Bank',
-                                        'row_account_id' => is_array($acctId) ? json_encode($acctId) : $acctId,
-                                        'amount' => is_array($amt) ? json_encode($amt) : $amt,
-                                        'total_amount' => $amt,
-                                        'processed' => true,
-                                    ]);
-
-                                    Log::info('✅ Receipt voucher created', [
-                                        'rv_id' => $rv->id,
-                                        'rvid' => $rv->rvid,
-                                        'account_id' => $acctId,
-                                        'amount' => $amt,
-                                        'reference' => $sale->invoice_no,
-                                        'sale_id' => $sale->id,
-                                    ]);
-
-                                    // Immediately apply to account
-                                    $rowAccount = Account::lockForUpdate()->find($acctId);
-                                    if (!$rowAccount) {
-                                        Log::error('❌ Account NOT FOUND for receipt update', ['account_id' => $acctId, 'rv_id' => $rv->id]);
-                                        continue;
-                                    }
-
-                                    $balanceBefore = $rowAccount->opening_balance ?? 0;
-                                    $accountType = trim(strtolower($rowAccount->type));
-                                    
-                                    Log::info('📊 Account details BEFORE update', [
-                                        'account_id' => $rowAccount->id,
-                                        'account_code' => $rowAccount->account_code,
-                                        'account_title' => $rowAccount->title,
-                                        'account_type_original' => $rowAccount->type,
-                                        'account_type_lowercase' => $accountType,
-                                        'balance_before' => $balanceBefore,
-                                        'receipt_amount' => $amt,
-                                    ]);
-
-                                    if ($accountType === 'debit') {
-                                        $rowAccount->opening_balance = $balanceBefore + $amt;
-                                        Log::info('➕ DEBIT account - ADDING amount', ['old' => $balanceBefore, 'new' => $rowAccount->opening_balance]);
-                                    } else {
-                                        $rowAccount->opening_balance = $balanceBefore - $amt;
-                                        Log::info('➖ CREDIT account - SUBTRACTING amount', ['old' => $balanceBefore, 'new' => $rowAccount->opening_balance]);
-                                    }
-                                    
-                                    $save_result = $rowAccount->save();
-
-                                    // Post to Account Ledger
-                                    \App\Services\VoucherService::postLedgerEntry(
-                                        $acctId,
-                                        'receipt',
-                                        $sale->invoice_no ?? $rv->rvid,
-                                        $rv->id,
-                                        Carbon::today()->toDateString(),
-                                        "Sale Receipt — Invoice #" . ($sale->invoice_no ?? '') . " (Booking #" . ($booking->id ?? '') . ")",
-                                        $amt,
-                                        0,
-                                        auth()->id()
-                                    );
-                                    
-                                    // Verify the update
-                                    $verifyAccount = Account::find($acctId);
-                                    Log::info('📊 Account details AFTER update', [
-                                        'account_id' => $verifyAccount->id,
-                                        'account_title' => $verifyAccount->title,
-                                        'balance_in_memory' => $rowAccount->opening_balance,
-                                        'balance_in_db' => $verifyAccount->opening_balance,
-                                        'save_result' => $save_result,
-                                        'update_success' => ($verifyAccount->opening_balance === $rowAccount->opening_balance),
-                                        'rv_id' => $rv->id,
-                                    ]);
-                                    
-                                    if ($verifyAccount->opening_balance !== $rowAccount->opening_balance) {
-                                        Log::error('⚠️ UPDATE MISMATCH: In-memory vs DB', [
-                                            'expected' => $rowAccount->opening_balance,
-                                            'actual' => $verifyAccount->opening_balance,
-                                            'account_id' => $acctId,
-                                        ]);
-                                    }
-                                }
+                            $rowAccount = Account::lockForUpdate()->find($acctId);
+                            if ($rowAccount) {
+                                \App\Services\VoucherService::postLedgerEntry(
+                                    $acctId,
+                                    'receipt',
+                                    $sale->invoice_no ?? $rv->rvid,
+                                    $rv->id,
+                                    $entryDateTime->toDateString(),
+                                    "Sale Receipt — Invoice #" . ($sale->invoice_no ?? '') . ($booking ? " (Booking #" . ($booking->id ?? '') . ")" : ""),
+                                    $amt,
+                                    0,
+                                    auth()->id()
+                                );
                             }
                         }
                     }
                 }
 
-                // Find any unprocessed receipts referencing this booking invoice and process them.
-                // Only consider receipts explicitly linked by `booking_id`, or legacy
-                // receipts that have an exact `reference_no` match (do NOT use broad LIKE
-                // matches which can accidentally include unrelated receipts).
-                $receipts = ReceiptsVoucher::query()
-                    ->where('type', 'SALE_RECEIPT')
-                    ->where(function ($q) use ($booking) {
-                        $q->where('booking_id', $booking->id)
-                            ->orWhere(function ($q2) use ($booking) {
-                                $q2->whereNull('booking_id')
-                                    ->where('reference_no', $booking->invoice_no);
-                            });
-                    })
-                    ->where(function ($q) {
-                        $q->where('processed', false)->orWhereNull('processed');
-                    })
-                    ->lockForUpdate()
-                    ->get();
+                // If booking had unprocessed receipts in DB, mark them
+                if ($booking) {
+                    $receipts = ReceiptsVoucher::query()
+                        ->where('type', 'SALE_RECEIPT')
+                        ->where(function ($q) use ($booking) {
+                            $q->where('booking_id', $booking->id)
+                                ->orWhere(function ($q2) use ($booking) {
+                                    $q2->whereNull('booking_id')
+                                        ->where('reference_no', $booking->invoice_no);
+                                });
+                        })
+                        ->where(function ($q) {
+                            $q->where('processed', false)->orWhereNull('processed');
+                        })
+                        ->lockForUpdate()
+                        ->get();
 
-                // Track which booking|account|amount combinations we've applied in
-                // this transaction to avoid applying duplicates across multiple
-                // receipt records for the same booking.
-                $appliedSignatures = [];
-
-                foreach ($receipts as $rv) {
-                    Log::info('Found receipt for processing', ['rv_id' => $rv->id, 'rvid' => $rv->rvid ?? null, 'processed' => $rv->processed ?? null, 'reference' => $rv->reference_no ?? null]);
-                    // skip receipts already applied by receipts UI / manual posting
-                    if (!empty($rv->processed)) {
-                        Log::info('Skipping processed receipt', ['rv_id' => $rv->id, 'rvid' => $rv->rvid ?? null]);
-                        continue;
-                    }
-                    // Determine total amount for this receipt (supports JSON arrays or single value)
-                    $totalAmount = 0;
-                    if (!empty($rv->total_amount)) {
-                        $totalAmount = (float) $rv->total_amount;
-                    } elseif (!empty($rv->amount)) {
-                        $decoded = json_decode($rv->amount, true);
-                        if (is_array($decoded)) {
-                            $totalAmount = array_sum(array_map('floatval', $decoded));
-                        } else {
-                            $totalAmount = (float) $rv->amount;
-                        }
+                    foreach ($receipts as $rv) {
+                        $rv->processed = true;
+                        $rv->save();
                     }
 
-                    if ($totalAmount <= 0) continue;
-
-                    // Update row account(s): prefer explicit per-row amounts.
-                    $rowAccountIds = [];
-                    $rowAmounts = [];
-
-                    if (!empty($rv->row_account_id)) {
-                        $decodedIds = json_decode($rv->row_account_id, true);
-                        if (is_array($decodedIds)) {
-                            $rowAccountIds = $decodedIds;
-                        } else {
-                            $rowAccountIds = [$rv->row_account_id];
-                        }
-                    }
-
-                    // Only use per-row amounts if they were explicitly provided.
-                    if (!empty($rv->amount)) {
-                        $decodedAmounts = json_decode($rv->amount, true);
-                        if (is_array($decodedAmounts)) {
-                            $rowAmounts = array_map('floatval', $decodedAmounts);
-                        } else {
-                            $rowAmounts = [(float) $rv->amount];
-                        }
-                    }
-
-                    // If no explicit per-row amounts found, skip applying this receipt.
-                    // This prevents empty/blank receipt rows from causing the entire
-                    // receipt total to be applied to accounts unintentionally.
-                    if (empty($rowAmounts) || array_sum($rowAmounts) <= 0) {
-                        // mark processed to avoid re-processing if column exists
-                        if (property_exists($rv, 'processed')) {
-                            $rv->processed = true;
-                            $rv->save();
-                            Log::info('Marked empty-amount receipt processed', ['rv_id' => $rv->id]);
-                        }
-                        continue;
-                    }
-
-                    Log::info('Applying receipt rows', ['rv_id' => $rv->id, 'accounts' => $rowAccountIds, 'amounts' => $rowAmounts]);
-
-                    // Safeguard: avoid applying identical account+amount combinations more
-                    // than once during this processing run (handles historical duplicate
-                    // receipt records that shouldn't be applied multiple times).
-
-                    foreach ($rowAccountIds as $i => $accId) {
-                        $rowAmount = $rowAmounts[$i] ?? ($rowAmounts[0] ?? 0);
-                        if ($rowAmount <= 0) continue;
-
-                        $signature = ($rv->booking_id ?? $rv->reference_no) . '|' . $accId . '|' . number_format((float)$rowAmount, 2, '.', '');
-                        if (in_array($signature, $appliedSignatures, true)) {
-                            Log::warning('Skipping duplicate receipt-account-amount combination', ['signature' => $signature, 'rv_id' => $rv->id]);
-                            continue;
-                        }
-
-                        $rowAccount = Account::lockForUpdate()->find($accId);
-                        if (! $rowAccount) {
-                            Log::error('Account not found during receipt processing', ['account_id' => $accId, 'rv_id' => $rv->id]);
-                            continue;
-                        }
-                        
-                        $balanceBefore = $rowAccount->opening_balance ?? 0;
-                        $accountType = trim(strtolower($rowAccount->type));
-                        
-                        Log::info('Applying to account', [
-                            'rv_id' => $rv->id,
-                            'account_id' => $rowAccount->id,
-                            'account_type' => $rowAccount->type,
-                            'before' => $balanceBefore,
-                            'amount' => $rowAmount,
-                            'type_lowercase' => $accountType,
-                        ]);
-
-                        if ($accountType === 'debit') {
-                            $rowAccount->opening_balance = $balanceBefore + $rowAmount;
-                        } else {
-                            $rowAccount->opening_balance = $balanceBefore - $rowAmount;
-                        }
-                        $rowAccount->save();
-                        
-                        Log::info('Applied to account', [
-                            'rv_id' => $rv->id,
-                            'account_id' => $rowAccount->id,
-                            'after' => $rowAccount->opening_balance,
-                            'change' => $rowAccount->opening_balance - $balanceBefore,
-                        ]);
-
-                        $appliedSignatures[] = $signature;
-                    }
-
-                    // NOTE: receipts are payments applied to bank/cash accounts above.
-                    // Ledger already created at initial posting with all receipt amounts
-
-                    // mark this receipt as processed so we don't apply it again
-                    $rv->processed = true;
-                    $rv->save();
-                    Log::info('Marked receipt processed', ['rv_id' => $rv->id]);
+                    /* ================= MARK BOOKING POSTED ================= */
+                    $booking->update([
+                        'is_posted' => 1,
+                        'posted_at' => $entryDateTime,
+                        'created_at' => $entryDateTime,
+                        'updated_at' => $entryDateTime,
+                        'status'    => 'sale',
+                    ]);
                 }
 
-                /* ================= MARK BOOKING POSTED ================= */
-                $booking->update([
-                    'is_posted' => 1,
-                    'posted_at' => now(),
-                    'status'    => 'sale',
-                ]);
-
                 /* ================= CREATE NOTIFICATION IF NOTIFY_ME IS SET ================= */
-                if (!empty($booking->notify_me) && (int)$booking->notify_me > 0) {
-                    $notificationDate = Carbon::today()->addDays($booking->notify_me);
-                    
+                $notifyDays = $booking ? ($booking->notify_me ?? 0) : ($request->input('notify_me') ?? 0);
+                if (!empty($notifyDays) && (int)$notifyDays > 0) {
+                    $notificationDate = Carbon::today()->addDays((int)$notifyDays);
                     Notification::create([
-                        'booking_id' => $booking->id,
-                        'sale_id' => $sale->id,
-                        'customer_id' => $booking->customer_id,
-                        'type' => 'booking_payment',
-                        'title' => 'Payment Reminder - ' . $booking->invoice_no,
-                        'description' => 'Payment reminder for booking ' . $booking->invoice_no . ' (Amount: ' . $sale->total_net . ')',
+                        'booking_id'        => $booking ? $booking->id : null,
+                        'sale_id'           => $sale->id,
+                        'customer_id'       => $customerId,
+                        'type'              => 'booking_payment',
+                        'title'             => 'Payment Reminder - ' . $sale->invoice_no,
+                        'description'       => 'Payment reminder for sale ' . $sale->invoice_no . ' (Amount: ' . $sale->total_net . ')',
                         'notification_date' => $notificationDate,
-                        'status' => 'pending',
-                        'created_by' => auth()->id(),
-                    ]);
-
-                    Log::info('Created payment notification', [
-                        'booking_id' => $booking->id,
-                        'notification_date' => $notificationDate,
-                        'days' => $booking->notify_me,
-                        'customer_id' => $booking->customer_id,
+                        'status'            => 'pending',
+                        'created_by'        => auth()->id(),
                     ]);
                 }
 
@@ -742,8 +571,8 @@ class SaleController extends Controller
                     'ok'          => true,
                     'sale_id'     => $sale->id,
                     'invoice_url' => route('sale.invoice', $sale->id),
-                    'status'      => $booking->status,
-                    'msg'      => $message ?? Null,
+                    'status'      => $booking ? $booking->status : 'sale',
+                    'msg'         => $message ?? 'Sale completed & posted successfully. Stock deducted!',
                 ]);
             });
         } catch (\Exception $e) {
@@ -981,15 +810,9 @@ class SaleController extends Controller
                 if ($salesHead) {
                     $saleAccount = Account::lockForUpdate()->where('head_id', $salesHead->id)->first();
                     if ($saleAccount) {
-                        $balanceBefore = $saleAccount->opening_balance ?? 0;
-                        $saleAccount->opening_balance += $sale->total_net;
-                        $saleAccount->save();
-                        
-                        Log::info('Updated Sales account (Draft)', [
+                        Log::info('Found Sales account (Draft)', [
                             'account_id' => $saleAccount->id,
                             'account_title' => $saleAccount->title,
-                            'balance_before' => $balanceBefore,
-                            'balance_after' => $saleAccount->opening_balance,
                             'sale_total' => $sale->total_net,
                         ]);
                     } else {
@@ -1079,13 +902,6 @@ class SaleController extends Controller
                                     try {
                                         $rowAccount = Account::lockForUpdate()->find($acctId);
                                         if ($rowAccount) {
-                                            if (strtolower($rowAccount->type) === 'debit') {
-                                                $rowAccount->opening_balance += $amt;
-                                            } else {
-                                                $rowAccount->opening_balance -= $amt;
-                                            }
-                                            $rowAccount->save();
-
                                             // Post to Account Ledger
                                             \App\Services\VoucherService::postLedgerEntry(
                                                 $acctId,
@@ -1191,15 +1007,7 @@ class SaleController extends Controller
 
                         $rowAccount = Account::lockForUpdate()->find($accId);
                         if (! $rowAccount) continue;
-                        Log::info('Applying to account (Draft)', ['rv_id' => $rv->id, 'account_id' => $rowAccount->id, 'before' => $rowAccount->opening_balance, 'amount' => $rowAmount, 'type' => $rowAccount->type]);
-
-                        if (strtolower($rowAccount->type) === 'debit') {
-                            $rowAccount->opening_balance += $rowAmount;
-                        } else {
-                            $rowAccount->opening_balance -= $rowAmount;
-                        }
-                        $rowAccount->save();
-                        Log::info('Applied to account (Draft)', ['rv_id' => $rv->id, 'account_id' => $rowAccount->id, 'after' => $rowAccount->opening_balance]);
+                        Log::info('Applying to account (Draft)', ['rv_id' => $rv->id, 'account_id' => $rowAccount->id, 'amount' => $rowAmount, 'type' => $rowAccount->type]);
 
                         $appliedSignatures[] = $signature;
                     }
@@ -1707,10 +1515,6 @@ class SaleController extends Controller
                 $salesHead = AccountHead::where('name', 'like', '%Sales%')->first();
                 if ($salesHead) {
                     $saleAccount = Account::lockForUpdate()->where('head_id', $salesHead->id)->first();
-                    if ($saleAccount) {
-                        $saleAccount->opening_balance += $sale->total_net;
-                        $saleAccount->save();
-                    }
                 }
 
                 // Process Receipts (if advance payments provided)
@@ -1727,8 +1531,17 @@ class SaleController extends Controller
 
                             $targetAcc = Account::lockForUpdate()->find($accId);
                             if ($targetAcc) {
-                                $targetAcc->opening_balance += $amt;
-                                $targetAcc->save();
+                                \App\Services\VoucherService::postLedgerEntry(
+                                    (int)$accId,
+                                    'receipt',
+                                    $sale->invoice_no ?? $rvNo,
+                                    null,
+                                    Carbon::today()->toDateString(),
+                                    "Sale Receipt — Invoice #" . ($sale->invoice_no ?? $rvNo),
+                                    $amt,
+                                    0,
+                                    auth()->id()
+                                );
                             }
                         }
                     }
@@ -1903,6 +1716,17 @@ class SaleController extends Controller
             $booking->discount_amount = 0;
 
             $booking->quantity = 0;
+
+            // ✅ Support user-selected custom sale date (past or today)
+            $selectedDate = $request->input('sale_date') ?? $request->input('Invoice_date') ?? null;
+            if (!empty($selectedDate)) {
+                try {
+                    $dt = Carbon::parse($selectedDate)->setTime(now()->hour, now()->minute, now()->second);
+                    $booking->created_at = $dt;
+                    $booking->updated_at = $dt;
+                } catch (\Exception $e) {}
+            }
+
             $booking->save();
 
             /* ================= SAVE ITEMS ================= */
@@ -2611,6 +2435,17 @@ public function finddc($invoice)
                 Log::warning('Using fallback BINV after retries exhausted', ['invoice_no' => $invoiceNo, 'branch_id' => $branchId, 'attempts' => $attempt]);
             }
 
+            // Support user-selected custom sale date
+            $storeDateInput = $request->input('sale_date') ?? $request->input('Invoice_date') ?? null;
+            $storeDateTime = Carbon::now();
+            if (!empty($storeDateInput)) {
+                try {
+                    $storeDateTime = Carbon::parse($storeDateInput)->setTime(now()->hour, now()->minute, now()->second);
+                } catch (\Exception $e) {
+                    $storeDateTime = Carbon::now();
+                }
+            }
+
             $booking = ProductBooking::create([
                 'invoice_no' => $invoiceNo,
                 'manual_invoice' => $request->Invoice_main,
@@ -2633,6 +2468,8 @@ public function finddc($invoice)
                 'receipt2' => $request->receipt2 ?? 0,
                 'final_balance1' => $request->finalBalance1 ?? 0,
                 'final_balance2' => $request->finalBalance2 ?? 0,
+                'created_at' => $storeDateTime,
+                'updated_at' => $storeDateTime,
                 // 'weight' => $request->weight ?? null,
             ]);
 
@@ -2739,6 +2576,16 @@ public function finddc($invoice)
                 }
             }
 
+            $directSaleDateInput = $request->input('sale_date') ?? $request->input('Invoice_date') ?? null;
+            $directSaleDateTime = Carbon::now();
+            if (!empty($directSaleDateInput)) {
+                try {
+                    $directSaleDateTime = Carbon::parse($directSaleDateInput)->setTime(now()->hour, now()->minute, now()->second);
+                } catch (\Exception $e) {
+                    $directSaleDateTime = Carbon::now();
+                }
+            }
+
             $sale = Sale::create([
                 'branch_id' => $branch->id,
                 'invoice_no' => $invoiceNo,
@@ -2761,6 +2608,8 @@ public function finddc($invoice)
                 'receipt2' => $request->receipt2 ?? 0,
                 'final_balance1' => $request->finalBalance1 ?? 0,
                 'final_balance2' => $request->finalBalance2 ?? 0,
+                'created_at' => $directSaleDateTime,
+                'updated_at' => $directSaleDateTime,
                 // 'weight' => $request->weight ?? null,
             ]);
 
@@ -2920,8 +2769,8 @@ public function finddc($invoice)
                         $rv = ReceiptsVoucher::create([
                             'branch_id' => $sale->branch_id ?? (auth()->user()->branch_id ?? 1),
                             'rvid' => ReceiptsVoucher::generateRVID(auth()->id()),
-                            'receipt_date' => Carbon::today(),
-                            'entry_date' => Carbon::now(),
+                            'receipt_date' => $directSaleDateTime->toDateString(),
+                            'entry_date' => $directSaleDateTime,
                             'type' => 'SALE_RECEIPT',
                             'party_id' => $customerId,
                             'booking_id' => null,
@@ -2934,26 +2783,21 @@ public function finddc($invoice)
                             'amount' => is_array($amt) ? json_encode($amt) : $amt,
                             'total_amount' => $amt,
                             'processed' => false,
+                            'created_at' => $directSaleDateTime,
+                            'updated_at' => $directSaleDateTime,
                         ]);
 
                         // Immediately apply this receipt to account and customer ledger
                         try {
                             $rowAccount = Account::lockForUpdate()->find($acctId);
                             if ($rowAccount) {
-                                if (strtolower($rowAccount->type) === 'debit') {
-                                    $rowAccount->opening_balance += $amt;
-                                } else {
-                                    $rowAccount->opening_balance -= $amt;
-                                }
-                                $rowAccount->save();
-
                                 // Post to Account Ledger
                                 \App\Services\VoucherService::postLedgerEntry(
                                     $acctId,
                                     'receipt',
                                     $sale->invoice_no ?? $rv->rvid,
                                     $rv->id,
-                                    Carbon::today()->toDateString(),
+                                    $directSaleDateTime->toDateString(),
                                     "Sale Receipt — Invoice #" . ($sale->invoice_no ?? '') . ($request->remarks ? " ({$request->remarks})" : ""),
                                     $amt,
                                     0,
@@ -2969,6 +2813,8 @@ public function finddc($invoice)
                                 'previous_balance' => $custPrev,
                                 'opening_balance' => 0,
                                 'closing_balance' => $custNew,
+                                'created_at' => $directSaleDateTime,
+                                'updated_at' => $directSaleDateTime,
                             ]);
 
                             $rv->processed = true;
@@ -2996,6 +2842,8 @@ public function finddc($invoice)
                     'previous_balance' => $previousBalance,
                     'opening_balance' => 0,  // یہ sale transaction ہے
                     'closing_balance' => $newClosingBalance,
+                    'created_at' => $directSaleDateTime,
+                    'updated_at' => $directSaleDateTime,
                 ]);
             }
 
@@ -4299,13 +4147,6 @@ public function finddc($invoice)
                         try {
                             $rowAccount = Account::lockForUpdate()->find($accId);
                             if ($rowAccount) {
-                                if (strtolower($rowAccount->type) === 'debit') {
-                                    $rowAccount->opening_balance += $amt;
-                                } else {
-                                    $rowAccount->opening_balance -= $amt;
-                                }
-                                $rowAccount->save();
-
                                 // Post to Account Ledger
                                 \App\Services\VoucherService::postLedgerEntry(
                                     $accId,
@@ -5116,14 +4957,6 @@ public function finddc($invoice)
                     ->get();
 
                 foreach ($receipts as $rv) {
-                    $accId = $rv->row_account_id ?? $rv->account_id ?? null;
-                    if ($rv->processed && $accId && floatval($rv->total_amount) > 0) {
-                        $acc = Account::find($accId);
-                        if ($acc) {
-                            $acc->opening_balance -= floatval($rv->total_amount);
-                            $acc->save();
-                        }
-                    }
                     $rv->delete();
                 }
 
@@ -5134,16 +4967,6 @@ public function finddc($invoice)
                 BranchTransaction::where('reference_type', 'Sale')
                     ->where('reference_id', $sale->id)
                     ->delete();
-
-                // Reverse Sales Head Account Balance if updated
-                $salesHead = AccountHead::where('name', 'like', '%Sales%')->first();
-                if ($salesHead) {
-                    $saleAccount = Account::where('head_id', $salesHead->id)->first();
-                    if ($saleAccount) {
-                        $saleAccount->opening_balance -= floatval($sale->total_net ?? 0);
-                        $saleAccount->save();
-                    }
-                }
 
                 // 3. REVERSE CUSTOMER LEDGER (IF CUSTOMER EXISTS)
                 if ($sale->customer_id) {
@@ -5327,23 +5150,25 @@ public function finddc($invoice)
                         $amt = floatval($rowAmounts[$i] ?? '$totalReceipt');
                         if ($amt <= 0 || !$accId) continue;
 
-                        // Transfer to account (debit or credit based on account type)
+                        // Transfer to account ledger
                         $account = Account::lockForUpdate()->find($accId);
                         if ($account) {
-                            if (strtolower($account->type) === 'debit') {
-                                // Bank/Cash account - CREDIT (decrease balance as it's inflow)
-                                $account->opening_balance += $amt;
-                            } else {
-                                // Liability account - DEBIT
-                                $account->opening_balance -= $amt;
-                            }
-                            $account->save();
+                            \App\Services\VoucherService::postLedgerEntry(
+                                (int)$accId,
+                                'receipt',
+                                $sale->invoice_no ?? $rv->rvid,
+                                $rv->id,
+                                Carbon::today()->toDateString(),
+                                "Sale Receipt — Invoice #" . ($sale->invoice_no ?? ''),
+                                $amt,
+                                0,
+                                auth()->id()
+                            );
 
-                            Log::info('Transferred to account', [
+                            Log::info('Transferred to account ledger', [
                                 'account_id' => $account->id,
                                 'account_name' => $account->title,
                                 'amount' => $amt,
-                                'new_balance' => $account->opening_balance
                             ]);
 
                             $totalReceiptsProcessed += $amt;

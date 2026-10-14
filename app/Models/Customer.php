@@ -9,8 +9,8 @@ class Customer extends Model
 {
     use HasFactory;
     
-    // Add closing_balance to appends so it's included in JSON responses
-    protected $appends = ['closing_balance'];
+    // Add closing_balance and previous_balance to appends so it's included in JSON responses
+    protected $appends = ['closing_balance', 'previous_balance'];
     
     // app/Models/Customer.php
     protected $fillable = [
@@ -42,6 +42,12 @@ class Customer extends Model
     // Accessor for closing balance (gets latest ledger closing balance)
     public function getClosingBalanceAttribute()
     {
-        return $this->latestLedger()->value('closing_balance') ?? $this->opening_balance;
+        return $this->latestLedger()->value('closing_balance') ?? $this->opening_balance ?? 0;
+    }
+
+    // Accessor for previous balance (synonym for latest closing balance before current invoice)
+    public function getPreviousBalanceAttribute()
+    {
+        return $this->getClosingBalanceAttribute();
     }
 }

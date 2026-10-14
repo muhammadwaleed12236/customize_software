@@ -540,7 +540,7 @@
                 <input type="hidden" id="customer" name="customer" value="{{ $sale->customer_id ?? '' }}">
                 <input type="hidden" id="address" name="address" value="{{ $sale->address ?? '' }}">
                 <input type="hidden" id="tel" name="tel" value="{{ $sale->tel ?? '' }}">
-                <input type="hidden" id="previousBalance" value="{{ $sale->previous_balance ?? 0 }}">
+                <input type="hidden" id="previousBalance" name="previousBalance" value="{{ $sale->previous_balance ?? 0 }}">
                 <input type="hidden" id="rangeBalance" value="0">
                 <input type="hidden" id="creditLimit" value="0">
                 <input type="hidden" id="noCreditLimit" value="0">
@@ -675,13 +675,30 @@
 
                     <!-- Customer Input Group -->
                     <div style="margin-top: 3px;">
-                        <label class="form-label fw-bold text-uppercase text-primary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
-                            <i class="fas fa-user-circle text-primary me-1"></i>Customer Selection
-                        </label>
+                        <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 2px !important;">
+                            <label class="form-label fw-bold text-uppercase text-primary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
+                                <i class="fas fa-user-circle text-primary me-1"></i>Customer Selection
+                            </label>
+                            <div id="customerPrevBalWrapper" class="d-flex align-items-center gap-1" style="font-size:0.75rem;">
+                                <span class="text-muted fw-semibold">Prev. Balance:</span>
+                                <span id="badgeCustomerPrevBal" class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold font-monospace px-2 py-0" style="font-size:0.78rem;">Rs 0.00</span>
+                            </div>
+                        </div>
                         <div id="customerInputWrapper" class="input-group input-group-sm shadow-xs rounded">
                             <div id="customerSelectBoxContainer" class="flex-grow-1" style="min-width: 0;">
-                                <select class="form-select" id="customerSelect" name="customer" style="width:100%">
-                                    <option value=""></option>
+                                <select class="form-select" id="customerSelect" name="customer_select" style="width:100%">
+                                    <option value="">Select or search customer...</option>
+                                    @if(isset($customer) && $customer->count() > 0)
+                                        @foreach($customer as $c)
+                                            <option value="{{ $c->id }}"
+                                                data-mobile="{{ $c->mobile ?? '' }}"
+                                                data-address="{{ $c->address ?? '' }}"
+                                                data-prev-balance="{{ $c->closing_balance ?? $c->opening_balance ?? 0 }}"
+                                                {{ (isset($sale) && $sale->customer_id == $c->id) ? 'selected' : '' }}>
+                                                {{ $c->customer_id }} — {{ $c->customer_name }}
+                                            </option>
+                                        @endforeach
+                                    @endif
                                 </select>
                             </div>
                             <input type="text" class="form-control fw-bold d-none" name="walkin_name" id="walkinNameInput" value="Walk-in Customer" placeholder="Enter Walk-in Name...">
@@ -779,15 +796,23 @@
                                     <span class="fw-bold text-danger" id="tLineDisc">0.00</span>
                                 </div>
                                 <div class="summary-row">
-                                    <span class="fw-bold text-dark">Net Total</span>
+                                    <span class="fw-bold text-dark">Current Net</span>
                                     <span class="summary-val-net" id="tSub">0.00</span>
+                                </div>
+                                <div class="summary-row" id="rowPrevBalance">
+                                    <span class="text-muted">Prev. Balance</span>
+                                    <span class="fw-bold text-danger" id="displayPrevBalance">0.00</span>
+                                </div>
+                                <div class="summary-row" id="rowTotalPayable">
+                                    <span class="fw-bold text-primary">Total Payable</span>
+                                    <span class="fw-bold text-primary" id="displayTotalPayable">0.00</span>
                                 </div>
                                 <div class="summary-row">
                                     <span class="text-muted">Total Paid</span>
                                     <span class="fw-bold text-success" id="receiptsTotalBadge">0.00</span>
                                 </div>
                                 <div class="summary-row pt-1">
-                                    <span class="fw-bold text-danger">Change</span>
+                                    <span class="fw-bold text-danger" id="lblChangeOrDue">Balance Due</span>
                                     <span class="summary-val-change" id="walkinChange">0.00</span>
                                 </div>
 
@@ -1526,15 +1551,36 @@
                     receipts += toNum($(this).val());
                 });
 
+                let isWalkin = $('#walkinToggle').is(':checked');
+                let prevBal = isWalkin ? 0 : toNum($('#previousBalance').val());
+                let totalPayable = isWalkin ? finalNet : (finalNet + prevBal);
+                let remainingDue = Math.max(0, totalPayable - receipts);
                 let changeVal = receipts - finalNet;
 
                 // Executive Summary Card Update
                 $('#tGross').text(tGross.toFixed(2));
                 $('#tLineDisc').text(tLineDisc.toFixed(2));
                 $('#tSub').text(finalNet.toFixed(2));
+                $('#displayPrevBalance').text(prevBal.toFixed(2));
+                $('#displayTotalPayable').text(totalPayable.toFixed(2));
                 $('#receiptsTotalBadge').text(receipts.toFixed(2));
                 $('#receiptsTotal').text(receipts.toFixed(2));
-                $('#walkinChange').text(changeVal.toFixed(2));
+                $('#tPrev').text(prevBal.toFixed(2));
+                $('#tPayable').text(totalPayable.toFixed(2));
+
+                if (isWalkin) {
+                    $('#rowPrevBalance').hide();
+                    $('#rowTotalPayable').hide();
+                    $('#lblChangeOrDue').text('Change');
+                    $('#walkinChange').text(changeVal.toFixed(2));
+                    $('#bottomChangeVal').text(changeVal.toFixed(2));
+                } else {
+                    $('#rowPrevBalance').show();
+                    $('#rowTotalPayable').show();
+                    $('#lblChangeOrDue').text('Balance Due');
+                    $('#walkinChange').text(remainingDue.toFixed(2));
+                    $('#bottomChangeVal').text(remainingDue.toFixed(2));
+                }
 
                 // Table Foot
                 $('#totalAmount').text(finalNet.toFixed(2));
@@ -1542,13 +1588,12 @@
                 // Bottom Summary Strip Update
                 $('#walkinNetTotal').text(finalNet.toFixed(2));
                 $('#bottomPaymentsTotal').text(receipts.toFixed(2));
-                $('#bottomChangeVal').text(changeVal.toFixed(2));
 
                 // Form hidden mirrors
                 $('#subTotal1').val(tGross.toFixed(2));
                 $('#subTotal2').val(finalNet.toFixed(2));
                 $('#discountAmount').val(overallDisc.toFixed(2));
-                $('#totalBalance').val(finalNet.toFixed(2));
+                $('#totalBalance').val(totalPayable.toFixed(2));
             }
 
             // Events on grid inputs
@@ -1619,10 +1664,26 @@
                 $('#walkinToggle').prop('checked', !isCurrentlyWalkin).trigger('change');
             });
 
+            window.applyCustomerData = function(d) {
+                if (!d) return;
+                let prev = d.previous_balance !== undefined ? d.previous_balance : (d.closing_balance !== undefined ? d.closing_balance : (d.opening_balance || 0));
+                let prevVal = parseFloat(prev || 0);
+
+                $('#previousBalance').val(prevVal.toFixed(2));
+                $('#badgeCustomerPrevBal').text('Rs ' + prevVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+                $('#displayPrevBalance').text(prevVal.toFixed(2));
+                $('#address').val(d.address || '');
+                $('#tel').val(d.mobile || '');
+                $('#customer_id').val(d.id || '');
+                $('#customer').val(d.id || '');
+                updateGrandTotals();
+            };
+
             $('#walkinToggle').on('change', function() {
                 if ($(this).is(':checked')) {
                     $('#walkinNameInput').removeClass('d-none').show().focus();
                     $('#customerSelectBoxContainer').addClass('d-none').hide();
+                    $('#customerPrevBalWrapper').addClass('d-none').hide();
                     $('#btnWalkinToggle').removeClass('btn-outline-primary').addClass('btn-primary active');
                     $('#typewalking').prop('checked', true).trigger('change');
                     $('#customer_id').val('');
@@ -1630,11 +1691,21 @@
                     $('#address').val('');
                     $('#tel').val('');
                     $('#previousBalance').val('0.00');
+                    $('#badgeCustomerPrevBal').text('Rs 0.00');
+                    $('#displayPrevBalance').text('0.00');
+                    updateGrandTotals();
                 } else {
                     $('#walkinNameInput').addClass('d-none').hide();
                     $('#customerSelectBoxContainer').removeClass('d-none').show();
+                    $('#customerPrevBalWrapper').removeClass('d-none').show();
                     $('#btnWalkinToggle').removeClass('btn-primary active').addClass('btn-outline-primary');
                     $('#typeCustomers').prop('checked', true).trigger('change');
+                    let currentCid = $('#customerSelect').val();
+                    if (currentCid) {
+                        $('#customerSelect').trigger('change');
+                    } else {
+                        updateGrandTotals();
+                    }
                 }
             });
 
@@ -1678,7 +1749,7 @@
                     }
                 });
 
-                // 3. Reset customer selection upon branch change
+                // 3. Reset customer selection upon branch change & reload branch customers
                 if (!window.IS_EDIT_MODE) {
                     $('#customerSelect').val(null).trigger('change');
                     $('#customer_id').val('');
@@ -1686,52 +1757,92 @@
                     $('#address').val('');
                     $('#tel').val('');
                     $('#previousBalance').val('0.00');
+                    $('#badgeCustomerPrevBal').text('Rs 0.00');
+                    $('#displayPrevBalance').text('0.00');
+                    updateGrandTotals();
+
+                    $.get('{{ route("salecustomers.index") }}', { branch_id: selectedBranchId }, function(data) {
+                        let $cs = $('#customerSelect');
+                        $cs.empty().append('<option value="">Select or search customer...</option>');
+                        if (Array.isArray(data)) {
+                            data.forEach(function(c) {
+                                let prev = c.previous_balance !== undefined ? c.previous_balance : (c.closing_balance !== undefined ? c.closing_balance : (c.opening_balance || 0));
+                                let opt = $('<option></option>')
+                                    .attr('value', c.id)
+                                    .attr('data-mobile', c.mobile || '')
+                                    .attr('data-address', c.address || '')
+                                    .attr('data-prev-balance', prev)
+                                    .text((c.customer_id ? c.customer_id + ' — ' : '') + c.customer_name);
+                                $cs.append(opt);
+                            });
+                        }
+                    });
                 }
             });
 
-            // --- Customer Select2 AJAX Search ---
+            // --- Customer Select2 Search & Change ---
             $('#customerSelect').select2({
                 placeholder: 'Search Customer...',
                 allowClear: true,
-                width: '100%',
-                ajax: {
-                    url: '{{ route('salecustomers.index') }}',
-                    dataType: 'json',
-                    delay: 250,
-                    data: function(params) {
-                        let activeBranch = $('#branch_id').val() || $('[name="branch_id"]').val() || '';
-                        return { search: params.term || '', branch_id: activeBranch };
-                    },
-                    processResults: function(data) {
-                        return {
-                            results: data.map(function(c) {
-                                return {
-                                    id: c.id,
-                                    text: (c.customer_id || '') + ' — ' + c.customer_name,
-                                    customer: c
-                                };
-                            })
-                        };
-                    }
-                }
+                width: '100%'
             });
 
-            $('#customerSelect').on('select2:select', function(e) {
-                const id = e.params.data.id;
-                if (!id) return;
-                $.get("{{ url('sale/customers') }}/" + id, function(d) {
-                    $('#address').val(d.address || '');
-                    $('#tel').val(d.mobile || '');
-                    $('#previousBalance').val(parseFloat(d.previous_balance || 0).toFixed(2));
-                    $('#customer_id').val(d.id);
-                    $('#customer').val(d.id);
+            $('#customerSelect').on('change select2:select', function(e) {
+                const id = $(this).val();
+                if (!id) {
+                    $('#previousBalance').val('0.00');
+                    $('#badgeCustomerPrevBal').text('Rs 0.00');
+                    $('#displayPrevBalance').text('0.00');
+                    $('#customer_id').val('');
+                    $('#customer').val('');
+                    $('#address').val('');
+                    $('#tel').val('');
                     updateGrandTotals();
+                    return;
+                }
+
+                // If selected option has dataset, populate immediately (no lag)
+                let $opt = $(this).find('option:selected');
+                if ($opt.length && $opt.data('prev-balance') !== undefined) {
+                    window.applyCustomerData({
+                        id: id,
+                        mobile: $opt.data('mobile') || '',
+                        address: $opt.data('address') || '',
+                        previous_balance: $opt.data('prev-balance')
+                    });
+                }
+
+                // Fetch latest fresh details and closing balance from server
+                $.get("{{ url('sale/customers') }}/" + id, function(d) {
+                    if (d && d.id) {
+                        window.applyCustomerData(d);
+                    }
                 });
+            });
+
+            // Smooth focus transition to table on close (if customer selected)
+            $('#customerSelect').on('select2:close', function() {
+                let cid = $(this).val();
+                if (cid) {
+                    setTimeout(() => {
+                        let $firstProd = $('#salesTableBody tr:first .product-select');
+                        if ($firstProd.length) {
+                            if ($firstProd.val()) {
+                                $('#salesTableBody tr:first .sales-qty').focus().select();
+                            } else {
+                                $firstProd.select2('open');
+                            }
+                        }
+                    }, 120);
+                }
             });
 
             // --- Form Save & Post Logic ---
             function ensureSaved() {
                 return new Promise((resolve, reject) => {
+                    if ($('#displayDateInput').val()) {
+                        $('#Invoice_date').val($('#displayDateInput').val());
+                    }
                     let formData = $('#saleForm').serialize();
                     let isEdit = window.IS_EDIT_MODE && window.UPDATE_URL;
                     let targetUrl = isEdit ? window.UPDATE_URL : "{{ route('sale.ajax.save') }}";
@@ -1801,7 +1912,7 @@
                     return;
                 }
 
-                // If New Sale / POS: Save booking first, then immediately POST it (stock deduction, invoice INV-XXXX, ledger update)
+                // If New Sale / POS: Direct sale without creating a booking!
                 $('#action').val('sale');
                 
                 // Show loading state
@@ -1809,77 +1920,265 @@
                 const origCompleteText2 = $('#btnSaveAndComplete2').html();
                 $('#btnSaveAndComplete, #btnSaveAndComplete2').html('<i class="fas fa-spinner fa-spin me-2"></i>Posting Sale...');
 
-                ensureSaved().then(bookingId => {
-                    // Prepare data for sale.ajax.post
-                    let postData = {
-                        _token: '{{ csrf_token() }}',
-                        booking_id: bookingId,
-                        warehouse_id: {},
-                        receipt_account_id: [],
-                        receipt_amount: []
-                    };
+                if ($('#displayDateInput').val()) {
+                    $('#Invoice_date').val($('#displayDateInput').val());
+                }
 
-                    let globalWh = $('#globalWarehouseSelect').val() || '1';
-                    $('#salesTableBody tr').each(function() {
-                        let pId = $(this).find('.product-select').val();
-                        let wh = $(this).find('.warehouse').val() || globalWh;
-                        if (pId) {
-                            postData.warehouse_id[pId] = wh;
-                        }
-                    });
+                let postData = $('#saleForm').serialize();
 
-                    $('.rv-account').each(function(i) {
-                        let acc = $(this).val();
-                        let amt = $('.rv-amount').eq(i).val() || '';
-                        if (acc && toNum(amt) > 0) {
-                            postData.receipt_account_id.push(acc);
-                            postData.receipt_amount.push(amt);
-                        }
-                    });
-
-                    $.ajax({
-                        url: "{{ route('sale.ajax.post') }}",
-                        type: 'POST',
-                        data: postData,
-                        success: function(res) {
-                            if (res && res.ok) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'SALE POSTED!',
-                                    text: 'Sale completed & posted successfully. Stock deducted!',
-                                    timer: 1800,
-                                    showConfirmButton: false
-                                }).then(() => {
-                                    if (res.invoice_url) {
-                                        window.open(res.invoice_url, '_blank');
-                                    }
-                                    window.location.href = "{{ route('sale.index') }}";
-                                });
-                            } else {
-                                $activeBtns.prop('disabled', false);
-                                $('#btnSaveAndComplete').html(origCompleteText1);
-                                $('#btnSaveAndComplete2').html(origCompleteText2);
-                                showAlert('error', (res && res.msg) ? res.msg : 'Failed to post sale.');
-                            }
-                        },
-                        error: function(xhr) {
+                $.ajax({
+                    url: "{{ route('sale.ajax.post') }}",
+                    type: 'POST',
+                    data: postData,
+                    success: function(res) {
+                        if (res && res.ok) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'SALE POSTED!',
+                                text: 'Sale completed & posted successfully. Stock deducted!',
+                                timer: 1800,
+                                showConfirmButton: false
+                            }).then(() => {
+                                if (res.invoice_url) {
+                                    window.open(res.invoice_url, '_blank');
+                                }
+                                window.location.href = "{{ route('sale.index') }}";
+                            });
+                        } else {
                             $activeBtns.prop('disabled', false);
                             $('#btnSaveAndComplete').html(origCompleteText1);
                             $('#btnSaveAndComplete2').html(origCompleteText2);
-                            let msg = 'Server error while posting sale.';
-                            if (xhr.responseJSON && xhr.responseJSON.message) {
-                                msg = xhr.responseJSON.message;
-                            } else if (xhr.responseJSON && xhr.responseJSON.error) {
-                                msg = xhr.responseJSON.error;
-                            }
-                            showAlert('error', msg);
+                            showAlert('error', (res && res.msg) ? res.msg : 'Failed to post sale.');
                         }
-                    });
-                }).catch(err => {
-                    $activeBtns.prop('disabled', false);
-                    $('#btnSaveAndComplete').html(origCompleteText1);
-                    $('#btnSaveAndComplete2').html(origCompleteText2);
+                    },
+                    error: function(xhr) {
+                        $activeBtns.prop('disabled', false);
+                        $('#btnSaveAndComplete').html(origCompleteText1);
+                        $('#btnSaveAndComplete2').html(origCompleteText2);
+                        let msg = 'Server error while posting sale.';
+                        if (xhr.responseJSON && xhr.responseJSON.message) {
+                            msg = xhr.responseJSON.message;
+                        } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                            msg = xhr.responseJSON.error;
+                        }
+                        showAlert('error', msg);
+                    }
                 });
+            });
+
+            // ==============================================================
+            // 🚀 COMPREHENSIVE ENTER KEY NAVIGATION & AUTO ROW CREATION
+            // ==============================================================
+
+            // 1. Prevent default form submit on Enter key
+            $('#saleForm').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    if (!$(e.target).is('textarea, button, [type="submit"], [type="button"]')) {
+                        e.preventDefault();
+                    }
+                }
+            });
+
+            // 2. Top Header Fields Enter Navigation Chain
+            $('#branch_id').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $('#globalWarehouseSelect').focus();
+                }
+            });
+
+            $('#globalWarehouseSelect').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $('#displayDateInput').focus();
+                }
+            });
+
+            $('#displayDateInput').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $('#salesmanSelect').focus();
+                }
+            });
+
+            $('#salesmanSelect').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    const $crDays = $('[name="credit_days"]');
+                    if ($crDays.length && $crDays.is(':visible')) {
+                        $crDays.focus().select();
+                    } else {
+                        $('#remarks').focus().select();
+                    }
+                }
+            });
+
+            $('[name="credit_days"]').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $('#remarks').focus().select();
+                }
+            });
+
+            $('#remarks').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    if ($('#walkinToggle').is(':checked')) {
+                        $('#walkinNameInput').focus().select();
+                    } else {
+                        $('#customerSelect').select2('open');
+                    }
+                }
+            });
+
+            $('#walkinNameInput').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    let $firstProd = $('#salesTableBody tr:first .product-select');
+                    if ($firstProd.length) {
+                        if ($firstProd.val()) {
+                            $('#salesTableBody tr:first .sales-qty').focus().select();
+                        } else {
+                            $firstProd.select2('open');
+                        }
+                    }
+                }
+            });
+
+            // 3. Order Items Grid: Navigation & Auto New Row on Enter
+            function handleRowAdvance($row) {
+                let pId = $row.find('.product-select').val();
+                if (!pId) {
+                    // Empty row, move to summary / discount / payments
+                    $('#walkinDiscountRs').focus().select();
+                    return;
+                }
+
+                let $nextRow = $row.next('tr');
+                if ($nextRow.length) {
+                    let nextPId = $nextRow.find('.product-select').val();
+                    if (nextPId) {
+                        $nextRow.find('.sales-qty').focus().select();
+                    } else {
+                        $nextRow.find('.product-select').select2('open');
+                    }
+                } else {
+                    // Automatically add a new row on Enter and open product search
+                    addNewRow();
+                    updateGrandTotals();
+                    let $newRow = $('#salesTableBody tr').last();
+                    setTimeout(() => {
+                        $newRow.find('.product-select').select2('open');
+                    }, 80);
+                }
+            }
+
+            // On Product Selection (Select2) -> jump to QTY
+            $(document).on('select2:select', '.product-select', function(e) {
+                const $row = $(this).closest('tr');
+                setTimeout(() => {
+                    $row.find('.sales-qty').focus().select();
+                }, 80);
+            });
+
+            // When user is on Select2 selection container and hits Enter
+            $(document).on('keydown', '.select2-selection', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    const $select = $(this).closest('.select2').prev('select');
+                    if ($select.hasClass('product-select')) {
+                        const $row = $select.closest('tr');
+                        if ($select.val()) {
+                            e.preventDefault();
+                            $row.find('.sales-qty').focus().select();
+                        }
+                    }
+                }
+            });
+
+            // Warehouse select in product-wise mode -> Enter -> Qty
+            $(document).on('keydown', '.warehouse-select', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $(this).closest('tr').find('.sales-qty').focus().select();
+                }
+            });
+
+            // Qty -> Enter -> Watt (if visible) or Price
+            $(document).on('keydown', '.sales-qty', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    const $row = $(this).closest('tr');
+                    const $watt = $row.find('.item-watt');
+                    if (window.saleSettings && window.saleSettings.show_watt && $watt.length && $watt.is(':visible')) {
+                        $watt.focus().select();
+                    } else {
+                        $row.find('.retail-price').focus().select();
+                    }
+                }
+            });
+
+            // Watt -> Enter -> Price
+            $(document).on('keydown', '.item-watt', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    const $row = $(this).closest('tr');
+                    $row.find('.retail-price').focus().select();
+                }
+            });
+
+            // Price -> Enter -> Line Discount (if visible) or Advance Row
+            $(document).on('keydown', '.retail-price', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    const $row = $(this).closest('tr');
+                    const $disc = $row.find('.discount-value');
+                    if ((!window.saleSettings || window.saleSettings.show_line_discount) && $disc.length && $disc.is(':visible')) {
+                        $disc.focus().select();
+                    } else {
+                        handleRowAdvance($row);
+                    }
+                }
+            });
+
+            // Line Discount -> Enter -> Advance Row (Creates new row automatically!)
+            $(document).on('keydown', '.discount-value', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    const $row = $(this).closest('tr');
+                    handleRowAdvance($row);
+                }
+            });
+
+            // 4. Summary & Payment Fields Enter Navigation
+            $('#walkinDiscountRs').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    let $firstRv = $('#rvWrapper .rv-amount').first();
+                    if ($firstRv.length) {
+                        $firstRv.focus().select();
+                    } else {
+                        $('#btnSaveAndComplete').focus();
+                    }
+                }
+            });
+
+            $(document).on('keydown', '.rv-account', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $(this).closest('.rv-row').find('.rv-amount').focus().select();
+                }
+            });
+
+            $(document).on('keydown', '.rv-amount', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    let $nextRv = $(this).closest('.rv-row').next('.rv-row');
+                    if ($nextRv.length) {
+                        $nextRv.find('.rv-amount').focus().select();
+                    } else {
+                        $('#btnSaveAndComplete').focus();
+                    }
+                }
             });
 
             // F9 Keyboard Shortcut for Save & Complete
@@ -2048,15 +2347,14 @@
                             }
 
                             let c = res.customer;
+                            let prev = c.previous_balance !== undefined ? c.previous_balance : (c.closing_balance !== undefined ? c.closing_balance : (c.opening_balance || 0));
                             let newOption = new Option((c.customer_id || '') + ' — ' + c.customer_name, c.id, true, true);
+                            $(newOption).attr('data-prev-balance', prev);
+                            $(newOption).attr('data-mobile', c.mobile || '');
+                            $(newOption).attr('data-address', c.address || '');
                             $('#customerSelect').append(newOption).trigger('change');
 
-                            $('#customer_id').val(c.id);
-                            $('#customer').val(c.id);
-                            $('#address').val(c.address || '');
-                            $('#tel').val(c.mobile || '');
-                            $('#previousBalance').val(parseFloat(c.opening_balance || 0).toFixed(2));
-                            updateGrandTotals();
+                            window.applyCustomerData(c);
 
                             showAlert('success', 'Customer added successfully!');
                         }
@@ -2372,12 +2670,17 @@
                             let cust = window.EDIT_SALE.customer || {};
                             let custText = (cust.customer_id ? cust.customer_id + ' — ' : '') + (cust.customer_name || 'Customer #' + window.EDIT_SALE.customer_id);
                             let opt = new Option(custText, window.EDIT_SALE.customer_id, true, true);
+                            let prev = window.EDIT_SALE.previous_balance || cust.previous_balance || cust.closing_balance || 0;
+                            $(opt).attr('data-prev-balance', prev);
+                            $(opt).attr('data-address', window.EDIT_SALE.address || cust.address || '');
+                            $(opt).attr('data-mobile', window.EDIT_SALE.tel || cust.mobile || '');
                             $('#customerSelect').append(opt).trigger('change.select2');
-                            $('#customer_id').val(window.EDIT_SALE.customer_id);
-                            $('#customer').val(window.EDIT_SALE.customer_id);
-                            $('#address').val(window.EDIT_SALE.address || cust.address || '');
-                            $('#tel').val(window.EDIT_SALE.tel || cust.mobile || '');
-                            $('#previousBalance').val(parseFloat(window.EDIT_SALE.previous_balance || cust.previous_balance || 0).toFixed(2));
+                            window.applyCustomerData({
+                                id: window.EDIT_SALE.customer_id,
+                                address: window.EDIT_SALE.address || cust.address || '',
+                                mobile: window.EDIT_SALE.tel || cust.mobile || '',
+                                previous_balance: prev
+                            });
                         }
                     }
 

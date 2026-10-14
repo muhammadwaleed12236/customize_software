@@ -15,6 +15,18 @@ class ProductBookingController extends Controller
     {
         $query = ProductBooking::with('customer','items', 'salesman')->latest();
 
+        // Only show actual bookings, exclude direct posted sales
+        if (request('status') === 'all') {
+            // Show all if explicitly requested
+        } elseif (request('status') === 'sale') {
+            $query->where('status', 'sale');
+        } else {
+            $query->where(function($q) {
+                $q->where('status', '!=', 'sale')
+                  ->orWhere('is_posted', 0);
+            });
+        }
+
         // For non-super-admin users, show bookings that belong to their branch.
         // Include bookings where `customer` is null (walking customers) by checking booking.branch_id
         if (!auth()->user() || !auth()->user()->hasRole('super admin')) {
