@@ -2073,6 +2073,94 @@
                 }
             }
 
+            // --- Select2 Autofocus & Global Keyboard Navigation (Up / Down Arrow Buttons & Enter) ---
+            $(document).on('select2:open', function() {
+                setTimeout(() => {
+                    const searchInput = document.querySelector('.select2-container--open .select2-search__field');
+                    if (searchInput) {
+                        searchInput.focus();
+                    }
+                    const $open = $('.select2-container--open');
+                    const $options = $open.find('.select2-results__option[aria-selected]');
+                    if ($options.length && !$options.filter('.select2-results__option--highlighted').length) {
+                        $options.first().addClass('select2-results__option--highlighted');
+                    }
+                }, 20);
+            });
+
+            // Global Arrow Up / Arrow Down / Enter navigation across Select2 dropdown rows
+            $(document).on('keydown', function(e) {
+                const $openContainer = $('.select2-container--open');
+                if (!$openContainer.length) return;
+
+                const key = e.key;
+                const keyCode = e.keyCode;
+
+                // Arrow Down (Down Button) or Arrow Up (Up Button) in open dropdown
+                if (key === 'ArrowDown' || keyCode === 40 || key === 'ArrowUp' || keyCode === 38) {
+                    const $options = $openContainer.find('.select2-results__option[aria-selected="false"], .select2-results__option[aria-selected="true"]');
+                    if (!$options.length) return;
+
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    const searchInput = $openContainer.find('.select2-search__field')[0];
+                    if (searchInput && document.activeElement !== searchInput) {
+                        searchInput.focus();
+                    }
+
+                    let $curr = $options.filter('.select2-results__option--highlighted');
+                    let $target;
+
+                    if (key === 'ArrowDown' || keyCode === 40) {
+                        if ($curr.length) {
+                            let idx = $options.index($curr);
+                            $target = (idx < $options.length - 1) ? $options.eq(idx + 1) : $options.first();
+                        } else {
+                            $target = $options.first();
+                        }
+                    } else {
+                        if ($curr.length) {
+                            let idx = $options.index($curr);
+                            $target = (idx > 0) ? $options.eq(idx - 1) : $options.last();
+                        } else {
+                            $target = $options.last();
+                        }
+                    }
+
+                    if ($target && $target.length) {
+                        $options.removeClass('select2-results__option--highlighted');
+                        $target.addClass('select2-results__option--highlighted');
+                        if ($target[0].scrollIntoView) {
+                            $target[0].scrollIntoView({ block: 'nearest' });
+                        }
+                    }
+                    return;
+                }
+
+                // Enter Key in open dropdown -> select highlighted option
+                if (key === 'Enter' || keyCode === 13) {
+                    const $highlighted = $openContainer.find('.select2-results__option--highlighted');
+                    if ($highlighted.length && !$highlighted.hasClass('select2-results__message')) {
+                        e.preventDefault();
+                        e.stopImmediatePropagation();
+
+                        let data = $highlighted.data('data');
+                        let $select = $openContainer.prev('select');
+                        if (data && $select.length) {
+                            $select.val(data.id).trigger('change');
+                            $select.trigger({
+                                type: 'select2:select',
+                                params: { data: data }
+                            });
+                            $select.select2('close');
+                        } else {
+                            $highlighted.trigger('mouseup');
+                        }
+                    }
+                }
+            });
+
             // On Product Selection (Select2) -> jump to QTY
             $(document).on('select2:select', '.product-select', function(e) {
                 const $row = $(this).closest('tr');
@@ -2081,15 +2169,71 @@
                 }, 80);
             });
 
-            // When user is on Select2 selection container and hits Enter
+            // When user is on Select2 selection container and hits Enter or ArrowDown/Up
             $(document).on('keydown', '.select2-selection', function(e) {
+                const $select = $(this).closest('.select2').prev('select');
                 if (e.key === 'Enter' || e.keyCode === 13) {
-                    const $select = $(this).closest('.select2').prev('select');
                     if ($select.hasClass('product-select')) {
                         const $row = $select.closest('tr');
                         if ($select.val()) {
                             e.preventDefault();
                             $row.find('.sales-qty').focus().select();
+                        } else {
+                            e.preventDefault();
+                            $select.select2('open');
+                        }
+                    }
+                } else if (e.key === 'ArrowDown' || e.keyCode === 40) {
+                    if (!$('.select2-container--open').length) {
+                        e.preventDefault();
+                        $select.select2('open');
+                    }
+                } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
+                    if (!$('.select2-container--open').length) {
+                        const $row = $(this).closest('tr');
+                        const $prevRow = $row.prev('tr');
+                        if ($prevRow.length) {
+                            e.preventDefault();
+                            $prevRow.find('.product-select').select2('open');
+                        }
+                    }
+                }
+            });
+
+            // Table Grid Row Navigation with Up / Down Arrow buttons (when dropdown is closed)
+            $(document).on('keydown', '.sales-qty, .retail-price, .discount-value, .item-watt, .warehouse-select', function(e) {
+                if ($('.select2-container--open').length) return;
+
+                if (e.key === 'ArrowDown' || e.keyCode === 40) {
+                    const $row = $(this).closest('tr');
+                    const $nextRow = $row.next('tr');
+                    if ($nextRow.length) {
+                        e.preventDefault();
+                        let targetClass = '';
+                        if ($(this).hasClass('sales-qty')) targetClass = '.sales-qty';
+                        else if ($(this).hasClass('retail-price')) targetClass = '.retail-price';
+                        else if ($(this).hasClass('discount-value')) targetClass = '.discount-value';
+                        else if ($(this).hasClass('item-watt')) targetClass = '.item-watt';
+                        else if ($(this).hasClass('warehouse-select')) targetClass = '.warehouse-select';
+
+                        if (targetClass) {
+                            $nextRow.find(targetClass).focus().select();
+                        }
+                    }
+                } else if (e.key === 'ArrowUp' || e.keyCode === 38) {
+                    const $row = $(this).closest('tr');
+                    const $prevRow = $row.prev('tr');
+                    if ($prevRow.length) {
+                        e.preventDefault();
+                        let targetClass = '';
+                        if ($(this).hasClass('sales-qty')) targetClass = '.sales-qty';
+                        else if ($(this).hasClass('retail-price')) targetClass = '.retail-price';
+                        else if ($(this).hasClass('discount-value')) targetClass = '.discount-value';
+                        else if ($(this).hasClass('item-watt')) targetClass = '.item-watt';
+                        else if ($(this).hasClass('warehouse-select')) targetClass = '.warehouse-select';
+
+                        if (targetClass) {
+                            $prevRow.find(targetClass).focus().select();
                         }
                     }
                 }
