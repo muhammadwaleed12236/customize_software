@@ -10,6 +10,15 @@ class PaymentVoucher extends Model
     use HasFactory;
     protected $guarded = [];
 
+    protected $casts = [
+        'processed' => 'boolean',
+    ];
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
     public static function generateInvoiceNo()
     {
         $prefix = 'PVID-';

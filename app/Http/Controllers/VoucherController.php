@@ -877,7 +877,15 @@ public function getOpeningBalance($type, $id)
                     $narrationIds[] = (string)$narrId; // force string format
                 }
             }
+            // Branch handling
+            if (Auth::user()->hasRole('super admin') && $request->filled('branch_id')) {
+                $branchId = (int) $request->branch_id;
+            } else {
+                $branchId = (int) ($request->branch_id ?? auth()->user()->branch_id ?? 1);
+            }
+
             $voucherData = [
+                'branch_id'        => $branchId,
                 'pvid'             => $pvid,
                 'receipt_date'     => $request->receipt_date,
                 'entry_date'       => $request->entry_date,
@@ -885,7 +893,7 @@ public function getOpeningBalance($type, $id)
                 'party_id'         => $request->vendor_id,
                 'tel'              => $request->tel,
                 'remarks'          => $request->remarks,
-                'narration_id' => json_encode($narrationIds),
+                'narration_id'     => json_encode($narrationIds),
                 'reference_no'     => json_encode($request->reference_no),
                 'row_account_head' => json_encode($request->row_account_head),
                 'row_account_id'   => json_encode($request->row_account_id),
@@ -894,6 +902,8 @@ public function getOpeningBalance($type, $id)
                 // 'rate'             => json_encode($request->rate),
                 'amount'           => json_encode($request->amount),
                 'total_amount'     => $request->total_amount,
+                'status'           => 'active',
+                'processed'        => true,
             ];
 
             PaymentVoucher::create($voucherData);
@@ -920,7 +930,6 @@ public function getOpeningBalance($type, $id)
              * STEP 2: Party side (Vendor / Customer / Account Head) → PLUS
              */
             if ($request->vendor_type === 'vendor') {
-                $branchId = auth()->user()->branch_id ?? 0;
                 $lastLedger = VendorLedger::where('vendor_id', $request->vendor_id)
                     ->where('branch_id', $branchId)
                     ->orderBy('id', 'desc')
