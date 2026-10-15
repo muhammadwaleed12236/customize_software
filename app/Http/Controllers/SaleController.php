@@ -4186,11 +4186,14 @@ public function finddc($invoice)
                     CustomerLedger::create([
                         'customer_id'      => $customerId,
                         'admin_or_user_id' => auth()->id(),
+                        'transaction_type' => 'Sale Update',
+                        'reference_id'     => (string) $sale->id,
+                        'description'      => 'Sale Update Invoice #' . $sale->invoice_no,
                         'previous_balance' => $previousBalance,
                         'opening_balance'  => 0,
+                        'total_debit'      => $difference > 0 ? $difference : 0,
+                        'total_credit'     => $difference < 0 ? abs($difference) : 0,
                         'closing_balance'  => $newClosing,
-                        'reference_type'   => 'Sale Update',
-                        'reference_id'     => $sale->id,
                         'created_at'       => $saleDateTime,
                         'updated_at'       => $saleDateTime,
                     ]);
