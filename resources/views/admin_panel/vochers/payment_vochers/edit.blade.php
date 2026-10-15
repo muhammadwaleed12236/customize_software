@@ -1,4 +1,4 @@
-@extends('admin_panel.layout.app')
+ï»¿@extends('admin_panel.layout.app')
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
@@ -219,7 +219,7 @@
                         <div class="col-md-3">
                             <label class="form-label">Branch <span class="text-danger">*</span></label>
                             <select name="branch_id" id="branch_id" class="form-select" required>
-                                <option value="">— Select Branch —</option>
+                                <option value="">ï¿½ Select Branch ï¿½</option>
                                 @foreach ($Branch as $b)
                                     <option value="{{ $b->id }}" {{ $currentBranch == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
                                 @endforeach
@@ -243,7 +243,7 @@
                         <div class="col-md-3">
                             <label class="form-label">Party / Account Type <span class="text-danger">*</span></label>
                             <select name="vendor_type" id="vendor_type" class="form-select" required>
-                                <option value="">— Select Type —</option>
+                                <option value="">ï¿½ Select Type ï¿½</option>
                                 @foreach ($AccountHeads as $head)
                                     <option value="{{ $head->id }}" data-kind="account" {{ (string)$voucher->type === (string)$head->id ? 'selected' : '' }}>{{ $head->name }}</option>
                                 @endforeach
@@ -283,7 +283,7 @@
                     <div class="balance-strip" id="balanceStrip" style="{{ $partyName ? '' : 'display:none;' }}">
                         <div class="bl-item">
                             <span class="bl-label">Party</span>
-                            <span class="bl-value" id="strip_name">{{ $partyName ?: '—' }}</span>
+                            <span class="bl-value" id="strip_name">{{ $partyName ?: 'ï¿½' }}</span>
                         </div>
                         <div class="bl-item">
                             <span class="bl-label">Current Outstanding Balance</span>
@@ -291,7 +291,7 @@
                         </div>
                         <div class="bl-item">
                             <span class="bl-label">Mobile</span>
-                            <span class="bl-value" id="strip_mobile">{{ $partyMobile ?: '—' }}</span>
+                            <span class="bl-value" id="strip_mobile">{{ $partyMobile ?: 'ï¿½' }}</span>
                         </div>
                     </div>
                 </div>
@@ -324,7 +324,7 @@
                                     <td>
                                         <div class="d-flex flex-nowrap gap-1">
                                             <select name="narration_id[]" class="form-select narrationSelect" required>
-                                                <option value="">— Select Narration —</option>
+                                                <option value="">ï¿½ Select Narration ï¿½</option>
                                                 @foreach ($narrations as $id => $name)
                                                     <option value="{{ $id }}" {{ (string)$row['narration_id'] === (string)$id ? 'selected' : '' }}>{{ $name }}</option>
                                                 @endforeach
@@ -337,7 +337,7 @@
                                     <td><input name="reference_no[]" type="text" class="form-control" value="{{ $row['reference_no'] }}" placeholder="Ref / Cheque #"></td>
                                     <td>
                                         <select name="row_account_head[]" class="form-select rowAccountHead" required>
-                                            <option value="">— Select Head —</option>
+                                            <option value="">ï¿½ Select Head ï¿½</option>
                                             @foreach ($AccountHeads as $head)
                                                 <option value="{{ $head->id }}" {{ (string)$row['row_account_head'] === (string)$head->id ? 'selected' : '' }}>{{ $head->name }}</option>
                                             @endforeach
@@ -345,7 +345,7 @@
                                     </td>
                                     <td>
                                         <select name="row_account_id[]" class="form-select rowAccountSub" required>
-                                            <option value="">— Select Account —</option>
+                                            <option value="">ï¿½ Select Account ï¿½</option>
                                             @if(!empty($row['sub_accounts']))
                                                 @foreach ($row['sub_accounts'] as $sub)
                                                     <option value="{{ $sub->id }}" {{ (string)$row['row_account_id'] === (string)$sub->id ? 'selected' : '' }}>{{ $sub->title }}</option>
@@ -366,7 +366,7 @@
                                     <td>
                                         <div class="d-flex flex-nowrap gap-1">
                                             <select name="narration_id[]" class="form-select narrationSelect" required>
-                                                <option value="">— Select Narration —</option>
+                                                <option value="">ï¿½ Select Narration ï¿½</option>
                                                 @foreach ($narrations as $id => $name)
                                                     <option value="{{ $id }}">{{ $name }}</option>
                                                 @endforeach
@@ -379,7 +379,7 @@
                                     <td><input name="reference_no[]" type="text" class="form-control" placeholder="Ref / Cheque #"></td>
                                     <td>
                                         <select name="row_account_head[]" class="form-select rowAccountHead" required>
-                                            <option value="">— Select Head —</option>
+                                            <option value="">ï¿½ Select Head ï¿½</option>
                                             @foreach ($AccountHeads as $head)
                                                 <option value="{{ $head->id }}">{{ $head->name }}</option>
                                             @endforeach
@@ -387,7 +387,7 @@
                                     </td>
                                     <td>
                                         <select name="row_account_id[]" class="form-select rowAccountSub" required>
-                                            <option value="">— Select Account —</option>
+                                            <option value="">ï¿½ Select Account ï¿½</option>
                                         </select>
                                     </td>
                                     <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" placeholder="0.00" required></td>
@@ -477,7 +477,7 @@ $(document).ready(function () {
         var $partySelect = $('#vendor_id');
 
         if (!type) {
-            $partySelect.html('<option value="">— First select type above —</option>');
+            $partySelect.html('<option value="">ï¿½ First select type above ï¿½</option>');
             return;
         }
 
@@ -488,7 +488,7 @@ $(document).ready(function () {
             type: "GET",
             data: { type: type, branch_id: branchId },
             success: function (data) {
-                var options = '<option value="">— Select Party / Account —</option>';
+                var options = '<option value="">ï¿½ Select Party / Account ï¿½</option>';
                 $.each(data, function (index, item) {
                     var isSel = (selectedId && String(selectedId) === String(item.id)) ? 'selected' : '';
                     options += `<option value="${item.id}" data-mobile="${item.mobile || ''}" data-balance="${item.closing_balance || 0}" ${isSel}>${item.text}</option>`;
@@ -502,9 +502,25 @@ $(document).ready(function () {
         });
     }
 
-    $('#vendor_type, #branch_id').on('change', function () {
+    $('#vendor_type').on('change', function () {
+        $('#tel').val('');
+        $('#bal').val('');
+        $('#strip_name').text('â€”');
+        $('#strip_bal').text('0.00');
+        $('#strip_mobile').text('â€”');
+        $('#balanceStrip').slideUp(200);
         loadPartyList(null);
     });
+
+    $('#branch_id').on('change', function () {
+        loadPartyList($('#vendor_id').val());
+    });
+
+    // Initial load of party list to populate all options for the selected type
+    var initialPartyId = $('#vendor_id').data('selected') || '{{ $voucher->party_id }}';
+    if ($('#vendor_type').val()) {
+        loadPartyList(initialPartyId);
+    }
 
     // Party selection change
     $('#vendor_id').on('change', function () {
@@ -531,7 +547,7 @@ $(document).ready(function () {
         var $rowAccountSub = $(this).closest('tr').find('.rowAccountSub');
 
         if (!headId) {
-            $rowAccountSub.html('<option value="">— Select Account —</option>');
+            $rowAccountSub.html('<option value="">ï¿½ Select Account ï¿½</option>');
             return;
         }
 
@@ -541,7 +557,7 @@ $(document).ready(function () {
             url: "/get-accounts-by-head/" + headId,
             type: "GET",
             success: function (data) {
-                var options = '<option value="">— Select Account —</option>';
+                var options = '<option value="">ï¿½ Select Account ï¿½</option>';
                 $.each(data, function (index, item) {
                     options += `<option value="${item.id}">${item.title}</option>`;
                 });
@@ -559,7 +575,7 @@ $(document).ready(function () {
         newRow.find('.row-num').text(rowCount);
         newRow.find('input').val('');
         newRow.find('select').val('');
-        newRow.find('.rowAccountSub').html('<option value="">— Select Account —</option>');
+        newRow.find('.rowAccountSub').html('<option value="">ï¿½ Select Account ï¿½</option>');
 
         $('#voucherRows').append(newRow);
         calculateTotal();

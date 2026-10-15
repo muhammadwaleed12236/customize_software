@@ -355,7 +355,7 @@ public function getOpeningBalance($type, $id)
         }
 
         if ($type === 'customer') {
-            $query = Customer::with(['ledgers' => fn($q) => $q->latest()])
+            $query = Customer::with(['ledgers' => fn($q) => $q->latest('id')])
                 ->whereIn('customer_type', ['credit', 'cash']);
 
             // Branch filter
@@ -422,6 +422,25 @@ public function getOpeningBalance($type, $id)
                 ];
             });
             return response()->json($vendors);
+        } elseif (is_numeric($type)) {
+            $query = Account::where('head_id', $type)->where('status', 1);
+
+            if (!$isSuper && $branchId) {
+                $query->where('branch_id', $branchId);
+            }
+            if ($isSuper && $request->has('branch_id') && $request->branch_id != '') {
+                $query->where('branch_id', $branchId);
+            }
+
+            $accounts = $query->get()->map(function ($acc) {
+                return [
+                    'id'              => $acc->id,
+                    'text'            => $acc->title . ' (' . ($acc->account_code ?? '') . ')',
+                    'mobile'          => $acc->account_code ?? '',
+                    'closing_balance' => (float)($acc->opening_balance ?? 0),
+                ];
+            });
+            return response()->json($accounts);
         }
 
         return response()->json([]);
