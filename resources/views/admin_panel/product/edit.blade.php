@@ -358,39 +358,7 @@
                                 </div>
                             </div>
 
-                            <!-- Row 4: Pricing & Stock Section -->
-                            <div class="card p-2 px-3 my-2 shadow-none" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px;">
-                                <h6 class="font-weight-bold text-primary mb-2" style="font-size: 12.5px;"><i class="las la-tags me-1"></i> Pricing & Stock Details (قیمت اور اسٹاک)</h6>
-                                <div class="field-row">
-                                    <div class="field-group mb-0">
-                                        <label class="field-label">Wholesale Price (ہول سیل قیمت)</label>
-                                        <div class="input-group-currency">
-                                            <span class="currency-addon">Rs.</span>
-                                            <input type="number" step="0.01" min="0" name="wholesale_price" class="custom-input fw-bold" value="{{ $product->wholesale_price ?? 0 }}" placeholder="0.00">
-                                        </div>
-                                    </div>
-
-                                    <div class="field-group mb-0">
-                                        <label class="field-label">Sale / Retail Price (ریٹیل قیمت)</label>
-                                        <div class="input-group-currency">
-                                            <span class="currency-addon">Rs.</span>
-                                            <input type="number" step="0.01" min="0" name="price" class="custom-input fw-bold" value="{{ $product->price ?? 0 }}" placeholder="0.00">
-                                        </div>
-                                    </div>
-
-                                    <div class="field-group mb-0">
-                                        <label class="field-label">Alert Qty (منیمم الرٹ)</label>
-                                        <input type="number" step="1" min="0" name="alert_quantity" class="custom-input" value="{{ $product->alert_quantity ?? 0 }}" placeholder="0">
-                                    </div>
-
-                                    <div class="field-group mb-0">
-                                        <label class="field-label">📦 Stock Quantity (اسٹاک کوانٹیٹی)</label>
-                                        <input type="number" step="0.01" name="initial_stock" class="custom-input fw-bold text-success" value="{{ $product->current_branch_stock ?? $product->stock->qty ?? $product->initial_stock ?? 0 }}" placeholder="0.00">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Row 5: Color & Inline Save Button -->
+                            <!-- Row 4: Color & Inline Save Button -->
                             @php
                                 $selectedColors = [];
                                 if (!empty($product->color)) {
@@ -422,7 +390,7 @@
                                 </div>
 
                                 <div class="field-group mb-0" style="grid-column: span 3;">
-                                    <button type="submit" class="btn-save-main w-100" style="height: 34px; padding: 0; line-height: 34px;">
+                                    <button type="submit" class="btn-save-main w-100" style="height: 40px; padding: 0; line-height: 40px;">
                                         <i class="fas fa-save me-2"></i> UPDATE PRODUCT
                                     </button>
                                 </div>

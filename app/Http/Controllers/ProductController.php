@@ -981,9 +981,9 @@ public function searchProductsForSalebypagination(Request $request)
         }
 
         DB::transaction(function () use ($request, $product, $id, $userId, $imagePath, $targetBranchId) {
-            $wholesalePrice = (float) ($request->wholesale_price ?? $request->input('wholesale_price', 0));
-            $retailPrice    = (float) ($request->price ?? $request->retail_price ?? $request->input('price', 0));
-            $alertQty       = (float) ($request->alert_quantity ?? $request->input('alert_quantity', 0));
+            $wholesalePrice = $request->has('wholesale_price') ? (float) $request->wholesale_price : (float) ($product->wholesale_price ?? 0);
+            $retailPrice    = ($request->has('price') || $request->has('retail_price')) ? (float) ($request->price ?? $request->retail_price) : (float) ($product->price ?? 0);
+            $alertQty       = $request->has('alert_quantity') ? (float) $request->alert_quantity : (float) ($product->alert_quantity ?? 0);
 
             $updateData = [
                 'creater_id'      => $userId,
