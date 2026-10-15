@@ -78,11 +78,11 @@ class SaleController extends Controller
                     $partyType = $booking->party_type ?? 'walking';
                     $customerId = $booking->customer_id;
                     $subCustomer = ($partyType === 'walking') ? ($booking->customer_name ?? null) : null;
-                    $manualInvoice = $booking->manual_invoice;
+                    $manualInvoice = $request->input('manual_invoice', $request->input('Invoice_main', $booking->manual_invoice));
                     $salesmanId = $booking->salesman_id ?? $request->salesman_id ?? null;
                     $address = $booking->address;
                     $tel = $booking->tel;
-                    $remarks = $booking->remarks;
+                    $remarks = $request->input('remarks', $request->input('reference', $booking->remarks));
                     $subTotal1 = (float) ($booking->sub_total1 ?? 0);
                     $subTotal2 = (float) ($booking->sub_total2 ?? 0);
                     $discountPercent = (float) ($booking->discount_percent ?? 0);
@@ -160,11 +160,11 @@ class SaleController extends Controller
                         $subCustomer = null;
                     }
 
-                    $manualInvoice = $request->input('Invoice_main');
+                    $manualInvoice = $request->input('manual_invoice', $request->input('Invoice_main'));
                     $salesmanId = $request->input('salesman_id') ?? null;
                     $address = $request->input('address');
                     $tel = $request->input('tel');
-                    $remarks = $request->input('remarks');
+                    $remarks = $request->input('remarks', $request->input('reference'));
                     $subTotal1 = (float) ($request->input('subTotal1') ?? 0);
                     $subTotal2 = (float) ($request->input('subTotal2') ?? 0);
                     $discountPercent = (float) ($request->input('discountPercent') ?? 0);
@@ -673,14 +673,14 @@ class SaleController extends Controller
                 $sale = Sale::create([
                     'branch_id'            => $booking->branch_id,
                     'invoice_no'           => $invoiceNo,
-                    'manual_invoice'       => $booking->manual_invoice,
+                    'manual_invoice'       => $request->input('manual_invoice', $request->input('Invoice_main', $booking->manual_invoice)),
                     'customer_id'          => $booking->customer_id,
                     'salesman_id'          => $booking->salesman_id ?? $request->salesman_id ?? null,
                     'sub_customer'         => (($booking->party_type ?? '') === 'walking') ? ($booking->customer_name ?? null) : null,
                     'party_type'           => $booking->party_type,
                     'address'              => $booking->address,
                     'tel'                  => $booking->tel,
-                    'remarks'              => $booking->remarks,
+                    'remarks'              => $request->input('remarks', $request->input('reference', $booking->remarks)),
                     'sub_total1'           => $booking->sub_total1,
                     'sub_total2'           => $booking->sub_total2,
                     'discount_percent'     => $booking->discount_percent,
@@ -1310,14 +1310,14 @@ class SaleController extends Controller
                 // Create Sale Record (full order value)
                 $saleData = [
                     'invoice_no'       => $invoiceNo,
-                    'manual_invoice'   => $booking->manual_invoice,
+                    'manual_invoice'   => $request->input('manual_invoice', $request->input('Invoice_main', $booking->manual_invoice)),
                     'customer_id'      => $booking->customer_id,
                     'salesman_id'      => $booking->salesman_id ?? $request->salesman_id ?? null,
                     'sub_customer'     => (($booking->party_type ?? '') === 'walking') ? ($booking->customer_name ?? null) : null,
                     'party_type'       => $booking->party_type,
                     'address'          => $booking->address,
                     'tel'              => $booking->tel,
-                    'remarks'          => $booking->remarks,
+                    'remarks'          => $request->input('remarks', $request->input('reference', $booking->remarks)),
                     'sub_total1'       => $booking->sub_total1,
                     'sub_total2'       => $booking->sub_total2,
                     'discount_percent' => $booking->discount_percent,
@@ -1693,7 +1693,7 @@ class SaleController extends Controller
 
             $booking->branch_id = $branchId;
 
-            $booking->manual_invoice   = $request->Invoice_main;
+            $booking->manual_invoice   = $request->input('manual_invoice', $request->input('Invoice_main', $booking->manual_invoice));
             $booking->party_type       = $request->partyType;
             $booking->customer_id      = $request->customer_id;
 
@@ -1704,7 +1704,7 @@ class SaleController extends Controller
             }
             $booking->address          = $request->address;
             $booking->tel              = $request->tel;
-            $booking->remarks          = $request->remarks;
+            $booking->remarks          = $request->input('remarks', $request->input('reference', $booking->remarks));
             $booking->salesman_id      = $request->salesman_id;
             $booking->sub_total1       = $request->subTotal1 ?? 0;
             $booking->sub_total2       = $request->subTotal2 ?? 0;
@@ -2482,7 +2482,7 @@ public function finddc($invoice)
 
             $booking = ProductBooking::create([
                 'invoice_no' => $invoiceNo,
-                'manual_invoice' => $request->Invoice_main,
+                'manual_invoice' => $request->input('manual_invoice', $request->input('Invoice_main')),
                 'branch_id' => $branchId,
                 'customer_id' => $customerId,
                 'salesman_id' => $request->salesman_id ?? null,
@@ -2491,7 +2491,7 @@ public function finddc($invoice)
                 'filer_type' => $request->filerType,
                 'address' => $request->address,
                 'tel' => $request->tel,
-                'remarks' => $request->remarks,
+                'remarks' => $request->input('remarks', $request->input('reference')),
                 'sub_total1' => $request->subTotal1 ?? 0,
                 'sub_total2' => $request->subTotal2 ?? 0,
                 'discount_percent' => $request->discountPercent ?? 0,
@@ -2623,7 +2623,7 @@ public function finddc($invoice)
             $sale = Sale::create([
                 'branch_id' => $branch->id,
                 'invoice_no' => $invoiceNo,
-                'manual_invoice' => $request->Invoice_main ?? null,
+                'manual_invoice' => $request->input('manual_invoice', $request->input('Invoice_main')),
                 'party_type' => $request->input('partyType') ?? null,
                 'customer_id' => $customerId ?? ($request->customer ?? null),
                 'salesman_id' => $request->salesman_id ?? null,
@@ -2631,7 +2631,7 @@ public function finddc($invoice)
                 'filer_type' => $request->filerType ?? null,
                 'address' => $request->address ?? null,
                 'tel' => $request->tel ?? null,
-                'remarks' => $request->remarks ?? null,
+                'remarks' => $request->input('remarks', $request->input('reference')),
                 'sub_total1' => $request->subTotal1 ?? 0,
                 'sub_total2' => $request->subTotal2 ?? 0,
                 'discount_percent' => $request->discountPercent ?? 0,
@@ -4000,13 +4000,29 @@ public function finddc($invoice)
                     $customerName = $request->input('walkin_name') ?? $request->input('customer') ?? $request->input('customer_display') ?? 'Walk-in Customer';
                 }
 
+                // Support custom / edited sale date
+                $selectedDate = $request->input('sale_date') ?? $request->input('Invoice_date') ?? null;
+                $saleDateTime = $sale->created_at ?: now();
+                if (!empty($selectedDate)) {
+                    try {
+                        $parsedDate = \Carbon\Carbon::parse($selectedDate);
+                        $saleDateTime = $parsedDate->setTime(
+                            $sale->created_at ? $sale->created_at->hour : now()->hour,
+                            $sale->created_at ? $sale->created_at->minute : now()->minute,
+                            $sale->created_at ? $sale->created_at->second : now()->second
+                        );
+                    } catch (\Exception $e) {
+                        $saleDateTime = $sale->created_at ?: now();
+                    }
+                }
+
                 $sale->update([
                     'branch_id'           => $branchId,
                     'customer_id'         => ($partyType === 'walking' ? null : ($customerId ?: $sale->customer_id)),
                     'sub_customer'        => $customerName,
                     'party_type'          => $partyType,
                     'salesman_id'         => $request->input('salesman_id', $sale->salesman_id),
-                    'manual_invoice'      => $request->input('Invoice_main', $sale->manual_invoice),
+                    'manual_invoice'      => $request->input('manual_invoice', $request->input('Invoice_main', $sale->manual_invoice)),
                     'address'             => $request->input('address', $sale->address),
                     'tel'                 => $request->input('tel', $sale->tel),
                     'remarks'             => $request->input('remarks', $request->input('reference', $sale->remarks)),
@@ -4017,6 +4033,7 @@ public function finddc($invoice)
                     'total_net'           => $newTotal,
                     'previous_balance'    => floatval($request->input('previousBalance', $sale->previous_balance)),
                     'total_balance'       => $newTotal,
+                    'created_at'          => $saleDateTime,
                 ]);
 
                 /* ================= STEP 3: DELETE OLD SALE ITEMS ================= */
@@ -4102,6 +4119,8 @@ public function finddc($invoice)
                         'discount_amount'  => $discAmount,
                         'discount_type'    => $discType,
                         'amount'           => $amount,
+                        'created_at'       => $saleDateTime,
+                        'updated_at'       => $saleDateTime,
                     ];
                     if (\Illuminate\Support\Facades\Schema::hasColumn('sale_items', 'delivery_location_type')) {
                         $itemData['delivery_location_type'] = $deliveryLocationType;
@@ -4122,7 +4141,6 @@ public function finddc($invoice)
                     }
 
                     $whStock = $whStockQuery->first();
-
                     if ($whStock) {
                         $whStock->quantity -= $qty;
                         $whStock->save();
@@ -4173,16 +4191,47 @@ public function finddc($invoice)
                         'closing_balance'  => $newClosing,
                         'reference_type'   => 'Sale Update',
                         'reference_id'     => $sale->id,
+                        'created_at'       => $saleDateTime,
+                        'updated_at'       => $saleDateTime,
                     ]);
                 }
 
-                /* ================= STEP 6: UPDATE RECEIPT VOUCHERS ================= */
-                ReceiptsVoucher::where(function ($q) use ($sale) {
+                /* ================= STEP 6: UPDATE RECEIPT VOUCHERS & ACCOUNT LEDGER ================= */
+                // 1. Find all old receipt vouchers for this sale
+                $oldReceipts = ReceiptsVoucher::where(function ($q) use ($sale) {
                         $q->where('reference_no', $sale->invoice_no)
                           ->orWhere('sale_id', $sale->id);
                     })
                     ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
-                    ->delete();
+                    ->get();
+
+                $oldRvIds = $oldReceipts->pluck('id')->filter()->toArray();
+
+                // 2. Find all old account ledger entries tied to this sale's invoice or its receipt vouchers
+                $oldLedgerEntries = AccountLedgerEntry::where(function ($q) use ($sale, $oldRvIds) {
+                        $q->where(function ($q2) use ($sale) {
+                            $q2->where('voucher_no', $sale->invoice_no)
+                               ->where('voucher_type', 'receipt');
+                        });
+                        if (!empty($oldRvIds)) {
+                            $q->orWhere(function ($q2) use ($oldRvIds) {
+                                $q2->whereIn('voucher_id', $oldRvIds)
+                                   ->where('voucher_type', 'receipt');
+                            });
+                        }
+                    })
+                    ->get();
+
+                // 3. Track all affected account IDs for balance recalculation
+                $affectedAccountIds = $oldLedgerEntries->pluck('account_id')->filter()->map(fn($id) => (int)$id)->unique()->toArray();
+
+                // 4. Delete old ledger entries and old receipts so no duplicates or orphans remain
+                if ($oldLedgerEntries->isNotEmpty()) {
+                    AccountLedgerEntry::whereIn('id', $oldLedgerEntries->pluck('id'))->delete();
+                }
+                if ($oldReceipts->isNotEmpty()) {
+                    ReceiptsVoucher::whereIn('id', $oldReceipts->pluck('id'))->delete();
+                }
 
                 $receiptAccounts = $request->input('receipt_account_id', []);
                 $receiptAmounts = $request->input('receipt_amount', []);
@@ -4192,20 +4241,25 @@ public function finddc($invoice)
                         $amt = floatval($receiptAmounts[$i] ?? 0);
                         if ($amt <= 0 || !$accId) continue;
 
+                        $accId = (int)$accId;
+                        $affectedAccountIds[] = $accId;
+
                         $rv = ReceiptsVoucher::create([
-                            'branch_id'    => $branchId,
-                            'rvid'         => ReceiptsVoucher::generateRVID(auth()->id()),
-                            'receipt_date' => now()->toDateString(),
-                            'entry_date'   => now(),
-                            'type'         => 'SALE_RECEIPT',
-                            'party_id'     => $customerId,
-                            'sale_id'      => $sale->id,
-                            'reference_no' => $sale->invoice_no,
-                            'row_account_id' => $accId,
+                            'branch_id'        => $branchId,
+                            'rvid'             => ReceiptsVoucher::generateRVID(auth()->id()),
+                            'receipt_date'     => $saleDateTime ? $saleDateTime->toDateString() : now()->toDateString(),
+                            'entry_date'       => $saleDateTime ?: now(),
+                            'type'             => 'SALE_RECEIPT',
+                            'party_id'         => $customerId,
+                            'sale_id'          => $sale->id,
+                            'reference_no'     => $sale->invoice_no,
+                            'row_account_id'   => $accId,
                             'row_account_head' => 'Cash/Bank',
-                            'amount'       => $amt,
-                            'total_amount' => $amt,
-                            'processed'    => true,
+                            'amount'           => $amt,
+                            'total_amount'     => $amt,
+                            'processed'        => true,
+                            'created_at'       => $saleDateTime ?: now(),
+                            'updated_at'       => $saleDateTime ?: now(),
                         ]);
 
                         try {
@@ -4217,7 +4271,7 @@ public function finddc($invoice)
                                     'receipt',
                                     $sale->invoice_no ?? $rv->rvid,
                                     $rv->id,
-                                    now()->toDateString(),
+                                    $saleDateTime ? $saleDateTime->toDateString() : now()->toDateString(),
                                     "Sale Receipt — Invoice #" . ($sale->invoice_no ?? ''),
                                     $amt,
                                     0,
@@ -4228,6 +4282,11 @@ public function finddc($invoice)
                             \Log::warning('Failed to apply receipt to account', ['error' => $e->getMessage()]);
                         }
                     }
+                }
+
+                // 5. Recalculate running balance for all affected accounts to ensure balances are 100% accurate
+                foreach (array_unique($affectedAccountIds) as $affectedAccId) {
+                    AccountLedgerEntry::recalculateRunningBalance($affectedAccId);
                 }
 
                 if ($request->wantsJson() || $request->ajax()) {

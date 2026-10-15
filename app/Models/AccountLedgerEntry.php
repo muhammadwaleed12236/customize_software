@@ -88,4 +88,53 @@ class AccountLedgerEntry extends Model
 
         return $prefix . '-' . ($lastNum + 1);
     }
+
+    /**
+     * Recalculates the cumulative running balance for all ledger entries of an account.
+     */
+    public static function recalculateRunningBalance(int $accountId): void
+    {
+        $account = Account::find($accountId);
+        if (!$account) {
+            return;
+        }
+
+        $isCredit = trim(strtolower($account->type ?? 'debit')) === 'credit';
+        $entries = self::where('account_id', $accountId)->orderBy('id', 'asc')->get();
+
+        if ($entries->isEmpty()) {
+            return;
+        }
+
+        $running = 0.0;
+        $startIndex = 0;
+
+        $firstEntry = $entries->first();
+        if ($firstEntry && $firstEntry->voucher_type === 'opening_balance') {
+            $running = (float)$firstEntry->running_balance;
+            $startIndex = 1;
+        } else {
+            $running = (float)($account->opening_balance ?? 0);
+            $startIndex = 0;
+        }
+
+        foreach ($entries as $index => $entry) {
+            if ($index < $startIndex) {
+                continue;
+            }
+            $debit = (float)$entry->debit;
+            $credit = (float)$entry->credit;
+
+            if ($isCredit) {
+                $running = $running + $credit - $debit;
+            } else {
+                $running = $running + $debit - $credit;
+            }
+
+            if (abs($entry->running_balance - $running) > 0.0001) {
+                $entry->running_balance = $running;
+                $entry->save();
+            }
+        }
+    }
 }

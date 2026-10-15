@@ -337,15 +337,17 @@
         .top-field-branch { flex: 0 0 155px; max-width: 155px; }
         .top-field-loc { flex: 0 0 185px; max-width: 185px; }
         .top-field-date { flex: 0 0 130px; max-width: 130px; }
-        .top-field-salesman { flex: 0 0 155px; max-width: 155px; }
+        .top-field-salesman { flex: 0 0 145px; max-width: 145px; }
         .top-field-crdays { flex: 0 0 65px; max-width: 65px; }
-        .top-field-remarks { flex: 1 1 180px; min-width: 140px; }
+        .top-field-mbill { flex: 0 0 115px; max-width: 115px; }
+        .top-field-remarks { flex: 1 1 160px; min-width: 120px; }
         @media (max-width: 767.98px) {
             .top-field-branch,
             .top-field-loc,
             .top-field-date,
             .top-field-salesman,
             .top-field-crdays,
+            .top-field-mbill,
             .top-field-remarks {
                 flex: 1 1 calc(50% - 4px);
                 max-width: 100%;
@@ -664,12 +666,22 @@
                             <input type="number" class="form-control text-center fw-bold shadow-xs" name="credit_days" placeholder="0" min="0" value="{{ $sale->credit_days ?? '0' }}" style="font-size:0.78rem; height: 28px;">
                         </div>
 
-                        <!-- M.Bill / Remarks -->
-                        <div class="top-field-remarks">
-                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
-                                <i class="fas fa-sticky-note text-secondary me-1"></i>M.Bill / Remarks
+                        <!-- M. Bill # (Manual Invoice) -->
+                        <div class="top-field-mbill">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center text-truncate" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
+                                <i class="fas fa-file-invoice text-secondary me-1"></i>M. Bill#
                             </label>
-                            <input type="text" class="form-control shadow-xs" name="reference" id="remarks" value="{{ $sale->remarks ?? $sale->manual_invoice ?? '' }}" placeholder="Enter remarks or ref no..." style="font-size:0.78rem; height: 28px;">
+                            <input type="text" class="form-control shadow-xs" name="manual_invoice" id="manualInvoice" value="{{ $sale->manual_invoice ?? $booking->manual_invoice ?? '' }}" placeholder="Manual bill#..." style="font-size:0.78rem; height: 28px;">
+                            <input type="hidden" name="Invoice_main" id="Invoice_main" value="{{ $sale->manual_invoice ?? $booking->manual_invoice ?? '' }}">
+                        </div>
+
+                        <!-- Remarks -->
+                        <div class="top-field-remarks">
+                            <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center text-truncate" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
+                                <i class="fas fa-sticky-note text-secondary me-1"></i>Remarks
+                            </label>
+                            <input type="text" class="form-control shadow-xs" name="remarks" id="remarks" value="{{ $sale->remarks ?? $booking->remarks ?? '' }}" placeholder="Enter remarks..." style="font-size:0.78rem; height: 28px;">
+                            <input type="hidden" name="reference" id="reference" value="{{ $sale->remarks ?? $booking->remarks ?? '' }}">
                         </div>
                     </div>
 
@@ -2168,12 +2180,19 @@
                     if ($crDays.length && $crDays.is(':visible')) {
                         $crDays.focus().select();
                     } else {
-                        $('#remarks').focus().select();
+                        $('#manualInvoice').focus().select();
                     }
                 }
             });
 
             $('[name="credit_days"]').on('keydown', function(e) {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    $('#manualInvoice').focus().select();
+                }
+            });
+
+            $('#manualInvoice').on('keydown', function(e) {
                 if (e.key === 'Enter' || e.keyCode === 13) {
                     e.preventDefault();
                     $('#remarks').focus().select();
@@ -2189,6 +2208,14 @@
                         $('#customerSelect').select2('open');
                     }
                 }
+            });
+
+            $(document).on('input', '#manualInvoice', function() {
+                $('#Invoice_main').val($(this).val());
+            });
+
+            $(document).on('input', '#remarks', function() {
+                $('#reference').val($(this).val());
             });
 
             $('#walkinNameInput').on('keydown', function(e) {
@@ -2962,8 +2989,13 @@
                         $('#globalWarehouseSelect').val('branch_' + window.EDIT_SALE.branch_id);
                     }
 
-                    if (window.EDIT_SALE.remarks || window.EDIT_SALE.manual_invoice) {
-                        $('#remarks').val(window.EDIT_SALE.remarks || window.EDIT_SALE.manual_invoice || '');
+                    if (window.EDIT_SALE.manual_invoice) {
+                        $('#manualInvoice').val(window.EDIT_SALE.manual_invoice);
+                        $('#Invoice_main').val(window.EDIT_SALE.manual_invoice);
+                    }
+                    if (window.EDIT_SALE.remarks) {
+                        $('#remarks').val(window.EDIT_SALE.remarks);
+                        $('#reference').val(window.EDIT_SALE.remarks);
                     }
 
                     if (window.EDIT_SALE.additional_discount) {
@@ -3078,6 +3110,17 @@
                         };
                     });
                     addMultipleProductsToGrid(formattedItems);
+
+                    if (window.BOOKING_DATA) {
+                        if (window.BOOKING_DATA.manual_invoice) {
+                            $('#manualInvoice').val(window.BOOKING_DATA.manual_invoice);
+                            $('#Invoice_main').val(window.BOOKING_DATA.manual_invoice);
+                        }
+                        if (window.BOOKING_DATA.remarks) {
+                            $('#remarks').val(window.BOOKING_DATA.remarks);
+                            $('#reference').val(window.BOOKING_DATA.remarks);
+                        }
+                    }
                 } else if ($('#salesTableBody tr').length === 0) {
                     addNewRow();
                 }
