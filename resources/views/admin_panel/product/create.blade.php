@@ -360,8 +360,8 @@
                                 </div>
 
                                 <div class="field-group">
-                                    <label class="field-label">HS Code</label>
-                                    <input type="text" id="hs_code" name="hs_code" class="custom-input" placeholder="HS Code" required>
+                                    <label class="field-label">HS Code <span class="text-muted fw-normal" style="font-size: 11px;">(Optional)</span></label>
+                                    <input type="text" id="hs_code" name="hs_code" class="custom-input" placeholder="HS Code (Optional)">
                                 </div>
                             </div>
 
@@ -747,10 +747,6 @@
                 }
                 if (!model) {
                     Swal.fire({ icon: 'warning', title: 'Missing Model', text: 'Product cannot be stored without Model.' });
-                    return false;
-                }
-                if (!hsCode) {
-                    Swal.fire({ icon: 'warning', title: 'Missing HS Code', text: 'Product cannot be stored without HS Code.' });
                     return false;
                 }
                 if (!unit) {

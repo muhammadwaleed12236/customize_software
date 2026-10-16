@@ -619,10 +619,6 @@ public function searchProductsForSalebypagination(Request $request)
      */
     private function storeProductPhase1(Request $request, int $userId)
     {
-        if (!$request->filled('hs_code')) {
-            return redirect()->back()->withInput()->with('swal_error', 'Product cannot be stored without HS Code.');
-        }
-
         if (!$request->filled('model')) {
             return redirect()->back()->withInput()->with('swal_error', 'Product cannot be stored without Model.');
         }
@@ -702,7 +698,7 @@ public function searchProductsForSalebypagination(Request $request)
                 'price'           => 0,              // ← PHASE 2
                 'alert_quantity'  => 0,              // ← PHASE 2
                 'model'           => $request->model,
-                'hs_code'         => $request->hs_code,
+                'hs_code'         => $request->filled('hs_code') ? $request->hs_code : null,
                 'pack_type'       => $packingType,
                 'pack_qty'        => $packQty,
                 'piece_per_pack'  => $piecePerPack,
@@ -975,10 +971,6 @@ public function searchProductsForSalebypagination(Request $request)
             : (int) ($userBranchId ?: $product->branch_id ?: 1);
 
         $userId = auth()->id();
-        if (!$request->filled('hs_code')) {
-            return redirect()->back()->withInput()->with('swal_error', 'Product cannot be updated without HS Code.');
-        }
-
         if (!$request->filled('model')) {
             return redirect()->back()->withInput()->with('swal_error', 'Product cannot be updated without Model.');
         }
@@ -1009,7 +1001,7 @@ public function searchProductsForSalebypagination(Request $request)
                 'unit_id'         => $request->unit ?? $product->unit_id,
                 'brand_id'        => $request->brand_id ?? $product->brand_id,
                 'model'           => $request->model ?? $product->model,
-                'hs_code'         => $request->hs_code ?? $product->hs_code,
+                'hs_code'         => $request->has('hs_code') ? ($request->filled('hs_code') ? $request->hs_code : null) : $product->hs_code,
                 'pack_type'       => ($request->input('packing_type') === 'Customize' || ((float)($request->piece_per_pack ?? 0) > 0)) ? 'Customize' : 'Standard',
                 'pack_qty'        => (float) ($request->packing_qty ?? $request->pack_qty ?? 0),
                 'piece_per_pack'  => (float) ($request->piece_per_pack ?? 0),

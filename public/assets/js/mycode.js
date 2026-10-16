@@ -62,7 +62,7 @@ function yourFunction(url,method) {
     }
 
     function ajaxErrorHandling(data, msg){
-        if (data.hasOwnProperty("responseJSON")) {
+        if (data && data.responseJSON) {
             var resp = data.responseJSON;
             if (resp.message == 'CSRF token mismatch.') {
                 showAlert("Page has been expired and will reload in 2 seconds", "Page Expired!", "error");
@@ -72,18 +72,21 @@ function yourFunction(url,method) {
                 return;
             }
             if (resp.error) {
-                var msg = (resp.error == '') ? 'Something went wrong!' : resp.error;
-                showAlert(msg, "Error!", "error");
+                var err = (resp.error == '') ? 'Something went wrong!' : resp.error;
+                showAlert(err, "Error!", "error");
                 return;
             }
-            if (resp.message != 'The given data was invalid.') {
+            if (resp.message && resp.message != 'The given data was invalid.') {
                 showAlert(resp.message, "Error!", "error");
                 return;
             }
-            multipleerrorshandle(resp.errors);
-        } else {
-            showAlert(msg + "!", "Error!", 'error');
+            if (resp.errors) {
+                multipleerrorshandle(resp.errors);
+                return;
+            }
         }
+        var fallbackMsg = msg || (data && data.statusText) || 'Unable to connect to server. Please ensure the server is running.';
+        showAlert(fallbackMsg, "Error!", 'error');
         return;
     }
     //post

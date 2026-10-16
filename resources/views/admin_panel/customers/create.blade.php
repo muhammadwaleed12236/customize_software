@@ -68,6 +68,12 @@
         height: auto;
     }
 
+    select.form-select-sm {
+        width: 100%;
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+
     .form-control-sm:focus, .form-select-sm:focus {
         border-color: #2c5282;
         box-shadow: 0 0 0 2px rgba(44, 82, 130, 0.15);
@@ -211,11 +217,12 @@
                                     </div>
 
                                     <div class="col-6">
-                                        <label class="form-label-sm">Filer Type <span class="text-danger">*</span>:</label>
-                                        <select class="form-select form-select-sm" name="filer_type" required>
-                                            <option value="filer">Filer</option>
-                                            <option value="non filer">Non Filer</option>
-                                            <option value="exempt">Exempt</option>
+                                        <label class="form-label-sm">Filer Type:</label>
+                                        <select class="form-select form-select-sm" name="filer_type">
+                                            <option value="">-- Select --</option>
+                                            <option value="filer" {{ old('filer_type') === 'filer' ? 'selected' : '' }}>Filer</option>
+                                            <option value="non filer" {{ old('filer_type') === 'non filer' ? 'selected' : '' }}>Non Filer</option>
+                                            <option value="exempt" {{ old('filer_type') === 'exempt' ? 'selected' : '' }}>Exempt</option>
                                         </select>
                                     </div>
 

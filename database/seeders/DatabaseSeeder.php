@@ -25,6 +25,7 @@ class DatabaseSeeder extends Seeder
             PermissionSeeder::class,
             RolePermissionSeeder::class,
             ModuleSeeder::class,
+            // DummyDataSeeder::class, // Complete dummy data (Products, Sales, Purchases, Customers, Vendors)
             // ── Uncomment as needed ──────────────────────────────────────
             // CategorySeeder::class,
             // WarehouseSeeder::class,

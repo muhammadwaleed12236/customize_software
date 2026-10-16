@@ -684,7 +684,7 @@
                             <div class="user-card" data-user-id="{{ $user->id }}"
                                 data-search-name="{{ strtolower($user->name) }}" data-search-email="{{ strtolower($user->email) }}"
                                 data-roles="{{ json_encode($user->getRoleNames()) }}"
-                                data-branch="{{ $user->branch_id ?? 0 }}"
+                                data-branch="{{ $user->branch_id ?? '' }}"
                                 data-branch-name="{{ $user->branch?->name ?? 'No Branch' }}">
                                 <div class="user-card-header">
                                     <div class="d-flex align-items-center">
@@ -710,7 +710,7 @@
                                                 data-id="{{ $user->id }}" 
                                                 data-name="{{ $user->name }}" 
                                                 data-email="{{ $user->email }}" 
-                                                data-branch="{{ $user->branch_id ?? 0 }}" 
+                                                data-branch="{{ $user->branch_id ?? '' }}" 
                                                 data-roles="{{ json_encode($user->getRoleNames()) }}"
                                                 title="Edit User">
                                                 <i class="fa fa-pen"></i>
@@ -1063,7 +1063,7 @@
                 var name = $btn.attr('data-name') || $btn.data('name');
                 var email = $btn.attr('data-email') || $btn.data('email');
                 var roles = $btn.data('roles') || [];
-                var branch = $btn.data('branch') || $btn.attr('data-branch') || 0;
+                var branch = $btn.attr('data-branch') || $btn.data('branch') || '';
 
                 // Reset form completely first
                 $('#userForm')[0].reset();
@@ -1078,7 +1078,7 @@
 
                 // populate branch select or hidden input
                 if ($('#branchSelect').length) {
-                    $('#branchSelect').val(branch);
+                    $('#branchSelect').val(branch ? branch : '');
                 }
                 if ($('#branchHidden').length) {
                     $('#branchHidden').val(branch || $('#branchHidden').val());
@@ -1142,8 +1142,9 @@
                 $('.user-card').each(function() {
                     var name = $(this).attr('data-search-name') || '';
                     var email = $(this).attr('data-search-email') || '';
+                    var branch = ($(this).attr('data-branch-name') || '').toLowerCase();
                     var roles = JSON.stringify($(this).data('roles') || []).toLowerCase();
-                    $(this).toggle(name.indexOf(q) !== -1 || email.indexOf(q) !== -1 || roles.indexOf(q) !== -1);
+                    $(this).toggle(name.indexOf(q) !== -1 || email.indexOf(q) !== -1 || roles.indexOf(q) !== -1 || branch.indexOf(q) !== -1);
                 });
                 var visible = $('.user-card:visible').length;
                 $('#usersCount').text(visible + ' users');

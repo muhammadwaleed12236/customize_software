@@ -17,35 +17,48 @@ class UserController extends Controller
 {
         public function index()
     {
-        // dd("ok");
-            $allowedBranchIds = [];
-            if (Auth::check()) {
-                $u = Auth::user();
-                if ($u->hasRole('super admin')) {
-                    $allowedBranchIds = Branch::pluck('id')->toArray();
-                } else {
-                    $allowedBranchIds[] = $u->branch_id;
-                    // Check cross-branch permissions: branch:{id}:user.view
-                    $branchIds = Branch::pluck('id');
-                    foreach ($branchIds as $bid) {
-                        if ($u->can('branch:' . $bid . ':user.view')) {
-                            $allowedBranchIds[] = $bid;
-                        }
-                    }
-                    $allowedBranchIds = array_unique($allowedBranchIds);
-                }
-            }
+        $allowedBranchIds = [];
+        $isSuperAdmin = false;
 
-            if (!empty($allowedBranchIds)) {
-                $users = User::whereIn('branch_id', $allowedBranchIds)->where('email', '!=', 'admin@admin.com')->get();
+        if (Auth::check()) {
+            $u = Auth::user();
+            if ($u->hasRole('super admin')) {
+                $isSuperAdmin = true;
+                $allowedBranchIds = Branch::pluck('id')->toArray();
             } else {
-                // no branches allowed => empty collection
-                $users = collect();
+                if (!empty($u->branch_id)) {
+                    $allowedBranchIds[] = $u->branch_id;
+                }
+                // Check cross-branch permissions: branch:{id}:user.view
+                $branchIds = Branch::pluck('id');
+                foreach ($branchIds as $bid) {
+                    if ($u->can('branch:' . $bid . ':user.view')) {
+                        $allowedBranchIds[] = $bid;
+                    }
+                }
+                $allowedBranchIds = array_unique(array_filter($allowedBranchIds));
             }
+        }
 
-            $allRoles = Role::all();
+        if ($isSuperAdmin) {
+            // Super Admin can see all users including those created without a branch
+            $users = User::with('branch')
+                ->where('email', '!=', 'admin@admin.com')
+                ->get();
+        } elseif (!empty($allowedBranchIds)) {
+            $users = User::with('branch')
+                ->whereIn('branch_id', $allowedBranchIds)
+                ->where('email', '!=', 'admin@admin.com')
+                ->get();
+        } else {
+            // no branches allowed => empty collection
+            $users = collect();
+        }
 
-            return view('admin_panel.users.users', compact(['users', 'allRoles', 'allowedBranchIds']));
+        $allRoles = Role::all();
+        $branches = Branch::all();
+
+        return view('admin_panel.users.users', compact(['users', 'allRoles', 'allowedBranchIds', 'branches']));
     }
 
     public function store(Request $request)
