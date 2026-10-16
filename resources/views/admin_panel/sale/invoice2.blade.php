@@ -442,7 +442,16 @@ $netTotal = max(0, $netTotal);
 
 $totalReceived = 0;
 if(isset($booking) && isset($booking->invoice_no)){
-    $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $booking->invoice_no)
+    $bBranchId = $booking->branch_id ?? null;
+    $receipts = \App\Models\ReceiptsVoucher::where(function($q) use ($booking, $bBranchId) {
+            $q->where('booking_id', $booking->id)
+              ->orWhere(function($q2) use ($booking, $bBranchId) {
+                  $q2->where('reference_no', $booking->invoice_no);
+                  if ($bBranchId) {
+                      $q2->where('branch_id', $bBranchId);
+                  }
+              });
+        })
         ->where('type', 'SALE_RECEIPT')
         ->get();
     $totalReceived = (float) $receipts->sum('total_amount');

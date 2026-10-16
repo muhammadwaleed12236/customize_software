@@ -572,8 +572,16 @@
                                             <div class="flex-grow-1">
                                                 <select class="form-control fi rv-account" name="payment_account_id[]">
                                                     <option value="" disabled selected>Select Payment Source Account...</option>
-                                                    @foreach($bankAccounts as $acc)
-                                                        <option value="{{ $acc->id }}">{{ $acc->title }} (Bal: Rs. {{ number_format($acc->opening_balance, 2) }})</option>
+                                                    @php
+                                                        $displayedAccounts = $bankAccounts->filter(function($acc) use ($isSuperAdmin, $currentBranch) {
+                                                            return !$isSuperAdmin || !$acc->branch_id || $acc->branch_id == $currentBranch;
+                                                        });
+                                                        if ($displayedAccounts->isEmpty()) {
+                                                            $displayedAccounts = $bankAccounts;
+                                                        }
+                                                    @endphp
+                                                    @foreach($displayedAccounts as $acc)
+                                                        <option value="{{ $acc->id }}">{{ $acc->title }}{{ ($isSuperAdmin && $acc->branch) ? ' [' . $acc->branch->name . ']' : '' }} (Bal: Rs. {{ number_format($acc->opening_balance, 2) }})</option>
                                                     @endforeach
                                                 </select>
                                                 <div class="account-balance-wrapper mt-1 ml-1" style="display:none; font-size: 11px;">
@@ -921,10 +929,22 @@ $(document).ready(function() {
             firstAmount.val(net.toFixed(2));
             calcPayments();
         }
+        $('.rv-account').each(function() {
+            if (!$(this).val()) {
+                loadAccountsInto($(this));
+            }
+        });
         firstAmount.focus();
     });
 
     window.PAYMENT_ACCOUNTS = @json($bankAccounts);
+
+    function getAvailableAccounts(selectedBranchId) {
+        if (!window.PAYMENT_ACCOUNTS || !window.PAYMENT_ACCOUNTS.length) return [];
+        if (!selectedBranchId) return window.PAYMENT_ACCOUNTS;
+        let filtered = window.PAYMENT_ACCOUNTS.filter(acc => !acc.branch_id || String(acc.branch_id) === String(selectedBranchId));
+        return filtered.length > 0 ? filtered : window.PAYMENT_ACCOUNTS;
+    }
 
     function loadAccountsInto($select) {
         const currentVal = $select.val();
@@ -937,17 +957,24 @@ $(document).ready(function() {
             }
         });
 
-        let html = '<option value="" disabled selected>Select Source Account...</option>';
+        const selectedBranch = $('#branch_id').val() || '{{ $currentBranch }}';
+        const accounts = getAvailableAccounts(selectedBranch);
 
-        window.PAYMENT_ACCOUNTS.forEach(function(acc) {
+        let html = '<option value="" disabled selected>Select Payment Source Account...</option>';
+
+        accounts.forEach(function(acc) {
             const accId = String(acc.id);
             if (!usedAccounts.includes(accId) || accId === String(currentVal)) {
-                html += `<option value="${accId}">${acc.title} (Bal: Rs. ${parseFloat(acc.opening_balance).toLocaleString('en-PK', {minimumFractionDigits: 2})})</option>`;
+                const branchLabel = (acc.branch && acc.branch.name) ? ` [${acc.branch.name}]` : '';
+                const bal = parseFloat(acc.opening_balance || 0).toLocaleString('en-PK', {minimumFractionDigits: 2});
+                html += `<option value="${accId}">${acc.title}${branchLabel} (Bal: Rs. ${bal})</option>`;
             }
         });
 
         $select.html(html);
-        if (currentVal) $select.val(currentVal);
+        if (currentVal && accounts.some(a => String(a.id) === String(currentVal))) {
+            $select.val(currentVal);
+        }
     }
 
     $(document).on('change', '.rv-account', function() {
@@ -1023,10 +1050,16 @@ $(document).ready(function() {
     // Initial calc
     recalc();
 
-    // Dynamic Warehouse Loading by Branch
+    // Dynamic Warehouse & Accounts Loading by Branch
     $('#branch_id').on('change', function() {
         const branchId = $(this).val();
         if (!branchId) return;
+
+        // Reload accounts for the selected branch
+        $('.rv-account').each(function() {
+            loadAccountsInto($(this));
+        });
+        updateBalances();
 
         const $warehouseSelect = $('#warehouse_id');
         $warehouseSelect.prop('disabled', true);

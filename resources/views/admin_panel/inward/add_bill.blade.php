@@ -364,7 +364,7 @@
                                         <select class="form-select fi rv-account" name="payment_account_id[]" style="height: 38px;">
                                             <option value="" disabled selected>-- Select Payment Account --</option>
                                             @foreach($bankAccounts as $acc)
-                                                <option value="{{ $acc->id }}">{{ $acc->title }} ({{ $acc->head->title ?? '' }})</option>
+                                                <option value="{{ $acc->id }}">{{ $acc->title }} ({{ $acc->head->name ?? $acc->head->title ?? '' }})</option>
                                             @endforeach
                                         </select>
                                         <div class="account-balance-wrapper mt-1 ms-1" style="display:none; font-size: 11px;">

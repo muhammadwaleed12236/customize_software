@@ -442,7 +442,19 @@ $netTotal = max(0, $netTotal);
 
 $totalReceived = 0;
 if(isset($sale) && isset($sale->invoice_no)){
-    $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+    $invBranchId = $sale->branch_id ?? null;
+    $receipts = \App\Models\ReceiptsVoucher::where(function($q) use ($sale, $invBranchId) {
+            $q->where('sale_id', $sale->id)
+              ->orWhere(function($q2) use ($sale, $invBranchId) {
+                  $q2->where('reference_no', $sale->invoice_no)
+                     ->where(function($q3) use ($sale) {
+                         $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                     });
+                  if ($invBranchId) {
+                      $q2->where('branch_id', $invBranchId);
+                  }
+              });
+        })
         ->where('type', 'SALE_RECEIPT')
         ->get();
     $totalReceived = (float) $receipts->sum('total_amount');

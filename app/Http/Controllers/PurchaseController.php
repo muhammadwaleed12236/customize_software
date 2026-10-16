@@ -238,20 +238,34 @@ class PurchaseController extends Controller
         $branchId = $gatepass->branch_id;
 
         // ✅ Get all Debit accounts (Bank, Cash) for payment selection
-        $bankAccountsQuery = \App\Models\Account::with('head')
-            ->where('status', 'active')
+        $bankAccountsQuery = \App\Models\Account::with(['head', 'branch'])
+            ->where(function ($q) {
+                $q->whereIn('status', [1, '1', 'active'])
+                  ->orWhereNull('status');
+            })
             ->where('branch_id', $branchId) // ✅ Filter by gatepass branch
-            ->whereHas('head', function ($q) {
-                $q->whereIn('title', ['Bank', 'Cash', 'Asset']);
+            ->where(function ($q) {
+                $q->whereHas('head', function ($hq) {
+                    $hq->whereIn('name', ['bank', 'cash', 'asset', 'Bank', 'Cash', 'Asset'])
+                       ->orWhere('name', 'LIKE', '%bank%')
+                       ->orWhere('name', 'LIKE', '%cash%');
+                })
+                ->orWhere('account_code', 'LIKE', '%BANK%')
+                ->orWhere('account_code', 'LIKE', '%CASH%')
+                ->orWhereNull('head_id');
             });
             
-        $bankAccounts = $bankAccountsQuery->get();
+        $bankAccounts = $bankAccountsQuery->orderBy('title')->get();
         
         // Fallback: if no accounts found, get all active accounts for that branch
         if ($bankAccounts->isEmpty()) {
-            $bankAccounts = \App\Models\Account::with('head')
-                ->where('status', 'active')
+            $bankAccounts = \App\Models\Account::with(['head', 'branch'])
+                ->where(function ($q) {
+                    $q->whereIn('status', [1, '1', 'active'])
+                      ->orWhereNull('status');
+                })
                 ->where('branch_id', $branchId)
+                ->orderBy('title')
                 ->get();
         }
 
@@ -1071,17 +1085,31 @@ class PurchaseController extends Controller
 
         // ✅ NEW: Fetch bank accounts and pre-fill payment information
         $branchId = $purchase->branch_id;
-        $bankAccountsQuery = \App\Models\Account::with('head')
-            ->where('status', 'active')
+        $bankAccountsQuery = \App\Models\Account::with(['head', 'branch'])
+            ->where(function ($q) {
+                $q->whereIn('status', [1, '1', 'active'])
+                  ->orWhereNull('status');
+            })
             ->where('branch_id', $branchId)
-            ->whereHas('head', function ($q) {
-                $q->whereIn('title', ['Bank', 'Cash', 'Asset']);
+            ->where(function ($q) {
+                $q->whereHas('head', function ($hq) {
+                    $hq->whereIn('name', ['bank', 'cash', 'asset', 'Bank', 'Cash', 'Asset'])
+                       ->orWhere('name', 'LIKE', '%bank%')
+                       ->orWhere('name', 'LIKE', '%cash%');
+                })
+                ->orWhere('account_code', 'LIKE', '%BANK%')
+                ->orWhere('account_code', 'LIKE', '%CASH%')
+                ->orWhereNull('head_id');
             });
-        $bankAccounts = $bankAccountsQuery->get();
+        $bankAccounts = $bankAccountsQuery->orderBy('title')->get();
         if ($bankAccounts->isEmpty()) {
-            $bankAccounts = \App\Models\Account::with('head')
-                ->where('status', 'active')
+            $bankAccounts = \App\Models\Account::with(['head', 'branch'])
+                ->where(function ($q) {
+                    $q->whereIn('status', [1, '1', 'active'])
+                      ->orWhereNull('status');
+                })
                 ->where('branch_id', $branchId)
+                ->orderBy('title')
                 ->get();
         }
 
@@ -1845,25 +1873,39 @@ class PurchaseController extends Controller
         $nextPurchaseNumber = ((int)($branch->purchase_counter ?? 0)) + 1;
         $nextInvoice = 'P-INV-' . str_pad($nextPurchaseNumber, 4, '0', STR_PAD_LEFT);
 
-        $bankAccountsQuery = Account::with('head')
-            ->where('status', 'active')
-            ->whereHas('head', function ($q) {
-                $q->whereIn('title', ['Bank', 'Cash', 'Asset']);
+        $bankAccountsQuery = Account::with(['head', 'branch'])
+            ->where(function ($q) {
+                $q->whereIn('status', [1, '1', 'active'])
+                  ->orWhereNull('status');
+            })
+            ->where(function ($q) {
+                $q->whereHas('head', function ($hq) {
+                    $hq->whereIn('name', ['bank', 'cash', 'asset', 'Bank', 'Cash', 'Asset'])
+                       ->orWhere('name', 'LIKE', '%bank%')
+                       ->orWhere('name', 'LIKE', '%cash%');
+                })
+                ->orWhere('account_code', 'LIKE', '%BANK%')
+                ->orWhere('account_code', 'LIKE', '%CASH%')
+                ->orWhereNull('head_id');
             });
 
         if (!$isSuperAdmin) {
             $bankAccountsQuery->where('branch_id', $currentBranch);
         }
 
-        $bankAccounts = $bankAccountsQuery->get();
+        $bankAccounts = $bankAccountsQuery->orderBy('title')->get();
 
         // Fallback: if no accounts found for the heads, get all active accounts (respecting branch filter)
         if ($bankAccounts->isEmpty()) {
-            $fallbackQuery = \App\Models\Account::with('head')->where('status', 'active');
+            $fallbackQuery = Account::with(['head', 'branch'])
+                ->where(function ($q) {
+                    $q->whereIn('status', [1, '1', 'active'])
+                      ->orWhereNull('status');
+                });
             if (!$isSuperAdmin) {
                 $fallbackQuery->where('branch_id', $currentBranch);
             }
-            $bankAccounts = $fallbackQuery->get();
+            $bankAccounts = $fallbackQuery->orderBy('title')->get();
         }
 
         return view('admin_panel.purchase.add_local_purchase', compact('Vendor', 'Warehouse', 'Branch', 'nextInvoice', 'bankAccounts', 'isSuperAdmin', 'currentBranch', 'Products'));

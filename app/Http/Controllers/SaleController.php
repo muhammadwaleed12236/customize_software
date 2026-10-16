@@ -3734,19 +3734,35 @@ public function finddc($invoice)
         $salesmen = SalesOfficer::all();
         $saleSettings = \App\Models\SaleSetting::getSettings();
 
-        // Fetch receipt vouchers for this sale
-        $receipts = ReceiptsVoucher::where(function ($q) use ($sale) {
+        // Fetch receipt vouchers for this sale (branch-aware and sale-specific)
+        $receipts = ReceiptsVoucher::where(function ($q) use ($sale, $branchId) {
                 $q->where('sale_id', $sale->id)
-                  ->orWhere('reference_no', $sale->invoice_no);
+                  ->orWhere(function ($q2) use ($sale, $branchId) {
+                      $q2->where('reference_no', $sale->invoice_no)
+                         ->where(function ($q3) use ($sale) {
+                             $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                         });
+                      if ($branchId) {
+                          $q2->where('branch_id', $branchId);
+                      }
+                  });
                 if ($sale->booking_id) {
-                    $q->orWhere('booking_id', $sale->booking_id);
+                    $q->orWhere(function ($q2) use ($sale, $branchId) {
+                        $q2->where('booking_id', $sale->booking_id)
+                           ->where(function ($q3) use ($sale) {
+                               $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                           });
+                        if ($branchId) {
+                            $q2->where('branch_id', $branchId);
+                        }
+                    });
                 }
             })
             ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
             ->orderBy('id', 'asc')
             ->get();
 
-        // If no explicit receipts in table, synthesize from receipt1/receipt2 or posted/cash sale amount
+        // If no explicit receipts in table, synthesize from account ledger entry or branch account
         if ($receipts->isEmpty()) {
             $paidAmt = (float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0);
             if ($paidAmt <= 0 && ($sale->party_type === 'cash' || $sale->party_type === 'walking' || $sale->status === 'posted' || $sale->is_posted)) {
@@ -3754,10 +3770,24 @@ public function finddc($invoice)
             }
 
             if ($paidAmt > 0) {
-                $defaultAcc = $accounts->first(fn($a) => str_contains(strtolower($a->title), 'cash')) ?? $accounts->first();
+                // Check if an account ledger entry exists for this sale's invoice
+                $ledgerAccId = AccountLedgerEntry::where('voucher_no', $sale->invoice_no)
+                    ->where('branch_id', $branchId)
+                    ->value('account_id');
+
+                if ($ledgerAccId && $accounts->contains('id', $ledgerAccId)) {
+                    $defaultAccId = $ledgerAccId;
+                } else {
+                    $branchAccounts = $accounts->where('branch_id', $branchId);
+                    $defaultAcc = $branchAccounts->first(fn($a) => str_contains(strtolower($a->title), 'cash') || str_contains(strtolower($a->title), 'counter'))
+                               ?? $branchAccounts->first()
+                               ?? $accounts->first();
+                    $defaultAccId = $defaultAcc ? $defaultAcc->id : 1;
+                }
+
                 $receipts = collect([
                     (object) [
-                        'row_account_id' => $defaultAcc ? $defaultAcc->id : 1,
+                        'row_account_id' => $defaultAccId,
                         'amount'         => $paidAmt,
                         'total_amount'   => $paidAmt,
                         'type'           => 'SALE_RECEIPT',
@@ -4200,10 +4230,29 @@ public function finddc($invoice)
                 }
 
                 /* ================= STEP 6: UPDATE RECEIPT VOUCHERS & ACCOUNT LEDGER ================= */
-                // 1. Find all old receipt vouchers for this sale
-                $oldReceipts = ReceiptsVoucher::where(function ($q) use ($sale) {
-                        $q->where('reference_no', $sale->invoice_no)
-                          ->orWhere('sale_id', $sale->id);
+                // 1. Find all old receipt vouchers for this sale (branch-aware and sale-specific)
+                $oldReceipts = ReceiptsVoucher::where(function ($q) use ($sale, $branchId) {
+                        $q->where('sale_id', $sale->id)
+                          ->orWhere(function ($q2) use ($sale, $branchId) {
+                              $q2->where('reference_no', $sale->invoice_no)
+                                 ->where(function ($q3) use ($sale) {
+                                     $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                                 });
+                              if ($branchId) {
+                                  $q2->where('branch_id', $branchId);
+                              }
+                          });
+                        if ($sale->booking_id) {
+                            $q->orWhere(function ($q2) use ($sale, $branchId) {
+                                $q2->where('booking_id', $sale->booking_id)
+                                   ->where(function ($q3) use ($sale) {
+                                       $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                                   });
+                                if ($branchId) {
+                                    $q2->where('branch_id', $branchId);
+                                }
+                            });
+                        }
                     })
                     ->whereIn('type', ['SALE_RECEIPT', 'RECEIPT'])
                     ->get();
@@ -4211,10 +4260,13 @@ public function finddc($invoice)
                 $oldRvIds = $oldReceipts->pluck('id')->filter()->toArray();
 
                 // 2. Find all old account ledger entries tied to this sale's invoice or its receipt vouchers
-                $oldLedgerEntries = AccountLedgerEntry::where(function ($q) use ($sale, $oldRvIds) {
-                        $q->where(function ($q2) use ($sale) {
+                $oldLedgerEntries = AccountLedgerEntry::where(function ($q) use ($sale, $oldRvIds, $branchId) {
+                        $q->where(function ($q2) use ($sale, $branchId) {
                             $q2->where('voucher_no', $sale->invoice_no)
                                ->where('voucher_type', 'receipt');
+                            if ($branchId) {
+                                $q2->where('branch_id', $branchId);
+                            }
                         });
                         if (!empty($oldRvIds)) {
                             $q->orWhere(function ($q2) use ($oldRvIds) {
@@ -5072,17 +5124,38 @@ public function finddc($invoice)
                 }
 
                 // 2. REVERSE RECEIPTS, ACCOUNTS & TRANSACTIONS
-                $receipts = ReceiptsVoucher::where('reference_no', $sale->invoice_no)
-                    ->orWhere('sale_id', $sale->id)
+                $saleBranchId = $sale->branch_id ?? 1;
+                $receipts = ReceiptsVoucher::where(function ($q) use ($sale, $saleBranchId) {
+                        $q->where('sale_id', $sale->id)
+                          ->orWhere(function ($q2) use ($sale, $saleBranchId) {
+                              $q2->where('reference_no', $sale->invoice_no)
+                                 ->where(function ($q3) use ($sale) {
+                                     $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                                 });
+                              if ($saleBranchId) {
+                                  $q2->where('branch_id', $saleBranchId);
+                              }
+                          });
+                    })
                     ->get();
+
+                $delRvIds = $receipts->pluck('id')->filter()->toArray();
 
                 foreach ($receipts as $rv) {
                     $rv->delete();
                 }
 
-                AccountLedgerEntry::where('voucher_no', $sale->invoice_no)
-                    ->orWhere('voucher_id', $sale->id)
-                    ->delete();
+                AccountLedgerEntry::where(function ($q) use ($sale, $delRvIds, $saleBranchId) {
+                    $q->where(function ($q2) use ($sale, $saleBranchId) {
+                        $q2->where('voucher_no', $sale->invoice_no);
+                        if ($saleBranchId) {
+                            $q2->where('branch_id', $saleBranchId);
+                        }
+                    });
+                    if (!empty($delRvIds)) {
+                        $q->orWhereIn('voucher_id', $delRvIds);
+                    }
+                })->delete();
 
                 BranchTransaction::where('reference_type', 'Sale')
                     ->where('reference_id', $sale->id)
@@ -5260,7 +5333,19 @@ public function finddc($invoice)
                 ]);
 
                 /* ========== STEP 1: PROCESS RECEIPT VOUCHERS & TRANSFER TO ACCOUNTS ========== */
-                $receipts = ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+                $finalBranchId = $sale->branch_id ?? 1;
+                $receipts = ReceiptsVoucher::where(function ($q) use ($sale, $finalBranchId) {
+                        $q->where('sale_id', $sale->id)
+                          ->orWhere(function ($q2) use ($sale, $finalBranchId) {
+                              $q2->where('reference_no', $sale->invoice_no)
+                                 ->where(function ($q3) use ($sale) {
+                                     $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                                 });
+                              if ($finalBranchId) {
+                                  $q2->where('branch_id', $finalBranchId);
+                              }
+                          });
+                    })
                     ->where('type', 'SALE_RECEIPT')
                     ->lockForUpdate()
                     ->get();

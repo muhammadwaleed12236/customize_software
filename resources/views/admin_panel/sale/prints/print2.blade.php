@@ -517,10 +517,22 @@
             // Received from vouchers or sale
             $totalReceived = 0;
             if(isset($sale) && isset($sale->invoice_no)){
-                $receipts = \App\Models\ReceiptsVoucher::where('reference_no', $sale->invoice_no)
+                $printBranchId = $sale->branch_id ?? null;
+                $receipts = \App\Models\ReceiptsVoucher::where(function($q) use ($sale, $printBranchId) {
+                        $q->where('sale_id', $sale->id)
+                          ->orWhere(function($q2) use ($sale, $printBranchId) {
+                              $q2->where('reference_no', $sale->invoice_no)
+                                 ->where(function($q3) use ($sale) {
+                                     $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
+                                 });
+                              if ($printBranchId) {
+                                  $q2->where('branch_id', $printBranchId);
+                              }
+                          });
+                    })
                     ->where('type', 'SALE_RECEIPT')
                     ->get();
-                $totalReceived = (float)$receipts->sum('amount');
+                $totalReceived = (float)$receipts->sum(fn($r) => $r->total_amount ?? $r->amount ?? 0);
             }
             if($totalReceived == 0 && isset($sale->receipt1)){
                 $totalReceived = (float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0);

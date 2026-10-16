@@ -738,10 +738,15 @@
                 e.preventDefault();
                 const name = $('#product_name').val().trim();
                 const cat = $('#category-dropdown').val();
+                const model = $('#model').val() ? $('#model').val().trim() : '';
                 const hsCode = $('#hs_code').val() ? $('#hs_code').val().trim() : '';
                 const unit = $('#unit_select').val();
                 if (!name || !cat) {
                     Swal.fire({ icon: 'warning', title: 'Missing Info', text: 'Product name and category are required.' });
+                    return false;
+                }
+                if (!model) {
+                    Swal.fire({ icon: 'warning', title: 'Missing Model', text: 'Product cannot be stored without Model.' });
                     return false;
                 }
                 if (!hsCode) {

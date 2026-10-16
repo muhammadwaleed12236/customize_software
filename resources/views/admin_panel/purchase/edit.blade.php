@@ -502,7 +502,7 @@
                                                     <select class="form-select fi rv-account" name="payment_account_id[]" required>
                                                         <option value="" disabled>Select Source...</option>
                                                         @foreach($bankAccounts as $acc)
-                                                            <option value="{{ $acc->id }}" {{ $acc->id == $payment['account_id'] ? 'selected' : '' }}>{{ $acc->title }} ({{ $acc->head->title ?? '' }})</option>
+                                                            <option value="{{ $acc->id }}" {{ $acc->id == $payment['account_id'] ? 'selected' : '' }}>{{ $acc->title }} ({{ $acc->head->name ?? $acc->head->title ?? '' }})</option>
                                                         @endforeach
                                                     </select>
                                                     <div class="account-balance-wrapper mt-1 ms-2" style="display:none; font-size: 0.8rem;">
@@ -528,7 +528,7 @@
                                                 <select class="form-select fi rv-account" name="payment_account_id[]">
                                                     <option value="" disabled selected>Select Source...</option>
                                                     @foreach($bankAccounts as $acc)
-                                                        <option value="{{ $acc->id }}">{{ $acc->title }} ({{ $acc->head->title ?? '' }})</option>
+                                                        <option value="{{ $acc->id }}">{{ $acc->title }} ({{ $acc->head->name ?? $acc->head->title ?? '' }})</option>
                                                     @endforeach
                                                 </select>
                                                 <div class="account-balance-wrapper mt-1 ms-2" style="display:none; font-size: 0.8rem;">

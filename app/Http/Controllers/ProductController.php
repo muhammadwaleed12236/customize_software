@@ -623,6 +623,10 @@ public function searchProductsForSalebypagination(Request $request)
             return redirect()->back()->withInput()->with('swal_error', 'Product cannot be stored without HS Code.');
         }
 
+        if (!$request->filled('model')) {
+            return redirect()->back()->withInput()->with('swal_error', 'Product cannot be stored without Model.');
+        }
+
         // Image upload
         $imagePath = null;
         if ($request->hasFile('image')) {
@@ -971,6 +975,13 @@ public function searchProductsForSalebypagination(Request $request)
             : (int) ($userBranchId ?: $product->branch_id ?: 1);
 
         $userId = auth()->id();
+        if (!$request->filled('hs_code')) {
+            return redirect()->back()->withInput()->with('swal_error', 'Product cannot be updated without HS Code.');
+        }
+
+        if (!$request->filled('model')) {
+            return redirect()->back()->withInput()->with('swal_error', 'Product cannot be updated without Model.');
+        }
 
         // Image handle
         $imagePath = $product->image;

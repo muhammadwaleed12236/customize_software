@@ -961,8 +961,29 @@
                                 <div id="rvWrapper" class="mb-1">
                                     <div class="d-flex gap-1 align-items-center mb-1 rv-row">
                                         <select class="form-select form-select-sm rv-account bg-light fw-bold" name="receipt_account_id[]" style="font-size:0.75rem;">
+                                            @php
+                                                $firstRvAccId = null;
+                                                if (isset($receipts) && $receipts->isNotEmpty()) {
+                                                    $firstR = $receipts->first();
+                                                    $rawAccId = $firstR->row_account_id ?? null;
+                                                    if (is_string($rawAccId) && str_starts_with($rawAccId, '[')) {
+                                                        $dec = json_decode($rawAccId, true);
+                                                        $firstRvAccId = is_array($dec) ? ($dec[0] ?? null) : $rawAccId;
+                                                    } else {
+                                                        $firstRvAccId = is_array($rawAccId) ? ($rawAccId[0] ?? null) : $rawAccId;
+                                                    }
+                                                }
+                                            @endphp
                                             @foreach ($accounts as $acc)
-                                                <option value="{{ $acc->id }}" {{ str_contains(strtolower($acc->title), 'cash') || str_contains(strtolower($acc->title), 'easypaisa') ? 'selected' : '' }}>{{ $acc->title }}</option>
+                                                @php
+                                                    $isAccSel = false;
+                                                    if ($firstRvAccId !== null) {
+                                                        $isAccSel = ((string)$acc->id === (string)$firstRvAccId);
+                                                    } else {
+                                                        $isAccSel = (isset($defaultBranchId) && $acc->branch_id == $defaultBranchId && $loop->first) || (!isset($defaultBranchId) && $loop->first);
+                                                    }
+                                                @endphp
+                                                <option value="{{ $acc->id }}" {{ $isAccSel ? 'selected' : '' }}>{{ $acc->title }}</option>
                                             @endforeach
                                         </select>
                                         <input type="number" step="0.01" class="form-control form-control-sm text-end rv-amount fw-bold" name="receipt_amount[]" placeholder="0.00" style="width: 100px; font-size:0.75rem;">
@@ -3050,9 +3071,19 @@
                         $('#rvWrapper').empty();
                         window.EDIT_RECEIPTS.forEach(rv => {
                             let optionsHtml = '';
+                            let targetAccId = rv.row_account_id;
+                            if (typeof targetAccId === 'string' && targetAccId.startsWith('[')) {
+                                try {
+                                    let parsed = JSON.parse(targetAccId);
+                                    targetAccId = Array.isArray(parsed) ? parsed[0] : parsed;
+                                } catch(e) {}
+                            }
+                            if (Array.isArray(targetAccId)) {
+                                targetAccId = targetAccId[0];
+                            }
                             if (window.RECEIPT_ACCOUNTS && Array.isArray(window.RECEIPT_ACCOUNTS)) {
                                 window.RECEIPT_ACCOUNTS.forEach(function(acc) {
-                                    let isSel = (acc.id == rv.row_account_id) ? 'selected' : '';
+                                    let isSel = (String(acc.id) === String(targetAccId)) ? 'selected' : '';
                                     optionsHtml += `<option value="${acc.id}" ${isSel}>${acc.title}</option>`;
                                 });
                             }
