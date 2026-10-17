@@ -175,8 +175,12 @@ class PurchaseController extends Controller
         $query = Purchase::with(['branch', 'warehouse', 'vendor', 'items.warehouse']);  // ✅ Added: eager load warehouse for each item
         
         // Apply branch filter unless super admin
-        if (!$isSuperAdmin && !empty($allowedBranches)) {
-            $query->whereIn('branch_id', $allowedBranches);
+        if (!$isSuperAdmin) {
+            if (!empty($allowedBranches)) {
+                $query->whereIn('branch_id', $allowedBranches);
+            } else {
+                $query->where('branch_id', 0);
+            }
         }
         
         $Purchase = $query->latest()->get();

@@ -21,7 +21,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call([
-            BranchSeeder::class,
+            // BranchSeeder::class,
             PermissionSeeder::class,
             RolePermissionSeeder::class,
             ModuleSeeder::class,
@@ -43,7 +43,7 @@ class DatabaseSeeder extends Seeder
 
         // ── Seed default users ────────────────────────────────────────────
         $superAdminRole   = Role::firstOrCreate(['name' => 'super admin']);
-        $branchManagerRole = Role::firstOrCreate(['name' => 'branch manager']);
+    //    $branchManagerRole = Role::firstOrCreate(['name' => 'branch manager']);
 
         // Super Admin (no branch — system-wide access)
         $adminUser = User::firstOrCreate(
@@ -55,31 +55,32 @@ class DatabaseSeeder extends Seeder
             ]
         );
 
-        // Super Admin (developer account — no branch)
-        $devUser = User::firstOrCreate(
-            ['email' => 'f@gmail.com'],
-            [
-                'name'      => 'faraz memon',
-                'password'  => Hash::make('123'),
-                'branch_id' => null,
-            ]
-        );
+//         // Super Admin (developer account — no branch)
+//         $devUser = User::firstOrCreate(
+//             ['email' => 'f@gmail.com'],
+//             [
+//                 'name'      => 'faraz memon',
+//                 'password'  => Hash::make('123'),
+//                 'branch_id' => null,
+//             ]
+//         );
 
-        // Branch User (assigned to branch 2)
-        $branchUser = User::firstOrCreate(
-            ['email' => 'soban@soban.com'],
-            [
-                'name'      => 'soban',
-                'password'  => Hash::make('soban'),
-                'branch_id' => 2,
-            ]
-        );
+//         // Branch User (assigned to branch 2)
+//         $branchUser = User::firstOrCreate(
+//             ['email' => 'soban@soban.com'],
+//             [
+//                 'name'      => 'soban',
+//                 'password'  => Hash::make('soban'),
+//                 'branch_id' => 2,
+//             ]
+//         );
 
-        // ── Assign roles ──────────────────────────────────────────────────
+//         // ── Assign roles ──────────────────────────────────────────────────
         $adminUser->syncRoles([$superAdminRole]);
-        $devUser->syncRoles([$superAdminRole]);
-        $branchUser->syncRoles([$branchManagerRole]);
+//         $devUser->syncRoles([$superAdminRole]);
+//         $branchUser->syncRoles([$branchManagerRole]);
 
-        $this->command->info('✅ Default users seeded and roles assigned.');
-    }
+//         $this->command->info('✅ Default users seeded and roles assigned.');
+//     }
+}
 }

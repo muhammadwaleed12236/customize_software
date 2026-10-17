@@ -358,26 +358,38 @@
 
 <body>
     @php
+        $isMultiParty = isset($parties) && count($parties) > 1;
         $senderName = '-';
         $senderHead = '-';
         $senderCode = '-';
         $senderType = 'Party';
 
-        if (is_numeric($voucher->type)) {
-            $senderName = $party->name ?? '-';
-            $senderHead = $party->head_name ?? 'Account Head';
-            $senderCode = $party->phone ?? '-';
-            $senderType = 'Account Head';
-        } elseif ($voucher->type === 'vendor') {
-            $senderName = $party->name ?? '-';
-            $senderHead = 'Vendor Accounts';
-            $senderCode = $party->phone ?? '-';
-            $senderType = 'Vendor';
-        } elseif (in_array($voucher->type, ['customer', 'walkin'])) {
-            $senderName = $party->customer_name ?? '-';
-            $senderHead = 'Customer Accounts';
-            $senderCode = $party->mobile ?? '-';
-            $senderType = $voucher->type === 'walkin' ? 'Walk-in Customer' : 'Customer';
+        if ($isMultiParty) {
+            $senderName = 'Multiple Parties (' . count($parties) . ')';
+            $senderHead = 'Mixed Heads';
+            $senderCode = 'Multiple';
+            $senderType = 'Multi-Party';
+        } else {
+            $singleParty = (isset($parties) && count($parties) === 1) ? $parties[0] : $party;
+            if ($singleParty) {
+                $pType = $singleParty->type ?? $voucher->type;
+                if (is_numeric($pType)) {
+                    $senderName = $singleParty->name ?? '-';
+                    $senderHead = $singleParty->head_name ?? 'Account Head';
+                    $senderCode = $singleParty->phone ?? ($singleParty->mobile ?? '-');
+                    $senderType = 'Account Head';
+                } elseif ($pType === 'vendor') {
+                    $senderName = $singleParty->name ?? '-';
+                    $senderHead = 'Vendor Accounts';
+                    $senderCode = $singleParty->phone ?? ($singleParty->mobile ?? '-');
+                    $senderType = 'Vendor';
+                } elseif (in_array($pType, ['customer', 'walkin', 'SALE_RECEIPT'])) {
+                    $senderName = $singleParty->customer_name ?? ($singleParty->name ?? '-');
+                    $senderHead = 'Customer Accounts';
+                    $senderCode = $singleParty->mobile ?? ($singleParty->phone ?? '-');
+                    $senderType = $pType === 'walkin' ? 'Walk-in Customer' : 'Customer';
+                }
+            }
         }
 
         $receiverName = '-';
@@ -425,7 +437,7 @@
                     <span class="meta-value" style="font-weight: 700; color: var(--accent);">{{ $senderName }}</span>
                 </div>
                 
-                @if(is_numeric($voucher->type))
+                @if(!$isMultiParty && is_numeric($voucher->type))
                     <div class="meta-line">
                         <span class="meta-label">Account Head:</span>
                         <span class="meta-value">{{ $senderHead }}</span>
@@ -482,6 +494,41 @@
             </div>
         </div>
 
+        @if($isMultiParty)
+        <!-- Multi-Party Breakdown Table -->
+        <div class="details-section" style="margin-bottom: 24px;">
+            <h3 class="section-title">Party Breakdown (Received From)</h3>
+            <table class="erp-table">
+                <thead>
+                    <tr>
+                        <th style="width: 8%;">S.No</th>
+                        <th style="width: 35%;">Party Name</th>
+                        <th style="width: 22%;">Category</th>
+                        <th style="width: 15%;">Contact</th>
+                        <th style="width: 20%; text-align: right;">Amount (PKR)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($parties as $pIndex => $p)
+                    <tr>
+                        <td>{{ $pIndex + 1 }}</td>
+                        <td>
+                            <div style="font-weight: 700; color: var(--accent);">{{ $p->name ?? '-' }}</div>
+                        </td>
+                        <td><span style="font-size: 12px; text-transform: capitalize;">{{ $p->head_name ?? ucfirst($p->type ?? 'Party') }}</span></td>
+                        <td><span style="font-family: monospace; font-size: 12px;">{{ $p->phone ?: '-' }}</span></td>
+                        <td class="amount-col">{{ number_format($p->amount ?? 0, 2) }}</td>
+                    </tr>
+                    @endforeach
+                    <tr class="total-row">
+                        <td colspan="4" style="text-align: right;">Total Party Amount:</td>
+                        <td class="amount-col">PKR {{ number_format($voucher->total_amount, 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        @endif
+
         <!-- Receipt Details Table -->
         <div class="details-section">
             <h3 class="section-title">Itemized Receipt Breakdowns</h3>
@@ -535,23 +582,40 @@
 
             <!-- Financial Summary Box -->
             <div class="card" style="padding: 10px 14px;">
-                @php
-                    $amountPayable = $previousBalance - $voucher->total_amount;
-                @endphp
-                <table class="summary-table">
-                    <tr>
-                        <td>Previous Outstanding:</td>
-                        <td class="val">PKR {{ number_format($previousBalance, 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td>Amount Received (-):</td>
-                        <td class="val" style="color: var(--accent);">PKR {{ number_format($voucher->total_amount, 2) }}</td>
-                    </tr>
-                    <tr class="highlight">
-                        <td>Remaining Balance:</td>
-                        <td class="val">PKR {{ number_format($amountPayable, 2) }}</td>
-                    </tr>
-                </table>
+                @if(!$isMultiParty)
+                    @php
+                        $amountPayable = $previousBalance - $voucher->total_amount;
+                    @endphp
+                    <table class="summary-table">
+                        <tr>
+                            <td>Previous Outstanding:</td>
+                            <td class="val">PKR {{ number_format($previousBalance, 2) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Amount Received (-):</td>
+                            <td class="val" style="color: var(--accent);">PKR {{ number_format($voucher->total_amount, 2) }}</td>
+                        </tr>
+                        <tr class="highlight">
+                            <td>Remaining Balance:</td>
+                            <td class="val">PKR {{ number_format($amountPayable, 2) }}</td>
+                        </tr>
+                    </table>
+                @else
+                    <table class="summary-table">
+                        <tr>
+                            <td>Total Parties:</td>
+                            <td class="val">{{ count($parties) }}</td>
+                        </tr>
+                        <tr>
+                            <td>Total Accounts:</td>
+                            <td class="val">{{ count($rows) }}</td>
+                        </tr>
+                        <tr class="highlight">
+                            <td>Total Received:</td>
+                            <td class="val">PKR {{ number_format($voucher->total_amount, 2) }}</td>
+                        </tr>
+                    </table>
+                @endif
             </div>
         </div>
 

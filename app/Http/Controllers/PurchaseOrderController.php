@@ -29,8 +29,8 @@ class PurchaseOrderController extends Controller
             if (!empty($allowedBranches)) {
                 $query->whereIn('branch_id', $allowedBranches);
             }
-            // Strict warehouse restriction for non-admins (warehouse incharges)
-            if (!$user->hasRole('admin')) {
+            $isBranchAuthority = $user->hasRole('admin') || $user->hasRole('branch admin') || $user->hasRole('branch manager') || $user->hasRole('manager');
+            if (!$isBranchAuthority && !empty($assignedWarehouses)) {
                 $query->whereIn('warehouse_id', $assignedWarehouses);
             }
         }

@@ -608,22 +608,21 @@
                             <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                                 <i class="fas fa-map-marker-alt text-info me-1"></i>Location {{ (isset($saleSettings) && $saleSettings->warehouse_mode === 'product_wise') ? '(Default)' : '' }}
                             </label>
+                            @php
+                                $activeBranch = (isset($branches) && count($branches) > 0) ? ($branches->firstWhere('id', $defaultBranchId ?? null) ?? $branches->first()) : null;
+                                $assignedWhs = ($activeBranch && $activeBranch->warehouses) ? $activeBranch->warehouses : collect();
+                            @endphp
                             <select class="form-select fw-bold shadow-xs" name="global_warehouse_id" id="globalWarehouseSelect" style="font-size:0.78rem; height: 28px;">
-                                @if(isset($branches) && count($branches) > 0)
+                                @if($activeBranch)
                                     <optgroup label="🏬 Shops / Branches (Shop Stock)">
-                                        @foreach($branches as $b)
-                                            <option value="branch_{{ $b->id }}" {{ (isset($defaultBranchId) && $defaultBranchId == $b->id) || (!isset($sale) && $loop->first) || (isset($sale) && is_null($sale->warehouse_id) && $sale->branch_id == $b->id) ? 'selected' : '' }}>
-                                                {{ $b->name }} (Shop)
-                                            </option>
-                                        @endforeach
+                                        <option value="branch_{{ $activeBranch->id }}" {{ (!isset($sale) || (isset($sale) && is_null($sale->warehouse_id) && $sale->branch_id == $activeBranch->id)) ? 'selected' : '' }}>
+                                            {{ $activeBranch->name }} (Shop)
+                                        </option>
                                     </optgroup>
                                 @endif
-                                @php
-                                    $whItems = (isset($allWarehouses) && count($allWarehouses) > 0) ? $allWarehouses : ((isset($warehouse) && count($warehouse) > 0) ? $warehouse : \App\Models\Warehouse::all());
-                                @endphp
-                                @if(isset($whItems) && count($whItems) > 0)
+                                @if(isset($assignedWhs) && count($assignedWhs) > 0)
                                     <optgroup label="🏭 Warehouses (Godown Stock)">
-                                        @foreach($whItems as $w)
+                                        @foreach($assignedWhs as $w)
                                             <option value="warehouse_{{ $w->id }}" {{ (isset($sale) && $sale->warehouse_id == $w->id) ? 'selected' : '' }}>
                                                 {{ $w->warehouse_name ?? $w->name }}
                                             </option>
@@ -1279,6 +1278,7 @@
         window.BRANCHES = @json($branches ?? []);
         window.BRANCH_COUNTERS = @json($branchCounters ?? []);
         window.ALL_WAREHOUSES = @json($allWarehouses ?? $warehouse ?? \App\Models\Warehouse::all());
+        window.BRANCH_WAREHOUSE_MAP = @json($branchWarehouseMap ?? []);
         window.WAREHOUSE_STOCKS = @json($warehouseStocks ?? []);
         window.IS_ADMIN = {{ Auth::user() && Auth::user()->hasRole('super admin') ? 'true' : 'false' }};
         window.saleSettings = {
@@ -1357,23 +1357,26 @@
             function buildWarehouseOptionsHtml(selectedVal, prodId) {
                 let html = '';
                 let sVal = String(selectedVal || '');
-                if (window.BRANCHES && window.BRANCHES.length > 0) {
-                    html += '<optgroup label="🏬 Shops / Branches">';
-                    window.BRANCHES.forEach(function(b) {
-                        const val = 'branch_' + b.id;
-                        const isSel = (sVal === val || sVal === String(b.id)) ? 'selected' : '';
-                        let stockBadge = '';
-                        if (prodId) {
-                            let st = getProductLocationStock(prodId, val);
-                            stockBadge = ` — [Stock: ${st !== null ? st : 0}]`;
-                        }
-                        html += `<option value="${val}" ${isSel}>${b.name} (Shop)${stockBadge}</option>`;
-                    });
-                    html += '</optgroup>';
+                let currentBranchId = $('#branch_id').val() || window.USER_BRANCH_ID || 1;
+
+                let branch = (window.BRANCHES || []).find(b => parseInt(b.id) === parseInt(currentBranchId));
+                let branchName = branch ? branch.name : 'Shop';
+
+                html += '<optgroup label="🏬 Shops / Branches (Shop Stock)">';
+                const shopVal = 'branch_' + currentBranchId;
+                const isShopSel = (sVal === shopVal || sVal === String(currentBranchId)) ? 'selected' : '';
+                let shopStockBadge = '';
+                if (prodId) {
+                    let st = getProductLocationStock(prodId, shopVal);
+                    shopStockBadge = ` — [Stock: ${st !== null ? st : 0}]`;
                 }
-                if (window.ALL_WAREHOUSES && window.ALL_WAREHOUSES.length > 0) {
-                    html += '<optgroup label="🏭 Warehouses">';
-                    window.ALL_WAREHOUSES.forEach(function(w) {
+                html += `<option value="${shopVal}" ${isShopSel}>${branchName} (Shop)${shopStockBadge}</option>`;
+                html += '</optgroup>';
+
+                let assignedWhs = (window.BRANCH_WAREHOUSE_MAP && window.BRANCH_WAREHOUSE_MAP[currentBranchId]) ? window.BRANCH_WAREHOUSE_MAP[currentBranchId] : [];
+                if (assignedWhs && assignedWhs.length > 0) {
+                    html += '<optgroup label="🏭 Warehouses (Godown Stock)">';
+                    assignedWhs.forEach(function(w) {
                         const val = 'warehouse_' + w.id;
                         const isSel = (sVal === val || sVal === String(w.id)) ? 'selected' : '';
                         let stockBadge = '';
@@ -1872,6 +1875,56 @@
                 $('#walkinToggle').prop('checked', false).trigger('change');
             }
 
+            // --- Dynamic Branch Location Dropdown Updater ---
+            function updateLocationDropdownForBranch(selectedBranchId, keepVal) {
+                let $locSelect = $('#globalWarehouseSelect');
+                let prevVal = keepVal || $locSelect.val();
+                $locSelect.empty();
+
+                let branch = (window.BRANCHES || []).find(b => parseInt(b.id) === parseInt(selectedBranchId));
+                let branchName = branch ? branch.name : 'Shop';
+
+                // 1. Shop / Counter option (Always strictly scoped to selected branch)
+                let $shopGroup = $('<optgroup label="🏬 Shops / Branches (Shop Stock)"></optgroup>');
+                let shopVal = 'branch_' + selectedBranchId;
+                let isShopSelected = (!prevVal || prevVal === shopVal || prevVal.startsWith('branch_'));
+                $shopGroup.append(`<option value="${shopVal}" ${isShopSelected ? 'selected' : ''}>${branchName} (Shop)</option>`);
+                $locSelect.append($shopGroup);
+
+                // 2. Assigned Godowns for selected branch
+                let assignedWhs = (window.BRANCH_WAREHOUSE_MAP && window.BRANCH_WAREHOUSE_MAP[selectedBranchId]) ? window.BRANCH_WAREHOUSE_MAP[selectedBranchId] : [];
+                if (assignedWhs && assignedWhs.length > 0) {
+                    let $whGroup = $('<optgroup label="🏭 Warehouses (Godown Stock)"></optgroup>');
+                    assignedWhs.forEach(function(w) {
+                        let wVal = 'warehouse_' + w.id;
+                        let isWhSelected = (!isShopSelected && (prevVal === wVal || prevVal === String(w.id)));
+                        $whGroup.append(`<option value="${wVal}" ${isWhSelected ? 'selected' : ''}>${w.warehouse_name || w.name}</option>`);
+                    });
+                    $locSelect.append($whGroup);
+                }
+
+                // If previous selected warehouse is not in this branch's assigned warehouses, default to shop
+                if (!isShopSelected) {
+                    let whExists = assignedWhs.some(w => ('warehouse_' + w.id) === prevVal || String(w.id) === prevVal);
+                    if (!whExists) {
+                        $locSelect.val(shopVal);
+                    }
+                }
+
+                // Refresh any product-wise row selects
+                if (window.saleSettings && window.saleSettings.warehouse_mode === 'product_wise') {
+                    $('#salesTableBody tr').each(function() {
+                        let $wh = $(this).find('.warehouse-select');
+                        let pId = $(this).find('.product-select').val();
+                        if ($wh.length) {
+                            $wh.html(buildWarehouseOptionsHtml($wh.val() || shopVal, pId));
+                        }
+                    });
+                }
+
+                $locSelect.trigger('change');
+            }
+
             // --- Dynamic Branch Selection Change Handler ---
             $(document).on('change', '#branch_id', function() {
                 let selectedBranchId = $(this).val();
@@ -1885,9 +1938,12 @@
                     $('#headerInvoiceNoDisplay').text(formattedNo);
                 }
 
-                // 2. Fetch Salesmen for Selected Branch
+                // 2. Update Location Dropdown strictly for Selected Branch
+                updateLocationDropdownForBranch(selectedBranchId);
+
+                // 3. Fetch Salesmen for Selected Branch
                 $.ajax({
-                    url: "/sale/get-branch-salesmen/" + selectedBranchId,
+                    url: "/get-branch-salesmen/" + selectedBranchId,
                     type: 'GET',
                     dataType: 'json',
                     success: function(salesmen) {
@@ -1907,7 +1963,30 @@
                     }
                 });
 
-                // 3. Reset customer selection upon branch change & reload branch customers
+                // 4. Fetch Accounts for Selected Branch
+                $.ajax({
+                    url: "/get-branch-accounts/" + selectedBranchId,
+                    type: 'GET',
+                    dataType: 'json',
+                    success: function(accounts) {
+                        if (Array.isArray(accounts)) {
+                            window.RECEIPT_ACCOUNTS = accounts;
+                            $('.rv-account').each(function() {
+                                let currentAccId = $(this).val();
+                                let opts = '';
+                                accounts.forEach(function(acc) {
+                                    opts += `<option value="${acc.id}" ${currentAccId == acc.id ? 'selected' : ''}>${acc.title}</option>`;
+                                });
+                                $(this).html(opts);
+                            });
+                        }
+                    },
+                    error: function(err) {
+                        console.error('Failed to fetch branch accounts:', err);
+                    }
+                });
+
+                // 5. Reset customer selection upon branch change & reload branch customers
                 if (!window.IS_EDIT_MODE) {
                     $('#customerSelect').val(null).trigger('change');
                     $('#customer_id').val('');
@@ -3000,14 +3079,20 @@
                         $('#salesmanSelect').val(window.EDIT_SALE.salesman_id);
                     }
 
+                    let initialWhVal = null;
                     if (window.EDIT_SALE.warehouse_id) {
-                        let whVal = String(window.EDIT_SALE.warehouse_id);
-                        if (!whVal.startsWith('warehouse_') && !whVal.startsWith('branch_')) {
-                            whVal = 'warehouse_' + whVal;
+                        initialWhVal = String(window.EDIT_SALE.warehouse_id);
+                        if (!initialWhVal.startsWith('warehouse_') && !initialWhVal.startsWith('branch_')) {
+                            initialWhVal = 'warehouse_' + initialWhVal;
                         }
-                        $('#globalWarehouseSelect').val(whVal);
                     } else if (window.EDIT_SALE.branch_id) {
-                        $('#globalWarehouseSelect').val('branch_' + window.EDIT_SALE.branch_id);
+                        initialWhVal = 'branch_' + window.EDIT_SALE.branch_id;
+                    }
+                    if (window.EDIT_SALE.branch_id) {
+                        updateLocationDropdownForBranch(window.EDIT_SALE.branch_id, initialWhVal);
+                    }
+                    if (initialWhVal) {
+                        $('#globalWarehouseSelect').val(initialWhVal);
                     }
 
                     if (window.EDIT_SALE.manual_invoice) {

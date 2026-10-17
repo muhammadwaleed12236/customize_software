@@ -324,11 +324,18 @@ public function searchProductsForSalebypagination(Request $request)
 
     // Add ownership information and Primary/Secondary status for each product
     $productsWithOwnership = $products->map(function($p) use ($branchId) {
-        $overallStock = (float) DB::table('warehouse_stocks')
-            ->where('product_id', $p->id)
-            ->sum('quantity');
+        $whStockQuery = DB::table('warehouse_stocks')->where('product_id', $p->id);
+        if ($branchId) {
+            $whStockQuery->where('branch_id', $branchId);
+        }
+        $overallStock = (float) $whStockQuery->sum('quantity');
+
         if ($overallStock == 0) {
-            $overallStock = (float) DB::table('stocks')->where('product_id', $p->id)->sum('qty');
+            $stocksQuery = DB::table('stocks')->where('product_id', $p->id);
+            if ($branchId) {
+                $stocksQuery->where('branch_id', $branchId);
+            }
+            $overallStock = (float) $stocksQuery->sum('qty');
         }
         $stockQty = $overallStock;
         $isPrimary = ($overallStock > 0);
@@ -1881,20 +1888,42 @@ public function searchProductsForSalebypagination(Request $request)
                 ['qty' => $newQty, 'updated_at' => now()]
             );
 
-            // Stock movement audit for delta
-            if ($delta != 0) {
+            // Update or create the single primary OPENING stock movement
+            $existingOpening = StockMovement::where('product_id', $id)
+                ->where('branch_id', $branchId)
+                ->where('ref_type', 'OPENING')
+                ->first();
+
+            if ($existingOpening) {
+                if ($newQty > 0) {
+                    $existingOpening->update([
+                        'qty'        => $newQty,
+                        'type'       => 'in',
+                        'note'       => 'Opening stock entry',
+                        'updated_at' => now(),
+                    ]);
+                } else {
+                    $existingOpening->delete();
+                }
+            } elseif ($newQty > 0) {
                 StockMovement::create([
                     'product_id' => $id,
                     'branch_id'  => $branchId,
-                    'type'       => $delta > 0 ? 'in' : 'out',
-                    'qty'        => abs($delta),
-                    'ref_type'   => 'OPENING_ADJ',
+                    'type'       => 'in',
+                    'qty'        => $newQty,
+                    'ref_type'   => 'OPENING',
                     'ref_id'     => null,
-                    'note'       => 'Opening stock adjustment (edit)',
+                    'note'       => 'Opening stock entry',
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
             }
+
+            // Remove any old OPENING_ADJ movements for this product and branch
+            StockMovement::where('product_id', $id)
+                ->where('branch_id', $branchId)
+                ->where('ref_type', 'OPENING_ADJ')
+                ->delete();
 
             // Replace warehouse allocations
             WarehouseStock::where('product_id', $id)

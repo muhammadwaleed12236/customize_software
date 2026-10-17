@@ -1,4 +1,4 @@
-﻿@extends('admin_panel.layout.app')
+@extends('admin_panel.layout.app')
 @section('content')
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <style>
@@ -219,7 +219,7 @@
                         <div class="col-md-3">
                             <label class="form-label">Branch <span class="text-danger">*</span></label>
                             <select name="branch_id" id="branch_id" class="form-select" required>
-                                <option value="">� Select Branch �</option>
+                                <option value="">-- Select Branch --</option>
                                 @foreach ($Branch as $b)
                                     <option value="{{ $b->id }}" {{ $currentBranch == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
                                 @endforeach
@@ -232,68 +232,80 @@
                 </div>
             </div>
 
-            {{-- --- TO (Paid To Party) --- --}}
+                        {{-- ─── TO (Paid To Party) ─── --}}
             <div class="pv-card">
                 <div class="pv-card-header green">
                     <i class="bi bi-box-arrow-right"></i> TO &mdash; Paid To Party
+                    <span style="font-weight: 400; font-size: 0.78rem; margin-left: auto; opacity: 0.8;">Select vendors/parties receiving payment</span>
                 </div>
-                <div class="pv-card-body">
-                    <div class="row g-3 align-items-end">
-                        {{-- Party Type --}}
-                        <div class="col-md-3">
-                            <label class="form-label">Party / Account Type <span class="text-danger">*</span></label>
-                            <select name="vendor_type" id="vendor_type" class="form-select" required>
-                                <option value="">� Select Type �</option>
-                                @foreach ($AccountHeads as $head)
-                                    <option value="{{ $head->id }}" data-kind="account" {{ (string)$voucher->type === (string)$head->id ? 'selected' : '' }}>{{ $head->name }}</option>
+                <div class="pv-card-body" style="padding: 1rem;">
+                    <div class="table-responsive">
+                        <table class="to-table" id="partyTable">
+                            <thead>
+                                <tr>
+                                    <th style="width:3%">#</th>
+                                    <th style="width:20%">Type</th>
+                                    <th style="width:30%">Party / Vendor Name</th>
+                                    <th style="width:16%">Mobile / Code</th>
+                                    <th style="width:14%">Current Balance</th>
+                                    <th style="width:14%">Payment Amount (Rs.)</th>
+                                    <th style="width:3%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="partyRows">
+                                @foreach($partyRows as $idx => $pRow)
+                                <tr class="party-row">
+                                    <td><div class="row-num party-row-num">{{ $idx + 1 }}</div></td>
+                                    <td>
+                                        <select name="party_type[]" class="form-select partyTypeSelect" required>
+                                            <option value="">-- Select Type --</option>
+                                            @foreach ($AccountHeads as $head)
+                                                <option value="{{ $head->id }}" data-kind="account" {{ (string)$pRow['type'] === (string)$head->id ? 'selected' : '' }}>{{ $head->name }}</option>
+                                            @endforeach
+                                            <option value="vendor" data-kind="party" {{ $pRow['type'] === 'vendor' ? 'selected' : '' }}>Vendor</option>
+                                            <option value="customer" data-kind="party" {{ in_array($pRow['type'], ['customer', 'walkin']) ? 'selected' : '' }}>Customer</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select name="party_id[]" class="form-select partySelect" required data-selected="{{ $pRow['id'] }}">
+                                            @if($pRow['id'])
+                                                <option value="{{ $pRow['id'] }}" selected>{{ $pRow['name'] ?: 'Selected Party' }}</option>
+                                            @else
+                                                <option value="">-- Select Party --</option>
+                                            @endif
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="party_tel[]" class="form-control partyTel" value="{{ $pRow['tel'] }}" readonly placeholder="Auto-filled">
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control partyBal text-end" value="{{ number_format($pRow['balance'], 2) }}" readonly placeholder="0.00">
+                                    </td>
+                                    <td>
+                                        <input type="number" name="party_amount[]" step="0.01" min="0" class="form-control partyAmount" value="{{ $pRow['amount'] }}" placeholder="0.00" required>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn-remove-row removePartyRow" title="Remove party">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </td>
+                                </tr>
                                 @endforeach
-                                <option value="vendor" data-kind="party" {{ $voucher->type === 'vendor' ? 'selected' : '' }}>Vendor</option>
-                                <option value="customer" data-kind="party" {{ $voucher->type === 'customer' ? 'selected' : '' }}>Customer</option>
-                            </select>
-                        </div>
-
-                        {{-- Party Name --}}
-                        <div class="col-md-4" id="party_name_container">
-                            <label class="form-label" id="party_label">Select Party / Account <span class="text-danger">*</span></label>
-                            <select name="vendor_id" id="vendor_id" class="form-select" required data-selected="{{ $voucher->party_id }}">
-                                <option value="{{ $voucher->party_id }}" selected>{{ $partyName ?: 'Selected Party' }}</option>
-                            </select>
-                        </div>
-
-                        {{-- Walk-in Name (Hidden by default) --}}
-                        <div class="col-md-4" id="walkin_name_container" style="display: none;">
-                            <label class="form-label">Walk-in Customer Name</label>
-                            <input type="text" name="walking_customer_name" id="walking_customer_name" class="form-control" placeholder="Enter specific name">
-                        </div>
-
-                        {{-- Mobile / Code --}}
-                        <div class="col-md-2">
-                            <label class="form-label">Mobile / Code</label>
-                            <input type="text" name="tel" id="tel" class="form-control" value="{{ $partyMobile }}" readonly placeholder="Auto-filled">
-                        </div>
-
-                        {{-- Previous Balance --}}
-                        <div class="col-md-3" id="balance_container">
-                            <label class="form-label">Current Balance</label>
-                            <input type="number" name="bal" id="bal" class="form-control" value="{{ $partyBalance }}" readonly placeholder="0.00">
-                        </div>
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #f8fafc; font-weight: 600;">
+                                    <td colspan="5" class="text-end" style="padding: 0.6rem 1rem;">Total Party Payment:</td>
+                                    <td style="padding: 0.6rem;">
+                                        <span id="partyTotalDisplay" style="color: #15803d; font-size: 1rem; font-weight: 700;">Rs. {{ number_format($voucher->total_amount, 2) }}</span>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
-
-                    {{-- Balance Info Strip --}}
-                    <div class="balance-strip" id="balanceStrip" style="{{ $partyName ? '' : 'display:none;' }}">
-                        <div class="bl-item">
-                            <span class="bl-label">Party</span>
-                            <span class="bl-value" id="strip_name">{{ $partyName ?: '�' }}</span>
-                        </div>
-                        <div class="bl-item">
-                            <span class="bl-label">Current Outstanding Balance</span>
-                            <span class="bl-value" id="strip_bal">{{ number_format($partyBalance, 2) }}</span>
-                        </div>
-                        <div class="bl-item">
-                            <span class="bl-label">Mobile</span>
-                            <span class="bl-value" id="strip_mobile">{{ $partyMobile ?: '�' }}</span>
-                        </div>
-                    </div>
+                    <button type="button" class="add-row-btn mt-2" id="addPartyRowBtn">
+                        <i class="bi bi-plus-lg"></i> Add Another Vendor / Party Row
+                    </button>
                 </div>
             </div>
 
@@ -324,7 +336,7 @@
                                     <td>
                                         <div class="d-flex flex-nowrap gap-1">
                                             <select name="narration_id[]" class="form-select narrationSelect" required>
-                                                <option value="">� Select Narration �</option>
+                                                <option value="">-- Select Narration --</option>
                                                 @foreach ($narrations as $id => $name)
                                                     <option value="{{ $id }}" {{ (string)$row['narration_id'] === (string)$id ? 'selected' : '' }}>{{ $name }}</option>
                                                 @endforeach
@@ -337,7 +349,7 @@
                                     <td><input name="reference_no[]" type="text" class="form-control" value="{{ $row['reference_no'] }}" placeholder="Ref / Cheque #"></td>
                                     <td>
                                         <select name="row_account_head[]" class="form-select rowAccountHead" required>
-                                            <option value="">� Select Head �</option>
+                                            <option value="">-- Select Head --</option>
                                             @foreach ($AccountHeads as $head)
                                                 <option value="{{ $head->id }}" {{ (string)$row['row_account_head'] === (string)$head->id ? 'selected' : '' }}>{{ $head->name }}</option>
                                             @endforeach
@@ -345,7 +357,7 @@
                                     </td>
                                     <td>
                                         <select name="row_account_id[]" class="form-select rowAccountSub" required>
-                                            <option value="">� Select Account �</option>
+                                            <option value="">-- Select Account --</option>
                                             @if(!empty($row['sub_accounts']))
                                                 @foreach ($row['sub_accounts'] as $sub)
                                                     <option value="{{ $sub->id }}" {{ (string)$row['row_account_id'] === (string)$sub->id ? 'selected' : '' }}>{{ $sub->title }}</option>
@@ -366,7 +378,7 @@
                                     <td>
                                         <div class="d-flex flex-nowrap gap-1">
                                             <select name="narration_id[]" class="form-select narrationSelect" required>
-                                                <option value="">� Select Narration �</option>
+                                                <option value="">-- Select Narration --</option>
                                                 @foreach ($narrations as $id => $name)
                                                     <option value="{{ $id }}">{{ $name }}</option>
                                                 @endforeach
@@ -379,7 +391,7 @@
                                     <td><input name="reference_no[]" type="text" class="form-control" placeholder="Ref / Cheque #"></td>
                                     <td>
                                         <select name="row_account_head[]" class="form-select rowAccountHead" required>
-                                            <option value="">� Select Head �</option>
+                                            <option value="">-- Select Head --</option>
                                             @foreach ($AccountHeads as $head)
                                                 <option value="{{ $head->id }}">{{ $head->name }}</option>
                                             @endforeach
@@ -387,7 +399,7 @@
                                     </td>
                                     <td>
                                         <select name="row_account_id[]" class="form-select rowAccountSub" required>
-                                            <option value="">� Select Account �</option>
+                                            <option value="">-- Select Account --</option>
                                         </select>
                                     </td>
                                     <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" placeholder="0.00" required></td>
@@ -470,76 +482,160 @@ $(document).ready(function () {
 
     var activeNarrationSelect = null;
 
-    // Load party list dynamically
-    function loadPartyList(selectedId) {
-        var type = $('#vendor_type').val();
-        var branchId = $('#branch_id').val() || '';
-        var $partySelect = $('#vendor_id');
+    // ─── PARTY AJAX LOADER FUNCTION ─────────────────────────────────────────
+    function loadPartiesForRow($row, defaultId) {
+        var $typeSelect  = $row.find('.partyTypeSelect');
+        var $partySelect = $row.find('.partySelect');
+        var type         = $typeSelect.val();
+        var kind         = $typeSelect.find(':selected').data('kind');
+        var branchId     = $('#branch_id').val() || '';
+
+        $partySelect.html('<option value="" class="select-loading">Loading...</option>');
 
         if (!type) {
-            $partySelect.html('<option value="">� First select type above �</option>');
+            $partySelect.html('<option value="">— Select Type First —</option>');
+            $row.find('.partyTel').val('');
+            $row.find('.partyBal').val('');
             return;
         }
 
-        $partySelect.html('<option value="">Loading...</option>');
-
-        $.ajax({
-            url: "{{ route('receipt.party.list') }}",
-            type: "GET",
-            data: { type: type, branch_id: branchId },
-            success: function (data) {
-                var options = '<option value="">� Select Party / Account �</option>';
-                $.each(data, function (index, item) {
-                    var isSel = (selectedId && String(selectedId) === String(item.id)) ? 'selected' : '';
-                    options += `<option value="${item.id}" data-mobile="${item.mobile || ''}" data-balance="${item.closing_balance || 0}" ${isSel}>${item.text}</option>`;
+        if (kind === 'party') {
+            $.getJSON('{{ route("receipt.party.list") }}', { type: type, branch_id: branchId }, function (data) {
+                var html = '<option value="">— Select ' + (type === 'vendor' ? 'Vendor' : 'Customer') + ' —</option>';
+                data.forEach(function (item) {
+                    var isSel = (defaultId && String(defaultId) === String(item.id)) ? 'selected' : '';
+                    html += '<option value="' + item.id + '" '
+                        + 'data-bal="' + (item.closing_balance || 0) + '" '
+                        + 'data-mobile="' + (item.mobile || '') + '" ' + isSel + '>'
+                        + item.text + '</option>';
                 });
-                $partySelect.html(options);
+                $partySelect.html(html);
 
-                if (selectedId) {
-                    $partySelect.trigger('change');
+                if (defaultId) {
+                    $partySelect.val(defaultId);
                 }
-            }
-        });
+                $partySelect.trigger('change');
+            }).fail(function () {
+                $partySelect.html('<option value="">Error loading data</option>');
+            });
+        } else if (kind === 'account') {
+            $.getJSON('{{ url("get-accounts-by-head") }}/' + type, { branch_id: branchId }, function (data) {
+                var html = '<option value="">— Select Account —</option>';
+                data.forEach(function (acc) {
+                    var isSel = (defaultId && String(defaultId) === String(acc.id)) ? 'selected' : '';
+                    html += '<option value="' + acc.id + '" '
+                        + 'data-bal="' + (acc.opening_balance || 0) + '" '
+                        + 'data-mobile="' + (acc.account_code || '') + '" ' + isSel + '>'
+                        + acc.title + ' (' + (acc.account_code || '') + ')</option>';
+                });
+                $partySelect.html(html);
+
+                if (defaultId) {
+                    $partySelect.val(defaultId);
+                }
+                $partySelect.trigger('change');
+            }).fail(function () {
+                $partySelect.html('<option value="">Error loading accounts</option>');
+            });
+        }
     }
 
-    $('#vendor_type').on('change', function () {
-        $('#tel').val('');
-        $('#bal').val('');
-        $('#strip_name').text('—');
-        $('#strip_bal').text('0.00');
-        $('#strip_mobile').text('—');
-        $('#balanceStrip').slideUp(200);
-        loadPartyList(null);
+    // ─── PARTY TYPE CHANGE ───────────────────────────────────────────────────
+    $(document).on('change', '.partyTypeSelect', function () {
+        var $row = $(this).closest('.party-row');
+        loadPartiesForRow($row);
     });
 
-    $('#branch_id').on('change', function () {
-        loadPartyList($('#vendor_id').val());
-    });
-
-    // Initial load of party list to populate all options for the selected type
-    var initialPartyId = $('#vendor_id').data('selected') || '{{ $voucher->party_id }}';
-    if ($('#vendor_type').val()) {
-        loadPartyList(initialPartyId);
-    }
-
-    // Party selection change
-    $('#vendor_id').on('change', function () {
+    // ─── PARTY SELECT CHANGE ─────────────────────────────────────────────────
+    $(document).on('change', '.partySelect', function () {
+        var $row = $(this).closest('.party-row');
         var $opt = $(this).find(':selected');
-        var mobile = $opt.data('mobile') || '';
-        var balance = parseFloat($opt.data('balance') || 0);
+        var bal  = parseFloat($opt.data('bal')) || 0;
+        var mob  = $opt.data('mobile') || '';
 
-        $('#tel').val(mobile);
-        $('#bal').val(balance.toFixed(2));
+        if (mob) $row.find('.partyTel').val(mob);
+        if ($opt.data('bal') !== undefined) $row.find('.partyBal').val(formatNum(bal));
+    });
 
-        if ($(this).val()) {
-            $('#strip_name').text($opt.text());
-            $('#strip_bal').text(balance.toFixed(2));
-            $('#strip_mobile').text(mobile || 'N/A');
-            $('#balanceStrip').slideDown(200);
+    // Branch change → reload all parties
+    $('#branch_id').on('change', function () {
+        $('.party-row').each(function () {
+            var $row = $(this);
+            var currentVal = $row.find('.partySelect').val();
+            loadPartiesForRow($row, currentVal);
+        });
+        $('.rowAccountHead').trigger('change');
+    });
+
+    // Populate full dropdown options for existing party rows on edit page
+    $('.party-row').each(function () {
+        var $row = $(this);
+        var existingSelectedId = $row.find('.partySelect').data('selected');
+        loadPartiesForRow($row, existingSelectedId);
+    });
+
+    // ─── ADD PARTY ROW ───────────────────────────────────────────────────────
+    $('#addPartyRowBtn').on('click', function () {
+        var rowCount = $('.party-row').length + 1;
+        var headOptions = '';
+        @foreach ($AccountHeads as $head)
+            headOptions += '<option value="{{ $head->id }}" data-kind="account">{{ $head->name }}</option>';
+        @endforeach
+
+        var $newPartyRow = $(`
+            <tr class="party-row">
+                <td><div class="row-num party-row-num">${rowCount}</div></td>
+                <td>
+                    <select name="party_type[]" class="form-select partyTypeSelect" required>
+                        <option value="">— Select Type —</option>
+                        ${headOptions}
+                        <option value="vendor" data-kind="party" selected>Vendor</option>
+                        <option value="customer" data-kind="party">Customer</option>
+                    </select>
+                </td>
+                <td>
+                    <select name="party_id[]" class="form-select partySelect" required>
+                        <option value="">Loading...</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" name="party_tel[]" class="form-control partyTel" readonly placeholder="Auto-filled">
+                </td>
+                <td>
+                    <input type="text" class="form-control partyBal text-end" readonly placeholder="0.00">
+                </td>
+                <td>
+                    <input type="number" name="party_amount[]" step="0.01" min="0" class="form-control partyAmount" placeholder="0.00" required>
+                </td>
+                <td>
+                    <button type="button" class="btn-remove-row removePartyRow" title="Remove party">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </td>
+            </tr>
+        `);
+
+        $('#partyRows').append($newPartyRow);
+        renumberPartyRows();
+        loadPartiesForRow($newPartyRow);
+    });
+
+    // ─── REMOVE PARTY ROW ────────────────────────────────────────────────────
+    $(document).on('click', '.removePartyRow', function () {
+        if ($('.party-row').length > 1) {
+            $(this).closest('tr').remove();
+            renumberPartyRows();
+            calculatePartyTotal();
         } else {
-            $('#balanceStrip').slideUp(200);
+            alert('At least one party row is required.');
         }
     });
+
+    function renumberPartyRows() {
+        $('.party-row').each(function (i) {
+            $(this).find('.party-row-num').text(i + 1);
+        });
+    }
 
     // Account Head change
     $(document).on('change', '.rowAccountHead', function () {
@@ -547,7 +643,7 @@ $(document).ready(function () {
         var $rowAccountSub = $(this).closest('tr').find('.rowAccountSub');
 
         if (!headId) {
-            $rowAccountSub.html('<option value="">� Select Account �</option>');
+            $rowAccountSub.html('<option value="">— Select Account —</option>');
             return;
         }
 
@@ -557,7 +653,7 @@ $(document).ready(function () {
             url: "/get-accounts-by-head/" + headId,
             type: "GET",
             success: function (data) {
-                var options = '<option value="">� Select Account �</option>';
+                var options = '<option value="">— Select Account —</option>';
                 $.each(data, function (index, item) {
                     options += `<option value="${item.id}">${item.title}</option>`;
                 });
@@ -575,7 +671,7 @@ $(document).ready(function () {
         newRow.find('.row-num').text(rowCount);
         newRow.find('input').val('');
         newRow.find('select').val('');
-        newRow.find('.rowAccountSub').html('<option value="">� Select Account �</option>');
+        newRow.find('.rowAccountSub').html('<option value="">— Select Account —</option>');
 
         $('#voucherRows').append(newRow);
         calculateTotal();
@@ -594,10 +690,27 @@ $(document).ready(function () {
         }
     });
 
-    // Amount change
+    // Amount change & sync
+    $(document).on('input', '.partyAmount', function () {
+        calculatePartyTotal();
+    });
+
     $(document).on('input', '.amount', function () {
         calculateTotal();
     });
+
+    function calculatePartyTotal() {
+        var partyTotal = 0;
+        $('.partyAmount').each(function () {
+            partyTotal += parseFloat($(this).val()) || 0;
+        });
+        $('#partyTotalDisplay').text('Rs. ' + formatNum(partyTotal));
+
+        if ($('#voucherRows tr').length === 1) {
+            $('#voucherRows tr:first .amount').val(partyTotal > 0 ? partyTotal.toFixed(2) : '');
+            calculateTotal();
+        }
+    }
 
     function calculateTotal() {
         var total = 0;
@@ -606,7 +719,11 @@ $(document).ready(function () {
             total += val;
         });
         $('#totalAmount').val(total.toFixed(2));
-        $('#totalAmountDisplay').text(total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+        $('#totalAmountDisplay').text(formatNum(total));
+    }
+
+    function formatNum(n) {
+        return parseFloat(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     // Modal Narration
@@ -646,7 +763,38 @@ $(document).ready(function () {
         });
     });
 
-    // Initial calculation
+    // ─── FORM SUBMIT VALIDATION ──────────────────────────────────────────────
+    $('#paymentForm').on('submit', function () {
+        var partyTotal   = 0;
+        var accountTotal = 0;
+
+        $('.partyAmount').each(function () {
+            partyTotal += parseFloat($(this).val()) || 0;
+        });
+
+        $('.amount').each(function () {
+            accountTotal += parseFloat($(this).val()) || 0;
+        });
+
+        if (partyTotal <= 0) {
+            alert('Please enter at least one valid party payment amount greater than zero.');
+            return false;
+        }
+
+        if (accountTotal <= 0) {
+            alert('Total account amount must be greater than zero.');
+            return false;
+        }
+
+        if (Math.abs(partyTotal - accountTotal) > 0.01) {
+            alert('Total Party Amount (Rs. ' + partyTotal.toFixed(2) + ') must match Total Account Amount (Rs. ' + accountTotal.toFixed(2) + '). Please balance both sides before saving.');
+            return false;
+        }
+
+        return true;
+    });
+
+    calculatePartyTotal();
     calculateTotal();
 });
 </script>

@@ -23,8 +23,7 @@ class VoucherService
 
     /**
      * Reverse a Receipt Voucher completely.
-     * Original: Party Credited (receivable reduced), Cash/Bank Accounts Debited (funds increased).
-     * Reversal: Party Debited (receivable restored), Cash/Bank Accounts Credited (funds deducted).
+     * Cleanly removes ledger entries and recalculates party & account balances.
      */
     public static function reverseReceiptVoucher(ReceiptsVoucher $voucher, $userId, bool $isVoid = true): bool
     {
@@ -32,101 +31,74 @@ class VoucherService
         try {
             $totalAmount = (float) $voucher->total_amount;
             $rvid        = $voucher->rvid;
-            $date        = now()->toDateString();
-            $branchId    = $voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 0);
+            $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
-            // 1. REVERSE PARTY SIDE (Debiting Party to restore receivable/adjust liability)
-            if ($voucher->type === 'customer' || $voucher->type === 'walkin') {
-                $lastLedger = CustomerLedger::where('customer_id', $voucher->party_id)
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $customer        = Customer::find($voucher->party_id);
-                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
-
-                CustomerLedger::create([
-                    'customer_id'      => $voucher->party_id,
-                    'admin_or_user_id' => $userId,
-                    'previous_balance' => $previousBalance,
-                    'opening_balance'  => $customer->opening_balance ?? 0,
-                    'total_debit'      => $totalAmount, // Reversed: Customer balance restored
-                    'total_credit'     => 0,
-                    'closing_balance'  => $previousBalance + $totalAmount,
-                    'transaction_type' => 'reversal',
-                    'reference_id'     => $rvid,
-                    'description'      => "Reversal of Receipt Voucher #{$rvid}",
-                ]);
-            } elseif ($voucher->type === 'vendor') {
-                $lastLedger = VendorLedger::where('vendor_id', $voucher->party_id)
-                    ->where('branch_id', $branchId)
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $vendor          = Vendor::find($voucher->party_id);
-                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
-
-                VendorLedger::create([
-                    'vendor_id'        => $voucher->party_id,
-                    'branch_id'        => $branchId,
-                    'admin_or_user_id' => $userId,
-                    'transaction_date' => $date,
-                    'description'      => "Reversal of Receipt Voucher #{$rvid}",
-                    'opening_balance'  => $vendor->opening_balance ?? 0,
-                    'previous_balance' => $previousBalance,
-                    'debit_amount'     => $totalAmount, // Reversed
-                    'credit_amount'    => 0,
-                    'closing_balance'  => $previousBalance - $totalAmount,
-                    'transaction_type' => 'reversal',
-                    'reference_id'     => $rvid,
-                ]);
-            } elseif (is_numeric($voucher->type)) {
-                $account = Account::find($voucher->party_id);
-                if ($account) {
-                    $account->opening_balance += $totalAmount;
-                    $account->save();
-
-                    self::postLedgerEntry(
-                        $account->id,
-                        'manual',
-                        $rvid,
-                        $voucher->id,
-                        $date,
-                        "Reversal of Receipt Party Side: #{$rvid}",
-                        $totalAmount,
-                        0,
-                        $userId
-                    );
-                }
-            }
-
-            // 2. REVERSE ACCOUNT SIDE (Crediting Cash/Bank accounts)
+            // 1. REVERSE ACCOUNT SIDE (Debit Cash/Bank was posted originally, now revert balances)
             $accounts = self::safeDecodeArray($voucher->row_account_id);
             $amounts  = self::safeDecodeArray($voucher->amount);
 
             foreach ($accounts as $index => $accId) {
-                $rowAmount = (float)($amounts[$index] ?? 0);
-                if ($rowAmount <= 0 || !$accId) continue;
-
-                $rowAccount = Account::find($accId);
-                if ($rowAccount) {
-                    if (trim(strtolower($rowAccount->type)) === 'debit') {
-                        $rowAccount->opening_balance -= $rowAmount; // Reverse
-                    } else {
-                        $rowAccount->opening_balance += $rowAmount; // Reverse
+                $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
+                if ($rowAmount > 0 && $accId) {
+                    $rowAccount = Account::find($accId);
+                    if ($rowAccount) {
+                        if (trim(strtolower($rowAccount->type)) === 'debit') {
+                            $rowAccount->opening_balance -= $rowAmount;
+                        } else {
+                            $rowAccount->opening_balance += $rowAmount;
+                        }
+                        $rowAccount->save();
                     }
-                    $rowAccount->save();
+                }
+            }
 
-                    self::postLedgerEntry(
-                        $accId,
-                        'manual',
-                        $rvid,
-                        $voucher->id,
-                        $date,
-                        "Reversal of Receipt from Party: #{$rvid}",
-                        0,
-                        $rowAmount,
-                        $userId
-                    );
+            // Delete AccountLedgerEntry for this receipt voucher
+            AccountLedgerEntry::where('voucher_no', $rvid)->delete();
+
+            // 2. REVERSE PARTY SIDE (Clean delete of customer/vendor ledgers and recalculation)
+            $partyIds     = self::safeDecodeArray($voucher->party_id);
+            $partyTypes   = self::safeDecodeArray($voucher->type);
+            $partyAmounts = self::safeDecodeArray($voucher->party_amount);
+
+            if (empty($partyIds) && !empty($voucher->party_id)) {
+                $partyIds     = [$voucher->party_id];
+                $partyTypes   = [$voucher->type];
+                $partyAmounts = [(float)$voucher->total_amount];
+            }
+
+            $affectedAccountIds = $accounts;
+
+            foreach ($partyIds as $idx => $pId) {
+                if (!$pId) continue;
+                $pType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'customer');
+                $pAmount = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                    ? (float)$partyAmounts[$idx]
+                    : (count($partyIds) === 1 ? $totalAmount : 0);
+
+                if ($pType === 'customer' || $pType === 'walkin' || $pType === 'SALE_RECEIPT') {
+                    CustomerLedger::where('reference_id', $rvid)->where('customer_id', $pId)->delete();
+                    self::recalculateCustomerLedger((int)$pId);
+                } elseif ($pType === 'vendor') {
+                    VendorLedger::where('reference_id', $rvid)->where('vendor_id', $pId)->delete();
+                    self::recalculateVendorLedger((int)$pId, $branchId);
+                } elseif (is_numeric($pType)) {
+                    $acc = Account::find($pId);
+                    if ($acc && $pAmount > 0) {
+                        $acc->opening_balance += $pAmount;
+                        $acc->save();
+                    }
+                    $affectedAccountIds[] = (int)$pId;
+                }
+            }
+
+            // Recalculate running balance for affected accounts
+            foreach (array_unique(array_filter($affectedAccountIds)) as $accId) {
+                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
+                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
+                $accModel  = Account::find($accId);
+                if ($accModel && $lastEntry) {
+                    $accModel->opening_balance = $lastEntry->running_balance;
+                    $accModel->save();
                 }
             }
 
@@ -148,6 +120,7 @@ class VoucherService
 
     /**
      * Post ledger entries for a Receipt Voucher.
+     * Supports both single party and multi-party rows.
      */
     public static function applyReceiptVoucher(ReceiptsVoucher $voucher, array $data, $userId): bool
     {
@@ -155,70 +128,104 @@ class VoucherService
         $rvid        = $voucher->rvid;
         $branchId    = (int)($data['branch_id'] ?? $voucher->branch_id ?? 1);
         $receiptDate = $data['receipt_date'] ?? $voucher->receipt_date ?? now()->toDateString();
-        $partyType   = $data['type'] ?? $data['vendor_type'] ?? $voucher->type;
-        $partyId     = $data['party_id'] ?? $data['vendor_id'] ?? $voucher->party_id;
         $remarks     = $data['remarks'] ?? $voucher->remarks ?? '';
 
+        // Decode Party arrays
+        $partyIds = is_array($data['party_id'] ?? null)
+            ? $data['party_id']
+            : (is_array($data['vendor_id'] ?? null) ? $data['vendor_id'] : self::safeDecodeArray($voucher->party_id));
+
+        $partyTypes = is_array($data['party_type'] ?? null)
+            ? $data['party_type']
+            : (is_array($data['vendor_type'] ?? null)
+                ? $data['vendor_type']
+                : (is_array($data['type'] ?? null) ? $data['type'] : self::safeDecodeArray($voucher->type)));
+
+        $partyAmounts = is_array($data['party_amount'] ?? null)
+            ? $data['party_amount']
+            : self::safeDecodeArray($voucher->party_amount);
+
+        if (empty($partyIds) && !empty($voucher->party_id)) {
+            $partyIds     = [$voucher->party_id];
+            $partyTypes   = [$voucher->type];
+            $partyAmounts = [(float)$voucher->total_amount];
+        }
+
         // 1. PARTY SIDE POSTING (CREDIT)
-        if ($partyType === 'customer' || $partyType === 'walkin') {
-            $lastLedger = CustomerLedger::where('customer_id', $partyId)
-                ->orderBy('id', 'desc')
-                ->first();
+        foreach ($partyIds as $idx => $partyId) {
+            if (!$partyId) continue;
+            $partyType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'customer');
+            $partyAmount = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                ? (float)$partyAmounts[$idx]
+                : (count($partyIds) === 1 ? $totalAmount : 0);
 
-            $customer        = Customer::find($partyId);
-            $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+            if ($partyAmount <= 0) continue;
 
-            CustomerLedger::create([
-                'customer_id'      => $partyId,
-                'admin_or_user_id' => $userId,
-                'previous_balance' => $previousBalance,
-                'opening_balance'  => $customer->opening_balance ?? 0,
-                'total_debit'      => 0,
-                'total_credit'     => $totalAmount,
-                'closing_balance'  => $previousBalance - $totalAmount,
-                'transaction_type' => 'receipt',
-                'reference_id'     => $rvid,
-                'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
-            ]);
-        } elseif ($partyType === 'vendor') {
-            $lastLedger = VendorLedger::where('vendor_id', $partyId)
-                ->where('branch_id', $branchId)
-                ->orderBy('id', 'desc')
-                ->first();
+            if ($partyType === 'customer' || $partyType === 'walkin' || $partyType === 'SALE_RECEIPT') {
+                $lastLedger = CustomerLedger::where('customer_id', $partyId)
+                    ->orderBy('id', 'desc')
+                    ->first();
 
-            $vendor          = Vendor::find($partyId);
-            $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+                $customer        = Customer::find($partyId);
+                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
 
-            VendorLedger::create([
-                'vendor_id'        => $partyId,
-                'branch_id'        => $branchId,
-                'admin_or_user_id' => $userId,
-                'transaction_date' => $receiptDate,
-                'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
-                'opening_balance'  => $vendor->opening_balance ?? 0,
-                'previous_balance' => $previousBalance,
-                'debit_amount'     => 0,
-                'credit_amount'    => $totalAmount,
-                'closing_balance'  => $previousBalance + $totalAmount,
-                'transaction_type' => 'receipt',
-                'reference_id'     => $rvid,
-            ]);
-        } elseif (is_numeric($partyType)) {
-            $account = Account::find($partyId);
-            if ($account) {
-                self::postLedgerEntry(
-                    $account->id,
-                    'receipt',
-                    $rvid,
-                    $voucher->id,
-                    $receiptDate,
-                    "Receipt Voucher Party Side: " . ($remarks ?: 'N/A'),
-                    0,
-                    $totalAmount,
-                    $userId
-                );
-                $account->opening_balance -= $totalAmount;
-                $account->save();
+                CustomerLedger::create([
+                    'customer_id'      => $partyId,
+                    'admin_or_user_id' => $userId,
+                    'previous_balance' => $previousBalance,
+                    'opening_balance'  => $customer->opening_balance ?? 0,
+                    'total_debit'      => 0,
+                    'total_credit'     => $partyAmount,
+                    'closing_balance'  => $previousBalance - $partyAmount,
+                    'transaction_type' => 'receipt',
+                    'reference_id'     => $rvid,
+                    'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
+                ]);
+
+                self::recalculateCustomerLedger((int)$partyId);
+            } elseif ($partyType === 'vendor') {
+                $lastLedger = VendorLedger::where('vendor_id', $partyId)
+                    ->where('branch_id', $branchId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $vendor          = Vendor::find($partyId);
+                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+
+                VendorLedger::create([
+                    'vendor_id'        => $partyId,
+                    'branch_id'        => $branchId,
+                    'admin_or_user_id' => $userId,
+                    'transaction_date' => $receiptDate,
+                    'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
+                    'opening_balance'  => $vendor->opening_balance ?? 0,
+                    'previous_balance' => $previousBalance,
+                    'debit_amount'     => 0,
+                    'credit_amount'    => $partyAmount,
+                    'closing_balance'  => $previousBalance + $partyAmount,
+                    'transaction_type' => 'receipt',
+                    'reference_id'     => $rvid,
+                ]);
+
+                self::recalculateVendorLedger((int)$partyId, $branchId);
+            } elseif (is_numeric($partyType)) {
+                $account = Account::find($partyId);
+                if ($account) {
+                    self::postLedgerEntry(
+                        $account->id,
+                        'receipt',
+                        $rvid,
+                        $voucher->id,
+                        $receiptDate,
+                        "Receipt Voucher Party Side: " . ($remarks ?: 'N/A'),
+                        0,
+                        $partyAmount,
+                        $userId
+                    );
+                    $account->opening_balance -= $partyAmount;
+                    $account->save();
+                    AccountLedgerEntry::recalculateRunningBalance((int)$account->id);
+                }
             }
         }
 
@@ -254,10 +261,69 @@ class VoucherService
                     0,
                     $userId
                 );
+                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
             }
         }
 
         return true;
+    }
+
+    /**
+     * Update an existing Receipt Voucher cleanly.
+     * Reverses old ledger effects and re-applies new entries without duplicate reversal noise.
+     */
+    public static function updateReceiptVoucher(ReceiptsVoucher $voucher, array $data, $userId): bool
+    {
+        DB::beginTransaction();
+        try {
+            // 1. Cleanly revert old ledger effects
+            self::reverseReceiptVoucher($voucher, $userId, false);
+
+            // 2. Parse party arrays
+            $partyTypes   = $data['party_type'] ?? (isset($data['vendor_type']) ? (is_array($data['vendor_type']) ? $data['vendor_type'] : [$data['vendor_type']]) : []);
+            $partyIds     = $data['party_id'] ?? (isset($data['vendor_id']) ? (is_array($data['vendor_id']) ? $data['vendor_id'] : [$data['vendor_id']]) : []);
+            $partyAmounts = $data['party_amount'] ?? [];
+            $partyTels    = $data['party_tel'] ?? (isset($data['tel']) ? (is_array($data['tel']) ? $data['tel'] : [$data['tel']]) : []);
+
+            if (empty($partyAmounts) && count($partyIds) === 1) {
+                $partyAmounts = [(float)($data['total_amount'] ?? $voucher->total_amount)];
+            }
+
+            $narrationIds = is_array($data['narration_id'] ?? null) 
+                ? $data['narration_id'] 
+                : self::safeDecodeArray($voucher->narration_id);
+
+            // 3. Update Voucher Record
+            $voucher->update([
+                'branch_id'        => (int)($data['branch_id'] ?? $voucher->branch_id ?? 1),
+                'receipt_date'     => $data['receipt_date'] ?? $voucher->receipt_date,
+                'type'             => json_encode($partyTypes),
+                'party_id'         => json_encode($partyIds),
+                'party_amount'     => json_encode($partyAmounts),
+                'tel'              => json_encode($partyTels),
+                'remarks'          => $data['remarks'] ?? $voucher->remarks,
+                'narration_id'     => json_encode($narrationIds),
+                'reference_no'     => json_encode($data['reference_no'] ?? self::safeDecodeArray($voucher->reference_no)),
+                'row_account_head' => json_encode($data['row_account_head'] ?? self::safeDecodeArray($voucher->row_account_head)),
+                'row_account_id'   => json_encode($data['row_account_id'] ?? self::safeDecodeArray($voucher->row_account_id)),
+                'discount_value'   => json_encode($data['discount_value'] ?? self::safeDecodeArray($voucher->discount_value)),
+                'rate'             => json_encode($data['rate'] ?? self::safeDecodeArray($voucher->rate)),
+                'amount'           => json_encode($data['amount'] ?? self::safeDecodeArray($voucher->amount)),
+                'total_amount'     => (float)($data['total_amount'] ?? $voucher->total_amount),
+                'status'           => 'active',
+                'processed'        => true,
+            ]);
+
+            // 4. Apply new ledger effects
+            self::applyReceiptVoucher($voucher, $data, $userId);
+
+            DB::commit();
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Receipt Voucher Update Error: " . $e->getMessage());
+            return false;
+        }
     }
 
 
@@ -267,8 +333,7 @@ class VoucherService
 
     /**
      * Reverse a Payment Voucher completely.
-     * Original: Cash/Bank Credited (funds decreased), Party Debited (liability reduced).
-     * Reversal: Cash/Bank Debited (funds restored), Party Credited (liability restored).
+     * Cleanly removes ledger entries and recalculates vendor & customer ledgers.
      */
     public static function reversePaymentVoucher(PaymentVoucher $voucher, $userId, bool $isVoid = true): bool
     {
@@ -276,8 +341,7 @@ class VoucherService
         try {
             $totalAmount = (float) $voucher->total_amount;
             $pvid        = $voucher->pvid;
-            $date        = now()->toDateString();
-            $branchId    = $voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 0);
+            $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
             // 1. REVERSE ROW ACCOUNTS (Cash / Bank accounts credited originally, now debited back)
             $accounts = self::safeDecodeArray($voucher->row_account_id);
@@ -290,83 +354,57 @@ class VoucherService
                     if ($rowAccount) {
                         $rowAccount->opening_balance += $rowAmount;
                         $rowAccount->save();
-
-                        self::postLedgerEntry(
-                            $accId,
-                            'manual',
-                            $pvid,
-                            $voucher->id,
-                            $date,
-                            "Reversal of Payment: #{$pvid}",
-                            $rowAmount,
-                            0,
-                            $userId
-                        );
                     }
                 }
             }
 
-            // 2. REVERSE PARTY SIDE (Vendor/Customer/Account credited to restore payable)
-            if ($voucher->type === 'vendor') {
-                $lastLedger = VendorLedger::where('vendor_id', $voucher->party_id)
-                    ->where('branch_id', $branchId)
-                    ->orderBy('id', 'desc')
-                    ->first();
+            // Delete AccountLedgerEntry for this payment voucher
+            AccountLedgerEntry::where('voucher_no', $pvid)->delete();
 
-                $vendor          = Vendor::find($voucher->party_id);
-                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+            // 2. REVERSE PARTY SIDE (Vendor/Customer/Account ledgers)
+            $partyIds     = self::safeDecodeArray($voucher->party_id);
+            $partyTypes   = self::safeDecodeArray($voucher->type);
+            $partyAmounts = self::safeDecodeArray($voucher->party_amount);
 
-                VendorLedger::create([
-                    'vendor_id'        => $voucher->party_id,
-                    'branch_id'        => $branchId,
-                    'admin_or_user_id' => $userId,
-                    'transaction_date' => $date,
-                    'description'      => "Reversal of Payment Voucher #{$pvid}",
-                    'opening_balance'  => $vendor->opening_balance ?? 0,
-                    'previous_balance' => $previousBalance,
-                    'debit_amount'     => 0,
-                    'credit_amount'    => $totalAmount, // Reversed: Payable increased
-                    'closing_balance'  => $previousBalance + $totalAmount,
-                    'transaction_type' => 'reversal',
-                    'reference_id'     => $pvid,
-                ]);
-            } elseif ($voucher->type === 'customer' || $voucher->type === 'walkin') {
-                $lastLedger = CustomerLedger::where('customer_id', $voucher->party_id)
-                    ->orderBy('id', 'desc')
-                    ->first();
+            if (empty($partyIds) && !empty($voucher->party_id)) {
+                $partyIds     = [$voucher->party_id];
+                $partyTypes   = [$voucher->type];
+                $partyAmounts = [(float)$voucher->total_amount];
+            }
 
-                $customer        = Customer::find($voucher->party_id);
-                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+            $affectedAccountIds = $accounts;
 
-                CustomerLedger::create([
-                    'customer_id'      => $voucher->party_id,
-                    'admin_or_user_id' => $userId,
-                    'previous_balance' => $previousBalance,
-                    'opening_balance'  => $customer->opening_balance ?? 0,
-                    'total_debit'      => 0,
-                    'total_credit'     => $totalAmount,
-                    'closing_balance'  => $previousBalance - $totalAmount,
-                    'transaction_type' => 'reversal',
-                    'reference_id'     => $pvid,
-                    'description'      => "Reversal of Payment Voucher #{$pvid}",
-                ]);
-            } elseif (is_numeric($voucher->type)) {
-                $account = Account::find($voucher->party_id);
-                if ($account) {
-                    $account->opening_balance -= $totalAmount;
-                    $account->save();
+            foreach ($partyIds as $idx => $pId) {
+                if (!$pId) continue;
+                $pType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'vendor');
+                $pAmount = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                    ? (float)$partyAmounts[$idx]
+                    : (count($partyIds) === 1 ? $totalAmount : 0);
 
-                    self::postLedgerEntry(
-                        $account->id,
-                        'manual',
-                        $pvid,
-                        $voucher->id,
-                        $date,
-                        "Reversal of Payment Party Side: #{$pvid}",
-                        0,
-                        $totalAmount,
-                        $userId
-                    );
+                if ($pType === 'vendor') {
+                    VendorLedger::where('reference_id', $pvid)->where('vendor_id', $pId)->delete();
+                    self::recalculateVendorLedger((int)$pId, $branchId);
+                } elseif ($pType === 'customer' || $pType === 'walkin') {
+                    CustomerLedger::where('reference_id', $pvid)->where('customer_id', $pId)->delete();
+                    self::recalculateCustomerLedger((int)$pId);
+                } elseif (is_numeric($pType)) {
+                    $acc = Account::find($pId);
+                    if ($acc && $pAmount > 0) {
+                        $acc->opening_balance -= $pAmount;
+                        $acc->save();
+                    }
+                    $affectedAccountIds[] = (int)$pId;
+                }
+            }
+
+            // Recalculate running balance for affected accounts
+            foreach (array_unique(array_filter($affectedAccountIds)) as $accId) {
+                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
+                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
+                $accModel  = Account::find($accId);
+                if ($accModel && $lastEntry) {
+                    $accModel->opening_balance = $lastEntry->running_balance;
+                    $accModel->save();
                 }
             }
 
@@ -388,15 +426,14 @@ class VoucherService
 
     /**
      * Post ledger entries for a Payment Voucher.
+     * Supports both single party and multi-party rows.
      */
     public static function applyPaymentVoucher(PaymentVoucher $voucher, array $data, $userId): bool
     {
         $totalAmount = (float)($data['total_amount'] ?? $voucher->total_amount);
         $pvid        = $voucher->pvid;
-        $branchId    = (int)($data['branch_id'] ?? $voucher->branch_id ?? (auth()->user()->branch_id ?? 0));
+        $branchId    = (int)($data['branch_id'] ?? $voucher->branch_id ?? (auth()->user()->branch_id ?? 1));
         $receiptDate = $data['receipt_date'] ?? $voucher->receipt_date ?? now()->toDateString();
-        $partyType   = $data['type'] ?? $data['vendor_type'] ?? $voucher->type;
-        $partyId     = $data['party_id'] ?? $data['vendor_id'] ?? $voucher->party_id;
         $remarks     = $data['remarks'] ?? $voucher->remarks ?? '';
 
         // 1. ROW ACCOUNTS POSTING (CREDIT - Paid from Bank/Cash)
@@ -426,75 +463,167 @@ class VoucherService
                         $rowAmount,
                         $userId
                     );
+                    AccountLedgerEntry::recalculateRunningBalance((int)$accId);
                 }
             }
         }
 
         // 2. PARTY SIDE POSTING (DEBIT - Vendor payable reduced / Customer receivable increased)
-        if ($partyType === 'vendor') {
-            $lastLedger = VendorLedger::where('vendor_id', $partyId)
-                ->where('branch_id', $branchId)
-                ->orderBy('id', 'desc')
-                ->first();
+        $partyIds = is_array($data['party_id'] ?? null)
+            ? $data['party_id']
+            : (is_array($data['vendor_id'] ?? null) ? $data['vendor_id'] : self::safeDecodeArray($voucher->party_id));
 
-            $vendor          = Vendor::find($partyId);
-            $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+        $partyTypes = is_array($data['party_type'] ?? null)
+            ? $data['party_type']
+            : (is_array($data['vendor_type'] ?? null)
+                ? $data['vendor_type']
+                : (is_array($data['type'] ?? null) ? $data['type'] : self::safeDecodeArray($voucher->type)));
 
-            VendorLedger::create([
-                'vendor_id'        => $partyId,
-                'branch_id'        => $branchId,
-                'admin_or_user_id' => $userId,
-                'transaction_date' => $receiptDate,
-                'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
-                'opening_balance'  => $previousBalance,
-                'previous_balance' => $previousBalance,
-                'debit_amount'     => $totalAmount,
-                'credit_amount'    => 0,
-                'closing_balance'  => $previousBalance - $totalAmount,
-                'transaction_type' => 'payment',
-                'reference_id'     => $pvid,
-            ]);
-        } elseif ($partyType === 'customer' || $partyType === 'walkin') {
-            $lastLedger = CustomerLedger::where('customer_id', $partyId)
-                ->orderBy('id', 'desc')
-                ->first();
+        $partyAmounts = is_array($data['party_amount'] ?? null)
+            ? $data['party_amount']
+            : self::safeDecodeArray($voucher->party_amount);
 
-            $customer        = Customer::find($partyId);
-            $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+        if (empty($partyIds) && !empty($voucher->party_id)) {
+            $partyIds     = [$voucher->party_id];
+            $partyTypes   = [$voucher->type];
+            $partyAmounts = [(float)$voucher->total_amount];
+        }
 
-            CustomerLedger::create([
-                'customer_id'      => $partyId,
-                'admin_or_user_id' => $userId,
-                'previous_balance' => $previousBalance,
-                'opening_balance'  => $previousBalance,
-                'total_debit'      => $totalAmount,
-                'total_credit'     => 0,
-                'closing_balance'  => $previousBalance + $totalAmount,
-                'transaction_type' => 'payment',
-                'reference_id'     => $pvid,
-                'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
-            ]);
-        } elseif (is_numeric($partyType)) {
-            $account = Account::find($partyId);
-            if ($account) {
-                $account->opening_balance += $totalAmount;
-                $account->save();
+        foreach ($partyIds as $idx => $partyId) {
+            if (!$partyId) continue;
+            $partyType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'vendor');
+            $partyAmount = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                ? (float)$partyAmounts[$idx]
+                : (count($partyIds) === 1 ? $totalAmount : 0);
 
-                self::postLedgerEntry(
-                    $account->id,
-                    'payment',
-                    $pvid,
-                    $voucher->id,
-                    $receiptDate,
-                    "Payment Voucher Party Side: " . ($remarks ?: 'N/A'),
-                    $totalAmount,
-                    0,
-                    $userId
-                );
+            if ($partyAmount <= 0) continue;
+
+            if ($partyType === 'vendor') {
+                $lastLedger = VendorLedger::where('vendor_id', $partyId)
+                    ->where('branch_id', $branchId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $vendor          = Vendor::find($partyId);
+                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+
+                VendorLedger::create([
+                    'vendor_id'        => $partyId,
+                    'branch_id'        => $branchId,
+                    'admin_or_user_id' => $userId,
+                    'transaction_date' => $receiptDate,
+                    'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
+                    'opening_balance'  => $previousBalance,
+                    'previous_balance' => $previousBalance,
+                    'debit_amount'     => $partyAmount,
+                    'credit_amount'    => 0,
+                    'closing_balance'  => $previousBalance - $partyAmount,
+                    'transaction_type' => 'payment',
+                    'reference_id'     => $pvid,
+                ]);
+
+                self::recalculateVendorLedger((int)$partyId, $branchId);
+            } elseif ($partyType === 'customer' || $partyType === 'walkin') {
+                $lastLedger = CustomerLedger::where('customer_id', $partyId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $customer        = Customer::find($partyId);
+                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+
+                CustomerLedger::create([
+                    'customer_id'      => $partyId,
+                    'admin_or_user_id' => $userId,
+                    'previous_balance' => $previousBalance,
+                    'opening_balance'  => $previousBalance,
+                    'total_debit'      => $partyAmount,
+                    'total_credit'     => 0,
+                    'closing_balance'  => $previousBalance + $partyAmount,
+                    'transaction_type' => 'payment',
+                    'reference_id'     => $pvid,
+                    'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
+                ]);
+
+                self::recalculateCustomerLedger((int)$partyId);
+            } elseif (is_numeric($partyType)) {
+                $account = Account::find($partyId);
+                if ($account) {
+                    $account->opening_balance += $partyAmount;
+                    $account->save();
+
+                    self::postLedgerEntry(
+                        $account->id,
+                        'payment',
+                        $pvid,
+                        $voucher->id,
+                        $receiptDate,
+                        "Payment Voucher Party Side: " . ($remarks ?: 'N/A'),
+                        $partyAmount,
+                        0,
+                        $userId
+                    );
+                    AccountLedgerEntry::recalculateRunningBalance((int)$account->id);
+                }
             }
         }
 
         return true;
+    }
+
+    /**
+     * Update an existing Payment Voucher cleanly.
+     */
+    public static function updatePaymentVoucher(PaymentVoucher $voucher, array $data, $userId): bool
+    {
+        DB::beginTransaction();
+        try {
+            // 1. Revert old ledger effects
+            self::reversePaymentVoucher($voucher, $userId, false);
+
+            // 2. Parse party arrays
+            $partyTypes   = $data['party_type'] ?? (isset($data['vendor_type']) ? (is_array($data['vendor_type']) ? $data['vendor_type'] : [$data['vendor_type']]) : []);
+            $partyIds     = $data['party_id'] ?? (isset($data['vendor_id']) ? (is_array($data['vendor_id']) ? $data['vendor_id'] : [$data['vendor_id']]) : []);
+            $partyAmounts = $data['party_amount'] ?? [];
+            $partyTels    = $data['party_tel'] ?? (isset($data['tel']) ? (is_array($data['tel']) ? $data['tel'] : [$data['tel']]) : []);
+
+            if (empty($partyAmounts) && count($partyIds) === 1) {
+                $partyAmounts = [(float)($data['total_amount'] ?? $voucher->total_amount)];
+            }
+
+            $narrationIds = is_array($data['narration_id'] ?? null) 
+                ? $data['narration_id'] 
+                : self::safeDecodeArray($voucher->narration_id);
+
+            // 3. Update Voucher Record
+            $voucher->update([
+                'branch_id'        => (int)($data['branch_id'] ?? $voucher->branch_id ?? 1),
+                'receipt_date'     => $data['receipt_date'] ?? $voucher->receipt_date,
+                'type'             => json_encode($partyTypes),
+                'party_id'         => json_encode($partyIds),
+                'party_amount'     => json_encode($partyAmounts),
+                'tel'              => json_encode($partyTels),
+                'remarks'          => $data['remarks'] ?? $voucher->remarks,
+                'narration_id'     => json_encode($narrationIds),
+                'reference_no'     => json_encode($data['reference_no'] ?? self::safeDecodeArray($voucher->reference_no)),
+                'row_account_head' => json_encode($data['row_account_head'] ?? self::safeDecodeArray($voucher->row_account_head)),
+                'row_account_id'   => json_encode($data['row_account_id'] ?? self::safeDecodeArray($voucher->row_account_id)),
+                'discount_value'   => json_encode($data['discount_value'] ?? self::safeDecodeArray($voucher->discount_value)),
+                'amount'           => json_encode($data['amount'] ?? self::safeDecodeArray($voucher->amount)),
+                'total_amount'     => (float)($data['total_amount'] ?? $voucher->total_amount),
+                'status'           => 'active',
+                'processed'        => true,
+            ]);
+
+            // 4. Apply new ledger effects
+            self::applyPaymentVoucher($voucher, $data, $userId);
+
+            DB::commit();
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Payment Voucher Update Error: " . $e->getMessage());
+            return false;
+        }
     }
 
 
@@ -504,8 +633,6 @@ class VoucherService
 
     /**
      * Reverse an Expense Voucher completely.
-     * Original: Source Account Credited (funds decreased), Expense Accounts Debited (expenses increased).
-     * Reversal: Source Account Debited (funds restored), Expense Accounts Credited (expenses decreased).
      */
     public static function reverseExpenseVoucher(ExpenseVoucher $voucher, $userId, bool $isVoid = true): bool
     {
@@ -514,7 +641,7 @@ class VoucherService
             $totalAmount = (float) $voucher->total_amount;
             $evid        = $voucher->evid;
             $date        = now()->toDateString();
-            $branchId    = $voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 0);
+            $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
             // 1. REVERSE EXPENSE ACCOUNTS (Row side: Debited originally, now Credited back)
             $accounts = self::safeDecodeArray($voucher->row_account_id);
@@ -527,84 +654,58 @@ class VoucherService
                     if ($rowAccount) {
                         $rowAccount->opening_balance -= $rowAmount; // Deduct expense back
                         $rowAccount->save();
-
-                        self::postLedgerEntry(
-                            $accId,
-                            'manual',
-                            $evid,
-                            $voucher->id,
-                            $date,
-                            "Reversal of Expense Head: #{$evid}",
-                            0,
-                            $rowAmount,
-                            $userId
-                        );
                     }
                 }
             }
 
-            // 2. REVERSE PAYMENT SOURCE / PARTY SIDE (Credited originally, now Debited back)
-            if ($voucher->type === 'vendor') {
-                $lastLedger = VendorLedger::where('vendor_id', $voucher->party_id)
-                    ->where('branch_id', $branchId)
-                    ->orderBy('id', 'desc')
-                    ->first();
+            // Delete AccountLedgerEntry for this expense voucher
+            AccountLedgerEntry::where('voucher_no', $evid)->delete();
 
-                $vendor          = Vendor::find($voucher->party_id);
-                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+            // 2. REVERSE PAYMENT SOURCE / PARTY SIDE
+            $partyIds     = self::safeDecodeArray($voucher->party_id);
+            $partyTypes   = self::safeDecodeArray($voucher->type);
+            $partyAmounts = self::safeDecodeArray($voucher->party_amount);
 
-                VendorLedger::create([
-                    'vendor_id'        => $voucher->party_id,
-                    'branch_id'        => $branchId,
-                    'admin_or_user_id' => $userId,
-                    'transaction_date' => $date,
-                    'description'      => "Reversal of Expense Voucher #{$evid}",
-                    'opening_balance'  => $vendor->opening_balance ?? 0,
-                    'previous_balance' => $previousBalance,
-                    'debit_amount'     => $totalAmount, // Reversed
-                    'credit_amount'    => 0,
-                    'closing_balance'  => $previousBalance - $totalAmount,
-                    'transaction_type' => 'reversal',
-                    'reference_id'     => $evid,
-                ]);
-            } elseif ($voucher->type === 'customer' || $voucher->type === 'walkin') {
-                $lastLedger = CustomerLedger::where('customer_id', $voucher->party_id)
-                    ->orderBy('id', 'desc')
-                    ->first();
+            if (empty($partyIds) && !empty($voucher->party_id)) {
+                $partyIds     = [$voucher->party_id];
+                $partyTypes   = [$voucher->type];
+                $partyAmounts = [(float)$voucher->total_amount];
+            }
 
-                $customer        = Customer::find($voucher->party_id);
-                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+            $affectedAccountIds = $accounts;
 
-                CustomerLedger::create([
-                    'customer_id'      => $voucher->party_id,
-                    'admin_or_user_id' => $userId,
-                    'previous_balance' => $previousBalance,
-                    'opening_balance'  => $customer->opening_balance ?? 0,
-                    'total_debit'      => $totalAmount, // Reversed
-                    'total_credit'     => 0,
-                    'closing_balance'  => $previousBalance + $totalAmount,
-                    'transaction_type' => 'reversal',
-                    'reference_id'     => $evid,
-                    'description'      => "Reversal of Expense Voucher #{$evid}",
-                ]);
-            } elseif (is_numeric($voucher->type) || is_numeric($voucher->party_id)) {
-                $accountId = is_numeric($voucher->party_id) ? $voucher->party_id : $voucher->type;
-                $account   = Account::find($accountId);
-                if ($account) {
-                    $account->opening_balance += $totalAmount; // Cash restored
-                    $account->save();
+            foreach ($partyIds as $idx => $pId) {
+                if (!$pId) continue;
+                $pType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'vendor');
+                $pAmount = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                    ? (float)$partyAmounts[$idx]
+                    : (count($partyIds) === 1 ? $totalAmount : 0);
 
-                    self::postLedgerEntry(
-                        $account->id,
-                        'manual',
-                        $evid,
-                        $voucher->id,
-                        $date,
-                        "Reversal of Expense Source: #{$evid}",
-                        $totalAmount,
-                        0,
-                        $userId
-                    );
+                if ($pType === 'vendor') {
+                    VendorLedger::where('reference_id', $evid)->where('vendor_id', $pId)->delete();
+                    self::recalculateVendorLedger((int)$pId, $branchId);
+                } elseif ($pType === 'customer' || $pType === 'walkin') {
+                    CustomerLedger::where('reference_id', $evid)->where('customer_id', $pId)->delete();
+                    self::recalculateCustomerLedger((int)$pId);
+                } else {
+                    $accountId = is_numeric($pId) ? $pId : $pType;
+                    $account   = Account::find($accountId);
+                    if ($account && $pAmount > 0) {
+                        $account->opening_balance += $pAmount; // Cash restored
+                        $account->save();
+                    }
+                    $affectedAccountIds[] = (int)$accountId;
+                }
+            }
+
+            // Recalculate running balance for affected accounts
+            foreach (array_unique(array_filter($affectedAccountIds)) as $accId) {
+                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
+                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
+                $accModel  = Account::find($accId);
+                if ($accModel && $lastEntry) {
+                    $accModel->opening_balance = $lastEntry->running_balance;
+                    $accModel->save();
                 }
             }
 
@@ -625,15 +726,14 @@ class VoucherService
 
     /**
      * Post ledger entries for an Expense Voucher.
+     * Supports both single party and multi-party rows.
      */
     public static function applyExpenseVoucher(ExpenseVoucher $voucher, array $data, $userId): bool
     {
         $totalAmount = (float)($data['total_amount'] ?? $voucher->total_amount);
         $evid        = $voucher->evid;
-        $branchId    = (int)($data['branch_id'] ?? $voucher->branch_id ?? (auth()->user()->branch_id ?? 0));
+        $branchId    = (int)($data['branch_id'] ?? $voucher->branch_id ?? (auth()->user()->branch_id ?? 1));
         $entryDate   = $data['entry_date'] ?? $voucher->entry_date ?? now()->toDateString();
-        $partyType   = $data['type'] ?? $data['vendor_type'] ?? $voucher->type;
-        $partyId     = $data['party_id'] ?? $data['vendor_id'] ?? $voucher->party_id;
         $remarks     = $data['remarks'] ?? $voucher->remarks ?? '';
 
         // 1. EXPENSE ACCOUNTS POSTING (DEBIT - Expense rows increased)
@@ -663,77 +763,166 @@ class VoucherService
                         0,
                         $userId
                     );
+                    AccountLedgerEntry::recalculateRunningBalance((int)$accId);
                 }
             }
         }
 
         // 2. PAYMENT SOURCE / PARTY SIDE POSTING (CREDIT - Funds decreased)
-        if ($partyType === 'vendor') {
-            $lastLedger = VendorLedger::where('vendor_id', $partyId)
-                ->where('branch_id', $branchId)
-                ->orderBy('id', 'desc')
-                ->first();
+        $partyIds = is_array($data['party_id'] ?? null)
+            ? $data['party_id']
+            : (is_array($data['vendor_id'] ?? null) ? $data['vendor_id'] : self::safeDecodeArray($voucher->party_id));
 
-            $vendor          = Vendor::find($partyId);
-            $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+        $partyTypes = is_array($data['party_type'] ?? null)
+            ? $data['party_type']
+            : (is_array($data['vendor_type'] ?? null)
+                ? $data['vendor_type']
+                : (is_array($data['type'] ?? null) ? $data['type'] : self::safeDecodeArray($voucher->type)));
 
-            VendorLedger::create([
-                'vendor_id'        => $partyId,
-                'branch_id'        => $branchId,
-                'admin_or_user_id' => $userId,
-                'transaction_date' => $entryDate,
-                'description'      => "Expense Voucher #{$evid}" . ($remarks ? " - {$remarks}" : ""),
-                'opening_balance'  => $previousBalance,
-                'previous_balance' => $previousBalance,
-                'debit_amount'     => 0,
-                'credit_amount'    => $totalAmount,
-                'closing_balance'  => $previousBalance + $totalAmount,
-                'transaction_type' => 'expense',
-                'reference_id'     => $evid,
-            ]);
-        } elseif ($partyType === 'customer' || $partyType === 'walkin') {
-            $lastLedger = CustomerLedger::where('customer_id', $partyId)
-                ->orderBy('id', 'desc')
-                ->first();
+        $partyAmounts = is_array($data['party_amount'] ?? null)
+            ? $data['party_amount']
+            : self::safeDecodeArray($voucher->party_amount);
 
-            $customer        = Customer::find($partyId);
-            $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+        if (empty($partyIds) && !empty($voucher->party_id)) {
+            $partyIds     = [$voucher->party_id];
+            $partyTypes   = [$voucher->type];
+            $partyAmounts = [(float)$voucher->total_amount];
+        }
 
-            CustomerLedger::create([
-                'customer_id'      => $partyId,
-                'admin_or_user_id' => $userId,
-                'previous_balance' => $previousBalance,
-                'opening_balance'  => $previousBalance,
-                'total_debit'      => 0,
-                'total_credit'     => $totalAmount,
-                'closing_balance'  => $previousBalance + $totalAmount,
-                'transaction_type' => 'expense',
-                'reference_id'     => $evid,
-                'description'      => "Expense Voucher #{$evid}" . ($remarks ? " - {$remarks}" : ""),
-            ]);
-        } else {
-            // GL Account (e.g. Cash in Hand / Bank Account)
-            $accountId = is_numeric($partyId) ? $partyId : $partyType;
-            $account   = Account::find($accountId);
-            if ($account) {
-                $account->opening_balance -= $totalAmount;
-                $account->save();
+        foreach ($partyIds as $idx => $partyId) {
+            if (!$partyId) continue;
+            $partyType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'vendor');
+            $partyAmount = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                ? (float)$partyAmounts[$idx]
+                : (count($partyIds) === 1 ? $totalAmount : 0);
 
-                self::postLedgerEntry(
-                    $account->id,
-                    'expense',
-                    $evid,
-                    $voucher->id,
-                    $entryDate,
-                    "Expense Payment Source: " . ($remarks ?: 'N/A'),
-                    0,
-                    $totalAmount,
-                    $userId
-                );
+            if ($partyAmount <= 0) continue;
+
+            if ($partyType === 'vendor') {
+                $lastLedger = VendorLedger::where('vendor_id', $partyId)
+                    ->where('branch_id', $branchId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $vendor          = Vendor::find($partyId);
+                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+
+                VendorLedger::create([
+                    'vendor_id'        => $partyId,
+                    'branch_id'        => $branchId,
+                    'admin_or_user_id' => $userId,
+                    'transaction_date' => $entryDate,
+                    'description'      => "Expense Voucher #{$evid}" . ($remarks ? " - {$remarks}" : ""),
+                    'opening_balance'  => $previousBalance,
+                    'previous_balance' => $previousBalance,
+                    'debit_amount'     => 0,
+                    'credit_amount'    => $partyAmount,
+                    'closing_balance'  => $previousBalance + $partyAmount,
+                    'transaction_type' => 'expense',
+                    'reference_id'     => $evid,
+                ]);
+
+                self::recalculateVendorLedger((int)$partyId, $branchId);
+            } elseif ($partyType === 'customer' || $partyType === 'walkin') {
+                $lastLedger = CustomerLedger::where('customer_id', $partyId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $customer        = Customer::find($partyId);
+                $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+
+                CustomerLedger::create([
+                    'customer_id'      => $partyId,
+                    'admin_or_user_id' => $userId,
+                    'previous_balance' => $previousBalance,
+                    'opening_balance'  => $previousBalance,
+                    'total_debit'      => 0,
+                    'total_credit'     => $partyAmount,
+                    'closing_balance'  => $previousBalance + $partyAmount,
+                    'transaction_type' => 'expense',
+                    'reference_id'     => $evid,
+                    'description'      => "Expense Voucher #{$evid}" . ($remarks ? " - {$remarks}" : ""),
+                ]);
+
+                self::recalculateCustomerLedger((int)$partyId);
+            } else {
+                // GL Account (e.g. Cash in Hand / Bank Account)
+                $accountId = is_numeric($partyId) ? $partyId : $partyType;
+                $account   = Account::find($accountId);
+                if ($account) {
+                    $account->opening_balance -= $partyAmount;
+                    $account->save();
+
+                    self::postLedgerEntry(
+                        $account->id,
+                        'expense',
+                        $evid,
+                        $voucher->id,
+                        $entryDate,
+                        "Expense Payment Source: " . ($remarks ?: 'N/A'),
+                        0,
+                        $partyAmount,
+                        $userId
+                    );
+                    AccountLedgerEntry::recalculateRunningBalance((int)$account->id);
+                }
             }
         }
 
         return true;
+    }
+
+    /**
+     * Update an existing Expense Voucher cleanly.
+     */
+    public static function updateExpenseVoucher(ExpenseVoucher $voucher, array $data, $userId): bool
+    {
+        DB::beginTransaction();
+        try {
+            // 1. Revert old ledger effects
+            self::reverseExpenseVoucher($voucher, $userId, false);
+
+            // 2. Parse party arrays
+            $partyTypes   = $data['party_type'] ?? (isset($data['vendor_type']) ? (is_array($data['vendor_type']) ? $data['vendor_type'] : [$data['vendor_type']]) : []);
+            $partyIds     = $data['party_id'] ?? (isset($data['vendor_id']) ? (is_array($data['vendor_id']) ? $data['vendor_id'] : [$data['vendor_id']]) : []);
+            $partyAmounts = $data['party_amount'] ?? [];
+            $partyTels    = $data['party_tel'] ?? (isset($data['tel']) ? (is_array($data['tel']) ? $data['tel'] : [$data['tel']]) : []);
+
+            if (empty($partyAmounts) && count($partyIds) === 1) {
+                $partyAmounts = [(float)($data['total_amount'] ?? $voucher->total_amount)];
+            }
+
+            $narrationIds = is_array($data['narration_id'] ?? null) 
+                ? $data['narration_id'] 
+                : self::safeDecodeArray($voucher->narration_id);
+
+            // 3. Update Voucher Record
+            $voucher->update([
+                'branch_id'        => (int)($data['branch_id'] ?? $voucher->branch_id ?? 1),
+                'entry_date'       => $data['entry_date'] ?? $voucher->entry_date,
+                'type'             => json_encode($partyTypes),
+                'party_id'         => json_encode($partyIds),
+                'party_amount'     => json_encode($partyAmounts),
+                'tel'              => json_encode($partyTels),
+                'remarks'          => $data['remarks'] ?? $voucher->remarks,
+                'narration_id'     => json_encode($narrationIds),
+                'row_account_head' => json_encode($data['row_account_head'] ?? self::safeDecodeArray($voucher->row_account_head)),
+                'row_account_id'   => json_encode($data['row_account_id'] ?? self::safeDecodeArray($voucher->row_account_id)),
+                'amount'           => json_encode($data['amount'] ?? self::safeDecodeArray($voucher->amount)),
+                'total_amount'     => (float)($data['total_amount'] ?? $voucher->total_amount),
+                'status'           => 'active',
+            ]);
+
+            // 4. Apply new ledger effects
+            self::applyExpenseVoucher($voucher, $data, $userId);
+
+            DB::commit();
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error("Expense Voucher Update Error: " . $e->getMessage());
+            return false;
+        }
     }
 
 
@@ -1169,5 +1358,110 @@ class VoucherService
         // Numbers, etc.
         return [$value];
     }
+
+    /**
+     * Get the specific amount allocated to a party from a voucher.
+     * Supports both multi-party JSON arrays and legacy single-party scalars.
+     */
+    public static function getPartyAmount($voucher, $partyId, ?string $expectedType = null): float
+    {
+        $vObj = is_array($voucher) ? (object)$voucher : $voucher;
+
+        $partyTypes   = self::safeDecodeArray($vObj->type ?? null);
+        $partyIds     = self::safeDecodeArray($vObj->party_id ?? null);
+        $partyAmounts = self::safeDecodeArray($vObj->party_amount ?? null);
+
+        // If single scalar legacy voucher
+        if (empty($partyIds) && !empty($vObj->party_id)) {
+            if ((string)$vObj->party_id === (string)$partyId) {
+                if ($expectedType) {
+                    $pType = (string)($vObj->type ?? '');
+                    if ($pType && $pType !== $expectedType && !($expectedType === 'customer' && in_array($pType, ['customer', 'walkin', 'SALE_RECEIPT']))) {
+                        return 0.0;
+                    }
+                }
+                return (float)($vObj->total_amount ?? 0);
+            }
+            return 0.0;
+        }
+
+        $total = 0.0;
+        foreach ($partyIds as $idx => $pId) {
+            if ((string)$pId === (string)$partyId) {
+                if ($expectedType) {
+                    $pType = $partyTypes[$idx] ?? ($partyTypes[0] ?? null);
+                    if ($pType && $pType !== $expectedType && !($expectedType === 'customer' && in_array($pType, ['customer', 'walkin', 'SALE_RECEIPT']))) {
+                        continue;
+                    }
+                }
+
+                $amt = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                    ? (float)$partyAmounts[$idx]
+                    : (count($partyIds) === 1 ? (float)($vObj->total_amount ?? 0) : 0.0);
+                $total += $amt;
+            }
+        }
+
+        return (float)$total;
+    }
+
+    /**
+     * Scope a database query to match a specific party in single or multi-party vouchers.
+     */
+    public static function scopePartyQuery($query, $partyId, string $column = 'party_id')
+    {
+        return $query->where(function ($q) use ($partyId, $column) {
+            $q->where($column, (string)$partyId)
+              ->orWhere($column, $partyId)
+              ->orWhere($column, 'LIKE', '%"' . $partyId . '"%')
+              ->orWhere($column, 'LIKE', '%[' . $partyId . ',%')
+              ->orWhere($column, 'LIKE', '%, ' . $partyId . ',%')
+              ->orWhere($column, 'LIKE', '%, ' . $partyId . ']%')
+              ->orWhere($column, 'LIKE', '%[' . $partyId . ']%');
+        });
+    }
+
+    /**
+     * Recalculate customer running balance from start to finish
+     */
+    public static function recalculateCustomerLedger(int $customerId): void
+    {
+        $customer = Customer::find($customerId);
+        if (!$customer) return;
+
+        $entries = CustomerLedger::where('customer_id', $customerId)->orderBy('id', 'asc')->get();
+        $running = (float)($customer->opening_balance ?? 0);
+
+        foreach ($entries as $entry) {
+            $entry->previous_balance = $running;
+            $running = $running + (float)$entry->total_debit - (float)$entry->total_credit;
+            $entry->closing_balance = $running;
+            $entry->save();
+        }
+    }
+
+    /**
+     * Recalculate vendor running balance from start to finish
+     */
+    public static function recalculateVendorLedger(int $vendorId, int $branchId = 0): void
+    {
+        $vendor = Vendor::find($vendorId);
+        if (!$vendor) return;
+
+        $query = VendorLedger::where('vendor_id', $vendorId)->orderBy('id', 'asc');
+        if ($branchId > 0) {
+            $query->where('branch_id', $branchId);
+        }
+        $entries = $query->get();
+        $running = (float)($vendor->opening_balance ?? 0);
+
+        foreach ($entries as $entry) {
+            $entry->previous_balance = $running;
+            $running = $running - (float)$entry->debit_amount + (float)$entry->credit_amount;
+            $entry->closing_balance = $running;
+            $entry->save();
+        }
+    }
 }
+
 

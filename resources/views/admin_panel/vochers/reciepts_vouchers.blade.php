@@ -238,70 +238,74 @@
                 </div>
             </div>
 
-            {{-- ─── FROM (Received From) ─── --}}
+            {{-- ─── FROM (Received From Party) ─── --}}
             <div class="rv-card">
                 <div class="rv-card-header green">
                     <i class="bi bi-box-arrow-in-right"></i> FROM &mdash; Received From Party
-                    <span style="font-weight: 400; font-size: 0.78rem; margin-left: auto; opacity: 0.8;">Select the type first, then the party</span>
+                    <span style="font-weight: 400; font-size: 0.78rem; margin-left: auto; opacity: 0.8;">Select party/customers paying into accounts</span>
                 </div>
-                <div class="rv-card-body">
-                    <div class="row g-3 align-items-end">
-                        {{-- Party Type --}}
-                        <div class="col-md-3">
-                            <label class="form-label">Party / Account Type <span class="text-danger">*</span></label>
-                            <select name="vendor_type" id="vendor_type" class="form-select" required>
-                                <option value="">— Select Type —</option>
-                                @foreach ($AccountHeads as $head)
-                                    <option value="{{ $head->id }}" data-kind="account">{{ $head->name }}</option>
-                                @endforeach
-                                <option value="customer"  data-kind="party">Customer</option>
-                                <!-- <option value="walkin"    data-kind="party">Walkin Customer</option> -->
-                                <option value="vendor"    data-kind="party">Vendor</option>
-                            </select>
-                        </div>
-
-                        {{-- Party Name --}}
-                        <div class="col-md-4" id="party_name_container">
-                            <label class="form-label" id="party_label">Select Party / Account <span class="text-danger">*</span></label>
-                            <select name="vendor_id" id="vendor_id" class="form-select" required>
-                                <option value="">— First select type above —</option>
-                            </select>
-                        </div>
-
-                        {{-- Walk-in Name (Hidden by default) --}}
-                        <div class="col-md-4" id="walkin_name_container" style="display: none;">
-                            <label class="form-label">Walk-in Customer Name</label>
-                            <input type="text" name="walking_customer_name" id="walking_customer_name" class="form-control" placeholder="Enter specific name">
-                        </div>
-
-                        {{-- Mobile / Code --}}
-                        <div class="col-md-2">
-                            <label class="form-label">Mobile / Code</label>
-                            <input type="text" name="tel" id="tel" class="form-control" readonly placeholder="Auto-filled">
-                        </div>
-
-                        {{-- Previous Balance --}}
-                        <div class="col-md-3" id="balance_container">
-                            <label class="form-label">Previous Balance</label>
-                            <input type="number" name="bal" id="bal" class="form-control" readonly placeholder="0.00">
-                        </div>
+                <div class="rv-card-body" style="padding: 1rem;">
+                    <div class="table-responsive">
+                        <table class="to-table" id="partyTable">
+                            <thead>
+                                <tr>
+                                    <th style="width:3%">#</th>
+                                    <th style="width:20%">Type</th>
+                                    <th style="width:30%">Party / Customer Name</th>
+                                    <th style="width:16%">Mobile / Code</th>
+                                    <th style="width:14%">Current Balance</th>
+                                    <th style="width:14%">Received Amount (Rs.)</th>
+                                    <th style="width:3%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="partyRows">
+                                <tr class="party-row">
+                                    <td><div class="row-num party-row-num">1</div></td>
+                                    <td>
+                                        <select name="party_type[]" class="form-select partyTypeSelect" required>
+                                            <option value="">— Select Type —</option>
+                                            @foreach ($AccountHeads as $head)
+                                                <option value="{{ $head->id }}" data-kind="account">{{ $head->name }}</option>
+                                            @endforeach
+                                            <option value="customer" data-kind="party" selected>Customer</option>
+                                            <option value="vendor" data-kind="party">Vendor</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <select name="party_id[]" class="form-select partySelect" required>
+                                            <option value="">Loading customers...</option>
+                                        </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="party_tel[]" class="form-control partyTel" readonly placeholder="Auto-filled">
+                                    </td>
+                                    <td>
+                                        <input type="text" class="form-control partyBal text-end" readonly placeholder="0.00">
+                                    </td>
+                                    <td>
+                                        <input type="number" name="party_amount[]" step="0.01" min="0" class="form-control partyAmount" placeholder="0.00" required>
+                                    </td>
+                                    <td>
+                                        <button type="button" class="btn-remove-row removePartyRow" title="Remove party">
+                                            <i class="bi bi-trash3"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr style="background: #f8fafc; font-weight: 600;">
+                                    <td colspan="5" class="text-end" style="padding: 0.6rem 1rem;">Total Party Received:</td>
+                                    <td style="padding: 0.6rem;">
+                                        <span id="partyTotalDisplay" style="color: #15803d; font-size: 1rem; font-weight: 700;">Rs. 0.00</span>
+                                    </td>
+                                    <td></td>
+                                </tr>
+                            </tfoot>
+                        </table>
                     </div>
-
-                    {{-- Balance Info Strip --}}
-                    <div class="balance-strip" id="balanceStrip" style="display:none;">
-                        <div class="bl-item">
-                            <span class="bl-label">Party</span>
-                            <span class="bl-value" id="strip_name">—</span>
-                        </div>
-                        <div class="bl-item">
-                            <span class="bl-label">Current Outstanding Balance</span>
-                            <span class="bl-value" id="strip_bal">0.00</span>
-                        </div>
-                        <div class="bl-item">
-                            <span class="bl-label">Mobile</span>
-                            <span class="bl-value" id="strip_mobile">—</span>
-                        </div>
-                    </div>
+                    <button type="button" class="add-row-btn mt-2" id="addPartyRowBtn">
+                        <i class="bi bi-plus-lg"></i> Add Another Customer / Party Row
+                    </button>
                 </div>
             </div>
 
@@ -424,56 +428,24 @@ $(document).ready(function () {
         }
     });
 
-    // ─── PARTY TYPE → LOAD PARTY LIST (AJAX) ────────────────────────────────
-    $('#vendor_type, #branch_id').on('change', function () {
-        var type = $('#vendor_type').val();
-        var branchId = $('#branch_id').val() || '';
-        var kind = $('#vendor_type').find(':selected').data('kind'); // "party" or "account"
-        var $partySelect = $('#vendor_id');
-
-        // Toggle Walk-in Name Field
-        if (type === 'walkin') {
-            $('#party_name_container').hide();
-            $('#vendor_id').prop('required', false);
-            
-            $('#walkin_name_container').show();
-            $('#walking_customer_name').prop('required', true);
-
-            // Hide balance, make mobile editable
-            $('#balance_container').hide();
-            $('#tel').prop('readonly', false).attr('placeholder', 'Enter mobile');
-        } else {
-            $('#walkin_name_container').hide();
-            $('#walking_customer_name').val('').prop('required', false);
-            
-            $('#party_name_container').show();
-            $('#vendor_id').prop('required', true);
-
-            // Show balance, make mobile readonly
-            $('#balance_container').show();
-            $('#tel').prop('readonly', true).attr('placeholder', 'Auto-filled');
-        }
-
-        // Reset fields
-        $('#tel').val('');
-        $('#bal').val('');
-        $('#balanceStrip').hide();
-        $('#party_label').html('Select Party / Account <span class="text-danger">*</span>');
-        
-        // Reset row account subs if branch changed
-        if ($(this).attr('id') === 'branch_id') {
-            $('.rowAccountHead').trigger('change');
-        }
+    // ─── PARTY AJAX LOADER FUNCTION ─────────────────────────────────────────
+    function loadPartiesForRow($row, defaultId) {
+        var $typeSelect  = $row.find('.partyTypeSelect');
+        var $partySelect = $row.find('.partySelect');
+        var type         = $typeSelect.val();
+        var kind         = $typeSelect.find(':selected').data('kind');
+        var branchId     = $('#branch_id').val() || '';
 
         $partySelect.html('<option value="" class="select-loading">Loading...</option>');
 
         if (!type) {
-            $partySelect.html('<option value="">— First select type above —</option>');
+            $partySelect.html('<option value="">— Select Type First —</option>');
+            $row.find('.partyTel').val('');
+            $row.find('.partyBal').val('');
             return;
         }
 
         if (kind === 'party') {
-            // Fetch branch-aware customers / vendors
             $.getJSON('{{ route("receipt.party.list") }}', { type: type, branch_id: branchId }, function (data) {
                 var html = '<option value="">— Select ' + (type === 'vendor' ? 'Vendor' : 'Customer') + ' —</option>';
                 data.forEach(function (item) {
@@ -483,16 +455,15 @@ $(document).ready(function () {
                         + item.text + '</option>';
                 });
                 $partySelect.html(html);
-                
-                // Auto-select walk-in so the voucher links to the correct Walk-in account internally
-                if (type === 'walkin' && data.length > 0) {
-                    $partySelect.val(data[0].id).trigger('change');
+
+                if (defaultId) {
+                    $partySelect.val(defaultId);
                 }
+                $partySelect.trigger('change');
             }).fail(function () {
                 $partySelect.html('<option value="">Error loading data</option>');
             });
         } else if (kind === 'account') {
-            // Fetch accounts under this head
             $.getJSON('{{ url("get-accounts-by-head") }}/' + type, { branch_id: branchId }, function (data) {
                 var html = '<option value="">— Select Account —</option>';
                 data.forEach(function (acc) {
@@ -502,36 +473,111 @@ $(document).ready(function () {
                         + acc.title + ' (' + (acc.account_code || '') + ')</option>';
                 });
                 $partySelect.html(html);
+
+                if (defaultId) {
+                    $partySelect.val(defaultId);
+                }
+                $partySelect.trigger('change');
             }).fail(function () {
                 $partySelect.html('<option value="">Error loading accounts</option>');
             });
         }
+    }
+
+    // ─── PARTY TYPE CHANGE ───────────────────────────────────────────────────
+    $(document).on('change', '.partyTypeSelect', function () {
+        var $row = $(this).closest('.party-row');
+        loadPartiesForRow($row);
     });
 
-    // ─── PARTY SELECTED → SHOW BALANCE STRIP ────────────────────────────────
-    $('#vendor_id').on('change', function () {
+    // ─── PARTY SELECT CHANGE ─────────────────────────────────────────────────
+    $(document).on('change', '.partySelect', function () {
+        var $row = $(this).closest('.party-row');
         var $opt = $(this).find(':selected');
-        var bal  = parseFloat($opt.data('bal'))    || 0;
-        var mob  = $opt.data('mobile') || '—';
-        var name = $opt.text();
+        var bal  = parseFloat($opt.data('bal')) || 0;
+        var mob  = $opt.data('mobile') || '';
 
-        $('#bal').val(bal.toFixed(2));
-        $('#tel').val(mob);
+        $row.find('.partyTel').val(mob);
+        $row.find('.partyBal').val(formatNum(bal));
+    });
 
-        $('#strip_name').text(name);
-        $('#strip_mobile').text(mob);
+    // Branch change → reload all parties and account subs
+    $('#branch_id').on('change', function () {
+        $('.party-row').each(function () {
+            var $row = $(this);
+            var currentVal = $row.find('.partySelect').val();
+            loadPartiesForRow($row, currentVal);
+        });
+        $('.rowAccountHead').trigger('change');
+    });
 
-        var $balEl = $('#strip_bal');
-        $balEl.text(formatNum(bal));
-        $balEl.removeClass('text-green text-red');
-        $balEl.addClass(bal >= 0 ? 'text-green' : 'text-red');
+    // Load initial party row on ready
+    $('.party-row').each(function () {
+        loadPartiesForRow($(this));
+    });
 
-        if ($opt.val()) {
-            $('#balanceStrip').show();
+    // ─── ADD PARTY ROW ───────────────────────────────────────────────────────
+    $('#addPartyRowBtn').on('click', function () {
+        var rowCount = $('.party-row').length + 1;
+        var headOptions = '';
+        @foreach ($AccountHeads as $head)
+            headOptions += '<option value="{{ $head->id }}" data-kind="account">{{ $head->name }}</option>';
+        @endforeach
+
+        var $newPartyRow = $(`
+            <tr class="party-row">
+                <td><div class="row-num party-row-num">${rowCount}</div></td>
+                <td>
+                    <select name="party_type[]" class="form-select partyTypeSelect" required>
+                        <option value="">— Select Type —</option>
+                        ${headOptions}
+                        <option value="customer" data-kind="party" selected>Customer</option>
+                        <option value="vendor" data-kind="party">Vendor</option>
+                    </select>
+                </td>
+                <td>
+                    <select name="party_id[]" class="form-select partySelect" required>
+                        <option value="">Loading...</option>
+                    </select>
+                </td>
+                <td>
+                    <input type="text" name="party_tel[]" class="form-control partyTel" readonly placeholder="Auto-filled">
+                </td>
+                <td>
+                    <input type="text" class="form-control partyBal text-end" readonly placeholder="0.00">
+                </td>
+                <td>
+                    <input type="number" name="party_amount[]" step="0.01" min="0" class="form-control partyAmount" placeholder="0.00" required>
+                </td>
+                <td>
+                    <button type="button" class="btn-remove-row removePartyRow" title="Remove party">
+                        <i class="bi bi-trash3"></i>
+                    </button>
+                </td>
+            </tr>
+        `);
+
+        $('#partyRows').append($newPartyRow);
+        renumberPartyRows();
+        loadPartiesForRow($newPartyRow);
+    });
+
+    // ─── REMOVE PARTY ROW ────────────────────────────────────────────────────
+    $(document).on('click', '.removePartyRow', function () {
+        if ($('.party-row').length > 1) {
+            $(this).closest('tr').remove();
+            renumberPartyRows();
+            calculatePartyTotal();
         } else {
-            $('#balanceStrip').hide();
+            alert('At least one party row is required.');
         }
     });
+
+    function renumberPartyRows() {
+        $('.party-row').each(function (i) {
+            $(this).find('.party-row-num').text(i + 1);
+        });
+    }
 
     // ─── ACCOUNT HEAD CHANGE → LOAD SUB-ACCOUNTS ────────────────────────────
     $(document).on('change', '.rowAccountHead', function () {
@@ -557,10 +603,28 @@ $(document).ready(function () {
         });
     });
 
-    // ─── AMOUNT CALCULATION ──────────────────────────────────────────────────
+    // ─── AMOUNT CALCULATIONS & AUTO-SYNC ─────────────────────────────────────
+    $(document).on('input', '.partyAmount', function () {
+        calculatePartyTotal();
+    });
+
     $(document).on('input', '.amount', function () {
         calculateTotal();
     });
+
+    function calculatePartyTotal() {
+        var partyTotal = 0;
+        $('.partyAmount').each(function () {
+            partyTotal += parseFloat($(this).val()) || 0;
+        });
+        $('#partyTotalDisplay').text('Rs. ' + formatNum(partyTotal));
+
+        // If only 1 account row exists, auto-sync its amount
+        if ($('#voucherRows .voucher-row').length === 1) {
+            $('#voucherRows .voucher-row:first .amount').val(partyTotal > 0 ? partyTotal.toFixed(2) : '');
+            calculateTotal();
+        }
+    }
 
     function calculateTotal() {
         var total = 0;
@@ -575,7 +639,7 @@ $(document).ready(function () {
         return parseFloat(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
-    // ─── ADD ROW ─────────────────────────────────────────────────────────────
+    // ─── ADD ACCOUNT ROW ─────────────────────────────────────────────────────
     $('#addRowBtn').on('click', function () {
         var rowCount = $('.voucher-row').length + 1;
         var narrationOptions = '';
@@ -627,7 +691,7 @@ $(document).ready(function () {
         renumberRows();
     });
 
-    // ─── REMOVE ROW ──────────────────────────────────────────────────────────
+    // ─── REMOVE ACCOUNT ROW ──────────────────────────────────────────────────
     $(document).on('click', '.removeRow', function () {
         if ($('.voucher-row').length > 1) {
             $(this).closest('tr').remove();
@@ -646,11 +710,32 @@ $(document).ready(function () {
 
     // ─── FORM SUBMIT VALIDATION ──────────────────────────────────────────────
     $('#receiptForm').on('submit', function () {
-        var total = parseFloat($('#totalAmount').val()) || 0;
-        if (total <= 0) {
-            alert('Total amount must be greater than zero to save the voucher.');
+        var partyTotal   = 0;
+        var accountTotal = 0;
+
+        $('.partyAmount').each(function () {
+            partyTotal += parseFloat($(this).val()) || 0;
+        });
+
+        $('.amount').each(function () {
+            accountTotal += parseFloat($(this).val()) || 0;
+        });
+
+        if (partyTotal <= 0) {
+            alert('Please enter at least one valid party amount greater than zero.');
             return false;
         }
+
+        if (accountTotal <= 0) {
+            alert('Total account amount must be greater than zero.');
+            return false;
+        }
+
+        if (Math.abs(partyTotal - accountTotal) > 0.01) {
+            alert('Total Party Amount (Rs. ' + partyTotal.toFixed(2) + ') must match Total Account Amount (Rs. ' + accountTotal.toFixed(2) + '). Please balance both sides before saving.');
+            return false;
+        }
+
         return true;
     });
 

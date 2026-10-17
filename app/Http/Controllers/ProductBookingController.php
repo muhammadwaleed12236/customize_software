@@ -28,15 +28,13 @@ class ProductBookingController extends Controller
         }
 
         // For non-super-admin users, show bookings that belong to their branch.
-        // Include bookings where `customer` is null (walking customers) by checking booking.branch_id
-        if (!auth()->user() || !auth()->user()->hasRole('super admin')) {
-            $branchId = auth()->user()->branch_id ?? 0;
-            $query->where(function($q) use ($branchId) {
-                $q->where('branch_id', $branchId)
-                  ->orWhereHas('customer', function ($q2) use ($branchId) {
-                      $q2->where('branch_id', $branchId);
-                  });
-            });
+        if (Auth::check()) {
+            if (!Auth::user()->hasRole('super admin')) {
+                $branchId = (int) (Auth::user()->branch_id ?? 0);
+                $query->where('branch_id', $branchId);
+            } elseif (request()->filled('branch_id') && request('branch_id') !== 'all') {
+                $query->where('branch_id', (int) request('branch_id'));
+            }
         }
 
         $bookings = $query->get();

@@ -26,11 +26,15 @@ class WarehouseStockController extends Controller
     return redirect()->back()->with('success', 'Order marked as delivered');
 }
     public function warehouseOrders()
-
     {   
+        $query = WarehouseOrder::with(['warehouse', 'customer'])->orderByDesc('id');
 
-        $orders = WarehouseOrder::with(['warehouse', 'customer'])->orderByDesc('id')->get();
-        // return response()->json([ 'orders' => $orders]);
+        if (auth()->check() && !auth()->user()->hasRole('super admin')) {
+            $branchId = (int) (auth()->user()->branch_id ?? 0);
+            $query->where('branch_id', $branchId);
+        }
+
+        $orders = $query->get();
         return view('admin_panel.warehouses.warehouse_order.warehouse_order_booking', compact('orders'));
     }
 
@@ -43,7 +47,13 @@ class WarehouseStockController extends Controller
         $branchId = $request->get('branch_id');
 
         $query = WarehouseStock::with('product')
-            ->where('warehouse_id', $warehouseId);
+            ->where('warehouse_id', $warehouseId)
+            ->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('branch_warehouse')
+                    ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                    ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+            });
 
         if ($branchId && ($isSuperAdmin || in_array((int)$branchId, $allowedBranchIds))) {
             $query->where('branch_id', $branchId);
@@ -115,7 +125,16 @@ class WarehouseStockController extends Controller
         } else {
             // ✅ ERP PROPER: Get all warehouse stocks ONLY for user's allowed branches & assigned warehouses
             $query = WarehouseStock::with(['warehouse', 'product', 'branch'])
-                ->whereIn('branch_id', $allowedBranchIds);
+                ->whereIn('branch_id', $allowedBranchIds)
+                ->where(function ($q) {
+                    $q->whereNull('warehouse_id')
+                      ->orWhereExists(function ($sub) {
+                          $sub->select(DB::raw(1))
+                              ->from('branch_warehouse')
+                              ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                              ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+                      });
+                });
 
             // Apply branch filter
             if ($selectedBranchId) {
@@ -195,7 +214,7 @@ class WarehouseStockController extends Controller
             $stats = [
                 'totalProducts' => $products->count(),
                 'totalQuantity' => $products->sum('total_quantity'),
-                'warehouses' => $allStocks->pluck('warehouse_id')->unique()->count(),
+                'warehouses' => $allStocks->whereNotNull('warehouse_id')->pluck('warehouse_id')->unique()->count(),
             ];
 
             // ✅ WAREHOUSE VIEW: Group all stocks by warehouse
@@ -241,7 +260,13 @@ class WarehouseStockController extends Controller
             // Warehouses with stock for the selected or allowed branches
             $filterBranchId = $selectedBranchId;
             
-            $whFilterQuery = WarehouseStock::whereNotNull('warehouse_id');
+            $whFilterQuery = WarehouseStock::whereNotNull('warehouse_id')
+                ->whereExists(function ($sub) {
+                    $sub->select(DB::raw(1))
+                        ->from('branch_warehouse')
+                        ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                        ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+                });
             if ($filterBranchId) {
                 $whFilterQuery->where('branch_id', $filterBranchId);
             } else {
@@ -302,7 +327,13 @@ class WarehouseStockController extends Controller
 
         $branchId = $request->get('branch_id');
         
-        $query = WarehouseStock::query();
+        $query = WarehouseStock::query()
+            ->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('branch_warehouse')
+                    ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                    ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+            });
         if ($branchId) {
             if (!$isSuperAdmin && !in_array((int)$branchId, $allowedBranchIds)) {
                 return response()->json(['warehouses' => [], 'hasDirectStock' => false]);
@@ -371,7 +402,16 @@ class WarehouseStockController extends Controller
 
         // ✅ AUTHORIZATION: Check if user can view this product's warehouses
         $authQuery = WarehouseStock::whereIn('branch_id', $allowedBranchIds)
-            ->where('product_id', $productId);
+            ->where('product_id', $productId)
+            ->where(function ($q) {
+                $q->whereNull('warehouse_id')
+                  ->orWhereExists(function ($sub) {
+                      $sub->select(DB::raw(1))
+                          ->from('branch_warehouse')
+                          ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                          ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+                  });
+            });
         if ($allowedBranchWarehousePairs !== null) {
             $authQuery->where(function ($q) use ($allowedBranchWarehousePairs) {
                 foreach ($allowedBranchWarehousePairs as $pair) {
@@ -390,7 +430,16 @@ class WarehouseStockController extends Controller
 
         // ✅ Build the list of branches that HAVE stock for this product AND user can access
         $branchStockQuery = WarehouseStock::where('product_id', $productId)
-            ->whereIn('branch_id', $allowedBranchIds);
+            ->whereIn('branch_id', $allowedBranchIds)
+            ->where(function ($q) {
+                $q->whereNull('warehouse_id')
+                  ->orWhereExists(function ($sub) {
+                      $sub->select(DB::raw(1))
+                          ->from('branch_warehouse')
+                          ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                          ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+                  });
+            });
         if ($allowedBranchWarehousePairs !== null) {
             $branchStockQuery->where(function ($q) use ($allowedBranchWarehousePairs) {
                 foreach ($allowedBranchWarehousePairs as $pair) {
@@ -424,7 +473,16 @@ class WarehouseStockController extends Controller
 
         // ✅ Build the main warehouses query with all applicable filters
         $query = WarehouseStock::with(['warehouse', 'branch'])
-            ->where('product_id', $productId);
+            ->where('product_id', $productId)
+            ->where(function ($q) {
+                $q->whereNull('warehouse_id')
+                  ->orWhereExists(function ($sub) {
+                      $sub->select(DB::raw(1))
+                          ->from('branch_warehouse')
+                          ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                          ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+                  });
+            });
 
         if ($selectedBranchId) {
             $query->where('branch_id', $selectedBranchId);

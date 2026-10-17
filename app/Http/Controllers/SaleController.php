@@ -417,6 +417,7 @@ class SaleController extends Controller
 
                     // Stock Movement
                     StockMovement::create([
+                        'branch_id'     => $sale->branch_id ?? ($branchId ?? 1),
                         'product_id'    => $it->product_id,
                         'type'          => 'out',
                         'qty'           => $it->sales_qty,
@@ -791,6 +792,7 @@ class SaleController extends Controller
 
                     // ✅ STOCK MOVEMENT TRACKING (record only, NO deduction in draft mode)
                     StockMovement::create([
+                        'branch_id'     => $sale->branch_id ?? ($branchId ?? 1),
                         'product_id'    => $it->product_id,
                         'type'          => 'out',
                         'qty'           => $it->sales_qty,
@@ -1445,6 +1447,7 @@ class SaleController extends Controller
 
                         // Track Stock Movement
                         StockMovement::create([
+                            'branch_id'     => $sale->branch_id ?? ($branchId ?? 1),
                             'product_id'    => $pid,
                             'type'          => 'out',
                             'qty'           => $dispatchQty,
@@ -1811,14 +1814,21 @@ class SaleController extends Controller
         $user = Auth::user();
         $allowedWarehouseIds = null; // null = no restriction
 
-        if (!$user->hasRole('super admin') && !$user->hasRole('branch admin') && !$user->hasRole('admin')) {
-            // Sales/Purchase Officer and other non-admin roles: only assigned warehouses
-            $allowedWarehouseIds = $user->assignedWarehouseIds();
-        } elseif ($user->hasRole('branch admin') || $user->hasRole('admin')) {
-            // Branch Admin: all warehouses in their branch
-            $branch = \App\Models\Branch::with('warehouses')->find($user->branch_id);
-            if ($branch) {
-                $allowedWarehouseIds = $branch->warehouses()->pluck('warehouses.id')->toArray();
+        if (!$user->hasRole('super admin')) {
+            $isBranchAuthority = $user->hasRole('branch admin') || $user->hasRole('admin') || $user->hasRole('branch manager') || $user->hasRole('manager');
+            if ($isBranchAuthority) {
+                // Branch Authority: all warehouses mapped to their branch in branch_warehouse
+                $branch = \App\Models\Branch::with('warehouses')->find($user->branch_id);
+                $allowedWarehouseIds = $branch ? $branch->warehouses()->pluck('warehouses.id')->toArray() : [];
+            } else {
+                // Other staff: only assigned warehouses, fallback to branch warehouses
+                $assigned = $user->assignedWarehouseIds();
+                if (!empty($assigned)) {
+                    $allowedWarehouseIds = $assigned;
+                } else {
+                    $branch = \App\Models\Branch::with('warehouses')->find($user->branch_id);
+                    $allowedWarehouseIds = $branch ? $branch->warehouses()->pluck('warehouses.id')->toArray() : [];
+                }
             }
         }
         // ─────────────────────────────────────────────────────────────────
@@ -1826,6 +1836,10 @@ class SaleController extends Controller
         // Fetch warehouse stocks for the requested products
         $query = \App\Models\WarehouseStock::whereIn('product_id', $productIds)
             ->where('quantity', '>', 0);
+
+        if ($user && $user->branch_id && !$user->hasRole('super admin')) {
+            $query->where('branch_id', $user->branch_id);
+        }
 
         // Apply warehouse filter if not super admin
         if ($allowedWarehouseIds !== null) {
@@ -1955,29 +1969,14 @@ public function search(Request $request)
 
     $requestedBranch = $request->query('branch_id');
 
-    // Determine branch scope: if super admin and branch_id provided, use it
-    // otherwise non-super users are limited to their branch
     if (Auth::check() && !Auth::user()->hasRole('super admin')) {
-        $branchId = Auth::user()->branch_id ?? 0;
+        $branchId = (int) (Auth::user()->branch_id ?? 0);
     } else {
-        $branchId = $requestedBranch ? (int) $requestedBranch : null;
+        $branchId = ($requestedBranch && $requestedBranch !== 'all') ? (int) $requestedBranch : null;
     }
 
     if ($branchId) {
-        // Match sales where linked customer's branch matches OR sales belonging
-        // to the branch that are walking/unlinked (sub_customer)
-        $query->where(function ($q) use ($branchId) {
-            $q->whereHas('customer', function ($q2) use ($branchId) {
-                $q2->where('branch_id', $branchId);
-            })
-            ->orWhere(function ($q3) use ($branchId) {
-                $q3->where('branch_id', $branchId)
-                    ->where(function ($q4) {
-                        $q4->where('party_type', 'walking')
-                           ->orWhereNull('customer_id');
-                    });
-            });
-        });
+        $query->where('branch_id', $branchId);
     }
 
     if ($request->filled('invoice')) {
@@ -1995,31 +1994,20 @@ public function search(Request $request)
     {
         $query = Sale::with(['customer', 'saleItems.product', 'branch'])->orderBy('id', 'desc');
 
-        if (Auth::check() && !Auth::user()->hasRole('super admin')) {
-            $branchId = Auth::user()->branch_id ?? 0;
-
-            // Show sales where the related customer belongs to the user's branch
-            // OR sales that belong to the branch but are walking/unlinked (sub_customer)
-            $query->where(function ($q) use ($branchId) {
-                $q->whereHas('customer', function ($q2) use ($branchId) {
-                    $q2->where('branch_id', $branchId);
-                })
-                ->orWhere(function ($q3) use ($branchId) {
-                    $q3->where('branch_id', $branchId)
-                        ->where(function ($q4) {
-                            $q4->where('party_type', 'walking')
-                               ->orWhereNull('customer_id');
-                        });
-                });
-            });
+        if (Auth::check()) {
+            if (!Auth::user()->hasRole('super admin')) {
+                $branchId = (int) (Auth::user()->branch_id ?? 0);
+                $query->where('branch_id', $branchId);
+            } elseif (request()->filled('branch_id') && request('branch_id') !== 'all') {
+                $query->where('branch_id', (int) request('branch_id'));
+            }
         }
 
         $sales = $query->get();
      
         // return response()->json($sales);
     
-                    return view('admin_panel.sale.DCindex', compact('sales'));
-            
+        return view('admin_panel.sale.DCindex', compact('sales'));
     }
 
 
@@ -2036,11 +2024,8 @@ public function finddc($invoice)
         ->where('invoice_no', $invoice);
 
     if (Auth::check() && !Auth::user()->hasRole('super admin')) {
-        $branchId = Auth::user()->branch_id ?? 0;
-
-        $query->whereHas('customer', function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        });
+        $branchId = (int) (Auth::user()->branch_id ?? 0);
+        $query->where('branch_id', $branchId);
     }
 
     $sales = $query->latest()->get();
@@ -2058,23 +2043,13 @@ public function finddc($invoice)
             'saleItems.product'
         ])->orderBy('id', 'desc');
 
-        if (Auth::check() && !Auth::user()->hasRole('super admin')) {
-            $branchId = Auth::user()->branch_id ?? 0;
-
-            // Show sales where the related customer belongs to the user's branch
-            // OR sales that belong to the branch but are walking/unlinked (sub_customer)
-            $query->where(function ($q) use ($branchId) {
-                $q->whereHas('customer', function ($q2) use ($branchId) {
-                    $q2->where('branch_id', $branchId);
-                })
-                ->orWhere(function ($q3) use ($branchId) {
-                    $q3->where('branch_id', $branchId)
-                        ->where(function ($q4) {
-                            $q4->where('party_type', 'walking')
-                               ->orWhereNull('customer_id');
-                        });
-                });
-            });
+        if (Auth::check()) {
+            if (!Auth::user()->hasRole('super admin')) {
+                $branchId = (int) (Auth::user()->branch_id ?? 0);
+                $query->where('branch_id', $branchId);
+            } elseif (request()->filled('branch_id') && request('branch_id') !== 'all') {
+                $query->where('branch_id', (int) request('branch_id'));
+            }
         }
 
         $sales = $query->get();
@@ -2152,33 +2127,7 @@ public function finddc($invoice)
             $q->where('branch_id', $branchId);
         })->get();
 
-        $allWarehouses = Warehouse::all();
-
-        // determine warehouses that actually hold any of the filtered products
-        $warehouse = Warehouse::when(!$isSuper && $branchId, function ($q) use ($products) {
-            if ($products->isEmpty()) {
-                // no products => no warehouses
-                $q->whereRaw('0 = 1');
-            } else {
-                $ids = $products->pluck('id')->toArray();
-                $whIds = WarehouseStock::whereIn('product_id', $ids)
-                    ->pluck('warehouse_id')
-                    ->unique()
-                    ->toArray();
-                if (!empty($whIds)) {
-                    $q->whereIn('id', $whIds);
-                } else {
-                    // if no stocks yet, return none
-                    $q->whereRaw('0 = 1');
-                }
-            }
-        })->get();
-
-        if ($warehouse->isEmpty()) {
-            $warehouse = $allWarehouses;
-        }
-
-        $branches = Branch::all();
+        $branches = Branch::with('warehouses')->get();
 
         // Prepare per-branch invoice counters so the view/JS can compute next invoice
         $branchCounters = Branch::pluck('invoice_counter', 'id')->toArray();
@@ -2192,6 +2141,23 @@ public function finddc($invoice)
         } else {
             $defaultBranchId = optional($branches->first())->id ?? null;
         }
+
+        // Build branch-to-warehouses mapping for instant client-side dropdown filtering
+        $branchWarehouseMap = [];
+        foreach ($branches as $b) {
+            $branchWarehouseMap[$b->id] = $b->warehouses->map(function ($w) {
+                return [
+                    'id'             => $w->id,
+                    'name'           => $w->warehouse_name ?? $w->name,
+                    'warehouse_name' => $w->warehouse_name ?? $w->name,
+                ];
+            })->values()->toArray();
+        }
+
+        // Active branch assigned warehouses
+        $activeBranch = $branches->firstWhere('id', $defaultBranchId) ?? $branches->first();
+        $warehouse = ($activeBranch && $activeBranch->warehouses) ? $activeBranch->warehouses : collect();
+        $allWarehouses = $warehouse;
 
         // ✅ BRANCH-AWARE ACCOUNTS: Accounts filtered by default/active branch
         $accounts = Account::when($defaultBranchId, function ($q) use ($defaultBranchId) {
@@ -2216,7 +2182,7 @@ public function finddc($invoice)
 
         $saleSettings = SaleSetting::getSettings();
 
-        return view('admin_panel.sale.add_sale222', compact('warehouse', 'allWarehouses', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings', 'defaultBranchId'));
+        return view('admin_panel.sale.add_sale222', compact('warehouse', 'allWarehouses', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings', 'defaultBranchId', 'branchWarehouseMap'));
     }
 
     public function getBranchSalesmen($branchId)
@@ -3614,8 +3580,16 @@ public function finddc($invoice)
 
     public function salereturnview()
     {
-        // Fetch all sale returns with the original sale and customer info
-        $salesReturns = SalesReturn::with('sale.customer')->orderBy('created_at', 'desc')->get();
+        $query = SalesReturn::with('sale.customer')->orderBy('created_at', 'desc');
+
+        if (Auth::check() && !Auth::user()->hasRole('super admin')) {
+            $branchId = (int) (Auth::user()->branch_id ?? 0);
+            $query->whereHas('sale', function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            });
+        }
+
+        $salesReturns = $query->get();
 
         return view('admin_panel.sale.return.index', [
             'salesReturns' => $salesReturns,
@@ -3697,6 +3671,9 @@ public function finddc($invoice)
         $sale = Sale::with(['customer', 'saleItems.product'])->findOrFail($id);
         
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
+        if (!$isSuper && Auth::check() && Auth::user()->branch_id && $sale->branch_id != Auth::user()->branch_id) {
+            return redirect()->route('sale.index')->with('error', 'Unauthorized. You can only edit sales from your own branch.');
+        }
         $branchId = $sale->branch_id ?? (Auth::check() ? Auth::user()->branch_id : 1);
         
         $customer = Customer::when(!$isSuper && $branchId, function ($q) use ($branchId) {
@@ -3728,11 +3705,29 @@ public function finddc($invoice)
             }
         })->get();
 
-        $branches = Branch::all();
+        $branches = Branch::with('warehouses')->get();
         $branchCounters = Branch::pluck('invoice_counter', 'id')->toArray();
         $warehouseStocks = WarehouseStock::all()->toArray();
-        $salesmen = SalesOfficer::all();
+        $salesmen = SalesOfficer::when(!$isSuper && $branchId, function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId);
+        })->get();
         $saleSettings = \App\Models\SaleSetting::getSettings();
+
+        // Build branch-to-warehouses mapping
+        $branchWarehouseMap = [];
+        foreach ($branches as $b) {
+            $branchWarehouseMap[$b->id] = $b->warehouses->map(function ($w) {
+                return [
+                    'id'             => $w->id,
+                    'name'           => $w->warehouse_name ?? $w->name,
+                    'warehouse_name' => $w->warehouse_name ?? $w->name,
+                ];
+            })->values()->toArray();
+        }
+
+        $activeBranch = $branches->firstWhere('id', $branchId) ?? $branches->first();
+        $warehouse = ($activeBranch && $activeBranch->warehouses) ? $activeBranch->warehouses : collect();
+        $allWarehouses = $warehouse;
 
         // Fetch receipt vouchers for this sale (branch-aware and sale-specific)
         $receipts = ReceiptsVoucher::where(function ($q) use ($sale, $branchId) {
@@ -3910,30 +3905,29 @@ public function finddc($invoice)
             }
         }
 
-        $partyType = $sale->partyType ?? $sale->party_type ?? 'credit';
-
-        $allWarehouses = Warehouse::all();
         $sale_customer = $sale->customer;
+        $partyType = $sale->party_type ?? $sale->partyType ?? (!empty($sale->sub_customer) ? 'walking' : 'credit');
 
         return view('admin_panel.sale.add_sale222', [
-            'warehouse'         => $warehouse,
-            'allWarehouses'     => $allWarehouses,
-            'customer'          => $customer,
-            'sale_customer'     => $sale_customer,
-            'accounts'          => $accounts,
-            'nextInvoiceNumber' => $sale->invoice_no,
-            'products'          => $products,
-            'branches'          => $branches,
-            'branchCounters'    => $branchCounters,
-            'warehouseStocks'   => $warehouseStocks,
-            'salesmen'          => $salesmen,
-            'saleSettings'      => $saleSettings,
-            'isEditMode'        => true,
-            'sale'              => $sale,
-            'saleItems'         => $items,
-            'receipts'          => $receipts,
-            'partyType'         => $partyType,
-            'defaultBranchId'   => $branchId,
+            'warehouse'          => $warehouse,
+            'allWarehouses'      => $allWarehouses,
+            'customer'           => $customer,
+            'sale_customer'      => $sale_customer,
+            'accounts'           => $accounts,
+            'nextInvoiceNumber'  => $sale->invoice_no,
+            'products'           => $products,
+            'branches'           => $branches,
+            'branchCounters'     => $branchCounters,
+            'warehouseStocks'    => $warehouseStocks,
+            'salesmen'           => $salesmen,
+            'saleSettings'       => $saleSettings,
+            'isEditMode'         => true,
+            'sale'               => $sale,
+            'saleItems'          => $items,
+            'receipts'           => $receipts,
+            'partyType'          => $partyType,
+            'defaultBranchId'    => $branchId,
+            'branchWarehouseMap' => $branchWarehouseMap,
         ]);
     }
 
@@ -5112,6 +5106,7 @@ public function finddc($invoice)
 
                         // Stock Movement Entry
                         StockMovement::create([
+                            'branch_id'  => $sale->branch_id ?? 1,
                             'product_id' => $item->product_id,
                             'type'       => 'in',
                             'qty'        => $qty,
@@ -5870,24 +5865,47 @@ public function finddc($invoice)
             // Fetch all warehouses that have products from this sale with available stock
             $saleProductIds = $sale->saleItems->pluck('product_id')->toArray();
             
+            $isSuperAdmin = Auth::check() && Auth::user()->hasRole('super admin');
+            $userBranchId = Auth::check() ? Auth::user()->branch_id : null;
+            $selectedBranchId = $sale->branch_id ?: $userBranchId;
+
             // All warehouse stocks for products in this sale
-            $warehouseStocks = WarehouseStock::whereIn('product_id', $saleProductIds)
+            $warehouseStocksQuery = WarehouseStock::whereIn('product_id', $saleProductIds)
                 ->whereNotNull('warehouse_id')
+                ->where(function ($q) {
+                    $q->whereExists(function ($sub) {
+                        $sub->select(DB::raw(1))
+                            ->from('branch_warehouse')
+                            ->whereColumn('branch_warehouse.branch_id', 'warehouse_stocks.branch_id')
+                            ->whereColumn('branch_warehouse.warehouse_id', 'warehouse_stocks.warehouse_id');
+                    });
+                });
+
+            $branchStocksQuery = WarehouseStock::whereIn('product_id', $saleProductIds);
+
+            if (!$isSuperAdmin && $selectedBranchId) {
+                $warehouseStocksQuery->where('branch_id', $selectedBranchId);
+                $branchStocksQuery->where('branch_id', $selectedBranchId);
+            }
+
+            $warehouseStocks = $warehouseStocksQuery
                 ->select('id', 'product_id', 'warehouse_id', 'branch_id', 'quantity', 'price')
                 ->get();
 
             // All branch stocks for products in this sale
-            $branchStocks = WarehouseStock::whereIn('product_id', $saleProductIds)
+            $branchStocks = $branchStocksQuery
                 ->select('id', 'product_id', 'warehouse_id', 'branch_id', 'quantity', 'price')
                 ->get();
 
             // All branches & warehouses
-            $branches = Branch::all();
-            $uniqueWarehouses = Warehouse::all();
-
-            $isSuperAdmin = Auth::check() && Auth::user()->hasRole('super admin');
-            $userBranchId = Auth::check() ? Auth::user()->branch_id : null;
-            $selectedBranchId = $sale->branch_id ?: $userBranchId;
+            if ($isSuperAdmin) {
+                $branches = Branch::all();
+                $uniqueWarehouses = Warehouse::all();
+            } else {
+                $branches = Branch::where('id', $selectedBranchId)->get();
+                $saleBranch = Branch::with('warehouses')->find($selectedBranchId);
+                $uniqueWarehouses = $saleBranch ? $saleBranch->warehouses : collect();
+            }
 
             Log::info('Showing warehouse selection form', [
                 'sale_id'               => $sale->id,

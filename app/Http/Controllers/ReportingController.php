@@ -278,22 +278,32 @@ class ReportingController extends Controller
             ->sum('sales_returns.total_net');
 
         // 3. Prior Receipts (Credit)
-        $priorReceipts = DB::table('receipts_vouchers')
-            ->where('party_id', $customerId)
+        $priorReceiptsQ = DB::table('receipts_vouchers')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');
             })
-            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate)
-            ->sum('total_amount');
+            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate);
+        \App\Services\VoucherService::scopePartyQuery($priorReceiptsQ, $customerId, 'party_id');
+        $priorReceiptsRaw = $priorReceiptsQ->get();
+
+        $priorReceipts = 0;
+        foreach ($priorReceiptsRaw as $rec) {
+            $priorReceipts += \App\Services\VoucherService::getPartyAmount($rec, $customerId, 'customer');
+        }
 
         // 4. Prior Payments (Credit - Customer discounts/rebates)
-        $priorPayments = DB::table('payment_vouchers')
-            ->where('party_id', $customerId)
+        $priorPaymentsQ = DB::table('payment_vouchers')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');
             })
-            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate)
-            ->sum('total_amount');
+            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate);
+        \App\Services\VoucherService::scopePartyQuery($priorPaymentsQ, $customerId, 'party_id');
+        $priorPaymentsRaw = $priorPaymentsQ->get();
+
+        $priorPayments = 0;
+        foreach ($priorPaymentsRaw as $pv) {
+            $priorPayments += \App\Services\VoucherService::getPartyAmount($pv, $customerId, 'customer');
+        }
 
         // 5. Prior Journal Vouchers (Debits & Credits)
         $priorJvDebits = DB::table('journal_vouchers')
@@ -351,24 +361,32 @@ class ReportingController extends Controller
             ->sum('net_amount');
 
         // 3. Prior Payments (Debit)
-        $priorPayments = DB::table('payment_vouchers')
-            ->where('party_id', $vendorId)
-            ->where('type', 'vendor')
+        $priorPaymentsQ = DB::table('payment_vouchers')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');
             })
-            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate)
-            ->sum('total_amount');
+            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate);
+        \App\Services\VoucherService::scopePartyQuery($priorPaymentsQ, $vendorId, 'party_id');
+        $priorPaymentsRaw = $priorPaymentsQ->get();
+
+        $priorPayments = 0;
+        foreach ($priorPaymentsRaw as $pv) {
+            $priorPayments += \App\Services\VoucherService::getPartyAmount($pv, $vendorId, 'vendor');
+        }
 
         // 4. Prior Receipts (Credit - refunds from vendor)
-        $priorReceipts = DB::table('receipts_vouchers')
-            ->where('party_id', $vendorId)
-            ->where('type', 'vendor')
+        $priorReceiptsQ = DB::table('receipts_vouchers')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');
             })
-            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate)
-            ->sum('total_amount');
+            ->where(DB::raw('DATE(receipt_date)'), '<', $startDate);
+        \App\Services\VoucherService::scopePartyQuery($priorReceiptsQ, $vendorId, 'party_id');
+        $priorReceiptsRaw = $priorReceiptsQ->get();
+
+        $priorReceipts = 0;
+        foreach ($priorReceiptsRaw as $rec) {
+            $priorReceipts += \App\Services\VoucherService::getPartyAmount($rec, $vendorId, 'vendor');
+        }
 
         // 5. Prior Journal Vouchers (Debits & Credits)
         $priorJvCredits = DB::table('journal_vouchers')
@@ -584,26 +602,26 @@ class ReportingController extends Controller
         // ══════════════════════════════════════════════════════════════════
         // PART 3 – RECEIPT VOUCHERS  (Cash + Bank payments from customer)
         // ══════════════════════════════════════════════════════════════════
-        $receiptsRaw = DB::table('receipts_vouchers')
-            ->where('receipts_vouchers.party_id', $customerId)
+        $receiptsQ = DB::table('receipts_vouchers')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');
             })
             ->whereBetween(DB::raw('DATE(receipts_vouchers.receipt_date)'), [$start, $end])
-            ->orderBy('receipts_vouchers.receipt_date', 'asc')
-            ->get();
+            ->orderBy('receipts_vouchers.receipt_date', 'asc');
+        \App\Services\VoucherService::scopePartyQuery($receiptsQ, $customerId, 'party_id');
+        $receiptsRaw = $receiptsQ->get();
 
         // ══════════════════════════════════════════════════════════════════
         // PART 4 – PAYMENT VOUCHERS  (Discounts / Expenses against customer)
         // ══════════════════════════════════════════════════════════════════
-        $paymentVouchersRaw = DB::table('payment_vouchers')
-            ->where('payment_vouchers.party_id', $customerId)
+        $paymentVouchersQ = DB::table('payment_vouchers')
             ->where(function ($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');
             })
             ->whereBetween(DB::raw('DATE(payment_vouchers.receipt_date)'), [$start, $end])
-            ->orderBy('payment_vouchers.receipt_date', 'asc')
-            ->get();
+            ->orderBy('payment_vouchers.receipt_date', 'asc');
+        \App\Services\VoucherService::scopePartyQuery($paymentVouchersQ, $customerId, 'party_id');
+        $paymentVouchersRaw = $paymentVouchersQ->get();
 
         // ══════════════════════════════════════════════════════════════════
         // PART 5 – JOURNAL VOUCHERS  (Debits & Credits for Customer)
@@ -685,6 +703,11 @@ class ReportingController extends Controller
 
         // Add Receipt Vouchers
         foreach ($receiptsRaw as $rec) {
+            $creditAmt = \App\Services\VoucherService::getPartyAmount($rec, $customerId, 'customer');
+            if ($creditAmt <= 0) {
+                continue;
+            }
+
             $rowAccountIds = \App\Services\VoucherService::safeDecodeArray($rec->row_account_id);
             $narrationIds  = \App\Services\VoucherService::safeDecodeArray($rec->narration_id);
 
@@ -726,7 +749,7 @@ class ReportingController extends Controller
                     'account'      => $accountStr,
                     'description'  => strtoupper($desc),
                     'txn_date'     => $rec->receipt_date,
-                    'credit'       => floatval($rec->total_amount ?? 0),
+                    'credit'       => $creditAmt,
                     'is_bank'      => $isBank,
                 ],
             ];
@@ -734,6 +757,11 @@ class ReportingController extends Controller
 
         // Add Payment Vouchers (discounts, tour expense, etc.)
         foreach ($paymentVouchersRaw as $pv) {
+            $creditAmt = \App\Services\VoucherService::getPartyAmount($pv, $customerId, 'customer');
+            if ($creditAmt <= 0) {
+                continue;
+            }
+
             $rowAccountIds = \App\Services\VoucherService::safeDecodeArray($pv->row_account_id);
             $narrationIds  = \App\Services\VoucherService::safeDecodeArray($pv->narration_id);
 
@@ -775,7 +803,7 @@ class ReportingController extends Controller
                     'account'      => $accountStr,
                     'description'  => strtoupper($desc),
                     'txn_date'     => $pv->receipt_date,
-                    'credit'       => floatval($pv->total_amount ?? 0),
+                    'credit'       => $creditAmt,
                     'is_bank'      => $isBank,
                 ],
             ];
@@ -1248,19 +1276,21 @@ class ReportingController extends Controller
         // ══════════════════════════════════════════════════════════════════
         // PART 3 – PAYMENT VOUCHERS (Payments TO vendor - Debit)
         // ══════════════════════════════════════════════════════════════════
-        $paymentVouchersRaw = DB::table('payment_vouchers')
+        $paymentVouchersQ = DB::table('payment_vouchers')
             ->leftJoin('narrations', 'narrations.id', '=', 'payment_vouchers.narration_id')
             ->leftJoin('accounts', 'accounts.id', '=', 'payment_vouchers.row_account_id')
             ->leftJoin('account_heads', 'account_heads.id', '=', 'accounts.head_id')
-            ->where('payment_vouchers.party_id', $vendorId)
-            ->where('payment_vouchers.type', 'vendor')
             ->where(function ($q) {
                 $q->whereNull('payment_vouchers.status')->orWhere('payment_vouchers.status', '!=', 'voided');
             })
-            ->whereBetween(DB::raw('DATE(payment_vouchers.receipt_date)'), [$start, $end])
-            ->select(
+            ->whereBetween(DB::raw('DATE(payment_vouchers.receipt_date)'), [$start, $end]);
+        \App\Services\VoucherService::scopePartyQuery($paymentVouchersQ, $vendorId, 'payment_vouchers.party_id');
+        $paymentVouchersRaw = $paymentVouchersQ->select(
                 'payment_vouchers.id           as id',
                 'payment_vouchers.pvid         as pvid',
+                'payment_vouchers.type         as type',
+                'payment_vouchers.party_id     as party_id',
+                'payment_vouchers.party_amount as party_amount',
                 'payment_vouchers.receipt_date as txn_date',
                 'payment_vouchers.amount       as amount',
                 'payment_vouchers.total_amount as debit_amount',
@@ -1277,19 +1307,21 @@ class ReportingController extends Controller
         // ══════════════════════════════════════════════════════════════════
         // PART 4 – RECEIPT VOUCHERS (Refunds FROM vendor - Credit)
         // ══════════════════════════════════════════════════════════════════
-        $receiptsRaw = DB::table('receipts_vouchers')
+        $receiptsQ = DB::table('receipts_vouchers')
             ->leftJoin('narrations', 'narrations.id', '=', 'receipts_vouchers.narration_id')
             ->leftJoin('accounts', 'accounts.id', '=', 'receipts_vouchers.row_account_id')
             ->leftJoin('account_heads', 'account_heads.id', '=', 'accounts.head_id')
-            ->where('receipts_vouchers.party_id', $vendorId)
-            ->where('receipts_vouchers.type', 'vendor')
             ->where(function ($q) {
                 $q->whereNull('receipts_vouchers.status')->orWhere('receipts_vouchers.status', '!=', 'voided');
             })
-            ->whereBetween(DB::raw('DATE(receipts_vouchers.receipt_date)'), [$start, $end])
-            ->select(
+            ->whereBetween(DB::raw('DATE(receipts_vouchers.receipt_date)'), [$start, $end]);
+        \App\Services\VoucherService::scopePartyQuery($receiptsQ, $vendorId, 'receipts_vouchers.party_id');
+        $receiptsRaw = $receiptsQ->select(
                 'receipts_vouchers.id           as id',
                 'receipts_vouchers.rvid         as rvid',
+                'receipts_vouchers.type         as type',
+                'receipts_vouchers.party_id     as party_id',
+                'receipts_vouchers.party_amount as party_amount',
                 'receipts_vouchers.receipt_date as txn_date',
                 'receipts_vouchers.amount       as amount',
                 'receipts_vouchers.total_amount as credit_amount',
@@ -1389,6 +1421,11 @@ class ReportingController extends Controller
 
         // Add Receipt Vouchers (Refunds FROM vendor - Credit)
         foreach ($receiptsRaw as $rec) {
+            $creditAmt = \App\Services\VoucherService::getPartyAmount($rec, $vendorId, 'vendor');
+            if ($creditAmt <= 0) {
+                continue;
+            }
+
             $isBank = (isset($rec->head_name) && str_contains(strtolower($rec->head_name), 'bank'))
                 || (isset($rec->account_title) && str_contains(strtolower($rec->account_title), 'bank')) // Using account_title join if available
                 || (isset($rec->remarks) && str_contains(strtolower($rec->remarks), 'bank'));
@@ -1427,7 +1464,7 @@ class ReportingController extends Controller
                     'description'  => strtoupper($desc),
                     'account_info' => $accountInfo,
                     'txn_date'     => $rec->txn_date,
-                    'credit'       => floatval($rec->credit_amount ?? 0),
+                    'credit'       => $creditAmt,
                     'is_bank'      => $isBank,
                 ],
             ];
@@ -1435,6 +1472,11 @@ class ReportingController extends Controller
 
         // Add Payment Vouchers (Payments TO vendor - Debit)
         foreach ($paymentVouchersRaw as $pv) {
+            $debitAmt = \App\Services\VoucherService::getPartyAmount($pv, $vendorId, 'vendor');
+            if ($debitAmt <= 0) {
+                continue;
+            }
+
             $isBank = (isset($pv->head_name) && str_contains(strtolower($pv->head_name), 'bank')) 
                 || (isset($pv->account_title) && str_contains(strtolower($pv->account_title), 'bank'))
                 || (isset($pv->account_title) && in_array(strtoupper($pv->account_title), ['HBL', 'MCB', 'UBL', 'MEEZAN', 'ALLIED', 'ASKARI']));
@@ -1472,7 +1514,7 @@ class ReportingController extends Controller
                     'description'  => strtoupper($desc),
                     'account_info' => $accountInfo,
                     'txn_date'     => $pv->txn_date,
-                    'debit'        => floatval($pv->debit_amount ?? 0),
+                    'debit'        => $debitAmt,
                     'is_bank'      => $isBank,
                 ],
             ];
@@ -2451,12 +2493,17 @@ class ReportingController extends Controller
 
         // ================= FETCH RECEIPTS (PAYMENTS) WITH ACCOUNT DETAILS =================
         $paymentsMap = [];
-        $receipts = ReceiptsVoucher::where('party_id', $customerId)
-            ->whereBetween(DB::raw('DATE(receipt_date)'), [$start, $endDate])
-            ->orderBy('receipt_date', 'asc')
-            ->get();
+        $receiptsQ = ReceiptsVoucher::whereBetween(DB::raw('DATE(receipt_date)'), [$start, $endDate])
+            ->orderBy('receipt_date', 'asc');
+        \App\Services\VoucherService::scopePartyQuery($receiptsQ, $customerId, 'party_id');
+        $receipts = $receiptsQ->get();
 
         foreach ($receipts as $receipt) {
+            $amt = \App\Services\VoucherService::getPartyAmount($receipt, $customerId, 'customer');
+            if ($amt <= 0) {
+                continue;
+            }
+
             $dateKey = $receipt->receipt_date instanceof \Carbon\Carbon 
                 ? $receipt->receipt_date->format('Y-m-d H:i:s')
                 : \Carbon\Carbon::parse($receipt->receipt_date)->format('Y-m-d H:i:s');
@@ -2467,7 +2514,9 @@ class ReportingController extends Controller
 
             // Get account details to determine payment mode
             if ($receipt->row_account_id) {
-                $account = Account::find($receipt->row_account_id);
+                $accIds = \App\Services\VoucherService::safeDecodeArray($receipt->row_account_id);
+                $firstAccId = $accIds[0] ?? $receipt->row_account_id;
+                $account = Account::find($firstAccId);
                 if ($account) {
                     $accountHead = $account->head;
                     // Check if account head is a bank account
@@ -2481,7 +2530,7 @@ class ReportingController extends Controller
             }
 
             $paymentsMap[$dateKey] = [
-                'amount' => floatval($receipt->total_amount ?? 0),
+                'amount' => $amt,
                 'reference' => $receipt->reference_no ?? "-",
                 'payment_mode' => $paymentMode,
                 'account_name' => $accountName,
@@ -2650,12 +2699,17 @@ class ReportingController extends Controller
 
         // ✅ Fetch receipts (payments) with account details
         $paymentsMap = [];
-        $receipts = ReceiptsVoucher::where('party_id', $customerId)
-            ->whereBetween(DB::raw('DATE(receipt_date)'), [$start, $endDate])
-            ->orderBy('receipt_date', 'asc')
-            ->get();
+        $receiptsQ = ReceiptsVoucher::whereBetween(DB::raw('DATE(receipt_date)'), [$start, $endDate])
+            ->orderBy('receipt_date', 'asc');
+        \App\Services\VoucherService::scopePartyQuery($receiptsQ, $customerId, 'party_id');
+        $receipts = $receiptsQ->get();
 
         foreach ($receipts as $receipt) {
+            $amt = \App\Services\VoucherService::getPartyAmount($receipt, $customerId, 'customer');
+            if ($amt <= 0) {
+                continue;
+            }
+
             $dateKey = $receipt->receipt_date instanceof \Carbon\Carbon 
                 ? $receipt->receipt_date->format('Y-m-d H:i:s')
                 : \Carbon\Carbon::parse($receipt->receipt_date)->format('Y-m-d H:i:s');
@@ -2664,7 +2718,9 @@ class ReportingController extends Controller
             $accountName = "-";
 
             if ($receipt->row_account_id) {
-                $account = Account::find($receipt->row_account_id);
+                $accIds = \App\Services\VoucherService::safeDecodeArray($receipt->row_account_id);
+                $firstAccId = $accIds[0] ?? $receipt->row_account_id;
+                $account = Account::find($firstAccId);
                 if ($account) {
                     $accountHead = $account->head;
                     if ($accountHead && strtolower($accountHead->name) === 'bank') {
@@ -2675,9 +2731,9 @@ class ReportingController extends Controller
             }
 
             $paymentsMap[$dateKey] = [
-                'amount' => floatval($receipt->total_amount ?? 0),
+                'amount' => floatval($amt),
                 'reference' => $receipt->reference_no ?? "-",
-                'voucher_no' => $receipt->receipt_no ?? "REC-" . $receipt->id,
+                'voucher_no' => $receipt->receipt_no ?? $receipt->rvid ?? "REC-" . $receipt->id,
                 'payment_mode' => $paymentMode,
                 'account_name' => $accountName,
             ];
@@ -3424,6 +3480,9 @@ class ReportingController extends Controller
             $inRangeOpenQuery->where('branch_id', $branchId);
         }
         foreach ($inRangeOpenQuery->get() as $op) {
+            $isOut    = ($op->type === 'out');
+            $inQty    = $isOut ? 0 : (float) $op->qty;
+            $outQty   = $isOut ? (float) $op->qty : 0;
             $events[] = [
                 'datetime'      => $op->created_at,
                 'date'          => date('d-M-Y H:i', strtotime($op->created_at)),
@@ -3433,12 +3492,12 @@ class ReportingController extends Controller
                 'ref_no'        => 'OPENING',
                 'party'         => 'Opening Stock Allotment',
                 'warehouse'     => 'Main Store',
-                'in_qty'        => (float) $op->qty,
+                'in_qty'        => $inQty,
                 'in_price'      => $costRate,
-                'in_total'      => (float) $op->qty * $costRate,
-                'out_qty'       => 0,
-                'out_price'     => 0,
-                'out_total'     => 0,
+                'in_total'      => $inQty * $costRate,
+                'out_qty'       => $outQty,
+                'out_price'     => $costRate,
+                'out_total'     => $outQty * $costRate,
                 'remarks'       => $op->note ?? 'Initial stock recorded',
             ];
         }

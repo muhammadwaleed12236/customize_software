@@ -33,20 +33,18 @@ class HomeController extends Controller
         if ($usertype == 'user') {
             return view('user_panel.dashboard', ['userId' => $user->id]);
         } elseif ($usertype == 'admin' || $user->hasRole('admin') || $user->hasRole('super admin') || empty($user->branch_id)) {
-            $isSuperAdmin = $user->hasRole('super admin') 
-                || $user->hasRole('Super Admin') 
-                || $user->hasRole('admin') 
-                || $user->hasRole('Admin') 
-                || $user->usertype === 'super admin'
-                || empty($user->branch_id);
+            $isSuperAdmin = ($user->hasRole('super admin') || $user->hasRole('Super Admin') || $user->usertype === 'super admin') && empty($user->branch_id);
 
-            $branches = Branch::all();
+            $branches = Branch::where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'inactive');
+            })->orderBy('name')->get();
 
-            // Branch filter logic
+            // Branch filter logic:
+            // - True Super Admin (unbound to branch) can view all or filter by request('branch_id')
+            // - Branch-assigned user ALWAYS sees their assigned branch
             $selectedBranchId = null;
-            if ($isSuperAdmin || empty($user->branch_id)) {
-                $isSuperAdmin = true;
-                $selectedBranchId = $request->filled('branch_id') ? (int) $request->get('branch_id') : null;
+            if ($isSuperAdmin) {
+                $selectedBranchId = $request->filled('branch_id') && $request->get('branch_id') !== 'all' ? (int) $request->get('branch_id') : null;
             } else {
                 $selectedBranchId = (int) ($user->branch_id ?? 1);
             }

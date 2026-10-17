@@ -34,7 +34,7 @@ class InwardgatepassController extends Controller
     {
         $user = Auth::user();
         $isSuperAdmin = $user->hasRole('super admin');
-        $isAdmin = $user->hasRole('admin') || $user->hasRole('branch admin') || $user->hasRole('Branch');
+        $isAdmin = $user->hasRole('admin') || $user->hasRole('branch admin') || $user->hasRole('branch manager') || $user->hasRole('manager') || $user->hasRole('Branch');
         $assignedWarehouseIds = $user->assignedWarehouseIds();
 
         // ─── Scoped Inward Gatepasses ───
@@ -154,7 +154,7 @@ class InwardgatepassController extends Controller
         // Security Check: Branch & Warehouse Level
         $user = Auth::user();
         $isSuperAdmin = $user->hasRole('super admin');
-        $isAdmin = $user->hasRole('admin') || $user->hasRole('branch admin') || $user->hasRole('Branch');
+        $isAdmin = $user->hasRole('admin') || $user->hasRole('branch admin') || $user->hasRole('branch manager') || $user->hasRole('manager') || $user->hasRole('Branch');
 
         if (!$isSuperAdmin) {
             if ($po->branch_id != $user->branch_id) {

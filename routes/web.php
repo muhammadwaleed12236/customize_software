@@ -507,8 +507,11 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('/search-product-name', [SaleController::class, 'searchpname'])->middleware('permission:product.view')->name('search-product-name');
     Route::get('/sale/check-stock', [SaleController::class, 'checkStock'])->middleware('permission:product.view')->name('sale.check.stock');
     Route::get('/get-branch-salesmen/{branchId}', [SaleController::class, 'getBranchSalesmen'])->name('branch.salesmen');
+    Route::get('/sale/get-branch-salesmen/{branchId}', [SaleController::class, 'getBranchSalesmen']);
     Route::get('/get-branch-accounts/{branchId}', [SaleController::class, 'getBranchAccounts'])->name('branch.accounts.json');
+    Route::get('/sale/get-branch-accounts/{branchId}', [SaleController::class, 'getBranchAccounts']);
     Route::get('/get-branch-invoice-no/{branchId}', [SaleController::class, 'getBranchInvoiceNo'])->name('branch.invoice_no');
+    Route::get('/sale/get-branch-invoice-no/{branchId}', [SaleController::class, 'getBranchInvoiceNo']);
     Route::post('/sales/store', [SaleController::class, 'store'])->middleware('permission:sale.create|sale.edit')->name('sales.store');
     Route::get('/sales/{id}/return', [SaleController::class, 'saleretun'])->middleware('permission:sale.return.view|sale.return.create')->name('sales.return.create');
     Route::post('/sales-return/store', [SaleController::class, 'storeSaleReturn'])->middleware('permission:sale.return.create|sale.return.edit')->name('sales.return.store');

@@ -15,7 +15,17 @@ class StockTransferController extends Controller
 {
     use BranchScope;
     public function index() {
-        $transfers = StockTransfer::with(['fromWarehouse', 'toWarehouse', 'fromBranch', 'toBranch', 'product'])->get();
+        $query = StockTransfer::with(['fromWarehouse', 'toWarehouse', 'fromBranch', 'toBranch', 'product']);
+
+        if (auth()->check() && !auth()->user()->hasRole('super admin')) {
+            $branchId = (int) (auth()->user()->branch_id ?? 0);
+            $query->where(function ($q) use ($branchId) {
+                $q->where('from_branch_id', $branchId)
+                  ->orWhere('to_branch_id', $branchId);
+            });
+        }
+
+        $transfers = $query->latest('id')->get();
         return view('admin_panel.warehouses.stock_transfers.index', compact('transfers'));
     }
 

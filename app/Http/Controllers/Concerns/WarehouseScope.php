@@ -41,20 +41,29 @@ trait WarehouseScope
         }
 
         // ────────────────────────────────────────────────────────────
-        // Rule 2: Branch Admin → ALL warehouses in their branch
+        // Rule 2: Branch Admin / Manager → ALL warehouses in their branch
         // ────────────────────────────────────────────────────────────
-        if ($user->hasRole('branch admin') || $user->hasRole('admin')) {
+        if ($user->hasRole('branch admin') || $user->hasRole('admin') || $user->hasRole('branch manager') || $user->hasRole('manager')) {
             $branch = Branch::with('warehouses')->find($user->branch_id);
             if (!$branch) return [];
             return $branch->warehouses()->pluck('warehouses.id')->toArray();
         }
 
         // ────────────────────────────────────────────────────────────
-        // Rule 3: All other roles → ONLY explicitly assigned warehouses
-        //         (cross-branch supported — Super Admin can assign
-        //          one incharge to warehouses across different branches)
+        // Rule 3: Other roles → explicitly assigned warehouses
+        //         fallback to own branch warehouses if none explicitly assigned
         // ────────────────────────────────────────────────────────────
-        return $user->assignedWarehouseIds();
+        $assigned = $user->assignedWarehouseIds();
+        if (!empty($assigned)) {
+            return $assigned;
+        }
+
+        if ($user->branch_id) {
+            $branch = Branch::with('warehouses')->find($user->branch_id);
+            return $branch ? $branch->warehouses()->pluck('warehouses.id')->toArray() : [];
+        }
+
+        return [];
     }
 
     /**
