@@ -447,23 +447,23 @@ $(document).ready(function () {
         var grandDr     = 0;
         var grandCr     = 0;
         var grandQty    = 0;   /* total qty across all items */
-        var rowNum      = 1;
+        var rowNum      = 2;
 
         var bodyHtml = '';
 
-        /* Opening Balance Row — 12 cols */
-        bodyHtml += '<tr class="r-open">';
-        bodyHtml += td('', 'center'); // 1. No
+        /* Opening Balance Row — 12 cols (Row #1) */
+        bodyHtml += '<tr class="r-open" style="background:#f8fafc; font-weight:700; border-bottom:2px solid #cbd5e1;">';
+        bodyHtml += td('<strong>1</strong>', 'center'); // 1. No
         bodyHtml += td('', 'center'); // 2. Inv No.
-        bodyHtml += td('', 'center'); // 3. Type
-        bodyHtml += td('', 'center'); // 4. Date
-        bodyHtml += td('', 'center'); // 5. Ref
-        bodyHtml += td('<strong>Opening Balance</strong>', 'left'); // 6. Details
+        bodyHtml += td('<span class="badge badge-secondary" style="font-size:10px;padding:3px 6px;">OB</span>', 'center'); // 3. Type
+        bodyHtml += td(start || '', 'center'); // 4. Date
+        bodyHtml += td('<span class="badge bg-secondary text-white" style="font-size:10px;">OPENING</span>', 'center'); // 5. Ref
+        bodyHtml += td('<strong style="color:var(--coa-navy);">Opening Balance / Initial Balance</strong>', 'left'); // 6. Details
         bodyHtml += td('', 'right');  // 7. Rate
         bodyHtml += td('', 'right');  // 8. Price
         bodyHtml += td('', 'right');  // 9. Qty
-        bodyHtml += td('', 'right');  // 10. Debit
-        bodyHtml += td('', 'right');  // 11. Credit
+        bodyHtml += td(ob < 0 ? '<strong style="color:#c62828;">' + fmt(Math.abs(ob)) + '</strong>' : '', 'right');  // 10. Debit
+        bodyHtml += td(ob > 0 ? '<strong style="color:#2e7d32;">' + fmt(ob) + '</strong>' : '', 'right');  // 11. Credit
         bodyHtml += td(balHtml(ob), 'right'); // 12. Balance
         bodyHtml += '</tr>';
 

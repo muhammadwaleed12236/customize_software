@@ -276,7 +276,7 @@
                 </span>
             </div>
 
-            @if($entries->count() > 0)
+            @if($entries->count() > 0 || $openingBalance != 0)
             <div class="table-responsive">
                 <table class="ledger-table">
                     <thead>
@@ -292,12 +292,49 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach($entries as $i => $entry)
+                        {{-- ✅ Row 1: Dedicated Opening Balance Row (Permanently Pinned at Top) --}}
+                        <tr class="row-opening" style="background: #f8fafc; font-weight: 700; border-bottom: 2px solid #cbd5e1;">
+                            <td style="color:var(--primary); font-weight: 800;">1</td>
+                            <td>
+                                <span class="entry-no ob" style="background:#e2e8f0; color:#334155; font-weight:800;">OPENING</span>
+                            </td>
+                            <td>{{ $dateFrom ? \Carbon\Carbon::parse($dateFrom)->format('d M Y') : ($entries->first() ? \Carbon\Carbon::parse($entries->first()->transaction_date)->format('d M Y') : '—') }}</td>
+                            <td><span class="voucher-tag" style="background:#cbd5e1; color:#0f172a;">OB</span></td>
+                            <td><strong style="color:var(--primary);">Opening Balance / Initial Balance</strong></td>
+                            <td class="text-end">
+                                @if($openingBalance > 0)
+                                    <span class="amount-debit">{{ number_format($openingBalance, 2) }}</span>
+                                @else
+                                    <span class="amount-zero">—</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                @if($openingBalance < 0)
+                                    <span class="amount-credit">{{ number_format(abs($openingBalance), 2) }}</span>
+                                @else
+                                    <span class="amount-zero">—</span>
+                                @endif
+                            </td>
+                            <td class="text-end">
+                                <span class="running-balance {{ $openingBalance >= 0 ? 'positive' : 'negative' }}">
+                                    {{ number_format(abs($openingBalance), 2) }}
+                                    @if($openingBalance < 0)
+                                        <small style="font-size:.7rem; opacity:.7;">Cr</small>
+                                    @endif
+                                </span>
+                            </td>
+                        </tr>
+
+                        @php $rNum = 2; @endphp
+                        @foreach($entries as $entry)
+                        @if($entry->voucher_type === 'opening_balance')
+                            @continue {{-- Skip OB in transactions loop so it never appears in the middle --}}
+                        @endif
                         @php
                             $entryPrefix = strtolower(explode('-', $entry->entry_no ?? 'jv')[0]);
                         @endphp
                         <tr>
-                            <td style="color:var(--muted);">{{ $i + 1 }}</td>
+                            <td style="color:var(--muted); font-weight:600;">{{ $rNum++ }}</td>
                             <td>
                                 <span class="entry-no {{ $entryPrefix }}">
                                     {{ $entry->entry_no ?? '—' }}

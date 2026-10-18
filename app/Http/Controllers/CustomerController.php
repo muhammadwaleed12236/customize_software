@@ -400,6 +400,15 @@ class CustomerController extends Controller
                     $firstLedger->closing_balance = $newOpening;
                 }
                 $firstLedger->save();
+            } elseif (!$firstLedger && $newOpening > 0) {
+                CustomerLedger::create([
+                    'customer_id'      => $customer->id,
+                    'admin_or_user_id' => Auth::id(),
+                    'previous_balance' => 0,
+                    'opening_balance'  => $newOpening,
+                    'closing_balance'  => $newOpening,
+                    'created_at'       => $customer->created_at ?? now(),
+                ]);
             }
         }
 

@@ -569,8 +569,8 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     // Dedicated thermal print view for DC (server-rendered)
     Route::get('/sale/dc/{sale}/thermal', [SaleController::class, 'saleDcThermal'])->middleware('permission:booking.view')->name('sale.dc.thermal');
     
-    // });
     Route::get('/sale/invoice/{sale}', [SaleController::class, 'invoicesale'])->middleware('permission:sale.invoice')->name('sale.invoice');
+    Route::get('/sale/invoice-a4/{sale}', [SaleController::class, 'invoiceA4'])->name('sale.invoice.a4');
     // Route::get('/sale/invoice',function(){
         //     return view('admin_panel.sale.invoice2');
         // });

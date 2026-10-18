@@ -4604,22 +4604,48 @@ public function finddc($invoice)
         return view('admin_panel.sale.invoicesale', compact('sale', 'branch'));
     }
 
+    /**
+     * Dedicated A4 Size Printable Invoice
+     * Matches user custom PDF format with dynamic settings
+     */
+    public function invoiceA4(Sale $sale)
+    {
+        $sale->load([
+            'customer.ledgers',
+            'saleItems.product',
+            'branch'
+        ]);
+
+        $settings = SaleSetting::getSettings();
+
+        // Calculate rows padding for fixed A4 structure
+        $minRows = $settings->invoice_min_rows ?? 16;
+        $itemsCount = $sale->saleItems ? $sale->saleItems->count() : 0;
+        $emptyRowsCount = max(0, $minRows - $itemsCount);
+
+        return view('admin_panel.sale.prints.invoice_a4', compact('sale', 'settings', 'emptyRowsCount'));
+    }
+
     public function print2(Sale $sale)
     {
         $sale->load([
-            'customer',
-            'saleItems.product'
+            'customer.ledgers',
+            'saleItems.product.unit',
+            'branch',
+            'salesman'
         ]);
+
+        $settings = SaleSetting::getSettings();
 
         // Determine branch to display
         $user = Auth::user();
-        if ($user->hasRole('super admin')) {
-            $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
+        if ($user && $user->hasRole('super admin')) {
+            $branch = Branch::find(1) ?? (object)['name' => $settings->invoice_company_name ?? 'GLC'];
         } else {
-            $branch = $user->branch ?? (object)['name' => 'ZAIN TRADERS'];
+            $branch = ($user ? $user->branch : null) ?? (object)['name' => $settings->invoice_company_name ?? 'GLC'];
         }
 
-        return view('admin_panel.sale.prints.print2', compact('sale', 'branch'));
+        return view('admin_panel.sale.prints.print2', compact('sale', 'branch', 'settings'));
     }
     public function dc(Sale $sale)
     {

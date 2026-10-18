@@ -312,6 +312,11 @@
             <i class="fas fa-file-invoice"></i> Invoice
         </a>
 
+        <!-- A4 PRINT INVOICE -->
+        <a href="{{ route('sale.invoice.a4', $sale->id) }}" target="_blank" class="btn btn-sm text-white me-1" style="background-color: #c23321;" title="Print A4 Invoice">
+            <i class="fas fa-print"></i> A4 Print
+        </a>
+
         <!-- DELETE BUTTON -->
         @can('sale.delete')
         <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" class="d-inline me-1" onsubmit="return confirm('Are you sure you want to delete Invoice #{{ $sale->invoice_no }}? Stock, customer ledger, and account balances will be reverted.');">
@@ -330,6 +335,11 @@
             </button>
 
             <ul class="dropdown-menu dropdown-menu-end shadow-lg action-dropdown">
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.invoice.a4', $sale->id) }}" target="_blank">
+                        <i class="fas fa-print text-danger"></i> A4 Size Print
+                    </a>
+                </li>
                 <li>
                     <a class="dropdown-item d-flex align-items-center gap-2 view-movement-btn" href="javascript:void(0)" data-sale-id="{{ $sale->id }}">
                         <i class="fas fa-history text-info"></i> Movement Details

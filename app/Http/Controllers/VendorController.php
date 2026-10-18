@@ -303,7 +303,7 @@ class VendorController extends Controller
             'branch_id'        => $branchId,
             'admin_or_user_id' => Auth::id(),
             'previous_balance' => $previousBalance,
-            'opening_balance'  => $previousBalance,
+            'opening_balance'  => 0,
             'debit_amount'     => $request->adjustment_type === 'minus' ? $amount : 0,
             'credit_amount'    => $request->adjustment_type === 'plus' ? $amount : 0,
             'closing_balance'  => $newClosing,

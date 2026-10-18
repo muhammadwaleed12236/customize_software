@@ -198,12 +198,47 @@
                             </div>
                         </div>
 
+                        {{-- ✅ Executive Summary Cards: Opening Balance Separated from Running Outstanding --}}
+                        <div class="row g-2 mb-3" id="ledgerKpis">
+                            <div class="col-md">
+                                <div class="p-2 rounded border bg-light">
+                                    <div class="text-muted small fw-bold text-uppercase" style="font-size:0.7rem;">Opening Balance</div>
+                                    <div class="h6 mb-0 fw-bold font-monospace" id="kpi_opening">Rs. 0.00</div>
+                                </div>
+                            </div>
+                            <div class="col-md">
+                                <div class="p-2 rounded border bg-light">
+                                    <div class="text-muted small fw-bold text-uppercase" style="font-size:0.7rem; color:#0d6efd !important;">Period Invoiced (Dr)</div>
+                                    <div class="h6 mb-0 fw-bold font-monospace text-primary" id="kpi_debit">Rs. 0.00</div>
+                                </div>
+                            </div>
+                            <div class="col-md">
+                                <div class="p-2 rounded border bg-light">
+                                    <div class="text-muted small fw-bold text-uppercase" style="font-size:0.7rem; color:#198754 !important;">Period Received (Cr)</div>
+                                    <div class="h6 mb-0 fw-bold font-monospace text-success" id="kpi_credit">Rs. 0.00</div>
+                                </div>
+                            </div>
+                            <div class="col-md">
+                                <div class="p-2 rounded border bg-light">
+                                    <div class="text-muted small fw-bold text-uppercase" style="font-size:0.7rem;">Current Period Net</div>
+                                    <div class="h6 mb-0 fw-bold font-monospace" id="kpi_period_net">Rs. 0.00</div>
+                                </div>
+                            </div>
+                            <div class="col-md">
+                                <div class="p-2 rounded border" style="background:#f0fdf4; border-color:#86efac !important;">
+                                    <div class="small fw-bold text-uppercase" style="font-size:0.7rem; color:#15803d;">Total Outstanding</div>
+                                    <div class="h6 mb-0 fw-bold font-monospace" style="color:#15803d;" id="kpi_closing">Rs. 0.00</div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="table-responsive">
                             <table class="table table-bordered mb-0" style="font-size: 12.5px;">
                                 <thead>
                                     <tr>
-                                        <th style="width: 12%;">Date</th>
-                                        <th style="width: 15%;">Invoice/Ref</th>
+                                        <th style="width: 5%;">#</th>
+                                        <th style="width: 11%;">Date</th>
+                                        <th style="width: 14%;">Invoice/Ref</th>
                                         <th>Description</th>
                                         <th style="width: 12%;" class="text-end">Debit</th>
                                         <th style="width: 12%;" class="text-end">Credit</th>
@@ -352,22 +387,26 @@
 
                 let totalDebit = 0;
                 let totalCredit = 0;
-                let lastBalance = res.opening_balance;
+                let obVal = parseFloat(res.opening_balance || 0);
+                let lastBalance = obVal;
 
-                // ============= OPENING BALANCE ROW =============
+                // ============= OPENING BALANCE ROW (Row #1) =============
                 let html = `
-                    <tr class="opening-balance">
-                        <td colspan="3" style="text-align: left; font-weight: 600;">Opening Balance</td>
-                        <td class="text-end">-</td>
-                        <td class="text-end">-</td>
-                        <td class="text-end ${lastBalance > 0 ? 'balance-positive' : (lastBalance < 0 ? 'balance-negative' : 'balance-neutral')}" style="font-weight: 600;">
-                            Rs. ${parseFloat(lastBalance).toFixed(2)}
+                    <tr class="opening-balance" style="background: #f8fafc; font-weight: 700; border-bottom: 2px solid #cbd5e1;">
+                        <td class="text-center fw-bold" style="color:var(--coa-navy);">1</td>
+                        <td>${start}</td>
+                        <td><span class="badge bg-secondary text-white" style="font-size:10px;">OPENING</span></td>
+                        <td><strong style="color:var(--coa-navy);">Opening Balance / Initial Balance</strong></td>
+                        <td class="text-end">${obVal > 0 ? 'Rs. ' + obVal.toFixed(2) : '-'}</td>
+                        <td class="text-end">${obVal < 0 ? 'Rs. ' + Math.abs(obVal).toFixed(2) : '-'}</td>
+                        <td class="text-end ${obVal > 0 ? 'balance-positive' : (obVal < 0 ? 'balance-negative' : 'balance-neutral')}" style="font-weight: 700;">
+                            Rs. ${obVal.toFixed(2)}
                         </td>
                     </tr>
                 `;
 
                 // ============= TRANSACTION ROWS =============
-                res.transactions.forEach((t) => {
+                res.transactions.forEach((t, idx) => {
                     let debit = parseFloat(t.debit || 0);
                     let credit = parseFloat(t.credit || 0);
                     totalDebit += debit;
@@ -376,6 +415,7 @@
 
                     html += `
                         <tr>
+                            <td class="text-center text-muted" style="font-size:11px;">${idx + 2}</td>
                             <td>${t.date}</td>
                             <td><strong>${t.invoice}</strong></td>
                             <td>${t.description}</td>
@@ -388,10 +428,18 @@
                     `;
                 });
 
+                // ============= UPDATE SUMMARY KPIS =============
+                $("#kpi_opening").text('Rs. ' + obVal.toFixed(2));
+                $("#kpi_debit").text('Rs. ' + totalDebit.toFixed(2));
+                $("#kpi_credit").text('Rs. ' + totalCredit.toFixed(2));
+                let periodNet = totalDebit - totalCredit;
+                $("#kpi_period_net").text('Rs. ' + periodNet.toFixed(2));
+                $("#kpi_closing").text('Rs. ' + lastBalance.toFixed(2));
+
                 // ============= TOTALS FOOTER ROW =============
                 let footerHtml = `
                     <tr class="totals-row">
-                        <td colspan="3" style="text-align: left; font-weight: 700;">Period Totals:</td>
+                        <td colspan="4" style="text-align: left; font-weight: 700;">Period Totals:</td>
                         <td class="text-end">Rs. ${totalDebit.toFixed(2)}</td>
                         <td class="text-end">Rs. ${totalCredit.toFixed(2)}</td>
                         <td class="text-end ${lastBalance > 0 ? 'balance-positive' : (lastBalance < 0 ? 'balance-negative' : 'balance-neutral')}" style="font-weight: 700;">
