@@ -85,15 +85,13 @@
         /* A4 Page Container */
         .invoice-a4-page {
             width: 210mm;
-            min-height: 297mm;
+            max-width: 100%;
             margin: 0 auto;
             background: #ffffff;
-            padding: 10mm 12mm 8mm 12mm;
+            padding: 8mm 12mm 10mm 12mm;
             box-shadow: 0 4px 20px rgba(0,0,0,0.12);
             position: relative;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
+            box-sizing: border-box;
         }
 
         /* Dynamic Theme Colors */
@@ -410,7 +408,7 @@
             padding: 6px 12px;
             text-align: center;
             border-radius: 4px;
-            margin-top: 6px;
+            margin-top: 14px;
         }
         .branch-line {
             font-size: 9.5px;
@@ -472,13 +470,14 @@
     {{-- A4 Page Container --}}
     <div class="invoice-a4-page">
 
-        <div>
-            {{-- Header --}}
-            <div class="invoice-header">
+        {{-- Header --}}
+        <div class="invoice-header">
                 {{-- Left Contacts --}}
                 <div class="header-col-left">
                     @php
-                        $contactsLeft = array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_left ?? "Faisal Mehmood\n0325 4682466\nFurqaan Shakeel\n03044576200")));
+                        $contactsLeft = !empty(trim($settings->invoice_contacts_left ?? ''))
+                            ? array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_left)))
+                            : [];
                     @endphp
                     @for($i = 0; $i < count($contactsLeft); $i += 2)
                         <div class="contact-name">{{ $contactsLeft[$i] ?? '' }}</div>
@@ -488,24 +487,31 @@
 
                 {{-- Center Logo / Brand --}}
                 <div class="header-col-center">
-                    @if($settings->invoice_logo && file_exists(public_path($settings->invoice_logo)))
+                    @if(!empty($settings->invoice_logo) && file_exists(public_path($settings->invoice_logo)))
                         <div class="logo-wrap">
                             <img src="{{ asset($settings->invoice_logo) }}" alt="Logo">
                         </div>
-                    @else
+                    @elseif(!empty($settings->invoice_company_name))
                         <div class="logo-fallback-badge">
-                            {{ $settings->invoice_company_name ?? 'GLC' }}
+                            {{ $settings->invoice_company_name }}
                         </div>
                     @endif
 
-                    <div class="company-tagline">{{ $settings->invoice_tagline ?? 'Long Life Accessories' }}</div>
-                    <div class="sub-description">{!! nl2br(e($settings->invoice_sub_description ?? "Power Bank, Battery, Data Cable, Charger, Head Phone\nHandsfree, Bluetooth & Multimedia")) !!}</div>
+                    @if(!empty(trim($settings->invoice_tagline ?? '')))
+                        <div class="company-tagline">{{ $settings->invoice_tagline }}</div>
+                    @endif
+
+                    @if(!empty(trim($settings->invoice_sub_description ?? '')))
+                        <div class="sub-description">{!! nl2br(e($settings->invoice_sub_description)) !!}</div>
+                    @endif
                 </div>
 
                 {{-- Right Contacts --}}
                 <div class="header-col-right">
                     @php
-                        $contactsRight = array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_right ?? "Anjum Shakeel\n03008033184\nTayyab Shakeel\n03054453139\nPTCL #: 042 37322272\n042 37232370")));
+                        $contactsRight = !empty(trim($settings->invoice_contacts_right ?? ''))
+                            ? array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_right)))
+                            : [];
                     @endphp
                     @foreach($contactsRight as $cLine)
                         @if(str_contains(strtolower($cLine), 'ptcl'))
@@ -652,21 +658,34 @@
                     </div>
                 </div>
             </div>
-        </div>
 
         {{-- Footer Banner & Credit --}}
-        <div>
-            <div class="invoice-footer-banner">
-                <div class="branch-line">{{ $settings->invoice_branch_1 ?? 'Branch#1: Shop #22,45, Basement Madina Center The Mall Hall Road, Lhr.' }}</div>
-                <div class="branch-line">{{ $settings->invoice_branch_2 ?? 'Branch#2: Shop #40,43, 3rd Floor Hassan Center Hall Road, Lhr.' }}</div>
-            </div>
+        @php
+            $hasBranch1 = !empty(trim($settings->invoice_branch_1 ?? ''));
+            $hasBranch2 = !empty(trim($settings->invoice_branch_2 ?? ''));
+            $hasCredit = !empty(trim($settings->invoice_footer_credit ?? ''));
+        @endphp
 
-            @if($settings->invoice_footer_credit)
+        @if($hasBranch1 || $hasBranch2 || $hasCredit)
+        <div>
+            @if($hasBranch1 || $hasBranch2)
+            <div class="invoice-footer-banner">
+                @if($hasBranch1)
+                    <div class="branch-line">{{ $settings->invoice_branch_1 }}</div>
+                @endif
+                @if($hasBranch2)
+                    <div class="branch-line">{{ $settings->invoice_branch_2 }}</div>
+                @endif
+            </div>
+            @endif
+
+            @if($hasCredit)
                 <div class="footer-credit">
                     {{ $settings->invoice_footer_credit }}
                 </div>
             @endif
         </div>
+        @endif
 
     </div>
 

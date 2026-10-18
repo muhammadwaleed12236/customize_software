@@ -163,17 +163,45 @@
         color: #ffffff !important;
     }
 
+    /* Strong Overrides against global table styles */
+    .thermal-receipt table {
+        border-collapse: collapse !important;
+        margin: 2px 0 !important;
+        width: 100% !important;
+    }
+
+    .thermal-receipt table tr th,
+    .thermal-receipt table tr td,
+    .thermal-receipt table th,
+    .thermal-receipt table td,
+    .receipt-meta-table tr td,
+    .receipt-meta-table td,
+    .receipt-items-table tr th,
+    .receipt-items-table tr td,
+    .receipt-items-table th,
+    .receipt-items-table td,
+    .receipt-totals-table tr td,
+    .receipt-totals-table td {
+        padding: 1px 0 !important;
+        vertical-align: top !important;
+        height: auto !important;
+        min-height: 0 !important;
+        line-height: 1.25 !important;
+    }
+
     /* Metadata table */
     .receipt-meta-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 4px 0;
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 2px 0 !important;
         font-size: 10.5px;
     }
 
+    .receipt-meta-table tr td,
     .receipt-meta-table td {
-        padding: 1.5px 0;
-        vertical-align: top;
+        padding: 1.5px 0 !important;
+        vertical-align: top !important;
+        line-height: 1.25 !important;
     }
 
     .meta-lbl {
@@ -190,30 +218,34 @@
 
     /* Dashed separator */
     .dashed-line {
-        border-top: 1px dashed #000000;
-        margin: 5px 0;
+        border-top: 1px dashed #000000 !important;
+        margin: 3px 0 !important;
     }
 
     /* Items table */
     .receipt-items-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 4px 0;
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 3px 0 !important;
         table-layout: fixed;
     }
 
+    .receipt-items-table tr th,
     .receipt-items-table th {
         font-size: 9.5px;
         font-weight: 900;
-        padding: 3px 0;
-        border-top: 1px dashed #000000;
-        border-bottom: 1px dashed #000000;
+        padding: 2.5px 0 !important;
+        border-top: 1px dashed #000000 !important;
+        border-bottom: 1px dashed #000000 !important;
+        line-height: 1.2 !important;
     }
 
+    .receipt-items-table tr td,
     .receipt-items-table td {
-        padding: 3px 0;
+        padding: 2px 0 !important;
         font-size: 10px;
-        vertical-align: top;
+        vertical-align: top !important;
+        line-height: 1.2 !important;
     }
 
     .col-sr { width: 7%; text-align: left; font-weight: 800; }
@@ -224,14 +256,16 @@
 
     /* Totals */
     .receipt-totals-table {
-        width: 100%;
-        border-collapse: collapse;
-        margin: 4px 0;
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 3px 0 !important;
         font-size: 11px;
     }
 
+    .receipt-totals-table tr td,
     .receipt-totals-table td {
-        padding: 2px 0;
+        padding: 1.5px 0 !important;
+        line-height: 1.25 !important;
     }
 
     .tot-lbl {
@@ -246,16 +280,16 @@
     }
 
     .payable-box-row td {
-        border-top: 1.5px solid #000000;
-        border-bottom: 1.5px solid #000000;
-        padding: 4px 0 !important;
+        border-top: 1.5px solid #000000 !important;
+        border-bottom: 1.5px solid #000000 !important;
+        padding: 3px 0 !important;
         font-size: 12.5px !important;
         font-weight: 900 !important;
     }
 
     .closing-box-row td {
-        border: 1.5px solid #000000;
-        padding: 3px 4px !important;
+        border: 1.5px solid #000000 !important;
+        padding: 2px 3px !important;
         font-size: 12px !important;
         font-weight: 900 !important;
     }
@@ -263,28 +297,29 @@
     /* Footer */
     .receipt-footer {
         text-align: center;
-        margin-top: 8px;
-        padding-top: 4px;
-        border-top: 1px dashed #000000;
+        margin-top: 6px !important;
+        padding-top: 3px !important;
+        border-top: 1px dashed #000000 !important;
         font-size: 9.5px;
-        line-height: 1.35;
+        line-height: 1.25;
     }
 
     .footer-branch {
         font-weight: 700;
-        font-size: 9px;
-        margin-bottom: 3px;
+        font-size: 8.5px;
+        margin-bottom: 2px;
+        line-height: 1.2;
     }
 
     .footer-thanks {
         font-weight: 800;
-        font-size: 10.5px;
-        margin: 5px 0 3px 0;
+        font-size: 10px;
+        margin: 3px 0 2px 0;
         text-transform: capitalize;
     }
 
     .footer-credit {
-        font-size: 8.5px;
+        font-size: 8px;
         font-weight: 700;
         color: #000000;
         margin-top: 2px;
@@ -357,28 +392,39 @@
                 <div class="receipt-logo-wrap">
                     <img src="{{ asset($settings->invoice_logo) }}" alt="Logo">
                 </div>
-            @else
+            @elseif(!empty($settings->invoice_company_name))
                 <div class="receipt-logo-badge">
-                    {{ $settings->invoice_company_name ?? 'GLC' }}
+                    {{ $settings->invoice_company_name }}
                 </div>
             @endif
 
-            <div class="receipt-tagline">
-                {{ $settings->invoice_tagline ?? 'Long Life Accessories' }}
-            </div>
+            @if(!empty(trim($settings->invoice_tagline ?? '')))
+                <div class="receipt-tagline">
+                    {{ $settings->invoice_tagline }}
+                </div>
+            @endif
 
-            <div class="receipt-sub-desc">
-                {!! nl2br(e($settings->invoice_sub_description ?? "Power Bank, Battery, Data Cable, Charger, Head Phone\nHandsfree, Bluetooth & Multimedia")) !!}
-            </div>
+            @if(!empty(trim($settings->invoice_sub_description ?? '')))
+                <div class="receipt-sub-desc">
+                    {!! nl2br(e($settings->invoice_sub_description)) !!}
+                </div>
+            @endif
         </div>
 
-        {{-- 2. CONTACT NUMBERS (LEFT & RIGHT) --}}
+        {{-- 2. CONTACT NUMBERS (LEFT & RIGHT - ONLY IF FILLED) --}}
+        @php
+            $cLeft = !empty(trim($settings->invoice_contacts_left ?? ''))
+                ? array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_left)))
+                : [];
+            $cRight = !empty(trim($settings->invoice_contacts_right ?? ''))
+                ? array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_right)))
+                : [];
+        @endphp
+
+        @if(!empty($cLeft) || !empty($cRight))
         <div class="receipt-contacts-strip">
             {{-- Left Contacts --}}
             <div class="contacts-col-left">
-                @php
-                    $cLeft = array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_left ?? "Faisal Mehmood\n0325 4682466\nFurqaan Shakeel\n03044576200")));
-                @endphp
                 @for($k = 0; $k < count($cLeft); $k += 2)
                     <div style="font-weight: 800;">{{ $cLeft[$k] ?? '' }}</div>
                     <div style="font-weight: 700; margin-bottom: 2px;">{{ $cLeft[$k+1] ?? '' }}</div>
@@ -387,9 +433,6 @@
 
             {{-- Right Contacts --}}
             <div class="contacts-col-right">
-                @php
-                    $cRight = array_filter(array_map('trim', explode("\n", $settings->invoice_contacts_right ?? "Anjum Shakeel\n03008033184\nTayyab Shakeel\n03054453139\nPTCL #: 042 37322272\n042 37232370")));
-                @endphp
                 @foreach($cRight as $line)
                     @if(str_contains(strtolower($line), 'ptcl'))
                         <div style="font-weight: 800; margin-top: 2px;">{{ $line }}</div>
@@ -401,20 +444,20 @@
                 @endforeach
             </div>
         </div>
+        @endif
 
-        {{-- 3. HIGHLIGHTED BLACK BAR (NOTE 1) --}}
-        @php
-            $firstNote = '1. NO RETURN NO EXCHANGE WITHOUT BILL';
-            if (!empty($settings->invoice_terms_notes)) {
+        {{-- 3. HIGHLIGHTED BLACK BAR (NOTE 1 - ONLY IF FILLED) --}}
+        @if(!empty(trim($settings->invoice_terms_notes ?? '')))
+            @php
                 $lines = array_filter(array_map('trim', explode("\n", $settings->invoice_terms_notes)));
-                if (!empty($lines)) {
-                    $firstNote = mb_strtoupper($lines[0]);
-                }
-            }
-        @endphp
-        <div class="receipt-highlight-bar">
-            {{ $firstNote }}
-        </div>
+                $firstNote = !empty($lines) ? mb_strtoupper($lines[0]) : '';
+            @endphp
+            @if(!empty($firstNote))
+                <div class="receipt-highlight-bar">
+                    {{ $firstNote }}
+                </div>
+            @endif
+        @endif
 
         {{-- 4. INVOICE META DETAILS --}}
         <table class="receipt-meta-table">
@@ -546,19 +589,29 @@
         </table>
 
         {{-- 7. FOOTER BRANCHES & CREDITS (DYNAMIC FROM SETTINGS) --}}
+        @php
+            $hasBranch1 = !empty(trim($settings->invoice_branch_1 ?? ''));
+            $hasBranch2 = !empty(trim($settings->invoice_branch_2 ?? ''));
+            $hasCredit = !empty(trim($settings->invoice_footer_credit ?? ''));
+        @endphp
+
         <div class="receipt-footer">
-            <div class="footer-branch">
-                {{ $settings->invoice_branch_1 ?? 'Branch#1: Shop #22,45, Basement Madina Center The Mall Hall Road, Lhr.' }}
-            </div>
-            <div class="footer-branch">
-                {{ $settings->invoice_branch_2 ?? 'Branch#2: Shop #40,43, 3rd Floor Hassan Center Hall Road, Lhr.' }}
-            </div>
+            @if($hasBranch1)
+                <div class="footer-branch">
+                    {{ $settings->invoice_branch_1 }}
+                </div>
+            @endif
+            @if($hasBranch2)
+                <div class="footer-branch">
+                    {{ $settings->invoice_branch_2 }}
+                </div>
+            @endif
 
             <div class="footer-thanks">
                 Thank you for shopping with us!
             </div>
 
-            @if(!empty($settings->invoice_footer_credit))
+            @if($hasCredit)
                 <div class="footer-credit">
                     {{ $settings->invoice_footer_credit }}
                 </div>
