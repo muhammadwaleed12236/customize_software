@@ -1,4 +1,4 @@
-@extends('admin_panel.layout.app')
+@extends(request()->has('embed') || request()->has('modal') ? 'admin_panel.layout.clean' : 'admin_panel.layout.app')
 
 @section('content')
 <style>

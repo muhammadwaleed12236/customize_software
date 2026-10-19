@@ -763,8 +763,8 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
     Route::get('report/customer-ledger/fetch', [ReportingController::class, 'fetch_customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch');
     Route::get('report/customer-ledger/fetch-detailed', [ReportingController::class, 'fetch_customer_ledger_detailed'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch.detailed');
     Route::get('report/customers-by-branch', [ReportingController::class, 'customersByBranch'])->middleware('permission:report.customer.ledger.view|customer.ledger|customer.view')->name('report.customers.byBranch');
-    Route::get('testing', function() { return redirect()->route('report.customer.ledger.new'); });
     Route::get('report/customer-ledger/fetch-new', [ReportingController::class, 'fetch_customer_ledger_new'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.fetch.new');
+    Route::get('report/customer-ledger/transaction-preview', [ReportingController::class, 'transaction_preview'])->middleware('permission:report.customer.ledger.view')->name('report.customer.ledger.preview');
 
     Route::get('report/salesman-performance', [ReportingController::class, 'salesman_performance_report'])->middleware('permission:report.sale.view')->name('report.salesman.performance');
     Route::get('report/salesman-performance/fetch', [ReportingController::class, 'fetch_salesman_performance'])->middleware('permission:report.sale.view')->name('report.salesman.performance.fetch');

@@ -116,7 +116,7 @@
                         @php $user = Auth::user(); @endphp
 
                         @if($user && $user->hasRole('super admin'))
-                            <div class="col-md-3">
+                            <div class="col-md-2 col-lg-2">
                                 <label class="f-label">Select Branch</label>
                                 <select id="branch_id" class="form-control form-control-sm" style="height: 38px; border-radius: 6px; border: 1.5px solid #cbd5e1;" onchange="loadCustomersForBranch(this.value)">
                                     <option value="">-- Select Branch --</option>
@@ -125,7 +125,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            <div class="col-md-3">
+                            <div class="col-md-3 col-lg-3">
                                 <label class="f-label">
                                     Customer <small id="customerCountHint" class="text-primary ml-1"></small>
                                 </label>
@@ -134,7 +134,7 @@
                                 </select>
                             </div>
                         @else
-                            <div class="col-md-4">
+                            <div class="col-md-4 col-lg-4">
                                 <label class="f-label">
                                     Customer
                                     <small class="text-muted ml-1">({{ count($customers) }} records)</small>
@@ -151,21 +151,31 @@
                             </div>
                         @endif
 
-                        <div class="col-md-2">
+                        <div class="col-md-2 col-lg-2">
                             <label class="f-label">From Date</label>
                             <input type="date" id="start_date" class="form-control form-control-sm" value="{{ $startDate ?? '' }}" style="height: 38px; border-radius: 6px; border: 1.5px solid #cbd5e1;">
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-2 col-lg-2">
                             <label class="f-label">To Date</label>
                             <input type="date" id="end_date" class="form-control form-control-sm" value="{{ $endDate ?? '' }}" style="height: 38px; border-radius: 6px; border: 1.5px solid #cbd5e1;">
                         </div>
-                        <div class="col-md-2">
-                            <button type="button" id="btnSearch"
-                                onclick="generateLedger()"
-                                class="btn btn-sm btn-primary w-100 font-weight-bold"
-                                style="height: 38px; border-radius: 6px; background: var(--coa-navy); border-color: var(--coa-navy);">
-                                <i class="fas fa-file-invoice mr-1"></i> Generate Ledger
-                            </button>
+                        <div class="{{ ($user && $user->hasRole('super admin')) ? 'col-md-3 col-lg-3' : 'col-md-4 col-lg-4' }}">
+                            <div class="d-flex gap-2">
+                                <button type="button" id="btnGeneralLedger"
+                                    onclick="loadLedger('general')"
+                                    class="btn btn-sm btn-primary font-weight-bold flex-fill"
+                                    style="height: 38px; border-radius: 6px; background: var(--coa-navy); border-color: var(--coa-navy); font-size: 11.5px; white-space: nowrap;"
+                                    title="General Ledger: Full Detailed View with item breakdown">
+                                    <i class="fas fa-list-alt mr-1"></i> General Ledger
+                                </button>
+                                <button type="button" id="btnSimpleLedger"
+                                    onclick="loadLedger('simple')"
+                                    class="btn btn-sm font-weight-bold flex-fill"
+                                    style="height: 38px; border-radius: 6px; background: #ffffff; border: 1.5px solid #16a34a; color: #16a34a; font-size: 11.5px; white-space: nowrap;"
+                                    title="Simple Ledger: Compact View (Date, Inv/Voucher, Account, Debit, Credit, Balance)">
+                                    <i class="fas fa-table mr-1"></i> Simple Ledger
+                                </button>
+                            </div>
                         </div>
                     </form>
                 </div>
@@ -292,14 +302,31 @@
                     </div>
                 </div>
 
+                {{-- 3.5 Active View Switcher Bar --}}
+                <div class="d-flex align-items-center justify-content-between mb-2 flex-wrap gap-2">
+                    <div class="btn-group shadow-sm" role="group" aria-label="Ledger Mode">
+                        <button type="button" class="btn btn-sm font-weight-bold" id="modeBtnGeneral" onclick="switchLedgerView('general')" style="background: var(--coa-navy); color: #fff; border: 1.5px solid var(--coa-navy); padding: 5px 14px;">
+                            <i class="fas fa-list-alt mr-1"></i> General Ledger (Detailed)
+                        </button>
+                        <button type="button" class="btn btn-sm font-weight-bold" id="modeBtnSimple" onclick="switchLedgerView('simple')" style="background: #ffffff; color: #16a34a; border: 1.5px solid #16a34a; padding: 5px 14px;">
+                            <i class="fas fa-table mr-1"></i> Simple Ledger (Compact)
+                        </button>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge px-3 py-2 text-white shadow-sm font-weight-bold" id="currentViewBadge" style="background: var(--coa-navy); font-size: 11.5px; border-radius: 6px;">
+                            <i class="fas fa-eye mr-1"></i> Viewing: General Ledger (12 Columns)
+                        </span>
+                    </div>
+                </div>
+
                 {{-- 4. LEDGER TABLE --}}
                 <div id="printArea">
                     <div class="table-responsive" style="border: 1px solid var(--coa-border); border-radius: 9px; overflow: hidden;">
                         <table id="ledgerTable" class="table table-bordered mb-0" style="font-size: 12.5px; border-collapse: collapse;">
-                            <thead>
+                            <thead id="ledgerHead">
                                 <tr style="background: #0f1f38; color: #ffffff;">
                                     <th class="text-center" style="width: 45px;">No</th>
-                                    <th class="text-center" style="width: 70px;">Inv No.</th>
+                                    <th class="text-center" style="width: 85px;">Inv No.</th>
                                     <th class="text-center" style="width: 45px;">Type</th>
                                     <th class="text-center" style="width: 70px;">Date</th>
                                     <th class="text-center" style="width: 70px;">Ref</th>
@@ -320,6 +347,50 @@
 
             </div>{{-- /ledgerBox --}}
 
+        </div>
+    </div>
+</div>
+
+{{-- 5. TRANSACTION DETAIL MODAL --}}
+<div class="modal fade" id="transactionModal" tabindex="-1" role="dialog" aria-hidden="true" style="z-index: 1055;">
+    <div class="modal-dialog modal-xl modal-dialog-centered" style="max-width: 92%; margin: 1.5rem auto;">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden; height: 90vh; display: flex; flex-direction: column;">
+            <div class="modal-header py-2 px-3 text-white" style="background: #0f1f38; flex-shrink: 0; border-bottom: 2px solid #1e3a5f;">
+                <div class="d-flex align-items-center">
+                    <i id="txModalIcon" class="fas fa-file-invoice mr-2 text-warning fs-5"></i>
+                    <div>
+                        <h5 class="modal-title font-weight-bold mb-0 text-white" id="txModalTitle" style="font-size: 15px;">
+                            Transaction Details
+                        </h5>
+                        <small class="text-white-50" id="txModalSubtitle">Customer Ledger Document Viewer</small>
+                    </div>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-light font-weight-bold" onclick="printTxModal()" title="Print this document">
+                        <i class="fas fa-print mr-1"></i> Print
+                    </button>
+                    <a id="txModalNewTab" href="#" target="_blank" class="btn btn-sm btn-light font-weight-bold text-dark" title="Open in new browser tab">
+                        <i class="fas fa-external-link-alt mr-1 text-primary"></i> Full Page
+                    </a>
+                    <button type="button" class="close text-white opacity-100 ml-2" data-dismiss="modal" aria-label="Close" style="font-size: 26px; line-height: 1; outline: none; background: transparent; border: none; cursor: pointer;">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+            </div>
+            <div class="modal-body p-0" style="background: #ffffff; flex: 1 1 auto; position: relative; overflow: hidden; min-height: 520px; height: calc(90vh - 65px);">
+                <div id="txModalSpinner" style="position: absolute; top:0; left:0; width:100%; height:100%; background: #ffffff; z-index: 20; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;"></div>
+                    <div class="font-weight-bold text-dark" id="txModalSpinnerText" style="font-size: 14px;">Loading document details&hellip;</div>
+                    <small class="text-muted mt-1">Please wait while the official voucher / invoice loads</small>
+                    <div id="txModalTimeoutMsg" class="mt-3 text-center" style="display: none;">
+                        <p class="text-muted small mb-2">If loading takes longer than usual, click below:</p>
+                        <a id="txModalDirectLink" href="#" target="_blank" class="btn btn-sm btn-primary">
+                            <i class="fas fa-external-link-alt mr-1"></i> Open Full Page
+                        </a>
+                    </div>
+                </div>
+                <iframe id="txModalIframe" src="" style="width: 100%; height: 100%; border: none; display: block;" onload="onTxIframeLoaded()"></iframe>
+            </div>
         </div>
     </div>
 </div>
@@ -467,6 +538,142 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
     }
 
     /* ═══════════════════════════════════════════════════
+     * STATE MANAGEMENT: Active Ledger Mode & Cache
+     * ═══════════════════════════════════════════════════ */
+    var currentLedgerMode = 'general'; // 'general' or 'simple'
+    var lastLedgerResponse = null;
+    var lastStartDate = '';
+    var lastEndDate = '';
+
+    function loadLedger(mode) {
+        if (mode) {
+            currentLedgerMode = mode;
+            updateModeUI();
+        }
+        var cid   = document.getElementById('customer_id').value;
+        var start = document.getElementById('start_date').value;
+        var end   = document.getElementById('end_date').value;
+
+        if (lastLedgerResponse && lastLedgerResponse.customer && lastLedgerResponse.customer.id == cid && lastStartDate === start && lastEndDate === end) {
+            renderLedger(lastLedgerResponse, start, end);
+            return;
+        }
+        generateLedger();
+    }
+
+    function switchLedgerView(mode) {
+        if (currentLedgerMode === mode) return;
+        currentLedgerMode = mode;
+        updateModeUI();
+        if (lastLedgerResponse) {
+            renderLedger(lastLedgerResponse, lastStartDate, lastEndDate);
+        }
+    }
+
+    function updateModeUI() {
+        if (currentLedgerMode === 'general') {
+            $('#btnGeneralLedger').css({ 'background': 'var(--coa-navy)', 'color': '#ffffff', 'border-color': 'var(--coa-navy)' });
+            $('#btnSimpleLedger').css({ 'background': '#ffffff', 'color': '#16a34a', 'border': '1.5px solid #16a34a' });
+            $('#modeBtnGeneral').css({ 'background': 'var(--coa-navy)', 'color': '#ffffff', 'border-color': 'var(--coa-navy)' });
+            $('#modeBtnSimple').css({ 'background': '#ffffff', 'color': '#16a34a', 'border': '1.5px solid #16a34a' });
+            $('#currentViewBadge').html('<i class="fas fa-eye mr-1"></i> Viewing: General Ledger (Detailed &mdash; 12 Columns)').css('background', 'var(--coa-navy)');
+        } else {
+            $('#btnSimpleLedger').css({ 'background': '#16a34a', 'color': '#ffffff', 'border-color': '#16a34a' });
+            $('#btnGeneralLedger').css({ 'background': '#ffffff', 'color': 'var(--coa-navy)', 'border': '1.5px solid var(--coa-navy)' });
+            $('#modeBtnSimple').css({ 'background': '#16a34a', 'color': '#ffffff', 'border-color': '#16a34a' });
+            $('#modeBtnGeneral').css({ 'background': '#ffffff', 'color': 'var(--coa-navy)', 'border': '1.5px solid var(--coa-navy)' });
+            $('#currentViewBadge').html('<i class="fas fa-table mr-1"></i> Viewing: Simple Ledger (Compact &mdash; 9 Columns)').css('background', '#16a34a');
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════
+     * TRANSACTION DETAIL MODAL
+     * ═══════════════════════════════════════════════════ */
+    var txLoadTimer = null;
+
+    function openTransactionModal(type, id, vno) {
+        var title = 'Document Details';
+        var iconClass = 'fas fa-file-invoice';
+        var subtitle = 'Document Reference: ' + (vno || ('#' + id));
+
+        // Use root-relative URL so it always uses the exact same protocol, domain, and port as current browser window
+        var previewBase = "{{ route('report.customer.ledger.preview', [], false) }}";
+        var previewUrl = previewBase + "?type=" + encodeURIComponent(type);
+        if (id) previewUrl += '&id=' + encodeURIComponent(id);
+        if (vno) previewUrl += '&vno=' + encodeURIComponent(vno);
+
+        if (type === 'sale') {
+            title = 'Sale Invoice: ' + (vno || ('#' + id));
+            iconClass = 'fas fa-file-invoice-dollar';
+            subtitle = 'Official Customer Sale Invoice & Item Breakdown';
+        } else if (type === 'receipt') {
+            title = 'Receipt Voucher: ' + (vno || ('#' + id));
+            iconClass = 'fas fa-hand-holding-usd';
+            subtitle = 'Bank / Cash Receipt Voucher Details';
+        } else if (type === 'payment' || type === 'payment_voucher') {
+            title = 'Payment Voucher: ' + (vno || ('#' + id));
+            iconClass = 'fas fa-money-check-alt';
+            subtitle = 'Payment Voucher / Discount Details';
+        } else if (type === 'return') {
+            title = 'Sale Return: ' + (vno || ('#' + id));
+            iconClass = 'fas fa-undo-alt';
+            subtitle = 'Sale Return & Adjustment Details';
+        } else if (type === 'journal' || type === 'journal_voucher' || type === 'journal_debit' || type === 'journal_credit') {
+            title = 'Journal Voucher: ' + (vno || ('#' + id));
+            iconClass = 'fas fa-book';
+            subtitle = 'Journal Adjustment Voucher Details';
+        }
+
+        var fullPageUrl = previewUrl;
+        if (type === 'sale' && id) {
+            fullPageUrl = "{{ url('sale/invoice') }}/" + encodeURIComponent(id);
+        }
+
+        $('#txModalTitle').text(title);
+        $('#txModalSubtitle').text(subtitle);
+        $('#txModalIcon').attr('class', iconClass + ' mr-2 text-warning fs-5');
+        $('#txModalNewTab').attr('href', fullPageUrl);
+        $('#txModalDirectLink').attr('href', fullPageUrl);
+
+        $('#txModalTimeoutMsg').hide();
+        $('#txModalSpinner').show();
+
+        // Load into iframe
+        var iframe = document.getElementById('txModalIframe');
+        if (iframe) {
+            iframe.src = previewUrl;
+        }
+
+        $('#transactionModal').modal('show');
+
+        // Safety fallback timer: auto-reveal if browser delays onload event
+        if (txLoadTimer) clearTimeout(txLoadTimer);
+        txLoadTimer = setTimeout(function() {
+            $('#txModalTimeoutMsg').show();
+            // Automatically hide spinner after 1.5s more in case onload was consumed
+            setTimeout(function() {
+                $('#txModalSpinner').fadeOut(200);
+            }, 1200);
+        }, 1800);
+    }
+
+    function onTxIframeLoaded() {
+        var iframe = document.getElementById('txModalIframe');
+        if (iframe && iframe.getAttribute('src') && iframe.getAttribute('src') !== '') {
+            if (txLoadTimer) clearTimeout(txLoadTimer);
+            $('#txModalSpinner').fadeOut(150);
+        }
+    }
+
+    function printTxModal() {
+        var iframe = document.getElementById('txModalIframe');
+        if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.focus();
+            iframe.contentWindow.print();
+        }
+    }
+
+    /* ═══════════════════════════════════════════════════
      * GLOBAL: Generate customer ledger report
      * ═══════════════════════════════════════════════════ */
     function generateLedger() {
@@ -499,6 +706,9 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                 try {
                     var res = JSON.parse(xhr.responseText);
                     if (res.error) { alert(res.error); return; }
+                    lastLedgerResponse = res;
+                    lastStartDate = start;
+                    lastEndDate = end;
                     renderLedger(res, start, end);
                 } catch(e) {
                     alert('Parse error. Check console.');
@@ -546,12 +756,25 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         return m ? parseFloat(m[1]) : 0;
     }
 
-    /* 12 visible columns: No, Inv No., Type, Date, Ref, Details, Rate, Price, Qty, Debit, Credit, Balance */
     function td(txt, align, attrs) {
         align = align || 'center';
         attrs = attrs || '';
         var val = (txt !== null && txt !== undefined && txt !== '') ? txt : dash();
         return '<td style="text-align:' + align + ';border:1px solid #ddd;" ' + attrs + '>' + val + '</td>';
+    }
+
+    function makeClickableLink(type, id, vno, displayLabel, color) {
+        if (!vno && !id) return dash();
+        var label = displayLabel || vno || ('#' + id);
+        var safeType = "'" + (type || '') + "'";
+        var safeId = id ? id : 'null';
+        var safeVno = vno ? "'" + String(vno).replace(/'/g, "\\'") + "'" : "''";
+        var safeColor = color || '#0f172a';
+
+        return '<a href="javascript:void(0)" onclick="openTransactionModal(' + safeType + ', ' + safeId + ', ' + safeVno + ')" '
+            + 'class="font-weight-bold" style="color:' + safeColor + '; text-decoration:underline; cursor:pointer;" '
+            + 'title="Click to view details in modal">'
+            + label + ' <i class="fas fa-external-link-alt ml-1" style="font-size:9px; opacity:0.65;"></i></a>';
     }
 
     /* ---------- render ---------- */
@@ -582,23 +805,72 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         var grandQty    = 0;   /* total qty across all items */
         var rowNum      = 1;
 
+        var isSimple = (currentLedgerMode === 'simple');
+        updateModeUI();
+
+        /* Render dynamic Table Header */
+        var headHtml = '';
+        if (isSimple) {
+            headHtml = '<tr style="background: #0f1f38; color: #ffffff;">' +
+                '<th class="text-center" style="width: 45px;">No</th>' +
+                '<th class="text-center" style="width: 85px;">Date (تاریخ)</th>' +
+                '<th class="text-center" style="width: 130px;">Inv / Vouch No.</th>' +
+                '<th class="text-center" style="width: 55px;">Type</th>' +
+                '<th>Account / Description (اکاؤنٹ / تفصیل)</th>' +
+                '<th class="text-center" style="width: 95px;">Ref / Chq (حوالہ)</th>' +
+                '<th class="text-right" style="width: 105px;">Debit (ڈیبٹ)</th>' +
+                '<th class="text-right" style="width: 105px;">Credit (وصولی)</th>' +
+                '<th class="text-right" style="width: 115px;">Balance (بقیہ)</th>' +
+            '</tr>';
+        } else {
+            headHtml = '<tr style="background: #0f1f38; color: #ffffff;">' +
+                '<th class="text-center" style="width: 45px;">No</th>' +
+                '<th class="text-center" style="width: 85px;">Inv No.</th>' +
+                '<th class="text-center" style="width: 45px;">Type</th>' +
+                '<th class="text-center" style="width: 70px;">Date</th>' +
+                '<th class="text-center" style="width: 70px;">Ref</th>' +
+                '<th>Details (تفصیل)</th>' +
+                '<th class="text-right" style="width: 70px; background: #1e3a5f !important;" title="Rate per watt (ریٹ)">Rate (ریٹ)</th>' +
+                '<th class="text-right" style="width: 85px; background: #0f2b48 !important;" title="Unit Price per panel (قیمت)">Price (قیمت)</th>' +
+                '<th class="text-right" style="width: 65px; background: #064e3b !important;" title="Delivered Quantity (دیے کتنے)">Qty (دیے)</th>' +
+                '<th class="text-right" style="width: 90px;">Debit (ڈیبٹ)</th>' +
+                '<th class="text-right" style="width: 90px;">Credit (وصولی)</th>' +
+                '<th class="text-right" style="width: 100px;">Balance (بقیہ)</th>' +
+            '</tr>';
+        }
+        $('#ledgerHead').html(headHtml);
+
         var bodyHtml = '';
 
-        /* Opening Balance Row — 12 cols */
-        bodyHtml += '<tr class="r-open">';
-        bodyHtml += td('', 'center'); // 1. No
-        bodyHtml += td('', 'center'); // 2. Inv No.
-        bodyHtml += td('', 'center'); // 3. Type
-        bodyHtml += td('', 'center'); // 4. Date
-        bodyHtml += td('', 'center'); // 5. Ref
-        bodyHtml += td('<strong>Opening Balance</strong>', 'left'); // 6. Details
-        bodyHtml += td('', 'right');  // 7. Rate
-        bodyHtml += td('', 'right');  // 8. Price
-        bodyHtml += td('', 'right');  // 9. Qty
-        bodyHtml += td('', 'right');  // 10. Debit
-        bodyHtml += td('', 'right');  // 11. Credit
-        bodyHtml += td(balHtml(ob), 'right'); // 12. Balance
-        bodyHtml += '</tr>';
+        /* Opening Balance Row */
+        if (isSimple) {
+            bodyHtml += '<tr class="r-open">';
+            bodyHtml += td('', 'center');
+            bodyHtml += td(start || '', 'center');
+            bodyHtml += td('-', 'center');
+            bodyHtml += td('<span class="badge badge-secondary" style="font-size:9.5px;padding:2px 5px;">OB</span>', 'center');
+            bodyHtml += td('<strong>Opening Balance (ابتدائی بقایا)</strong>', 'left');
+            bodyHtml += td('-', 'center');
+            bodyHtml += td(ob > 0 ? fmt(ob) : '', 'right');
+            bodyHtml += td(ob < 0 ? fmt(Math.abs(ob)) : '', 'right');
+            bodyHtml += td(balHtml(ob), 'right');
+            bodyHtml += '</tr>';
+        } else {
+            bodyHtml += '<tr class="r-open">';
+            bodyHtml += td('', 'center'); // 1. No
+            bodyHtml += td('', 'center'); // 2. Inv No.
+            bodyHtml += td('', 'center'); // 3. Type
+            bodyHtml += td('', 'center'); // 4. Date
+            bodyHtml += td('', 'center'); // 5. Ref
+            bodyHtml += td('<strong>Opening Balance</strong>', 'left'); // 6. Details
+            bodyHtml += td('', 'right');  // 7. Rate
+            bodyHtml += td('', 'right');  // 8. Price
+            bodyHtml += td('', 'right');  // 9. Qty
+            bodyHtml += td('', 'right');  // 10. Debit
+            bodyHtml += td('', 'right');  // 11. Credit
+            bodyHtml += td(balHtml(ob), 'right'); // 12. Balance
+            bodyHtml += '</tr>';
+        }
 
         /* Process transactions */
         var i = 0;
@@ -627,146 +899,173 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                 if (credit > 0) grandCr += credit;
 
                 var refVal = (header.bill && header.bill !== '-') ? header.bill : '';
+                var invLink = makeClickableLink('sale', header.sale_id, header.vno, header.vno, '#1e3a5f');
 
-                if (items.length === 0) {
-                    /* Fallback: Sale with no items */
-                    var q = saleTotal ? n(saleTotal.total_qty) : 0;
-                    if (q > 0) grandQty += q;
+                if (isSimple) {
+                    /* SIMPLE LEDGER: ONE clean row per sale */
+                    var saleQty = saleTotal ? n(saleTotal.total_qty) : 0;
+                    if (saleQty === 0 && items.length > 0) {
+                        $.each(items, function(idx, it) { saleQty += n(it.qty); });
+                    }
+                    if (saleQty > 0) grandQty += saleQty;
+
+                    var saleDesc = '<strong>SALE INVOICE</strong>';
+                    if (items.length === 1) {
+                        var singleName = (items[0].item_name_urdu && items[0].item_name_urdu.trim()) ? items[0].item_name_urdu : (items[0].item_name || 'Item');
+                        saleDesc += ' &mdash; <span class="text-muted small">' + singleName + (items[0].qty > 0 ? ' (' + fmt(items[0].qty) + ' pcs)' : '') + '</span>';
+                    } else if (items.length > 1) {
+                        saleDesc += ' &mdash; <span class="text-muted small">(' + items.length + ' items' + (saleQty > 0 ? ', ' + fmt(saleQty) + ' pcs' : '') + ')</span>';
+                    }
+
                     bodyHtml += '<tr class="r-sale" style="border-top:1.5px solid #cbd5e1;">';
-                    bodyHtml += td(rowNum++, 'center');
-                    bodyHtml += td(header.vno ? '<strong>' + header.vno + '</strong>' : '', 'center');
-                    bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center');
-                    bodyHtml += td(header.date || '', 'center');
-                    bodyHtml += td(refVal, 'center');
-                    bodyHtml += td('<strong>' + (header.description || 'SALE') + '</strong>', 'left');
-                    bodyHtml += td('', 'right'); // Rate
-                    bodyHtml += td('', 'right'); // Price
-                    bodyHtml += td(q > 0 ? fmt(q) : '', 'right');
-                    bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right');
-                    bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');
-                    bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
+                    bodyHtml += td(rowNum++, 'center');                                                   // 1. No
+                    bodyHtml += td(header.date || '', 'center');                                           // 2. Date
+                    bodyHtml += td(invLink, 'center');                                                    // 3. Inv / Vouch No
+                    bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center'); // 4. Type
+                    bodyHtml += td(saleDesc, 'left');                                                     // 5. Account / Description
+                    bodyHtml += td(refVal, 'center');                                                     // 6. Ref
+                    bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right'); // 7. Debit
+                    bodyHtml += td('', 'right');                                                          // 8. Credit
+                    bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right'); // 9. Balance
                     bodyHtml += '</tr>';
+
                 } else {
-                    /* Render each item in the invoice wrapped together */
-                    $.each(items, function(idx, item) {
-                        var itemQty       = n(item.qty);
-                        var itemRemaining = n(item.remaining_qty);
-                        var itemRate      = n(item.rate);
-                        var itemAmt       = n(item.line_amount);
-                        if (itemAmt === 0 && items.length === 1 && debit > 0) {
-                            itemAmt = debit;
-                        }
-                        if (itemAmt === 0 && itemQty > 0 && itemRate > 0) {
-                            itemAmt = itemQty * itemRate;
-                        }
-                        grandQty += itemQty;
-
-                        var displayName = (item.item_name_urdu && item.item_name_urdu.trim() !== '') ? item.item_name_urdu : (item.item_name || 'Item');
-                        var itemDetailsHtml = '<strong>' + displayName + '</strong>';
-                        if (item.item_name_urdu && item.item_name && item.item_name.trim() !== '' && item.item_name !== displayName) {
-                            itemDetailsHtml += ' <small class="text-muted">(' + item.item_name + ')</small>';
-                        }
-                        if (n(item.item_discount) > 0) {
-                            itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
-                        }
-
-                        var watt = getWattVal(item.item_name) || getWattVal(item.item_name_urdu) || n(item.watt);
-                        var rateStr  = '';
-                        var priceStr = '';
-
-                        if (watt > 0) {
-                            if (itemRate > 0 && itemRate < 500) {
-                                rateStr  = '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>';
-                                priceStr = '<strong style="color:#0f2b48;">' + fmt(itemRate * watt) + '</strong>';
-                            } else {
-                                var unitP = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
-                                priceStr = unitP > 0 ? '<strong style="color:#0f2b48;">' + fmt(unitP) + '</strong>' : '';
-                                var perW = unitP > 0 ? Math.round((unitP / watt) * 100) / 100 : 0;
-                                rateStr  = perW > 0 ? '<strong style="color:#1e3a5f;">' + fmt(perW) + '</strong>' : '';
-                            }
-                        } else {
-                            var pVal = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
-                            priceStr = pVal > 0 ? '<strong style="color:#0f2b48;">' + fmt(pVal) + '</strong>' : '';
-                            rateStr  = dash();
-                        }
-
-                        var qtyCellHtml = itemQty > 0 ? fmt(itemQty) : '-';
-                        if (itemRemaining > 0) {
-                            qtyCellHtml += '<br><small class="font-weight-bold text-dark" style="font-size:10.5px;" title="Remaining undelivered stock">بقیہ: ' + fmt(itemRemaining) + '</small>';
-                        } else if (itemQty > 0) {
-                            qtyCellHtml += '<br><small class="text-success font-weight-bold" style="font-size:9.5px;">(دیے گئے)</small>';
-                        }
-
-                        var borderStyle = idx === 0 ? 'border-top: 1.5px solid #cbd5e1; background: #ffffff;' : 'border-top: 1px dashed #e2e8f0; background: #ffffff;';
-
-                        bodyHtml += '<tr class="r-sale" style="' + borderStyle + '">';
-                        if (idx === 0) {
-                            /* Main invoice parameters on 1st item row */
-                            bodyHtml += td(rowNum++, 'center');
-                            bodyHtml += td(header.vno ? '<strong>' + header.vno + '</strong>' : '', 'center');
-                            bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center');
-                            bodyHtml += td(header.date || '', 'center');
-                            bodyHtml += td(refVal, 'center');
-                            bodyHtml += td(itemDetailsHtml, 'left');
-                            bodyHtml += td(rateStr, 'right');
-                            bodyHtml += td(priceStr, 'right');
-                            bodyHtml += td(qtyCellHtml, 'right');
-                            bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : (debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : ''), 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
-                        } else {
-                            /* Wrapped sub-rows for item 2, item 3, etc. */
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td(itemDetailsHtml, 'left');
-                            bodyHtml += td(rateStr, 'right');
-                            bodyHtml += td(priceStr, 'right');
-                            bodyHtml += td(qtyCellHtml, 'right');
-                            bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : '', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                        }
+                    /* GENERAL LEDGER: Full item-by-item detailed rows */
+                    if (items.length === 0) {
+                        var q = saleTotal ? n(saleTotal.total_qty) : 0;
+                        if (q > 0) grandQty += q;
+                        bodyHtml += '<tr class="r-sale" style="border-top:1.5px solid #cbd5e1;">';
+                        bodyHtml += td(rowNum++, 'center');
+                        bodyHtml += td(invLink, 'center');
+                        bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center');
+                        bodyHtml += td(header.date || '', 'center');
+                        bodyHtml += td(refVal, 'center');
+                        bodyHtml += td('<strong>' + (header.description || 'SALE') + '</strong>', 'left');
+                        bodyHtml += td('', 'right'); // Rate
+                        bodyHtml += td('', 'right'); // Price
+                        bodyHtml += td(q > 0 ? fmt(q) : '', 'right');
+                        bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right');
+                        bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');
+                        bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
                         bodyHtml += '</tr>';
-                    });
+                    } else {
+                        $.each(items, function(idx, item) {
+                            var itemQty       = n(item.qty);
+                            var itemRemaining = n(item.remaining_qty);
+                            var itemRate      = n(item.rate);
+                            var itemAmt       = n(item.line_amount);
+                            if (itemAmt === 0 && items.length === 1 && debit > 0) {
+                                itemAmt = debit;
+                            }
+                            if (itemAmt === 0 && itemQty > 0 && itemRate > 0) {
+                                itemAmt = itemQty * itemRate;
+                            }
+                            grandQty += itemQty;
 
-                    /* Optional Additional Discount / Freight rows if any */
-                    if (saleTotal) {
-                        var addDisc  = n(saleTotal.add_disc);
-                        var extraChg = n(saleTotal.extra_chg);
-                        if (addDisc > 0) {
-                            bodyHtml += '<tr class="r-sale" style="border-top:1px dashed #e2e8f0; background: #ffffff;">';
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('<small style="color:#e65100;font-weight:700;">↳ Additional Discount</small>', 'left');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('<small style="color:#bf360c;font-weight:800;">&minus; ' + fmt(addDisc) + '</small>', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
+                            var displayName = (item.item_name_urdu && item.item_name_urdu.trim() !== '') ? item.item_name_urdu : (item.item_name || 'Item');
+                            var itemDetailsHtml = '<strong>' + displayName + '</strong>';
+                            if (item.item_name_urdu && item.item_name && item.item_name.trim() !== '' && item.item_name !== displayName) {
+                                itemDetailsHtml += ' <small class="text-muted">(' + item.item_name + ')</small>';
+                            }
+                            if (n(item.item_discount) > 0) {
+                                itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
+                            }
+
+                            var watt = getWattVal(item.item_name) || getWattVal(item.item_name_urdu) || n(item.watt);
+                            var rateStr  = '';
+                            var priceStr = '';
+
+                            if (watt > 0) {
+                                if (itemRate > 0 && itemRate < 500) {
+                                    rateStr  = '<strong style="color:#1e3a5f;">' + fmt(itemRate) + '</strong>';
+                                    priceStr = '<strong style="color:#0f2b48;">' + fmt(itemRate * watt) + '</strong>';
+                                } else {
+                                    var unitP = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
+                                    priceStr = unitP > 0 ? '<strong style="color:#0f2b48;">' + fmt(unitP) + '</strong>' : '';
+                                    var perW = unitP > 0 ? Math.round((unitP / watt) * 100) / 100 : 0;
+                                    rateStr  = perW > 0 ? '<strong style="color:#1e3a5f;">' + fmt(perW) + '</strong>' : '';
+                                }
+                            } else {
+                                var pVal = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
+                                priceStr = pVal > 0 ? '<strong style="color:#0f2b48;">' + fmt(pVal) + '</strong>' : '';
+                                rateStr  = dash();
+                            }
+
+                            var qtyCellHtml = itemQty > 0 ? fmt(itemQty) : '-';
+                            if (itemRemaining > 0) {
+                                qtyCellHtml += '<br><small class="font-weight-bold text-dark" style="font-size:10.5px;" title="Remaining undelivered stock">بقیہ: ' + fmt(itemRemaining) + '</small>';
+                            } else if (itemQty > 0) {
+                                qtyCellHtml += '<br><small class="text-success font-weight-bold" style="font-size:9.5px;">(دیے گئے)</small>';
+                            }
+
+                            var borderStyle = idx === 0 ? 'border-top: 1.5px solid #cbd5e1; background: #ffffff;' : 'border-top: 1px dashed #e2e8f0; background: #ffffff;';
+
+                            bodyHtml += '<tr class="r-sale" style="' + borderStyle + '">';
+                            if (idx === 0) {
+                                bodyHtml += td(rowNum++, 'center');
+                                bodyHtml += td(invLink, 'center');
+                                bodyHtml += td('<span class="badge badge-primary" style="font-size:10px;padding:3px 6px;">SI</span>', 'center');
+                                bodyHtml += td(header.date || '', 'center');
+                                bodyHtml += td(refVal, 'center');
+                                bodyHtml += td(itemDetailsHtml, 'left');
+                                bodyHtml += td(rateStr, 'right');
+                                bodyHtml += td(priceStr, 'right');
+                                bodyHtml += td(qtyCellHtml, 'right');
+                                bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : (debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : ''), 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td(header.balance !== null && header.balance !== undefined ? balHtml(header.balance) : '', 'right');
+                            } else {
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td(itemDetailsHtml, 'left');
+                                bodyHtml += td(rateStr, 'right');
+                                bodyHtml += td(priceStr, 'right');
+                                bodyHtml += td(qtyCellHtml, 'right');
+                                bodyHtml += td(itemAmt > 0 ? '<strong style="color:#c62828;">' + fmt(itemAmt) + '</strong>' : '', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                            }
                             bodyHtml += '</tr>';
-                        }
-                        if (extraChg > 0) {
-                            bodyHtml += '<tr class="r-sale" style="border-top:1px dashed #e2e8f0; background: #ffffff;">';
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('', 'center');
-                            bodyHtml += td('<small style="color:#1b5e20;font-weight:700;">↳ Extra Charges (Freight)</small>', 'left');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += td('', 'right');
-                            bodyHtml += '</tr>';
+                        });
+
+                        if (saleTotal) {
+                            var addDisc  = n(saleTotal.add_disc);
+                            var extraChg = n(saleTotal.extra_chg);
+                            if (addDisc > 0) {
+                                bodyHtml += '<tr class="r-sale" style="border-top:1px dashed #e2e8f0; background: #ffffff;">';
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('<small style="color:#e65100;font-weight:700;">↳ Additional Discount</small>', 'left');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('<small style="color:#bf360c;font-weight:800;">&minus; ' + fmt(addDisc) + '</small>', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += '</tr>';
+                            }
+                            if (extraChg > 0) {
+                                bodyHtml += '<tr class="r-sale" style="border-top:1px dashed #e2e8f0; background: #ffffff;">';
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('', 'center');
+                                bodyHtml += td('<small style="color:#1b5e20;font-weight:700;">↳ Extra Charges (Freight)</small>', 'left');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('<small style="color:#1b5e20;font-weight:800;">+ ' + fmt(extraChg) + '</small>', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += td('', 'right');
+                                bodyHtml += '</tr>';
+                            }
                         }
                     }
                 }
@@ -776,10 +1075,10 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
             /* ── REGULAR NON-SALE TRANSACTIONS (Receipt, PV, SR, JV) ── */
             var rc = 'r-txn';
-            if      (t.row_type === 'receipt')         rc = 'r-receipt';
-            else if (t.row_type === 'payment_voucher') rc = 'r-pv';
-            else if (t.row_type === 'return')          rc = 'r-return';
-            else if (t.row_type === 'discount')        rc = 'r-discount';
+            if      (t.row_type === 'receipt' || t.voucher_type === 'receipt')                 rc = 'r-receipt';
+            else if (t.row_type === 'payment_voucher' || t.voucher_type === 'payment_voucher') rc = 'r-pv';
+            else if (t.row_type === 'return')                                                  rc = 'r-return';
+            else if (t.row_type === 'discount')                                                rc = 'r-discount';
 
             var debit  = n(t.debit);
             var credit = n(t.credit);
@@ -787,31 +1086,81 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
             if (credit > 0) grandCr += credit;
 
             var typeBadge = '<span class="badge badge-secondary" style="font-size:10px;padding:3px 6px;">TXN</span>';
-            if      (t.row_type === 'receipt')         typeBadge = '<span class="badge badge-success" style="font-size:10px;padding:3px 6px;">PA</span>';
-            else if (t.row_type === 'payment_voucher') typeBadge = '<span class="badge badge-warning text-dark" style="font-size:10px;padding:3px 6px;">PV</span>';
-            else if (t.row_type === 'return')          typeBadge = '<span class="badge badge-danger" style="font-size:10px;padding:3px 6px;">SR</span>';
-            else if (t.row_type === 'journal_debit' || t.row_type === 'journal_credit') typeBadge = '<span class="badge badge-info text-dark" style="font-size:10px;padding:3px 6px;">JV</span>';
+            var txType = 'receipt';
+            var linkColor = '#166534';
 
-            var descHtml = t.description ? '<strong>' + t.description + '</strong>' : '';
-            if (t.item_name && t.item_name !== '-') {
-                descHtml += '<br><small style="color:#555;">' + t.item_name + '</small>';
+            if (t.row_type === 'receipt' || t.voucher_type === 'receipt') {
+                typeBadge = '<span class="badge badge-success" style="font-size:10px;padding:3px 6px;">PA</span>';
+                txType = 'receipt';
+                linkColor = '#166534';
+            } else if (t.row_type === 'payment_voucher' || t.voucher_type === 'payment_voucher') {
+                typeBadge = '<span class="badge badge-warning text-dark" style="font-size:10px;padding:3px 6px;">PV</span>';
+                txType = 'payment';
+                linkColor = '#6b21a8';
+            } else if (t.row_type === 'return') {
+                typeBadge = '<span class="badge badge-danger" style="font-size:10px;padding:3px 6px;">SR</span>';
+                txType = 'return';
+                linkColor = '#9f1239';
+            } else if (t.row_type === 'journal_debit' || t.row_type === 'journal_credit' || t.voucher_type === 'journal_voucher') {
+                typeBadge = '<span class="badge badge-info text-dark" style="font-size:10px;padding:3px 6px;">JV</span>';
+                txType = 'journal';
+                linkColor = '#0284c7';
             }
-            var refVal = (t.bill && t.bill !== '-') ? t.bill : ((t.reference_no && t.reference_no !== '-') ? t.reference_no : '');
 
-            bodyHtml += '<tr class="' + rc + '" style="border-top:1.5px solid #cbd5e1;">';
-            bodyHtml += td(rowNum++, 'center');                                                   // 1. No
-            bodyHtml += td(t.vno ? '<strong>' + t.vno + '</strong>' : '', 'center');              // 2. Inv No.
-            bodyHtml += td(typeBadge, 'center');                                                 // 3. Type
-            bodyHtml += td(t.date  || '', 'center');                                              // 4. Date
-            bodyHtml += td(refVal, 'center');                                                     // 5. Ref
-            bodyHtml += td(descHtml, 'left');                                                     // 6. Details
-            bodyHtml += td('', 'right');                                                          // 7. Rate
-            bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');                 // 8. Price
-            bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 9. Qty
-            bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 10. Debit
-            bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 11. Credit
-            bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 12. Balance
-            bodyHtml += '</tr>';
+            var refVal = (t.bill && t.bill !== '-') ? t.bill : ((t.reference_no && t.reference_no !== '-') ? t.reference_no : '');
+            var vnoLink = makeClickableLink(txType, t.voucher_id || t.sale_id || t.return_id, t.vno, t.vno, linkColor);
+
+            if (isSimple) {
+                /* SIMPLE LEDGER: Clean Account + Description */
+                var accDescHtml = '';
+                if (t.row_type === 'receipt' || t.voucher_type === 'receipt') {
+                    accDescHtml = '<div class="font-weight-bold" style="color:#166534;"><i class="fas fa-university mr-1 text-muted"></i> ' + (t.item_name || 'Cash Account') + '</div>';
+                    if (t.description) accDescHtml += '<small class="text-muted">' + t.description + '</small>';
+                } else if (t.row_type === 'payment_voucher' || t.voucher_type === 'payment_voucher') {
+                    accDescHtml = '<div class="font-weight-bold" style="color:#6b21a8;"><i class="fas fa-money-bill-wave mr-1 text-muted"></i> ' + (t.item_name || 'Cash Account') + '</div>';
+                    if (t.description) accDescHtml += '<small class="text-muted">' + t.description + '</small>';
+                } else if (t.row_type === 'return') {
+                    accDescHtml = '<strong style="color:#9f1239;">SALE RETURN</strong>';
+                    if (t.description || t.item_name) accDescHtml += ' &mdash; <small class="text-muted">' + (t.description || t.item_name) + '</small>';
+                } else {
+                    accDescHtml = '<strong>' + (t.description || 'Adjustment') + '</strong>';
+                    if (t.item_name && t.item_name !== '-') accDescHtml += '<br><small class="text-muted">' + t.item_name + '</small>';
+                }
+
+                bodyHtml += '<tr class="' + rc + '" style="border-top:1.5px solid #cbd5e1;">';
+                bodyHtml += td(rowNum++, 'center');                                                   // 1. No
+                bodyHtml += td(t.date || '', 'center');                                               // 2. Date
+                bodyHtml += td(vnoLink, 'center');                                                    // 3. Inv / Vouch No
+                bodyHtml += td(typeBadge, 'center');                                                 // 4. Type
+                bodyHtml += td(accDescHtml, 'left');                                                  // 5. Account / Description
+                bodyHtml += td(refVal, 'center');                                                     // 6. Ref
+                bodyHtml += td(debit > 0 ? '<strong style="color:#c62828;">' + fmt(debit) + '</strong>' : '', 'right'); // 7. Debit
+                bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right'); // 8. Credit
+                bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right'); // 9. Balance
+                bodyHtml += '</tr>';
+
+            } else {
+                /* GENERAL LEDGER: 12 columns */
+                var descHtml = t.description ? '<strong>' + t.description + '</strong>' : '';
+                if (t.item_name && t.item_name !== '-') {
+                    descHtml += '<br><small style="color:#555;">' + t.item_name + '</small>';
+                }
+
+                bodyHtml += '<tr class="' + rc + '" style="border-top:1.5px solid #cbd5e1;">';
+                bodyHtml += td(rowNum++, 'center');                                                   // 1. No
+                bodyHtml += td(vnoLink, 'center');                                                    // 2. Inv No.
+                bodyHtml += td(typeBadge, 'center');                                                 // 3. Type
+                bodyHtml += td(t.date  || '', 'center');                                              // 4. Date
+                bodyHtml += td(refVal, 'center');                                                     // 5. Ref
+                bodyHtml += td(descHtml, 'left');                                                     // 6. Details
+                bodyHtml += td('', 'right');                                                          // 7. Rate
+                bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');                 // 8. Price
+                bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 9. Qty
+                bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 10. Debit
+                bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 11. Credit
+                bodyHtml += td(t.balance !== null && t.balance !== undefined ? balHtml(t.balance) : '', 'right');          // 12. Balance
+                bodyHtml += '</tr>';
+            }
 
             i++;
         }
@@ -825,27 +1174,41 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
         var finalBal = n(res.closing_balance);
 
-        /* Overall Sum row */
-        var footerQtyHtml = fmt(grandQty);
-        if (n(res.total_remaining_qty) > 0) {
-            footerQtyHtml += '<br><small style="color:#0f172a;font-weight:800;font-size:11px;">(بقیہ: ' + fmt(res.total_remaining_qty) + ')</small>';
+        /* Footer construction */
+        var footHtml = '';
+        if (isSimple) {
+            footHtml += '<tr class="r-total">';
+            footHtml += '<td colspan="6" style="text-align:right;border:1px solid #ccc;padding:6px 10px;font-size:13px;"><strong>Total Sum (کل میزان)</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#c62828;">' + fmt(grandDr) + '</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#2e7d32;">' + fmt(grandCr) + '</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">' + balHtml(finalBal) + '</td>';
+            footHtml += '</tr>';
+
+            footHtml += '<tr class="r-close">';
+            footHtml += '<td colspan="8" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE (بقیہ بیلنس)</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #333;padding:8px 10px;font-size:15px;">' + balHtml(finalBal) + '</td>';
+            footHtml += '</tr>';
+        } else {
+            var footerQtyHtml = fmt(grandQty);
+            if (n(res.total_remaining_qty) > 0) {
+                footerQtyHtml += '<br><small style="color:#0f172a;font-weight:800;font-size:11px;">(بقیہ: ' + fmt(res.total_remaining_qty) + ')</small>';
+            }
+
+            footHtml += '<tr class="r-total">';
+            footHtml += '<td colspan="6" style="text-align:right;border:1px solid #ccc;padding:6px 10px;font-size:13px;"><strong>Total Sum (All Transactions)</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;font-size:13px;font-weight:800;color:#1a1a2e;background:#eaf4ff;">' + footerQtyHtml + '</td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#c62828;">' + fmt(grandDr) + '</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#2e7d32;">' + fmt(grandCr) + '</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">' + balHtml(finalBal) + '</td>';
+            footHtml += '</tr>';
+
+            footHtml += '<tr class="r-close">';
+            footHtml += '<td colspan="11" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
+            footHtml += '<td style="text-align:right;border:1px solid #333;padding:8px 10px;font-size:15px;">' + balHtml(finalBal) + '</td>';
+            footHtml += '</tr>';
         }
-
-        var footHtml = '<tr class="r-total">';
-        footHtml += '<td colspan="6" style="text-align:right;border:1px solid #ccc;padding:6px 10px;font-size:13px;"><strong>Total Sum (All Transactions)</strong></td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">&#8212;</td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;font-size:13px;font-weight:800;color:#1a1a2e;background:#eaf4ff;">' + footerQtyHtml + '</td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#c62828;">' + fmt(grandDr) + '</strong></td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;"><strong style="color:#2e7d32;">' + fmt(grandCr) + '</strong></td>';
-        footHtml += '<td style="text-align:right;border:1px solid #ccc;padding:6px 8px;">' + balHtml(finalBal) + '</td>';
-        footHtml += '</tr>';
-
-        /* Closing Balance row */
-        footHtml += '<tr class="r-close">';
-        footHtml += '<td colspan="11" style="text-align:right;border:1px solid #333;padding:8px 12px;font-size:13px;letter-spacing:.4px;"><strong>CLOSING BALANCE</strong></td>';
-        footHtml += '<td style="text-align:right;border:1px solid #333;padding:8px 10px;font-size:15px;">' + balHtml(finalBal) + '</td>';
-        footHtml += '</tr>';
 
         /* ── inject into DOM ── */
         $('#ledgerBody').html(bodyHtml);
@@ -963,7 +1326,11 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
     /* ---------- CSV Export ---------- */
     window.exportCSV = function () {
-        var rows = [['No','Inv No','Type','Date','Ref','Details','Price','Qty','Debit','Credit','Balance']];
+        var headerRow = (currentLedgerMode === 'simple')
+            ? ['No', 'Date', 'Inv / Vouch No', 'Type', 'Account / Description', 'Ref / Chq', 'Debit', 'Credit', 'Balance']
+            : ['No', 'Inv No', 'Type', 'Date', 'Ref', 'Details', 'Rate', 'Price', 'Qty', 'Debit', 'Credit', 'Balance'];
+        var rows = [headerRow];
+
         // Only export visible rows (respects toggle details state)
         $('#ledgerTable tbody tr:visible, #ledgerTable tfoot tr:visible').each(function () {
             var cells = [];
@@ -994,7 +1361,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
         var url  = URL.createObjectURL(blob);
         var a    = document.createElement('a');
         a.href   = url;
-        a.download = 'customer_ledger_' + new Date().toISOString().slice(0,10) + '.csv';
+        a.download = (currentLedgerMode === 'simple' ? 'customer_simple_ledger_' : 'customer_general_ledger_') + new Date().toISOString().slice(0,10) + '.csv';
         a.click();
     };
 </script>

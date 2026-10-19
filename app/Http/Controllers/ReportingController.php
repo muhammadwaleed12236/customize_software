@@ -11,6 +11,9 @@ use App\Models\Customer;
 use App\Models\CustomerLedger;
 use App\Models\Product;
 use App\Models\ReceiptsVoucher;
+use App\Models\PaymentVoucher;
+use App\Models\JournalVoucher;
+use App\Models\ExpenseVoucher;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\SalesReturn;
@@ -588,6 +591,7 @@ class ReportingController extends Controller
             ->whereBetween(DB::raw('DATE(sales_returns.created_at)'), [$start, $end])
             ->select(
                 'sales_returns.id         as id',
+                'sales.id                 as sale_id',
                 'sales.invoice_no         as invoice_no',
                 'sales_returns.return_note as return_note',
                 'sales_returns.product    as item_name',
@@ -670,6 +674,7 @@ class ReportingController extends Controller
                 'type'        => 'sale',
                 'priority'    => 1,
                 'data'        => [
+                    'sale_id'     => $saleId,
                     'invoice_no'  => $header['invoice_no'],
                     'bill_no'     => $header['manual_invoice'] ?? '-',
                     'dc_no'       => $dcNo,
@@ -690,6 +695,8 @@ class ReportingController extends Controller
                 'type'      => 'return',
                 'priority'  => 2,
                 'data'      => [
+                    'return_id'   => $ret->id,
+                    'sale_id'     => $ret->sale_id ?? null,
                     'invoice_no'  => $ret->invoice_no ?? '-',
                     'return_note' => $ret->return_note ?? 'RETURN',
                     'txn_date'    => $ret->txn_date,
@@ -744,6 +751,8 @@ class ReportingController extends Controller
                 'type'      => 'receipt',
                 'priority'  => 3,
                 'data'      => [
+                    'voucher_id'   => $rec->id,
+                    'voucher_type' => 'receipt',
                     'vno'          => $vno,
                     'reference_no' => $rec->reference_no ?? '-',
                     'account'      => $accountStr,
@@ -798,6 +807,8 @@ class ReportingController extends Controller
                 'type'      => 'payment_voucher',
                 'priority'  => 4,
                 'data'      => [
+                    'voucher_id'   => $pv->id,
+                    'voucher_type' => 'payment_voucher',
                     'vno'          => $vno,
                     'reference_no' => $pv->reference_no ?? '-',
                     'account'      => $accountStr,
@@ -816,6 +827,8 @@ class ReportingController extends Controller
                 'type'      => 'journal_debit',
                 'priority'  => 5,
                 'data'      => [
+                    'voucher_id'   => $jv->id,
+                    'voucher_type' => 'journal_voucher',
                     'vno'          => $jv->jvid,
                     'reference_no' => $jv->reference_no ?? '-',
                     'account'      => 'JV Adjustment',
@@ -833,6 +846,8 @@ class ReportingController extends Controller
                 'type'      => 'journal_credit',
                 'priority'  => 6,
                 'data'      => [
+                    'voucher_id'   => $jv->id,
+                    'voucher_type' => 'journal_voucher',
                     'vno'          => $jv->jvid,
                     'reference_no' => $jv->reference_no ?? '-',
                     'account'      => 'JV Adjustment',
@@ -875,6 +890,7 @@ class ReportingController extends Controller
                 // Parent summary row
                 $transactions[] = [
                     'row_type'    => 'sale_header',
+                    'sale_id'     => $d['sale_id'] ?? null,
                     'date'        => date('d-m-y', strtotime($d['txn_date'])),
                     'vno'         => $d['invoice_no'],
                     'bill'        => $d['bill_no'],
@@ -897,6 +913,7 @@ class ReportingController extends Controller
                     $invoiceTotalStk += $item['stock_value'] ?? 0;
                     $transactions[] = [
                         'row_type'     => 'sale_item',
+                        'sale_id'      => $d['sale_id'] ?? null,
                         'date'         => null,
                         'vno'          => null,
                         'bill'         => null,
@@ -938,6 +955,8 @@ class ReportingController extends Controller
 
                 $transactions[] = [
                     'row_type'    => 'return',
+                    'return_id'   => $d['return_id'] ?? null,
+                    'sale_id'     => $d['sale_id'] ?? null,
                     'date'        => date('d-m-y', strtotime($d['txn_date'])),
                     'vno'         => $d['invoice_no'],
                     'bill'        => $d['return_note'],
@@ -963,19 +982,21 @@ class ReportingController extends Controller
                 $displayVno = $d['vno'] . " ($prefix-$count)";
 
                 $transactions[] = [
-                    'row_type'    => 'receipt',
-                    'date'        => date('d-m-y', strtotime($d['txn_date'])),
-                    'vno'         => $displayVno,
-                    'bill'        => $d['reference_no'],
-                    'dc_no'       => '-',
-                    'gp_no'       => '-',
-                    'description' => $d['description'],
-                    'item_name'   => $d['account'],
-                    'qty'         => null,
-                    'rate'        => null,
-                    'debit'       => 0,
-                    'credit'      => $credit,
-                    'balance'     => $runningBalance,
+                    'row_type'     => 'receipt',
+                    'voucher_id'   => $d['voucher_id'] ?? null,
+                    'voucher_type' => 'receipt',
+                    'date'         => date('d-m-y', strtotime($d['txn_date'])),
+                    'vno'          => $displayVno,
+                    'bill'         => $d['reference_no'],
+                    'dc_no'        => '-',
+                    'gp_no'        => '-',
+                    'description'  => $d['description'],
+                    'item_name'    => $d['account'],
+                    'qty'          => null,
+                    'rate'         => null,
+                    'debit'        => 0,
+                    'credit'       => $credit,
+                    'balance'      => $runningBalance,
                 ];
 
             } elseif ($type === 'payment_voucher') {
@@ -989,19 +1010,21 @@ class ReportingController extends Controller
                 $displayVno = $d['vno'] . " ($prefix-$count)";
 
                 $transactions[] = [
-                    'row_type'    => 'payment_voucher',
-                    'date'        => date('d-m-y', strtotime($d['txn_date'])),
-                    'vno'         => $displayVno,
-                    'bill'        => $d['reference_no'],
-                    'dc_no'       => '-',
-                    'gp_no'       => '-',
-                    'description' => $d['description'],
-                    'item_name'   => $d['account'],
-                    'qty'         => null,
-                    'rate'        => null,
-                    'debit'       => 0,
-                    'credit'      => $credit,
-                    'balance'     => $runningBalance,
+                    'row_type'     => 'payment_voucher',
+                    'voucher_id'   => $d['voucher_id'] ?? null,
+                    'voucher_type' => 'payment_voucher',
+                    'date'         => date('d-m-y', strtotime($d['txn_date'])),
+                    'vno'          => $displayVno,
+                    'bill'         => $d['reference_no'],
+                    'dc_no'        => '-',
+                    'gp_no'        => '-',
+                    'description'  => $d['description'],
+                    'item_name'    => $d['account'],
+                    'qty'          => null,
+                    'rate'         => null,
+                    'debit'        => 0,
+                    'credit'       => $credit,
+                    'balance'      => $runningBalance,
                 ];
 
             } elseif ($type === 'journal_debit') {
@@ -1010,19 +1033,21 @@ class ReportingController extends Controller
                 $totalDebit     += $debit;
 
                 $transactions[] = [
-                    'row_type'    => 'payment_voucher',
-                    'date'        => date('d-m-y', strtotime($d['txn_date'])),
-                    'vno'         => $d['vno'],
-                    'bill'        => $d['reference_no'],
-                    'dc_no'       => '-',
-                    'gp_no'       => '-',
-                    'description' => $d['description'],
-                    'item_name'   => $d['account'] ?? 'JV Adjustment',
-                    'qty'         => null,
-                    'rate'        => null,
-                    'debit'       => $debit,
-                    'credit'      => 0,
-                    'balance'     => $runningBalance,
+                    'row_type'     => 'journal_debit',
+                    'voucher_id'   => $d['voucher_id'] ?? null,
+                    'voucher_type' => 'journal_voucher',
+                    'date'         => date('d-m-y', strtotime($d['txn_date'])),
+                    'vno'          => $d['vno'],
+                    'bill'         => $d['reference_no'],
+                    'dc_no'        => '-',
+                    'gp_no'        => '-',
+                    'description'  => $d['description'],
+                    'item_name'    => $d['account'] ?? 'JV Adjustment',
+                    'qty'          => null,
+                    'rate'         => null,
+                    'debit'        => $debit,
+                    'credit'       => 0,
+                    'balance'      => $runningBalance,
                 ];
 
             } elseif ($type === 'journal_credit') {
@@ -1031,19 +1056,21 @@ class ReportingController extends Controller
                 $totalCredit    += $credit;
 
                 $transactions[] = [
-                    'row_type'    => 'receipt',
-                    'date'        => date('d-m-y', strtotime($d['txn_date'])),
-                    'vno'         => $d['vno'],
-                    'bill'        => $d['reference_no'],
-                    'dc_no'       => '-',
-                    'gp_no'       => '-',
-                    'description' => $d['description'],
-                    'item_name'   => $d['account'] ?? 'JV Adjustment',
-                    'qty'         => null,
-                    'rate'        => null,
-                    'debit'       => 0,
-                    'credit'      => $credit,
-                    'balance'     => $runningBalance,
+                    'row_type'     => 'journal_credit',
+                    'voucher_id'   => $d['voucher_id'] ?? null,
+                    'voucher_type' => 'journal_voucher',
+                    'date'         => date('d-m-y', strtotime($d['txn_date'])),
+                    'vno'          => $d['vno'],
+                    'bill'         => $d['reference_no'],
+                    'dc_no'        => '-',
+                    'gp_no'        => '-',
+                    'description'  => $d['description'],
+                    'item_name'    => $d['account'] ?? 'JV Adjustment',
+                    'qty'          => null,
+                    'rate'         => null,
+                    'debit'        => 0,
+                    'credit'       => $credit,
+                    'balance'      => $runningBalance,
                 ];
 
             } elseif ($type === 'discount') {
@@ -1093,6 +1120,124 @@ class ReportingController extends Controller
             'closing_balance'     => $runningBalance,
             'transactions'        => $transactions,
         ]);
+    }
+
+    /**
+     * Preview a ledger transaction (Sale Invoice, Receipt Voucher, Payment Voucher, JV)
+     * Loaded inside modal iframe or in a new browser tab.
+     */
+    public function transaction_preview(Request $request)
+    {
+        $type = strtolower($request->query('type', ''));
+        $id   = $request->query('id');
+        $vno  = $request->query('vno');
+
+        $notFoundView = function ($title, $msg) {
+            return response('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' . e($title) . '</title>' .
+                '<style>body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;color:#334155;text-align:center;padding:20px;box-sizing:border-box;}' .
+                '.card{background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;padding:32px 24px;max-width:440px;box-shadow:0 4px 15px rgba(0,0,0,0.05);}' .
+                'h4{margin:0 0 10px;color:#0f172a;font-size:18px;}p{margin:0;color:#64748b;font-size:13.5px;line-height:1.5;}</style></head>' .
+                '<body><div class="card"><div style="font-size:38px;margin-bottom:12px;">⚠️</div><h4>' . e($title) . '</h4><p>' . e($msg) . '</p></div></body></html>', 200)
+                ->header('Content-Type', 'text/html');
+        };
+
+        if ($type === 'sale') {
+            $sale = null;
+            if ($id && is_numeric($id)) {
+                $sale = Sale::find($id);
+            }
+            if (!$sale && $vno) {
+                $cleanVno = trim(explode('(', $vno)[0]);
+                $sale = Sale::where('invoice_no', $cleanVno)
+                    ->orWhere('manual_invoice', $cleanVno)
+                    ->first();
+            }
+            if (!$sale) {
+                return $notFoundView('Sale Invoice Not Found', 'The requested sale invoice (' . ($vno ?: ('#' . $id)) . ') could not be found.');
+            }
+            request()->merge(['embed' => 1]);
+            return app(SaleController::class)->invoicesale($sale);
+        }
+
+        if ($type === 'receipt') {
+            $receipt = null;
+            if ($id && is_numeric($id)) {
+                $receipt = ReceiptsVoucher::find($id);
+            }
+            if (!$receipt && $vno) {
+                $cleanVno = trim(explode('(', $vno)[0]);
+                $cleanNum = preg_replace('/[^0-9]/', '', $cleanVno);
+                $receipt = ReceiptsVoucher::where('rvid', $cleanVno)
+                    ->orWhere('receipt_no', $cleanVno)
+                    ->when($cleanNum, function ($q) use ($cleanNum) {
+                        return $q->orWhere('id', (int)$cleanNum);
+                    })
+                    ->first();
+            }
+            if (!$receipt) {
+                return $notFoundView('Receipt Voucher Not Found', 'The requested receipt voucher (' . ($vno ?: ('#' . $id)) . ') could not be found.');
+            }
+            return app(VoucherController::class)->print($receipt->id);
+        }
+
+        if ($type === 'payment' || $type === 'payment_voucher') {
+            $pv = null;
+            if ($id && is_numeric($id)) {
+                $pv = PaymentVoucher::find($id);
+            }
+            if (!$pv && $vno) {
+                $cleanVno = trim(explode('(', $vno)[0]);
+                $cleanNum = preg_replace('/[^0-9]/', '', $cleanVno);
+                $pv = PaymentVoucher::where('pvid', $cleanVno)
+                    ->when($cleanNum, function ($q) use ($cleanNum) {
+                        return $q->orWhere('id', (int)$cleanNum);
+                    })
+                    ->first();
+            }
+            if (!$pv) {
+                return $notFoundView('Payment Voucher Not Found', 'The requested payment voucher (' . ($vno ?: ('#' . $id)) . ') could not be found.');
+            }
+            return app(VoucherController::class)->Paymentprint($pv->id);
+        }
+
+        if ($type === 'return') {
+            if ($id && is_numeric($id)) {
+                $ret = DB::table('sales_returns')->where('id', $id)->first();
+                if ($ret && $ret->sale_id) {
+                    $sale = Sale::find($ret->sale_id);
+                    if ($sale) {
+                        request()->merge(['embed' => 1]);
+                        return app(SaleController::class)->invoicesale($sale);
+                    }
+                }
+            }
+            if ($vno) {
+                $cleanVno = trim(explode('(', $vno)[0]);
+                $sale = Sale::where('invoice_no', $cleanVno)->orWhere('manual_invoice', $cleanVno)->first();
+                if ($sale) {
+                    request()->merge(['embed' => 1]);
+                    return app(SaleController::class)->invoicesale($sale);
+                }
+            }
+            return $notFoundView('Sale Return Not Found', 'The requested sale return (' . ($vno ?: ('#' . $id)) . ') could not be found.');
+        }
+
+        if ($type === 'journal' || $type === 'journal_voucher' || $type === 'journal_debit' || $type === 'journal_credit') {
+            $jv = null;
+            if ($id && is_numeric($id)) {
+                $jv = JournalVoucher::find($id);
+            }
+            if (!$jv && $vno) {
+                $cleanVno = trim(explode('(', $vno)[0]);
+                $jv = JournalVoucher::where('jvid', $cleanVno)->orWhere('id', $cleanVno)->first();
+            }
+            if (!$jv) {
+                return $notFoundView('Journal Voucher Not Found', 'The requested journal voucher (' . ($vno ?: ('#' . $id)) . ') could not be found.');
+            }
+            return app(VoucherController::class)->journal_voucher_print($jv->id);
+        }
+
+        return $notFoundView('Invalid Preview Request', 'The transaction preview type "' . e($type) . '" is not recognized.');
     }
 
     public function vendor_ledger_new()
