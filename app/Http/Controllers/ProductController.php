@@ -254,12 +254,18 @@ class ProductController extends Controller
          ->get()
          ->map(function ($product) use ($request) {
              $branchId = $request->get('branch_id') ?: (Auth::check() ? Auth::user()->branch_id : null);
-             $overallStock = (float) DB::table('warehouse_stocks')
-                 ->where('product_id', $product->id)
-                 ->sum('quantity');
+             $wsQuery = DB::table('warehouse_stocks')->where('product_id', $product->id);
+              if ($branchId) {
+                  $wsQuery->where('branch_id', $branchId);
+              }
+              $overallStock = (float) $wsQuery->sum('quantity');
              if ($overallStock == 0) {
-                 $overallStock = (float) DB::table('stocks')->where('product_id', $product->id)->sum('qty');
-             }
+                  $sQuery = DB::table('stocks')->where('product_id', $product->id);
+                  if ($branchId) {
+                      $sQuery->where('branch_id', $branchId);
+                  }
+                  $overallStock = (float) $sQuery->sum('qty');
+              }
              $stockQty = $overallStock;
              $isPrimary = ($overallStock > 0);
              
@@ -1857,22 +1863,20 @@ public function searchProductsForSalebypagination(Request $request)
         $retail    = (float) $request->input('retail_price', 0);
         $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
 
-        // Fetch current stock from warehouse_stocks (or stocks table) for delta computation
-        $currentQty = (float) DB::table('warehouse_stocks')
+        // Compute delta between new opening stock and existing opening stock movements
+        $oldOpeningQty = (float) DB::table('stock_movements')
             ->where('product_id', $id)
             ->where('branch_id', $branchId)
-            ->sum('quantity');
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+            ->sum('qty');
 
-        if ($currentQty == 0) {
-            $currentQty = (float) (DB::table('stocks')
-                ->where('product_id', $id)
-                ->where('branch_id', $branchId)
-                ->value('qty') ?? 0);
+        if ($oldOpeningQty <= 0) {
+            $oldOpeningQty = (float) ($product->initial_stock ?? 0);
         }
 
-        $delta = $newQty - $currentQty;
+        $delta = $newQty - $oldOpeningQty;
 
-        DB::transaction(function () use ($product, $id, $branchId, $delta, $newQty, $alertQty, $wholesale, $retail, $allocData) {
+        DB::transaction(function () use ($product, $id, $branchId, $delta, $newQty, $oldOpeningQty, $alertQty, $wholesale, $retail, $allocData) {
             // Update product master record
             $product->update([
                 'wholesale_price'   => $wholesale,
@@ -1882,11 +1886,19 @@ public function searchProductsForSalebypagination(Request $request)
                 'completion_status' => 'complete',
             ]);
 
-            // Direct update of branch stocks table for exact synchronization
-            Stock::updateOrCreate(
-                ['product_id' => $id, 'branch_id' => $branchId],
-                ['qty' => $newQty, 'updated_at' => now()]
-            );
+            // Adjust branch stock by delta (preserves previous purchases and sales)
+            $stockRecord = Stock::where('product_id', $id)->where('branch_id', $branchId)->first();
+            if ($stockRecord) {
+                $stockRecord->qty = ($stockRecord->qty ?? 0) + $delta;
+                $stockRecord->save();
+            } else {
+                Stock::create([
+                    'product_id'   => $id,
+                    'branch_id'    => $branchId,
+                    'qty'          => $newQty,
+                    'reserved_qty' => 0,
+                ]);
+            }
 
             // Update or create the single primary OPENING stock movement
             $existingOpening = StockMovement::where('product_id', $id)
@@ -1925,12 +1937,54 @@ public function searchProductsForSalebypagination(Request $request)
                 ->where('ref_type', 'OPENING_ADJ')
                 ->delete();
 
-            // Replace warehouse allocations
-            WarehouseStock::where('product_id', $id)
-                          ->where('branch_id', $branchId)
-                          ->delete();
-
-            $this->applyWarehouseAllocation($id, $branchId, $retail, $allocData, $newQty);
+            // Adjust warehouse_stocks by delta to preserve sales/purchases
+            if (empty($allocData)) {
+                $ws = WarehouseStock::where('product_id', $id)
+                    ->where('branch_id', $branchId)
+                    ->whereNull('warehouse_id')
+                    ->first();
+                if ($ws) {
+                    $ws->quantity = ($ws->quantity ?? 0) + $delta;
+                    $ws->price = $retail;
+                    $ws->save();
+                } else {
+                    WarehouseStock::create([
+                        'branch_id'    => $branchId,
+                        'warehouse_id' => null,
+                        'product_id'   => $id,
+                        'quantity'     => $newQty,
+                        'price'        => $retail,
+                    ]);
+                }
+            } else {
+                // If specific warehouse allocations provided, apply allocation adjustments
+                foreach ($allocData as $alloc) {
+                    $allocQty = (float) ($alloc['quantity'] ?? 0);
+                    $locType  = $alloc['location_type'] ?? 'shop';
+                    $whId     = ($locType === 'warehouse' && !empty($alloc['warehouse_id'])) ? (int) $alloc['warehouse_id'] : null;
+                    
+                    $wsQuery = WarehouseStock::where('product_id', $id)->where('branch_id', $branchId);
+                    if ($whId) {
+                        $wsQuery->where('warehouse_id', $whId);
+                    } else {
+                        $wsQuery->whereNull('warehouse_id');
+                    }
+                    $ws = $wsQuery->first();
+                    if ($ws) {
+                        $ws->quantity = ($ws->quantity ?? 0) + $delta;
+                        $ws->price = $retail;
+                        $ws->save();
+                    } else {
+                        WarehouseStock::create([
+                            'branch_id'    => $branchId,
+                            'warehouse_id' => $whId,
+                            'product_id'   => $id,
+                            'quantity'     => $allocQty,
+                            'price'        => $retail,
+                        ]);
+                    }
+                }
+            }
         });
 
         if ($request->ajax() || $request->wantsJson()) {

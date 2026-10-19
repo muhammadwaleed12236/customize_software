@@ -2698,8 +2698,9 @@ public function finddc($invoice)
                     ]);
                 }
 
-                // Global stock via Stock model (allow negative)
+                // Branch stock via Stock model (allow negative)
                 $stockRow = Stock::where('product_id', $productId)
+                    ->where('branch_id', $itemBranch)
                     ->first();
 
                 if ($stockRow) {
@@ -2707,7 +2708,7 @@ public function finddc($invoice)
                     $stockRow->save();
                 } else {
                     Stock::create([
-                        'branch_id' => $branch->id ?? 1,
+                        'branch_id' => $itemBranch,
                         'product_id' => $productId,
                         'qty' => -1 * $saleQty,
                         'reserved_qty' => 0,

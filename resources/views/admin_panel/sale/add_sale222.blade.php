@@ -1530,10 +1530,13 @@
                             $whSelect.html(buildWarehouseOptionsHtml(currentWh, prodId));
                         }
 
-                        let isProductWise = (window.saleSettings.warehouse_mode === 'product_wise');
-                        let displayStock = isProductWise ? (res.location_stock !== undefined ? res.location_stock : (res.stock || res.overall_stock || 0)) : ((res.overall_stock !== undefined) ? res.overall_stock : res.available);
+                        let displayStock = (res.location_stock !== undefined && res.location_stock !== null) 
+                            ? res.location_stock 
+                            : ((res.branch_stock !== undefined && res.branch_stock !== null) 
+                                ? res.branch_stock 
+                                : ((res.overall_stock !== undefined) ? res.overall_stock : (res.stock || res.available || 0)));
                         $row.find('.stock').val(displayStock);
-                        $row.find('.stock').attr('title', `Overall Stock: ${res.overall_stock} | Location Stock: ${res.location_stock}`);
+                        $row.find('.stock').attr('title', `Location Stock: ${res.location_stock} | Branch Stock: ${res.branch_stock} | Overall Stock: ${res.overall_stock}`);
                     }
                 });
             }

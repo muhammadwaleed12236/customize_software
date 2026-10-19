@@ -53,7 +53,15 @@ class VoucherService
             }
 
             // Delete AccountLedgerEntry for this receipt voucher
-            AccountLedgerEntry::where('voucher_no', $rvid)->delete();
+            AccountLedgerEntry::where(function($q) use ($rvid, $voucher) {
+                $q->where('voucher_no', $rvid);
+                if ($voucher->id) {
+                    $q->orWhere('voucher_id', $voucher->id);
+                }
+                if ($voucher->reference_no) {
+                    $q->orWhere('voucher_no', $voucher->reference_no);
+                }
+            })->delete();
 
             // 2. REVERSE PARTY SIDE (Clean delete of customer/vendor ledgers and recalculation)
             $partyIds     = self::safeDecodeArray($voucher->party_id);
@@ -359,7 +367,15 @@ class VoucherService
             }
 
             // Delete AccountLedgerEntry for this payment voucher
-            AccountLedgerEntry::where('voucher_no', $pvid)->delete();
+            AccountLedgerEntry::where(function($q) use ($pvid, $voucher) {
+                $q->where('voucher_no', $pvid);
+                if ($voucher->id) {
+                    $q->orWhere('voucher_id', $voucher->id);
+                }
+                if ($voucher->reference_no) {
+                    $q->orWhere('voucher_no', $voucher->reference_no);
+                }
+            })->delete();
 
             // 2. REVERSE PARTY SIDE (Vendor/Customer/Account ledgers)
             $partyIds     = self::safeDecodeArray($voucher->party_id);
@@ -659,7 +675,15 @@ class VoucherService
             }
 
             // Delete AccountLedgerEntry for this expense voucher
-            AccountLedgerEntry::where('voucher_no', $evid)->delete();
+            AccountLedgerEntry::where(function($q) use ($evid, $voucher) {
+                $q->where('voucher_no', $evid);
+                if ($voucher->id) {
+                    $q->orWhere('voucher_id', $voucher->id);
+                }
+                if ($voucher->reference_no) {
+                    $q->orWhere('voucher_no', $voucher->reference_no);
+                }
+            })->delete();
 
             // 2. REVERSE PAYMENT SOURCE / PARTY SIDE
             $partyIds     = self::safeDecodeArray($voucher->party_id);
@@ -1301,6 +1325,26 @@ class VoucherService
         $validVoucherTypes = ['opening_balance', 'receipt', 'payment', 'expense', 'manual'];
         $cleanVoucherType = in_array($voucherType, $validVoucherTypes) ? $voucherType : 'manual';
 
+        // ✅ IDEMPOTENCY CHECK: If entry for this voucher already exists on this account, update it!
+        if ($voucherId) {
+            $existing = AccountLedgerEntry::where('account_id', $accountId)
+                ->where('voucher_type', $cleanVoucherType)
+                ->where('voucher_id', $voucherId)
+                ->first();
+
+            if ($existing) {
+                $existing->update([
+                    'voucher_no'       => $voucherNo,
+                    'transaction_date' => $date,
+                    'description'      => $description ?? ucfirst($cleanVoucherType) . ' Voucher #' . $voucherNo,
+                    'debit'            => $debit,
+                    'credit'           => $credit,
+                ]);
+                AccountLedgerEntry::recalculateRunningBalance($accountId);
+                return;
+            }
+        }
+
         $entryNo = AccountLedgerEntry::generateEntryNo($accountId, $cleanVoucherType);
 
         AccountLedgerEntry::create([
@@ -1380,7 +1424,7 @@ class VoucherService
                         return 0.0;
                     }
                 }
-                return (float)($vObj->total_amount ?? 0);
+                return (float)($vObj->total_amount ?? $vObj->debit_amount ?? $vObj->credit_amount ?? 0);
             }
             return 0.0;
         }
@@ -1397,7 +1441,7 @@ class VoucherService
 
                 $amt = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
                     ? (float)$partyAmounts[$idx]
-                    : (count($partyIds) === 1 ? (float)($vObj->total_amount ?? 0) : 0.0);
+                    : (count($partyIds) === 1 ? (float)($vObj->total_amount ?? $vObj->debit_amount ?? $vObj->credit_amount ?? 0) : 0.0);
                 $total += $amt;
             }
         }

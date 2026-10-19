@@ -1293,6 +1293,7 @@ class ReportingController extends Controller
                 'payment_vouchers.party_amount as party_amount',
                 'payment_vouchers.receipt_date as txn_date',
                 'payment_vouchers.amount       as amount',
+                'payment_vouchers.total_amount as total_amount',
                 'payment_vouchers.total_amount as debit_amount',
                 'payment_vouchers.reference_no as reference_no',
                 'payment_vouchers.remarks      as remarks',
@@ -1324,6 +1325,7 @@ class ReportingController extends Controller
                 'receipts_vouchers.party_amount as party_amount',
                 'receipts_vouchers.receipt_date as txn_date',
                 'receipts_vouchers.amount       as amount',
+                'receipts_vouchers.total_amount as total_amount',
                 'receipts_vouchers.total_amount as credit_amount',
                 'receipts_vouchers.reference_no as reference_no',
                 'receipts_vouchers.remarks      as remarks',
@@ -1812,65 +1814,96 @@ class ReportingController extends Controller
 
         // ================= PRE-AGGREGATE DATA FOR ACCURACY & PERFORMANCE =================
         
-        // 1. Pre-calculate DELIVERED quantities from Outward Gatepasses (JSON items)
-        // This is the source of truth for items physically removed from stock
-        $deliveredQtyMap = [];
-        $deliveredAmountMap = [];
-        
+        // 1. Pre-calculate OPENING quantities from stock_movements (Branch-aware, matching Product Ledger)
+        $openingQuery = DB::table('stock_movements')
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ']);
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
+            $openingQuery->where('branch_id', $allowedBranchId);
+        }
+        $openingQtyMap = $openingQuery
+            ->select('product_id', DB::raw('SUM(qty) as total_qty'))
+            ->groupBy('product_id')
+            ->pluck('total_qty', 'product_id')
+            ->toArray();
+
+        // 2. Pre-calculate PURCHASED quantities & amounts (Branch-aware)
+        $purchaseQuery = DB::table('purchase_items')
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->whereNull('purchases.deleted_at');
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
+            $purchaseQuery->where('purchases.branch_id', $allowedBranchId);
+        }
+        $purchaseMap = $purchaseQuery
+            ->select(
+                'purchase_items.product_id',
+                DB::raw('COALESCE(SUM(purchase_items.qty), 0) as total_qty'),
+                DB::raw('COALESCE(SUM(purchase_items.line_total), 0) as total_amount')
+            )
+            ->groupBy('purchase_items.product_id')
+            ->get()
+            ->keyBy('product_id');
+
+        // 3. Pre-calculate DELIVERED / SOLD quantities & amounts (Direct Sales & Dispatched Orders)
+        $salesQuery = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where(function ($q) {
+                $q->whereNull('sales.status')->orWhere('sales.status', '!=', 'cancelled');
+            });
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
+            $salesQuery->where('sales.branch_id', $allowedBranchId);
+        }
+        $salesMap = $salesQuery
+            ->select(
+                'sale_items.product_id',
+                DB::raw('COALESCE(SUM(sale_items.sales_qty), 0) as total_qty'),
+                DB::raw('COALESCE(SUM(sale_items.amount), 0) as total_amount')
+            )
+            ->groupBy('sale_items.product_id')
+            ->get()
+            ->keyBy('product_id');
+
+        // Check if there are any gatepasses with items
         $gpQuery = DB::table('outward_gatepasses')->whereNotNull('items');
         if ($allowedBranchId && $allowedBranchId !== 'all') {
             $gpQuery->where('branch_id', $allowedBranchId);
         }
-        
+        $gpDeliveredQty = [];
+        $gpDeliveredAmount = [];
         foreach ($gpQuery->select('items')->cursor() as $gp) {
-            $items = json_decode($gp->items, true);
-            if (is_array($items)) {
-                foreach ($items as $item) {
-                    $pid = $item['product_id'] ?? null;
+            $gpItems = json_decode($gp->items, true);
+            if (is_array($gpItems)) {
+                foreach ($gpItems as $gItem) {
+                    $pid = $gItem['product_id'] ?? null;
                     if ($pid) {
-                        $deliveredQtyMap[$pid] = ($deliveredQtyMap[$pid] ?? 0) + floatval($item['qty'] ?? 0);
-                        $deliveredAmountMap[$pid] = ($deliveredAmountMap[$pid] ?? 0) + floatval($item['amount'] ?? 0);
+                        $gpDeliveredQty[$pid] = ($gpDeliveredQty[$pid] ?? 0) + floatval($gItem['qty'] ?? 0);
+                        $gpDeliveredAmount[$pid] = ($gpDeliveredAmount[$pid] ?? 0) + floatval($gItem['amount'] ?? 0);
                     }
                 }
             }
         }
 
-        // 2. Pre-calculate TOTAL BOOKED quantities from Product Booking Items & Direct Sales
-        $bookedQuery = DB::table('product_booking_items')
+        // 4. Pre-calculate RESERVED quantities (Active bookings pending delivery / dispatch)
+        $pendingBookingsQuery = DB::table('product_booking_items')
             ->join('productbookings', 'product_booking_items.booking_id', '=', 'productbookings.id')
-            ->where(function($q) {
+            ->where(function ($q) {
                 $q->whereNull('productbookings.status')
-                  ->orWhere('productbookings.status', '!=', 'cancelled');
+                  ->orWhereNotIn('productbookings.status', ['cancelled', 'sale', 'completed']);
+            })
+            ->where(function ($q) {
+                $q->whereNull('productbookings.is_posted')
+                  ->orWhere('productbookings.is_posted', 0);
             });
-
         if ($allowedBranchId && $allowedBranchId !== 'all') {
-            $bookedQuery->where(function($q) use ($allowedBranchId) {
+            $pendingBookingsQuery->where(function ($q) use ($allowedBranchId) {
                 $q->where('product_booking_items.branch_id', $allowedBranchId)
                   ->orWhere('productbookings.branch_id', $allowedBranchId);
             });
         }
-        $bookedQtyMap = $bookedQuery
-            ->select('product_booking_items.product_id', DB::raw('SUM(product_booking_items.sales_qty) as total_qty'))
+        $reservedQtyMap = $pendingBookingsQuery
+            ->select('product_booking_items.product_id', DB::raw('COALESCE(SUM(product_booking_items.sales_qty), 0) as total_qty'))
             ->groupBy('product_booking_items.product_id')
             ->pluck('total_qty', 'product_id')
             ->toArray();
-
-        // Also add direct sales (sales not originating from productbookings)
-        $directSalesQuery = DB::table('sale_items')
-            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
-            ->whereNull('sales.booking_id');
-        if ($allowedBranchId && $allowedBranchId !== 'all') {
-            $directSalesQuery->where('sales.branch_id', $allowedBranchId);
-        }
-        $directSalesMap = $directSalesQuery
-            ->select('sale_items.product_id', DB::raw('SUM(sale_items.sales_qty) as total_qty'))
-            ->groupBy('sale_items.product_id')
-            ->pluck('total_qty', 'product_id')
-            ->toArray();
-
-        foreach ($directSalesMap as $pid => $qty) {
-            $bookedQtyMap[$pid] = ($bookedQtyMap[$pid] ?? 0) + floatval($qty);
-        }
 
         $rows = [];
         $grandTotalValue = 0;
@@ -1892,40 +1925,21 @@ class ReportingController extends Controller
                 $totalBalance = floatval($stQuery->sum('qty') ?? 0);
             }
 
-            // ================= GET OPENING STOCK =================
-            if ($allowedBranchId === 'all' || $product->branch_id == $allowedBranchId) {
-                $openingStock = floatval($product->initial_stock ?? 0);
-            } else {
-                $openingStock = 0;
-            }
+            // ================= GET OPENING STOCK (Matching Product Ledger) =================
+            $openingStock = floatval($openingQtyMap[$product->id] ?? (($allowedBranchId === 'all' || $product->branch_id == $allowedBranchId) ? ($product->initial_stock ?? 0) : 0));
 
             // ================= GET PURCHASED QTY & AMOUNT =================
-            $purchaseQuery = DB::table('purchase_items')
-                ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
-                ->where('purchase_items.product_id', $product->id);
-            
-            if ($allowedBranchId && $allowedBranchId !== 'all') {
-                $purchaseQuery->where('purchases.branch_id', $allowedBranchId);
-            }
-            
-            $purchaseData = $purchaseQuery->select(
-                    DB::raw('COALESCE(SUM(purchase_items.qty), 0) as total_qty'),
-                    DB::raw('COALESCE(SUM(purchase_items.line_total), 0) as total_amount')
-                )
-                ->first();
-
-            $purchased = floatval($purchaseData->total_qty ?? 0);
-            $purchaseAmount = floatval($purchaseData->total_amount ?? 0);
+            $purchased = floatval($purchaseMap[$product->id]->total_qty ?? 0);
+            $purchaseAmount = floatval($purchaseMap[$product->id]->total_amount ?? 0);
 
             // ================= GET SOLD QTY & AMOUNT (DELIVERED) =================
-            // ✅ ERP STANDARD: Sold = Physically Delivered via Gatepass
-            $sold = floatval($deliveredQtyMap[$product->id] ?? 0);
-            $saleAmount = floatval($deliveredAmountMap[$product->id] ?? 0);
+            // Physically Delivered / Invoiced Sales (with Gatepass fallback)
+            $sold = floatval($salesMap[$product->id]->total_qty ?? ($gpDeliveredQty[$product->id] ?? 0));
+            $saleAmount = floatval($salesMap[$product->id]->total_amount ?? ($gpDeliveredAmount[$product->id] ?? 0));
 
             // ================= GET RESERVED QTY (PENDING DELIVERY) =================
-            // ✅ ERP STANDARD: Reserved = Total Ordered - Total Delivered (never negative)
-            $totalBooked = floatval($bookedQtyMap[$product->id] ?? 0);
-            $reservedQty = max(0, $totalBooked - $sold); // How many still pending delivery
+            // Bookings pending delivery
+            $reservedQty = floatval($reservedQtyMap[$product->id] ?? 0);
 
             // ================= GET WAREHOUSE-WISE BREAKDOWN =================
             $wbQuery = WarehouseStock::where('product_id', $product->id);
