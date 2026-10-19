@@ -10,6 +10,10 @@ class ExpenseVoucher extends Model
     use HasFactory;
     protected $guarded = [];
 
+    protected $casts = [
+        'processed' => 'boolean',
+    ];
+
 
     public static function generateInvoiceNo()
     {
