@@ -2159,10 +2159,8 @@ public function finddc($invoice)
         $warehouse = ($activeBranch && $activeBranch->warehouses) ? $activeBranch->warehouses : collect();
         $allWarehouses = $warehouse;
 
-        // ✅ BRANCH-AWARE ACCOUNTS: Accounts filtered by default/active branch
-        $accounts = Account::when($defaultBranchId, function ($q) use ($defaultBranchId) {
-            $q->where('branch_id', $defaultBranchId);
-        })->get();
+        // ✅ BRANCH-AWARE CASH/BANK ACCOUNTS: Only Cash and Bank accounts for payments, ordered with Cash in Hand first
+        $accounts = self::getCashBankAccountsQuery($defaultBranchId)->get();
 
         // ✅ BRANCH-AWARE SALESMEN: Salesmen filtered by default/active branch
         $salesmen = SalesOfficer::when($defaultBranchId, function ($q) use ($defaultBranchId) {
@@ -2185,6 +2183,31 @@ public function finddc($invoice)
         return view('admin_panel.sale.add_sale222', compact('warehouse', 'allWarehouses', 'customer', 'accounts', 'nextInvoiceNumber', 'products', 'branches', 'branchCounters', 'warehouseStocks', 'salesmen', 'saleSettings', 'defaultBranchId', 'branchWarehouseMap'));
     }
 
+    /**
+     * Helper to retrieve only Cash & Bank accounts for sales payment methods
+     */
+    public static function getCashBankAccountsQuery($branchId = null)
+    {
+        $cashBankHeadIds = \App\Models\AccountHead::where(function($q) {
+            $q->where('name', 'like', '%cash%')
+              ->orWhere('name', 'like', '%bank%')
+              ->orWhereIn('id', [1, 6]);
+        })->pluck('id');
+
+        return Account::with('head')
+            ->whereIn('head_id', $cashBankHeadIds)
+            ->where(function ($query) {
+                $query->where('status', 1)
+                      ->orWhere('status', 'active')
+                      ->orWhereNull('status');
+            })
+            ->when($branchId, function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId);
+            })
+            ->orderByRaw("CASE WHEN LOWER(title) LIKE '%cash in hand%' THEN 0 WHEN LOWER(title) LIKE '%cash%' THEN 1 ELSE 2 END")
+            ->orderBy('id', 'asc');
+    }
+
     public function getBranchSalesmen($branchId)
     {
         $salesmen = SalesOfficer::where('branch_id', $branchId)->get();
@@ -2193,7 +2216,7 @@ public function finddc($invoice)
 
     public function getBranchAccounts($branchId)
     {
-        $accounts = Account::where('branch_id', $branchId)->get();
+        $accounts = self::getCashBankAccountsQuery($branchId)->get();
         return response()->json($accounts);
     }
 
@@ -2919,9 +2942,7 @@ public function finddc($invoice)
             }
         })->get();
 
-        $accounts = Account::when(!$isSuper && $branchId, function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->get();
+        $accounts = self::getCashBankAccountsQuery($branchId)->get();
 
         // ================= ITEM DATA FOR PREFILL =================
         $bookingItemsRaw = \App\Models\ProductBookingItem::where('booking_id', $booking->id)->get();
@@ -3053,14 +3074,8 @@ public function finddc($invoice)
         $sale = Sale::with('saleItems.product', 'customer')->findOrFail($id);
         $customers = Customer::all();
         
-        // Fetch accounts specific to the branch of the sale, and check for active status (boolean 1 or string 'active')
-        $accounts = \App\Models\Account::with('head')
-            ->where('branch_id', $sale->branch_id)
-            ->where(function ($query) {
-                $query->where('status', 1)
-                      ->orWhere('status', 'active');
-            })
-            ->get();
+        // Fetch accounts specific to the branch of the sale (Cash and Bank accounts only)
+        $accounts = self::getCashBankAccountsQuery($sale->branch_id)->get();
 
         // Calculate already returned quantities from SalesReturn
         $salesReturns = SalesReturn::where('sale_id', $sale->id)->get();
@@ -3675,9 +3690,7 @@ public function finddc($invoice)
             $q->where('branch_id', $branchId);
         })->get();
         
-        $accounts = Account::when(!$isSuper && $branchId, function ($q) use ($branchId) {
-            $q->where('branch_id', $branchId);
-        })->get();
+        $accounts = self::getCashBankAccountsQuery($branchId)->get();
         
         $products = Product::when(!$isSuper && $branchId, function ($q) use ($branchId) {
             $q->where('branch_id', $branchId);
@@ -5285,6 +5298,7 @@ public function finddc($invoice)
         }
 
         $ledgers = CustomerLedger::where('customer_id', $customerId)
+            ->orderByRaw("COALESCE(created_at, '1970-01-01') ASC")
             ->orderBy('id', 'asc')
             ->get();
 

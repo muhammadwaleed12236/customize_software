@@ -872,10 +872,29 @@ class ReportingController extends Controller
             ];
         }
 
-        // Sort all events chronologically
+        // Sort all events in strict chronological order
         usort($events, function ($a, $b) {
-            $dateCompare = strcmp($a['sort_date'], $b['sort_date']);
-            return $dateCompare !== 0 ? $dateCompare : ($a['priority'] - $b['priority']);
+            $dateA = substr((string)$a['sort_date'], 0, 10);
+            $dateB = substr((string)$b['sort_date'], 0, 10);
+            $dateCompare = strcmp($dateA, $dateB);
+            if ($dateCompare !== 0) {
+                return $dateCompare;
+            }
+
+            // Same date: sort by logical business priority (Sale -> Return -> Receipt -> Payment -> JV)
+            $pA = (int)($a['priority'] ?? 99);
+            $pB = (int)($b['priority'] ?? 99);
+            if ($pA !== $pB) {
+                return $pA - $pB;
+            }
+
+            // Same priority: compare full timestamp if available, else tiebreak
+            $timeCompare = strcmp((string)$a['sort_date'], (string)$b['sort_date']);
+            if ($timeCompare !== 0) {
+                return $timeCompare;
+            }
+
+            return ($a['data']['sale_id'] ?? ($a['data']['voucher_id'] ?? 0)) - ($b['data']['sale_id'] ?? ($b['data']['voucher_id'] ?? 0));
         });
 
         // ══════════════════════════════════════════════════════════════════
@@ -1741,10 +1760,29 @@ class ReportingController extends Controller
             ];
         }
 
-        // Sort all events chronologically
+        // Sort all events in strict chronological order
         usort($events, function ($a, $b) {
-            $dateCompare = strcmp($a['sort_date'], $b['sort_date']);
-            return $dateCompare !== 0 ? $dateCompare : ($a['priority'] - $b['priority']);
+            $dateA = substr((string)$a['sort_date'], 0, 10);
+            $dateB = substr((string)$b['sort_date'], 0, 10);
+            $dateCompare = strcmp($dateA, $dateB);
+            if ($dateCompare !== 0) {
+                return $dateCompare;
+            }
+
+            // Same date: sort by logical business priority (Purchase -> Return -> Receipt -> Payment -> JV)
+            $pA = (int)($a['priority'] ?? 99);
+            $pB = (int)($b['priority'] ?? 99);
+            if ($pA !== $pB) {
+                return $pA - $pB;
+            }
+
+            // Same priority: compare full timestamp if available, else tiebreak
+            $timeCompare = strcmp((string)$a['sort_date'], (string)$b['sort_date']);
+            if ($timeCompare !== 0) {
+                return $timeCompare;
+            }
+
+            return strcmp((string)($a['data']['vno'] ?? ($a['data']['invoice_no'] ?? '')), (string)($b['data']['vno'] ?? ($b['data']['invoice_no'] ?? '')));
         });
 
         // ══════════════════════════════════════════════════════════════════

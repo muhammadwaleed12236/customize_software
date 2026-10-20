@@ -107,8 +107,9 @@ class AccountLedgerEntry extends Model
         $prefix = str_contains($headName, 'bank') ? 'BR' : (str_contains($headName, 'cash') ? 'CR' : 'JV');
 
         $entries = self::where('account_id', $accountId)
-            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END ASC")
             ->orderBy('transaction_date', 'asc')
+            ->orderByRaw("CASE WHEN debit > 0 THEN 0 ELSE 1 END ASC")
             ->orderBy('id', 'asc')
             ->get();
 
@@ -148,6 +149,9 @@ class AccountLedgerEntry extends Model
                 $firstEntry->credit = 0;
             }
             $firstEntry->running_balance = $expectedOpening;
+            if ($firstEntry->isDirty()) {
+                $firstEntry->save();
+            }
 
             $running = $expectedOpening;
             $startIndex = 1;

@@ -479,8 +479,9 @@ class AccountsHeadController extends Controller
 
         // Fetch ledger entries ordered chronologically by transaction_date
         $query = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
-            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END ASC")
             ->orderBy('transaction_date', 'asc')
+            ->orderByRaw("CASE WHEN debit > 0 THEN 0 ELSE 1 END ASC")
             ->orderBy('id', 'asc');
 
         if ($dateFrom) {
@@ -540,6 +541,7 @@ class AccountsHeadController extends Controller
     {
         $accountId = $account->id;
         $accountType = trim(strtolower($account->type ?? 'debit'));
+        $isReceivable = (int)($account->head_id ?? 0) === 8 || str_contains(strtolower($account->head?->name ?? ''), 'receivable');
 
         // Helper to extract account-specific amount from voucher fields
         $getAccountAmount = function($rowAccountsRaw, $amountsRaw, $totalAmountRaw, $targetAccId) {
@@ -562,22 +564,42 @@ class AccountsHeadController extends Controller
             return 0;
         };
 
-        // 1. Gather all receipts vouchers that reference this account
-        $rvs = \App\Models\ReceiptsVoucher::where(function($q) use ($accountId) {
-            $q->where('row_account_id', $accountId)
-              ->orWhere('row_account_id', (string)$accountId)
-              ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
-              ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
-              ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
-              ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
-        })->orderBy('id', 'asc')->get();
+        // 1. Gather all active receipts vouchers that reference this account
+        $rvQuery = \App\Models\ReceiptsVoucher::where(function($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'voided');
+        });
+
+        if ($isReceivable) {
+            $rvQuery->where(function($q) use ($accountId) {
+                $q->where('party_id', $accountId)
+                  ->orWhere('party_id', (string)$accountId)
+                  ->orWhere('party_id', 'like', '%"' . $accountId . '"%')
+                  ->orWhere('party_id', 'like', '%[' . $accountId . ',%')
+                  ->orWhere('party_id', 'like', '%,' . $accountId . ']%')
+                  ->orWhere('party_id', 'like', '%[' . $accountId . ']%')
+                  ->orWhere('party_id', 'like', '%,' . $accountId . ',%');
+            });
+        } else {
+            $rvQuery->where(function($q) use ($accountId) {
+                $q->where('row_account_id', $accountId)
+                  ->orWhere('row_account_id', (string)$accountId)
+                  ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
+                  ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
+                  ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
+                  ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
+            });
+        }
+        $rvs = $rvQuery->orderBy('id', 'asc')->get();
 
         $unrecordedReceipts = [];
-        $totalReceiptAmount = 0;
         foreach ($rvs as $rv) {
-            $amt = $getAccountAmount($rv->row_account_id, $rv->amount, $rv->total_amount, $accountId);
+            $amt = $isReceivable
+                ? \App\Services\VoucherService::getPartyAmount($rv, $accountId, '8')
+                : $getAccountAmount($rv->row_account_id, $rv->amount, $rv->total_amount, $accountId);
+            if ($amt <= 0 && $isReceivable) {
+                $amt = (float)$rv->total_amount;
+            }
             if ($amt > 0) {
-                $totalReceiptAmount += $amt;
                 $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($rv) {
                         $q->where('voucher_id', $rv->id)
@@ -594,19 +616,41 @@ class AccountsHeadController extends Controller
             }
         }
 
-        // 2. Gather all payment vouchers that reference this account
-        $pvs = \App\Models\PaymentVoucher::where(function($q) use ($accountId) {
-            $q->where('row_account_id', $accountId)
-              ->orWhere('row_account_id', (string)$accountId)
-              ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
-              ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
-              ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
-              ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
-        })->orderBy('id', 'asc')->get();
+        // 2. Gather all active payment vouchers that reference this account
+        $pvQuery = \App\Models\PaymentVoucher::where(function($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'voided');
+        });
+
+        if ($isReceivable) {
+            $pvQuery->where(function($q) use ($accountId) {
+                $q->where('party_id', $accountId)
+                  ->orWhere('party_id', (string)$accountId)
+                  ->orWhere('party_id', 'like', '%"' . $accountId . '"%')
+                  ->orWhere('party_id', 'like', '%[' . $accountId . ',%')
+                  ->orWhere('party_id', 'like', '%,' . $accountId . ']%')
+                  ->orWhere('party_id', 'like', '%[' . $accountId . ']%')
+                  ->orWhere('party_id', 'like', '%,' . $accountId . ',%');
+            });
+        } else {
+            $pvQuery->where(function($q) use ($accountId) {
+                $q->where('row_account_id', $accountId)
+                  ->orWhere('row_account_id', (string)$accountId)
+                  ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
+                  ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
+                  ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
+                  ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
+            });
+        }
+        $pvs = $pvQuery->orderBy('id', 'asc')->get();
 
         $unrecordedPayments = [];
         foreach ($pvs as $pv) {
-            $amt = $getAccountAmount($pv->row_account_id, $pv->amount, $pv->total_amount, $accountId);
+            $amt = $isReceivable
+                ? \App\Services\VoucherService::getPartyAmount($pv, $accountId, '8')
+                : $getAccountAmount($pv->row_account_id, $pv->amount, $pv->total_amount, $accountId);
+            if ($amt <= 0 && $isReceivable) {
+                $amt = (float)$pv->total_amount;
+            }
             if ($amt > 0) {
                 $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($pv) {
@@ -687,21 +731,17 @@ class AccountsHeadController extends Controller
             $rv = $item['rv'];
             $amt = $item['amount'];
 
-            $lastEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->orderByDesc('id')->first();
-            $prevBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
-            $newBal = $accountType === 'credit' ? ($prevBal - $amt) : ($prevBal + $amt);
-
-            $entryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'receipt');
             $date = $rv->receipt_date ?: ($rv->entry_date ?: ($rv->created_at ? $rv->created_at->toDateString() : now()->toDateString()));
             $date = is_string($date) ? explode(' ', $date)[0] : now()->toDateString();
 
-            $desc = "Sale Receipt — Voucher #" . ($rv->rvid ?? 'RV');
-            if ($rv->reference_no) {
-                $desc = "Sale Receipt — Invoice #" . $rv->reference_no;
-            }
-            if ($rv->booking_id) {
-                $desc .= " (Booking #" . $rv->booking_id . ")";
-            }
+            $desc = $isReceivable
+                ? "Receipt Voucher Party Side: " . ($rv->remarks ?: ($rv->reference_no ? "Invoice #" . $rv->reference_no : ($rv->rvid ?? 'RV')))
+                : ("Sale Receipt — Voucher #" . ($rv->rvid ?? 'RV') . ($rv->reference_no ? " — Invoice #" . $rv->reference_no : ''));
+
+            // For Account Receivable: customer receipt is CREDIT (reduces receivable).
+            // For Cash/Bank: receipt is DEBIT (cash in).
+            $debit = $isReceivable ? 0 : $amt;
+            $credit = $isReceivable ? $amt : 0;
 
             \App\Models\AccountLedgerEntry::create([
                 'account_id'        => $accountId,
@@ -709,12 +749,12 @@ class AccountsHeadController extends Controller
                 'voucher_type'      => 'receipt',
                 'voucher_no'        => $rv->reference_no ?: $rv->rvid,
                 'voucher_id'        => $rv->id,
-                'entry_no'          => $entryNo,
+                'entry_no'          => \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'receipt'),
                 'transaction_date'  => $date,
                 'description'       => $desc,
-                'debit'             => $amt,
-                'credit'            => 0,
-                'running_balance'   => $newBal,
+                'debit'             => $debit,
+                'credit'            => $credit,
+                'running_balance'   => 0, // Recalculated immediately below
                 'created_by'        => auth()->id() ?? 1,
             ]);
         }
@@ -724,18 +764,17 @@ class AccountsHeadController extends Controller
             $pv = $item['pv'];
             $amt = $item['amount'];
 
-            $lastEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->orderByDesc('id')->first();
-            $prevBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
-            $newBal = $accountType === 'credit' ? ($prevBal + $amt) : ($prevBal - $amt);
-
-            $entryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'payment');
             $date = $pv->receipt_date ?: ($pv->entry_date ?: ($pv->created_at ? $pv->created_at->toDateString() : now()->toDateString()));
             $date = is_string($date) ? explode(' ', $date)[0] : now()->toDateString();
 
-            $desc = "Payment Voucher #" . ($pv->pvid ?? 'PV');
-            if ($pv->remarks) {
-                $desc .= " — " . $pv->remarks;
-            }
+            $desc = $isReceivable
+                ? "Payment Voucher Party Side: " . ($pv->remarks ?: ($pv->pvid ?? 'PV'))
+                : "Payment Voucher #" . ($pv->pvid ?? 'PV') . ($pv->remarks ? " — " . $pv->remarks : '');
+
+            // For Account Receivable: customer payment is DEBIT (receivable increases).
+            // For Cash/Bank: payment is CREDIT (cash out).
+            $debit = $isReceivable ? $amt : 0;
+            $credit = $isReceivable ? 0 : $amt;
 
             \App\Models\AccountLedgerEntry::create([
                 'account_id'        => $accountId,
@@ -743,12 +782,12 @@ class AccountsHeadController extends Controller
                 'voucher_type'      => 'payment',
                 'voucher_no'        => $pv->pvid ?: $pv->reference_no,
                 'voucher_id'        => $pv->id,
-                'entry_no'          => $entryNo,
+                'entry_no'          => \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'payment'),
                 'transaction_date'  => $date,
                 'description'       => $desc,
-                'debit'             => 0,
-                'credit'            => $amt,
-                'running_balance'   => $newBal,
+                'debit'             => $debit,
+                'credit'            => $credit,
+                'running_balance'   => 0, // Recalculated immediately below
                 'created_by'        => auth()->id() ?? 1,
             ]);
         }

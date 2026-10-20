@@ -1364,14 +1364,6 @@ class PurchaseController extends Controller
                 if ($oldVoucher) {
                     $oldAccountIds = json_decode($oldVoucher->row_account_id, true) ?? [];
                     $oldAmounts = json_decode($oldVoucher->amount, true) ?? [];
-                    foreach ($oldAccountIds as $index => $oldAccId) {
-                        $oldAmt = (float)($oldAmounts[$index] ?? 0);
-                        $oldAccount = \App\Models\Account::find($oldAccId);
-                        if ($oldAccount && $oldAmt > 0) {
-                            $oldAccount->opening_balance += $oldAmt; // Refund
-                            $oldAccount->save();
-                        }
-                    }
                     // Delete old account ledger entries
                     \App\Models\AccountLedgerEntry::where('voucher_no', $oldVoucher->pvid)->delete();
                     
@@ -1404,10 +1396,6 @@ class PurchaseController extends Controller
                         $amt = $paymentAmounts[$index];
                         $sourceAccount = \App\Models\Account::find($accId);
                         if ($sourceAccount) {
-                            // Deduct from account
-                            $sourceAccount->opening_balance -= $amt;
-                            $sourceAccount->save();
-                            
                             $rowAccountHeads[] = $sourceAccount->head_id ?? 1;
 
                             // Post to account ledger
@@ -1977,11 +1965,7 @@ class PurchaseController extends Controller
             $purchase->due_amount  -= $amount;
             $purchase->save();
 
-            // 2. Deduct from Source Account
-            $account->opening_balance -= $amount;
-            $account->save();
-
-            // 3. Post to Account Ledger (Double-Entry)
+            // 2. Post to Account Ledger (Double-Entry)
             $this->postLedgerEntry(
                 $account->id,
                 'payment',

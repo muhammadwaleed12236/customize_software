@@ -369,6 +369,7 @@
                                     }
                                     // ✅ Also clean up "Party Side:" prefix for cleaner display
                                     $desc = str_replace('Receipt Voucher Party Side: ', 'RV — ', $desc);
+                                    $desc = str_replace('Payment Voucher Party Side: ', 'PV — ', $desc);
                                 @endphp
                                 {{ $desc }}
                             </td>

@@ -362,8 +362,17 @@ class InwardgatepassController extends Controller
                 // 2. Debit the Freight Inward Expense Account
                 $freightExpenseAcc = \App\Models\Account::where('account_code', 'EXP-FRT-001')->first();
                 if ($freightExpenseAcc) {
-                    $freightExpenseAcc->opening_balance += $request->freight_charges;
-                    $freightExpenseAcc->save();
+                    \App\Services\VoucherService::postLedgerEntry(
+                        $freightExpenseAcc->id,
+                        'expense',
+                        $gatepass->gatepass_no ?? ('GP-' . $gatepass->id),
+                        $gatepass->id,
+                        now()->toDateString(),
+                        "Freight Inward for GP #" . ($gatepass->gatepass_no ?? $gatepass->id),
+                        (float)$request->freight_charges,
+                        0,
+                        auth()->id()
+                    );
                 }
             }
 

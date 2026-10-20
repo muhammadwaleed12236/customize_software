@@ -538,9 +538,6 @@ class VoucherService
             } elseif (is_numeric($partyType)) {
                 $account = Account::find($partyId);
                 if ($account) {
-                    $account->opening_balance += $partyAmount;
-                    $account->save();
-
                     self::postLedgerEntry(
                         $account->id,
                         'payment',
@@ -1404,14 +1401,17 @@ class VoucherService
     }
 
     /**
-     * Recalculate customer running balance from start to finish
+     * Recalculate customer running balance from start to finish in strict chronological order
      */
     public static function recalculateCustomerLedger(int $customerId): void
     {
         $customer = Customer::find($customerId);
         if (!$customer) return;
 
-        $entries = CustomerLedger::where('customer_id', $customerId)->orderBy('id', 'asc')->get();
+        $entries = CustomerLedger::where('customer_id', $customerId)
+            ->orderByRaw("COALESCE(created_at, '1970-01-01') ASC")
+            ->orderBy('id', 'asc')
+            ->get();
         $running = (float)($customer->opening_balance ?? 0);
 
         foreach ($entries as $entry) {
@@ -1423,14 +1423,16 @@ class VoucherService
     }
 
     /**
-     * Recalculate vendor running balance from start to finish
+     * Recalculate vendor running balance from start to finish in strict chronological order
      */
     public static function recalculateVendorLedger(int $vendorId, int $branchId = 0): void
     {
         $vendor = Vendor::find($vendorId);
         if (!$vendor) return;
 
-        $query = VendorLedger::where('vendor_id', $vendorId)->orderBy('id', 'asc');
+        $query = VendorLedger::where('vendor_id', $vendorId)
+            ->orderByRaw("COALESCE(transaction_date, DATE(created_at), '1970-01-01') ASC")
+            ->orderBy('id', 'asc');
         if ($branchId > 0) {
             $query->where('branch_id', $branchId);
         }
