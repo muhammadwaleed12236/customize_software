@@ -6,7 +6,7 @@
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color:#000000; line-height: 1.4; }
         .wrap{ max-width:100%; margin:0 auto; padding: 12px; border: 2px solid #000000; }
-        .brand-header { background: #ffffff; color: #000000; padding: 0 0 10px 0; border-bottom: 2.5px solid #000000; margin-bottom: 12px; }
+        .brand-header { background: #ffffff; color: #000000; padding: 0 0 10px 0; border-bottom: 2px solid #000000; margin-bottom: 12px; }
         .brand-title { font-size: 20px; font-weight: bold; margin: 0; color: #000000; text-transform: uppercase; }
         .brand-subtitle { font-size: 11px; color: #000000; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; margin-top: 2px; }
         
@@ -23,7 +23,7 @@
         table.items { width:100%; border-collapse:collapse; margin-top:8px; border: 2px solid #000000; }
         table.items th { background: #dcdcdc; color: #000000; padding: 7px 8px; font-size: 11px; text-transform: uppercase; text-align: left; border: 1.5px solid #000000; font-weight: bold; }
         table.items td { padding: 6px 8px; border: 1.5px solid #000000; font-size: 11px; color: #000000; font-weight: bold; }
-        table.items tfoot td { background: #dcdcdc; font-weight: bold; font-size: 12px; border: 2px solid #000000; color: #000000; }
+        table.items tfoot td { background: #dcdcdc; font-weight: bold; font-size: 12px; border: 1.5px solid #000000; border-top: 2px solid #000000; color: #000000; }
         
         .text-end { text-align: right; }
         .text-center { text-align: center; }
@@ -55,49 +55,44 @@
             </table>
         </div>
 
-        <!-- 2x2 Box Details -->
-        <table class="details-table">
-            <tr>
-                <td>
-                    <div class="box">
-                        <div class="box-title">Customer & Destination</div>
-                        <div class="field-row"><span class="field-label">Customer Name:</span> <span class="field-val">{{ $gp->customer_name ?? 'N/A' }}</span></div>
-                        <div class="field-row"><span class="field-label">Delivery City:</span> <span class="field-val">{{ $gp->delivery_city ?? 'N/A' }}</span></div>
-                        <div class="field-row"><span class="field-label">Invoice No:</span> <span class="field-val">{{ $gp->invoice_no ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Order ID:</span> <span class="field-val">#{{ $gp->order_id }}</span></div>
-                    </div>
-                </td>
-                <td>
-                    <div class="box">
-                        <div class="box-title">Logistics & Vehicle</div>
-                        <div class="field-row"><span class="field-label">Transporter:</span> <span class="field-val">{{ $gp->transporter ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Vehicle Type:</span> <span class="field-val">{{ $gp->vehicle_type ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Vehicle No:</span> <span class="field-val">{{ $gp->vehicle_number ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Driver Name:</span> <span class="field-val">{{ $gp->driver_name ?? '-' }}</span></div>
-                    </div>
-                </td>
-            </tr>
-            <tr>
-                <td style="padding-top: 8px;">
-                    <div class="box">
-                        <div class="box-title">Bilty & Freight Details</div>
-                        <div class="field-row"><span class="field-label">Bilty No:</span> <span class="field-val">{{ $gp->billty_no ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Bilty Date:</span> <span class="field-val">{{ $gp->billty_date ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Bilty Amount:</span> <span class="field-val">Rs. {{ $gp->billty_amount ? number_format($gp->billty_amount, 2) : '0.00' }}</span></div>
-                        <div class="field-row"><span class="field-label">Freight / Rent:</span> <span class="field-val">Rs. {{ $gp->transport_rent ? number_format($gp->transport_rent, 2) : '0.00' }}</span></div>
-                    </div>
-                </td>
-                <td style="padding-top: 8px;">
-                    <div class="box">
-                        <div class="box-title">Dispatch & Issuer</div>
-                        <div class="field-row"><span class="field-label">Dispatch Location:</span> <span class="field-val">{{ $gp->location_name ?? 'N/A' }}</span></div>
-                        <div class="field-row"><span class="field-label">Issued By:</span> <span class="field-val">{{ $gp->issued_by ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Prepared By:</span> <span class="field-val">{{ $gp->prepared_by ?? '-' }}</span></div>
-                        <div class="field-row"><span class="field-label">Payment Account:</span> <span class="field-val">{{ $gp->expense_account_name ?? 'Not Linked' }}</span></div>
-                    </div>
-                </td>
-            </tr>
-        </table>
+        <!-- Stacked Full-Width Information Containers -->
+        <div style="margin-bottom: 8px;">
+            <div class="box" style="margin-bottom: 8px;">
+                <div class="box-title">Customer & Destination Details</div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; padding-right: 12px; border-right: 1.5px solid #000000;">
+                            <div class="field-row"><span class="field-label">Customer Name:</span> <span class="field-val" style="float: right;">{{ $gp->customer_name ?? 'N/A' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row"><span class="field-label">Customer Type:</span> <span class="field-val" style="float: right;">{{ !empty($gp->is_walking_customer) ? 'Walking Customer' : 'Regular Customer' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row" style="border-bottom:none;"><span class="field-label">Delivery Destination:</span> <span class="field-val" style="float: right;">{{ $gp->delivery_city ?? 'N/A' }}</span><div style="clear:both;"></div></div>
+                        </td>
+                        <td style="width: 50%; vertical-align: top; padding-left: 12px;">
+                            <div class="field-row"><span class="field-label">DC Number:</span> <span class="field-val" style="float: right;">{{ $gp->dc_no ?? ($order->dc_no ?? 'N/A') }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row"><span class="field-label">Invoice Number:</span> <span class="field-val" style="float: right;">{{ $gp->invoice_no ?? '-' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row" style="border-bottom:none;"><span class="field-label">Order Reference:</span> <span class="field-val" style="float: right;">#{{ $gp->order_id }}</span><div style="clear:both;"></div></div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+            <div class="box">
+                <div class="box-title">Vehicle & Logistics Details</div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                        <td style="width: 50%; vertical-align: top; padding-right: 12px; border-right: 1.5px solid #000000;">
+                            <div class="field-row"><span class="field-label">Vehicle & Driver:</span> <span class="field-val" style="float: right;">{{ $gp->vehicle_number ?? '-' }} {{ !empty($gp->driver_name) ? '('.$gp->driver_name.')' : '' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row"><span class="field-label">Transporter:</span> <span class="field-val" style="float: right;">{{ $gp->transporter ?? '-' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row" style="border-bottom:none;"><span class="field-label">Vehicle Type:</span> <span class="field-val" style="float: right;">{{ $gp->vehicle_type ?? 'Standard' }}</span><div style="clear:both;"></div></div>
+                        </td>
+                        <td style="width: 50%; vertical-align: top; padding-left: 12px;">
+                            <div class="field-row"><span class="field-label">Bilty No & Date:</span> <span class="field-val" style="float: right;">{{ $gp->billty_no ?? '-' }} {{ $gp->billty_date ? '('.$gp->billty_date.')' : '' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row"><span class="field-label">Freight / Rent:</span> <span class="field-val" style="float: right;">Rs. {{ $gp->transport_rent ? number_format($gp->transport_rent, 2) : '0.00' }}</span><div style="clear:both;"></div></div>
+                            <div class="field-row" style="border-bottom:none;"><span class="field-label">Issued / Prepared By:</span> <span class="field-val" style="float: right;">{{ $gp->issued_by ?? '-' }}{{ !empty($gp->prepared_by) ? ' / ' . $gp->prepared_by : '' }}</span><div style="clear:both;"></div></div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
 
         @php
             $items = $gp->items ?? [];

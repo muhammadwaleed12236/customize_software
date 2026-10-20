@@ -103,9 +103,9 @@
     /* Main Gate Pass Document Container */
     .gp-doc-card {
         background: var(--card-bg);
-        border: 1px solid var(--border-color);
+        border: 2px solid #1e3a5f;
         border-radius: 10px;
-        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
         overflow: hidden;
     }
 
@@ -171,26 +171,48 @@
         color: #f1f5f9;
     }
 
-    /* 4-Grid Information Section (Strict Balanced 2x2 Grid) */
+    /* Stacked Full-Width Information Section */
     .gp-info-grid {
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        grid-template-columns: 1fr;
+        gap: 12px;
         padding: 12px 16px 10px;
         background: #f8fafc;
         border-bottom: 1px solid var(--border-color);
     }
+    .gp-box-content-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+    }
+    .gp-box-subcol:first-child {
+        border-right: 1.5px solid #cbd5e1;
+        padding-right: 16px;
+    }
+    .gp-box-subcol:last-child {
+        padding-left: 16px;
+    }
     @media (max-width: 768px) {
-        .gp-info-grid {
+        .gp-box-content-grid {
             grid-template-columns: 1fr;
+        }
+        .gp-box-subcol:first-child {
+            border-right: none;
+            padding-right: 0;
+            border-bottom: 1px solid #cbd5e1;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+        }
+        .gp-box-subcol:last-child {
+            padding-left: 0;
         }
     }
 
     .gp-info-box {
         background: #ffffff;
-        border: 1px solid #cbd5e1;
+        border: 1.5px solid #94a3b8;
         border-radius: 6px;
-        padding: 10px 12px;
+        padding: 10px 14px;
     }
     .gp-box-title {
         font-size: 0.72rem;
@@ -214,11 +236,34 @@
         justify-content: space-between;
         align-items: center;
         font-size: 0.8rem;
-        padding: 2px 0;
-        border-bottom: 1px dashed #f1f5f9;
+        padding: 4px 0;
+        border-bottom: 1px solid #e2e8f0;
     }
     .gp-data-row:last-child {
         border-bottom: none;
+    }
+
+    .gp-general-remarks {
+        border: 1.5px solid #94a3b8;
+        border-radius: 6px;
+        background: #f8fafc;
+        padding: 8px 12px;
+        margin-top: 8px;
+    }
+    .gp-general-remarks-title {
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--navy-main);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 3px;
+        border-bottom: 1px solid #e2e8f0;
+        padding-bottom: 2px;
+    }
+    .gp-general-remarks-text {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #0f172a;
     }
     .gp-data-label {
         color: #64748b;
@@ -364,9 +409,9 @@
             box-shadow: none !important;
         }
 
-        /* 2. Main Outer Container - Solid 2.5px Bold Black Border */
+        /* 2. Main Outer Container - Solid 2px Bold Black Border */
         .gp-doc-card {
-            border: 2.5px solid #000000 !important;
+            border: 2px solid #000000 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             margin: 0 auto !important;
@@ -379,7 +424,7 @@
         .gp-header-banner {
             background: #ffffff !important;
             color: #000000 !important;
-            border-bottom: 2.5px solid #000000 !important;
+            border-bottom: 2px solid #000000 !important;
             padding: 12px 16px !important;
         }
 
@@ -470,14 +515,27 @@
             margin: 1px !important;
         }
 
-        /* 4. 2-Column Info Grid */
+        /* 4. Full-Width Stacked Info Containers */
         .gp-info-grid {
             display: grid !important;
-            grid-template-columns: 1fr 1fr !important;
-            gap: 12px !important;
-            padding: 12px 16px !important;
-            border-bottom: 2.5px solid #000000 !important;
+            grid-template-columns: 1fr !important;
+            gap: 10px !important;
+            padding: 10px 16px !important;
+            border-bottom: 2px solid #000000 !important;
             background: #ffffff !important;
+        }
+
+        .gp-box-content-grid {
+            display: grid !important;
+            grid-template-columns: 1fr 1fr !important;
+            gap: 0 !important;
+        }
+        .gp-box-subcol:first-child {
+            border-right: 1.5px solid #000000 !important;
+            padding-right: 14px !important;
+        }
+        .gp-box-subcol:last-child {
+            padding-left: 14px !important;
         }
 
         .gp-info-box {
@@ -554,7 +612,7 @@
         .gp-table-custom {
             width: 100% !important;
             border-collapse: collapse !important;
-            border: 2.5px solid #000000 !important;
+            border: 2px solid #000000 !important;
             margin-bottom: 0 !important;
         }
 
@@ -562,6 +620,7 @@
             background-color: #dcdcdc !important;
             color: #000000 !important;
             border: 1.5px solid #000000 !important;
+            border-bottom: 2px solid #000000 !important;
             padding: 8px 10px !important;
             font-size: 11.5px !important;
             font-weight: 900 !important;
@@ -606,7 +665,8 @@
         .gp-table-custom tfoot td {
             background-color: #dcdcdc !important;
             color: #000000 !important;
-            border: 2px solid #000000 !important;
+            border: 1.5px solid #000000 !important;
+            border-top: 2px solid #000000 !important;
             padding: 8px 10px !important;
             font-size: 13px !important;
             font-weight: 900 !important;
@@ -619,7 +679,7 @@
             grid-template-columns: 1fr 1.2fr !important;
             gap: 16px !important;
             padding: 14px 16px 18px 16px !important;
-            border-top: 2.5px solid #000000 !important;
+            border-top: 2px solid #000000 !important;
             background: #ffffff !important;
             page-break-inside: avoid !important;
         }
@@ -659,9 +719,27 @@
         }
 
         .gp-general-remarks {
-            border: 1.5px solid #000000 !important;
+            border: 2px solid #000000 !important;
+            border-radius: 4px !important;
+            padding: 8px 12px !important;
             background: #ffffff !important;
             margin-top: 8px !important;
+        }
+
+        .gp-general-remarks-title {
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            color: #000000 !important;
+            margin-bottom: 3px !important;
+            border-bottom: 1.5px solid #000000 !important;
+            padding-bottom: 2px !important;
+        }
+
+        .gp-general-remarks-text {
+            font-size: 11.5px !important;
+            font-weight: 700 !important;
+            color: #000000 !important;
         }
 
         .gp-sign-row {
@@ -762,58 +840,87 @@
             </div>
         </div>
 
-        <!-- Compact Delivery Challan Information Cards -->
+        <!-- Stacked Delivery Challan Information Cards -->
         <div class="gp-info-grid">
             
-            <!-- Box 1: Customer & Delivery Destination -->
+            <!-- Box 1: Customer & Delivery Destination (Full Width Row) -->
             <div class="gp-info-box">
-                <div class="gp-box-title"><i class="fa fa-user"></i> Customer & Destination</div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Customer Name:</span>
-                    <span class="gp-data-val text-primary">{{ $gp->customer_name ?? 'N/A' }}</span>
-                </div>
-                @if(!empty($gp->is_walking_customer))
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Customer Type:</span>
-                    <span class="badge bg-warning text-dark style-badge" style="font-size:0.68rem;">Walking Customer</span>
-                </div>
-                @endif
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Delivery City:</span>
-                    <span class="gp-data-val">{{ $gp->delivery_city ?? 'N/A' }}</span>
-                </div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">DC / Invoice No:</span>
-                    <span class="gp-data-val">DC: {{ $gp->dc_no ?? ($order->dc_no ?? 'N/A') }} | Inv: {{ $gp->invoice_no ?? '-' }}</span>
-                </div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Order Reference:</span>
-                    <span class="gp-data-val">#{{ $gp->order_id }}</span>
+                <div class="gp-box-title"><i class="fa fa-user"></i> Customer & Destination Details</div>
+                <div class="gp-box-content-grid">
+                    <div class="gp-box-subcol">
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Customer Name:</span>
+                            <span class="gp-data-val text-primary">{{ $gp->customer_name ?? 'N/A' }}</span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Customer Type:</span>
+                            <span class="gp-data-val">
+                                @if(!empty($gp->is_walking_customer))
+                                    <span class="badge bg-warning text-dark style-badge" style="font-size:0.68rem;">Walking Customer</span>
+                                @else
+                                    <span>Regular Customer</span>
+                                @endif
+                            </span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Delivery Destination:</span>
+                            <span class="gp-data-val">{{ $gp->delivery_city ?? 'N/A' }}</span>
+                        </div>
+                    </div>
+                    <div class="gp-box-subcol">
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">DC Number:</span>
+                            <span class="gp-data-val font-monospace">{{ $gp->dc_no ?? ($order->dc_no ?? 'N/A') }}</span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Invoice Number:</span>
+                            <span class="gp-data-val font-monospace">{{ $gp->invoice_no ?? '-' }}</span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Order Reference:</span>
+                            <span class="gp-data-val">#{{ $gp->order_id }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Box 2: Vehicle & Logistics -->
+            <!-- Box 2: Vehicle & Logistics (Full Width Row Below Customer Box) -->
             <div class="gp-info-box">
-                <div class="gp-box-title"><i class="fa fa-truck-moving"></i> Vehicle & Logistics</div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Vehicle & Driver:</span>
-                    <span class="gp-data-val text-uppercase font-monospace fw-bold">{{ $gp->vehicle_number ?? '-' }} ({{ $gp->driver_name ?? '-' }})</span>
-                </div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Transporter:</span>
-                    <span class="gp-data-val">{{ $gp->transporter ?? '-' }}</span>
-                </div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Bilty No / Date:</span>
-                    <span class="gp-data-val font-monospace">{{ $gp->billty_no ?? '-' }} {{ $gp->billty_date ? '('.$gp->billty_date.')' : '' }}</span>
-                </div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Freight / Rent:</span>
-                    <span class="gp-data-val font-monospace text-danger">Rs. {{ $gp->transport_rent ? number_format($gp->transport_rent, 2) : '0.00' }}</span>
-                </div>
-                <div class="gp-data-row">
-                    <span class="gp-data-label">Issued / Prepared By:</span>
-                    <span class="gp-data-val">{{ $gp->issued_by ?? 'N/A' }}</span>
+                <div class="gp-box-title"><i class="fa fa-truck-moving"></i> Vehicle & Logistics Details</div>
+                <div class="gp-box-content-grid">
+                    <div class="gp-box-subcol">
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Vehicle & Driver:</span>
+                            <span class="gp-data-val text-uppercase font-monospace fw-bold">
+                                {{ $gp->vehicle_number ?? '-' }}
+                                @if(!empty($gp->driver_name))
+                                    ({{ $gp->driver_name }})
+                                @endif
+                            </span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Transporter:</span>
+                            <span class="gp-data-val">{{ $gp->transporter ?? '-' }}</span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Vehicle Type:</span>
+                            <span class="gp-data-val">{{ $gp->vehicle_type ?? 'Standard' }}</span>
+                        </div>
+                    </div>
+                    <div class="gp-box-subcol">
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Bilty No & Date:</span>
+                            <span class="gp-data-val font-monospace">{{ $gp->billty_no ?? '-' }} {{ $gp->billty_date ? '('.$gp->billty_date.')' : '' }}</span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Freight / Rent:</span>
+                            <span class="gp-data-val font-monospace text-danger fw-bold">Rs. {{ $gp->transport_rent ? number_format($gp->transport_rent, 2) : '0.00' }}</span>
+                        </div>
+                        <div class="gp-data-row">
+                            <span class="gp-data-label">Issued / Prepared By:</span>
+                            <span class="gp-data-val">{{ $gp->issued_by ?? 'N/A' }}{{ !empty($gp->prepared_by) ? ' / ' . $gp->prepared_by : '' }}</span>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -920,9 +1027,9 @@
                 </div>
 
                 @if(!empty($gp->remarks))
-                <div class="p-2 border rounded bg-light gp-general-remarks">
-                    <div class="small fw-bold text-muted uppercase">General Remarks:</div>
-                    <div class="small text-dark italic">{{ $gp->remarks }}</div>
+                <div class="gp-general-remarks">
+                    <div class="gp-general-remarks-title"><i class="fa fa-comment-dots text-warning me-1"></i> General Remarks</div>
+                    <div class="gp-general-remarks-text">{{ $gp->remarks }}</div>
                 </div>
                 @endif
             </div>
