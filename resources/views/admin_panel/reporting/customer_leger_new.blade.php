@@ -815,8 +815,16 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 
     function getWattVal(str) {
         if (!str) return 0;
-        var m = String(str).match(/(\d+)\s*(?:W|WATT|WATTS)\b/i);
-        return m ? parseFloat(m[1]) : 0;
+        // 1. Digits followed optionally by (BI), (BIFACIAL), (BI-FACIAL), BI, MONO, etc., then W/WATT/WATTS: e.g. 645 (BI) WATTS, 580 (BIFACIAL) W
+        var m = String(str).match(/(\d{2,4})\s*(?:(?:\([^)]{1,25}\)|BI|BIFACIAL|BI-FACIAL|MONO)\s*)*(?:W|WATT|WATTS)\b/i);
+        if (m) return parseFloat(m[1]);
+        // 2. Direct match digits then W/WATT/WATTS: e.g. 550W, 645 WATTS
+        var m2 = String(str).match(/(\d{2,4})\s*(?:W|WATT|WATTS)\b/i);
+        if (m2) return parseFloat(m2[1]);
+        // 3. W/WATT/WATTS then digits: e.g. WATTS 645
+        var m3 = String(str).match(/(?:W|WATT|WATTS)\s*(\d{2,4})\b/i);
+        if (m3) return parseFloat(m3[1]);
+        return 0;
     }
 
     function td(txt, align, attrs) {
@@ -1034,7 +1042,7 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
                                 itemDetailsHtml += '<br><small style="color:#ea580c;">↳ Disc: &minus;' + fmt(item.item_discount) + '</small>';
                             }
 
-                            var watt = getWattVal(item.item_name) || getWattVal(item.item_name_urdu) || n(item.watt);
+                            var watt = n(item.watt) || getWattVal(item.item_name) || getWattVal(item.item_name_urdu);
                             var rateStr  = '';
                             var priceStr = '';
 

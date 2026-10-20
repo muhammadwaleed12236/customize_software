@@ -510,10 +510,11 @@ class ReportingController extends Controller
                 'sale_items.product_id as product_id',
                 'sale_items.sales_qty  as qty',
                 'sale_items.discount_amount as item_discount',
+                DB::raw('COALESCE(sale_items.watt, 0) as watt'),
                 DB::raw('CASE 
+                    WHEN sale_items.retail_price > 0 THEN sale_items.retail_price 
                     WHEN sale_items.sales_price > 0 THEN sale_items.sales_price 
                     WHEN sale_items.sales_qty > 0 AND (sale_items.amount + sale_items.discount_amount) > 0 THEN ROUND((sale_items.amount + sale_items.discount_amount) / sale_items.sales_qty, 2)
-                    WHEN sale_items.retail_price > 0 THEN sale_items.retail_price
                     WHEN products.price > 0 THEN products.price
                     ELSE 0 END as rate'),
                 'sale_items.amount  as line_amount'
@@ -582,6 +583,7 @@ class ReportingController extends Controller
                 'qty'           => $qty,
                 'remaining_qty' => floatval($remQty),
                 'rate'          => $rate,
+                'watt'          => floatval($row->watt ?? 0),
                 'item_discount' => floatval($row->item_discount ?? 0),
                 'line_amount'   => $lineAmt,
                 'retail_price'  => floatval($row->retail_price ?? 0),
@@ -936,6 +938,7 @@ class ReportingController extends Controller
                         'qty'          => $item['qty'],
                         'remaining_qty'=> $item['remaining_qty'] ?? 0,
                         'rate'         => $item['rate'],
+                        'watt'         => floatval($item['watt'] ?? 0),
                         'item_discount'=> $item['item_discount'] ?? 0,
                         'line_amount'  => $item['line_amount']   ?? 0,
                         'policy_price' => $item['policy_price'] ?? 0,
