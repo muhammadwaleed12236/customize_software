@@ -3447,11 +3447,12 @@ public function finddc($invoice)
             $newNet      = $newSubtotal - $newDisc;
 
             DB::table('sales')->where('id', $saleId)->update([
-                'total_bill_amount'   => $newSubtotal,
-                'total_extradiscount' => $newDisc,
-                'total_net'           => $newNet,
-                'total_items'         => $newQty,
-                'updated_at'          => now(),
+                'sub_total1'      => $newSubtotal,
+                'sub_total2'      => $newSubtotal,
+                'discount_amount' => $newDisc,
+                'total_net'       => $newNet,
+                'total_balance'   => $newNet,
+                'updated_at'      => now(),
             ]);
 
             // ------------------------------------------------------------------
@@ -3501,7 +3502,10 @@ public function finddc($invoice)
 
                 CustomerLedger::create([
                     'customer_id'      => $customer_id,
-                    'admin_or_user_id' => auth()->id(),
+                    'transaction_type' => 'Sale Return',
+                    'reference_id'     => $saleReturn->id,
+                    'description'      => 'Sale Return #' . ($saleReturn->reference ?? $saleReturn->id),
+                    'admin_or_user_id' => auth()->id() ?? 1,
                     'previous_balance' => $prevBal,
                     'total_credit'     => (float)$request->total_net,
                     'closing_balance'  => $newClosing,
