@@ -90,7 +90,7 @@
       <input type="hidden" name="sale_id" value="{{ $sale->id }}">
       <input type="hidden" name="customer_id" value="{{ $sale->customer_id }}">
       <input type="hidden" id="branch_id" name="branch_id" value="{{ $sale->branch_id }}">
-      <input type="hidden" id="warehouse_id" name="warehouse_id" value="{{ $sale->saleItems->first()->warehouse_id ?? 1 }}">
+      <input type="hidden" id="warehouse_id" name="warehouse_id" value="{{ $sale->saleItems->first()->warehouse_id ?? '' }}">
 
       {{-- HEADER --}}
       <div class="d-flex justify-content-between align-items-center p-2 border-bottom">

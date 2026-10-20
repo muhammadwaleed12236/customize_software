@@ -3800,6 +3800,22 @@ class ReportingController extends Controller
             $srQty = (float) $sr->qty;
             $srPrice = (float) $sr->per_price;
             $srTotal = (float) ($sr->per_total > 0 ? $sr->per_total : ($srQty * $srPrice));
+
+            // Resolve actual warehouse or shop name
+            $srWhName = 'Shop';
+            if (!empty($sr->sale_id)) {
+                $srItem = DB::table('sale_items')
+                    ->leftJoin('warehouses', 'sale_items.warehouse_id', '=', 'warehouses.id')
+                    ->leftJoin('branches', 'sale_items.branch_id', '=', 'branches.id')
+                    ->where('sale_items.sale_id', $sr->sale_id)
+                    ->where('sale_items.product_id', $productId)
+                    ->select('warehouses.warehouse_name', 'branches.name as branch_name')
+                    ->first();
+                if ($srItem) {
+                    $srWhName = !empty($srItem->warehouse_name) ? $srItem->warehouse_name : ($srItem->branch_name ? "{$srItem->branch_name} (Shop)" : 'Shop');
+                }
+            }
+
             $events[] = [
                 'datetime'      => $sr->created_at,
                 'date'          => date('d-M-Y H:i', strtotime($sr->created_at)),
@@ -3808,7 +3824,7 @@ class ReportingController extends Controller
                 'icon'          => 'fa-undo',
                 'ref_no'        => $sr->reference ?? 'SR',
                 'party'         => $sr->customer ?? 'Customer Return',
-                'warehouse'     => 'Main Store',
+                'warehouse'     => $srWhName,
                 'in_qty'        => $srQty,
                 'in_price'      => $srPrice,
                 'in_total'      => $srTotal,

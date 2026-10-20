@@ -3277,16 +3277,16 @@ public function finddc($invoice)
 
             // ------------------------------------------------------------------
             // ERP STAGE DETECTION
-            // Stage A: No DC exists            → affect Ledger + Accounts only
-            // Stage B: DC exists, no Gate Pass → affect Ledger + Accounts + reserved_qty + DC items
-            // Stage C: Gate Pass exists         → affect Ledger + Accounts + physical stock + DC + GP items
             // ------------------------------------------------------------------
+            $sale = DB::table('sales')->where('id', $saleId)->first();
+            $isDraftSale = ($sale && $sale->status === 'draft_posted');
+
             $dc = DB::table('warehouse_orders')
                 ->where('sale_id', $saleId)
                 ->first();
 
             $gatepass  = null;
-            $movements = []; // physical stock movement records, only populated in Stage C
+            $movements = []; // physical stock movement records
 
             if ($dc) {
                 $gatepass = DB::table('outward_gatepasses')
@@ -3295,7 +3295,9 @@ public function finddc($invoice)
             }
 
             // ------------------------------------------------------------------
-            // STAGE B: DC exists, NO Gate Pass → reduce reserved_qty + update DC
+            // STAGE B: DC exists, NO Gate Pass (Goods not yet physically dispatched)
+            // Stock was only reserved (reserved_qty), NOT physically deducted.
+            // Release reserved_qty and update DC quantities.
             // ------------------------------------------------------------------
             if ($dc && ! $gatepass) {
                 foreach ($returnMap as $pid => $retQty) {
@@ -3327,11 +3329,24 @@ public function finddc($invoice)
             }
 
             // ------------------------------------------------------------------
-            // STAGE C: Gate Pass exists → restore physical stock + update GP + DC
+            // PHYSICAL STOCK RESTORATION:
+            // Case 1: Gate Pass exists ($dc && $gatepass) -> goods had left warehouse on Gate Pass.
+            // Case 2: Direct Sale (! $dc && ! $isDraftSale) -> goods were delivered and deducted
+            //         immediately at checkout (ajaxPost / counter sale).
+            // In BOTH cases, physical goods are returned to inventory!
             // ------------------------------------------------------------------
-            if ($dc && $gatepass) {
+            $isPhysicalReturn = ($dc && $gatepass) || (! $dc && ! $isDraftSale);
+
+            if ($isPhysicalReturn) {
                 foreach ($returnMap as $pid => $retQty) {
-                    // Restore physical stock in stocks table
+                    // Determine which warehouse the product was originally sold from
+                    $origSaleItem = DB::table('sale_items')
+                        ->where('sale_id', $saleId)
+                        ->where('product_id', $pid)
+                        ->first();
+                    $targetWhId = $origSaleItem ? $origSaleItem->warehouse_id : ($warehouseId > 0 ? $warehouseId : null);
+
+                    // Restore physical stock in stocks table (branch-level)
                     $affected = DB::table('stocks')
                         ->where('product_id', $pid)
                         ->where('branch_id', $branchId)
@@ -3343,26 +3358,30 @@ public function finddc($invoice)
                         DB::table('stocks')->insert([
                             'product_id'   => $pid,
                             'branch_id'    => $branchId,
-                            'warehouse_id' => $warehouseId > 0 ? $warehouseId : 1,
-                            'qty'          => (int)$retQty,
+                            'warehouse_id' => $targetWhId,
+                            'qty'          => (float)$retQty,
                             'reserved_qty' => 0,
                             'created_at'   => now(),
                             'updated_at'   => now(),
                         ]);
                     }
 
-                    // Restore warehouse_stocks
-                    $whId   = $warehouseId > 0 ? $warehouseId : null;
-                    $wsQry  = DB::table('warehouse_stocks')
+                    // Restore warehouse_stocks (unified location table: null = shop, id = godown)
+                    $wsQry = DB::table('warehouse_stocks')
                         ->where('product_id', $pid)
                         ->where('branch_id', $branchId);
-                    $whId ? $wsQry->where('warehouse_id', $whId) : $wsQry->whereNull('warehouse_id');
+                    if ($targetWhId) {
+                        $wsQry->where('warehouse_id', $targetWhId);
+                    } else {
+                        $wsQry->whereNull('warehouse_id');
+                    }
+
                     if ($wsQry->update(['quantity' => DB::raw('quantity + ' . (float)$retQty), 'updated_at' => now()]) === 0) {
                         DB::table('warehouse_stocks')->insert([
                             'product_id'   => $pid,
                             'branch_id'    => $branchId,
-                            'warehouse_id' => $whId,
-                            'quantity'     => (int)$retQty,
+                            'warehouse_id' => $targetWhId,
+                            'quantity'     => (float)$retQty,
                             'price'        => null,
                             'remarks'      => 'Sale Return stock restore',
                             'created_at'   => now(),
@@ -3370,51 +3389,49 @@ public function finddc($invoice)
                         ]);
                     }
 
-                    // Reduce Gate Pass items JSON
-                    if (! empty($gatepass->items)) {
-                        $gpItems = json_decode($gatepass->items, true) ?? [];
-                        foreach ($gpItems as &$gpItem) {
-                            if ((int)($gpItem['product_id'] ?? 0) === $pid) {
-                                $gpItem['qty']    = max(0, (float)$gpItem['qty'] - $retQty);
-                                $gpItem['amount'] = $gpItem['qty'] * (float)($gpItem['retail_price'] ?? 0);
+                    // If DC and Gate Pass exist, also reduce Gate Pass and DC line-item qtys
+                    if ($dc && $gatepass) {
+                        if (! empty($gatepass->items)) {
+                            $gpItems = json_decode($gatepass->items, true) ?? [];
+                            foreach ($gpItems as &$gpItem) {
+                                if ((int)($gpItem['product_id'] ?? 0) === $pid) {
+                                    $gpItem['qty']    = max(0, (float)$gpItem['qty'] - $retQty);
+                                    $gpItem['amount'] = $gpItem['qty'] * (float)($gpItem['retail_price'] ?? 0);
+                                }
                             }
+                            unset($gpItem);
+                            DB::table('outward_gatepasses')
+                                ->where('id', $gatepass->id)
+                                ->update(['items' => json_encode($gpItems), 'updated_at' => now()]);
                         }
-                        unset($gpItem);
-                        DB::table('outward_gatepasses')
-                            ->where('id', $gatepass->id)
-                            ->update(['items' => json_encode($gpItems), 'updated_at' => now()]);
+
+                        $dcItem = DB::table('warehouse_order_items')
+                            ->where('warehouse_order_id', $dc->id)
+                            ->where('product_id', $pid)
+                            ->first();
+                        if ($dcItem) {
+                            $newQty = max(0, (float)$dcItem->qty - $retQty);
+                            DB::table('warehouse_order_items')
+                                ->where('id', $dcItem->id)
+                                ->update([
+                                    'qty'        => $newQty,
+                                    'amount'     => $newQty * (float)($dcItem->retail_price ?? 0),
+                                    'updated_at' => now(),
+                                ]);
+                        }
+
+                        $this->updateWarehouseOrderItemsJson($dc->id, $pid, $retQty);
                     }
 
-                    // Reduce DC line-item qty
-                    $dcItem = DB::table('warehouse_order_items')
-                        ->where('warehouse_order_id', $dc->id)
-                        ->where('product_id', $pid)
-                        ->first();
-                    if ($dcItem) {
-                        $newQty = max(0, (float)$dcItem->qty - $retQty);
-                        DB::table('warehouse_order_items')
-                            ->where('id', $dcItem->id)
-                            ->update([
-                                'qty'        => $newQty,
-                                'amount'     => $newQty * (float)($dcItem->retail_price ?? 0),
-                                'updated_at' => now(),
-                            ]);
-                    }
-
-                    // Update DC JSON items column
-                    $this->updateWarehouseOrderItemsJson($dc->id, $pid, $retQty);
-                }
-
-                // Insert physical stock movement records (goods came back)
-                $movements = [];
-                foreach ($returnMap as $pid => $retQty) {
+                    // Stock movement entry
                     $movements[] = [
                         'product_id' => $pid,
+                        'branch_id'  => $branchId,
                         'type'       => 'in',
                         'qty'        => $retQty,
                         'ref_type'   => 'SALE_RETURN',
                         'ref_id'     => null, // will be updated after SalesReturn saved
-                        'note'       => 'Sale return — Gate Pass stage',
+                        'note'       => 'Sale return ' . ($sale ? $sale->invoice_no : '') . ($targetWhId ? " (Warehouse: {$targetWhId})" : " (Shop Stock)"),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
@@ -3455,8 +3472,8 @@ public function finddc($invoice)
             $saleReturn->return_note         = $request->return_note;
             $saleReturn->save();
 
-            // Update movement ref_id now that SalesReturn is persisted (Stage C only)
-            if ($dc && $gatepass && ! empty($movements)) {
+            // Update movement ref_id now that SalesReturn is persisted
+            if (! empty($movements)) {
                 foreach ($movements as &$mv) {
                     $mv['ref_id'] = $saleReturn->id;
                 }
