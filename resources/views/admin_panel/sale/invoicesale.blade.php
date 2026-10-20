@@ -465,23 +465,31 @@ $displayClosing = 0;
 $isCreditCustomer = ($sale->party_type ?? '') === 'credit';
 
 if($isCreditCustomer && isset($sale->customer)){
-    $ledgerData = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
-        ->latest('id')
+    // 1. Get the customer's previous balance prior to this specific sale invoice
+    $saleLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
+        ->where('reference_id', (string)$sale->id)
+        ->where('transaction_type', 'Sale')
         ->first();
-    
-    if($ledgerData){
-        $displayPrevious = floatval($ledgerData->previous_balance ?? 0);
-        $displayClosing = floatval($ledgerData->closing_balance ?? 0);
+
+    if ($saleLedger) {
+        $displayPrevious = floatval($saleLedger->previous_balance ?? 0);
+    } elseif (isset($sale->previous_balance) && $sale->previous_balance !== null) {
+        $displayPrevious = floatval($sale->previous_balance ?? 0);
     } else {
         $displayPrevious = floatval($sale->customer->opening_balance ?? 0);
-        $displayClosing = $netTotal - $totalReceived + $displayPrevious;
     }
+
+    // 2. Current overall balance from ledger
+    $lastLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
+        ->latest('id')
+        ->first();
+    $displayClosing = $lastLedger ? floatval($lastLedger->closing_balance ?? 0) : ($netTotal - $totalReceived + $displayPrevious);
 } else {
     $displayClosing = max(0, $netTotal - $totalReceived);
 }
 
 $grandTotal = $netTotal + $displayPrevious;
-$balanceDue = $displayClosing;
+$balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
 @endphp
 
 <div class="container-fluid mt-3">

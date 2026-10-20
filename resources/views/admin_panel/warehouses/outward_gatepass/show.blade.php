@@ -317,142 +317,367 @@
         text-transform: uppercase;
     }
 
-    /* Precision A4 Print Formatting - Black & White */
+    /* ==========================================================================
+       ULTRA SHARP, HIGH-CONTRAST BOLD PRINT STYLES FOR A4 GATE PASS
+       ========================================================================== */
     @media print {
         @page {
             size: A4 portrait;
-            margin: 6mm 8mm;
+            margin: 8mm 10mm;
         }
+
+        /* 1. Hide all website layout elements (Navbars, sidebars, headers, footers, alerts) */
+        header, footer, nav, aside,
+        .navbar, .main-header, .main-sidebar, .sidebar, .app-header, .app-sidebar,
+        .top_nav, .nav-bottom, .footer_area, .footer,
+        .gp-action-bar, .no-print, .alert, .modal, .modal-backdrop {
+            display: none !important;
+            visibility: hidden !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
         html, body {
             background: #ffffff !important;
             color: #000000 !important;
-            font-size: 11px !important;
-            padding: 0 !important;
+            font-size: 12px !important;
+            font-family: 'Segoe UI', Tahoma, Arial, sans-serif !important;
             margin: 0 !important;
+            padding: 0 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
         }
+
+        .main-content, .content-wrapper, .container-fluid, .gp-view-wrapper {
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            background: #ffffff !important;
+        }
+
+        /* Force pure pitch black on all text, borders and symbols */
         * {
             color: #000000 !important;
-            border-color: #000000 !important;
             text-shadow: none !important;
-        }
-        .no-print, .alert {
-            display: none !important;
-        }
-        .gp-view-wrapper {
-            max-width: 100% !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            width: 100% !important;
-        }
-        .gp-doc-card {
-            border: 1px solid #000000 !important;
             box-shadow: none !important;
+        }
+
+        /* 2. Main Outer Container - Solid 2.5px Bold Black Border */
+        .gp-doc-card {
+            border: 2.5px solid #000000 !important;
             border-radius: 0 !important;
+            box-shadow: none !important;
+            margin: 0 auto !important;
+            width: 100% !important;
+            background: #ffffff !important;
             page-break-inside: avoid;
         }
+
+        /* 3. Header Banner */
         .gp-header-banner {
             background: #ffffff !important;
             color: #000000 !important;
-            border-bottom: 2px solid #000000 !important;
-            padding: 10px 14px !important;
+            border-bottom: 2.5px solid #000000 !important;
+            padding: 12px 16px !important;
         }
-        .gp-header-banner *, .gp-company-brand, .gp-company-brand i, .gp-meta-number, .gp-meta-label {
+
+        .gp-company-brand {
+            font-size: 22px !important;
+            font-weight: 900 !important;
             color: #000000 !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+            line-height: 1.2 !important;
         }
-        .gp-doc-tag, .gp-pill-meta {
-            border: 1px solid #000000 !important;
+        .gp-company-brand i {
+            display: none !important;
+        }
+
+        .gp-header-banner .small {
+            font-size: 11px !important;
+            font-weight: 700 !important;
             color: #000000 !important;
+            margin-top: 3px !important;
+        }
+
+        .gp-doc-tag {
+            display: inline-block !important;
+            border: 1.5px solid #000000 !important;
+            background: #000000 !important;
+            color: #ffffff !important;
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            padding: 3px 10px !important;
+            border-radius: 3px !important;
+            letter-spacing: 0.5px !important;
+            text-transform: uppercase !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .gp-location-text {
+            display: inline-block !important;
+            border: 1.5px solid #000000 !important;
+            background: #f0f0f0 !important;
+            color: #000000 !important;
+            font-size: 11px !important;
+            font-weight: 800 !important;
+            padding: 2px 8px !important;
+            border-radius: 3px !important;
+            margin-left: 5px !important;
+        }
+
+        /* Top Right Meta Box */
+        .gp-header-meta-box {
+            text-align: right !important;
+            border: 2px solid #000000 !important;
+            background: #f7f7f7 !important;
+            padding: 6px 12px !important;
+            border-radius: 4px !important;
+            display: inline-block !important;
+            min-width: 200px !important;
+        }
+
+        .gp-meta-label {
+            font-size: 10px !important;
+            font-weight: 900 !important;
+            color: #000000 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 1px !important;
+            display: block !important;
+        }
+
+        .gp-meta-number {
+            font-size: 20px !important;
+            font-weight: 900 !important;
+            color: #000000 !important;
+            font-family: 'Consolas', 'Monaco', monospace !important;
+            line-height: 1.2 !important;
+            margin: 2px 0 4px 0 !important;
+        }
+
+        .gp-pill-meta {
+            display: inline-block !important;
+            border: 1.5px solid #000000 !important;
             background: #ffffff !important;
+            color: #000000 !important;
+            font-size: 10.5px !important;
+            font-weight: 800 !important;
+            padding: 2px 6px !important;
+            border-radius: 3px !important;
+            margin: 1px !important;
         }
+
+        /* 4. 2-Column Info Grid */
         .gp-info-grid {
             display: grid !important;
             grid-template-columns: 1fr 1fr !important;
-            gap: 8px !important;
-            padding: 8px 12px !important;
+            gap: 12px !important;
+            padding: 12px 16px !important;
+            border-bottom: 2.5px solid #000000 !important;
             background: #ffffff !important;
-            border-bottom: 1px solid #000000 !important;
         }
+
         .gp-info-box {
-            padding: 6px 8px !important;
-            border: 1px solid #000000 !important;
+            border: 2px solid #000000 !important;
+            border-radius: 4px !important;
+            padding: 10px 12px !important;
             background: #ffffff !important;
         }
+
         .gp-box-title {
-            font-size: 0.75rem !important;
-            font-weight: bold !important;
+            font-size: 12px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
             color: #000000 !important;
-            border-bottom: 1px solid #000000 !important;
-            margin-bottom: 4px !important;
-            padding-bottom: 2px !important;
+            background: #e8e8e8 !important;
+            border-bottom: 2px solid #000000 !important;
+            padding: 4px 8px !important;
+            margin: -10px -12px 10px -12px !important;
+            letter-spacing: 0.5px !important;
+            border-radius: 2px 2px 0 0 !important;
         }
         .gp-box-title i {
-            color: #000000 !important;
+            display: none !important;
         }
+
         .gp-data-row {
-            font-size: 0.78rem !important;
-            padding: 2px 0 !important;
-            border-bottom: 1px dashed #000000 !important;
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 4px 0 !important;
+            border-bottom: 1.5px solid #000000 !important;
+            font-size: 11.5px !important;
+            line-height: 1.4 !important;
         }
-        .gp-data-label, .gp-data-val, .gp-section-heading {
+        .gp-data-row:last-child {
+            border-bottom: none !important;
+        }
+
+        .gp-data-label {
+            font-weight: 800 !important;
             color: #000000 !important;
-            font-weight: bold !important;
+            font-size: 11px !important;
+            text-transform: uppercase !important;
         }
+
+        .gp-data-val {
+            font-weight: 900 !important;
+            color: #000000 !important;
+            font-size: 12px !important;
+            text-align: right !important;
+        }
+
+        /* 5. Itemized Goods Manifest Table */
         .gp-manifest-section {
-            padding: 10px 12px !important;
+            padding: 12px 16px !important;
         }
+
+        .gp-section-heading {
+            font-size: 13px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            color: #000000 !important;
+            margin-bottom: 8px !important;
+            letter-spacing: 0.5px !important;
+        }
+        .gp-section-heading i {
+            display: none !important;
+        }
+
+        .table-responsive {
+            overflow: visible !important;
+        }
+
         .gp-table-custom {
-            border: 1px solid #000000 !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2.5px solid #000000 !important;
+            margin-bottom: 0 !important;
         }
+
         .gp-table-custom thead th {
-            background: #ffffff !important;
+            background-color: #dcdcdc !important;
             color: #000000 !important;
-            border: 1px solid #000000 !important;
-            padding: 5px 8px !important;
-            font-size: 0.75rem !important;
-            font-weight: bold !important;
+            border: 1.5px solid #000000 !important;
+            padding: 8px 10px !important;
+            font-size: 11.5px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
         }
+
         .gp-table-custom tbody td {
-            padding: 4px 8px !important;
-            font-size: 0.8rem !important;
+            border: 1.5px solid #000000 !important;
+            padding: 7px 10px !important;
+            font-size: 12px !important;
+            font-weight: 700 !important;
             color: #000000 !important;
-            border: 1px solid #000000 !important;
+            vertical-align: middle !important;
         }
+
+        .gp-table-custom tbody td .fw-bold {
+            font-size: 13px !important;
+            font-weight: 900 !important;
+            color: #000000 !important;
+        }
+
         .gp-table-custom tbody td code {
+            font-family: 'Consolas', monospace !important;
+            font-size: 12px !important;
+            font-weight: 800 !important;
             background: transparent !important;
-            color: #000000 !important;
             border: none !important;
+            color: #000000 !important;
+            padding: 0 !important;
         }
+
+        .gp-table-custom tbody td .badge {
+            background: transparent !important;
+            border: none !important;
+            color: #000000 !important;
+            font-size: 12px !important;
+            font-weight: 800 !important;
+            padding: 0 !important;
+        }
+
         .gp-table-custom tfoot td {
-            padding: 5px 8px !important;
-            font-size: 0.82rem !important;
-            background: #ffffff !important;
+            background-color: #dcdcdc !important;
             color: #000000 !important;
-            border: 1px solid #000000 !important;
+            border: 2px solid #000000 !important;
+            padding: 8px 10px !important;
+            font-size: 13px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
         }
+
+        /* 6. Bottom Grid (Notes & Signatures) */
         .gp-bottom-grid {
-            padding: 8px 12px 14px !important;
-            gap: 14px !important;
-            page-break-inside: avoid;
-        }
-        .gp-sign-box {
-            margin-top: 25px !important;
-            font-size: 0.72rem !important;
-            color: #000000 !important;
-            border-top: 1px solid #000000 !important;
-        }
-        .gp-notes-card {
-            padding: 6px 8px !important;
+            display: grid !important;
+            grid-template-columns: 1fr 1.2fr !important;
+            gap: 16px !important;
+            padding: 14px 16px 18px 16px !important;
+            border-top: 2.5px solid #000000 !important;
             background: #ffffff !important;
-            border: 1px solid #000000 !important;
+            page-break-inside: avoid !important;
         }
+
+        .gp-notes-card {
+            border: 2px solid #000000 !important;
+            border-radius: 4px !important;
+            padding: 10px 12px !important;
+            background: #ffffff !important;
+            min-height: 85px !important;
+        }
+
         .gp-notes-title {
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            text-transform: uppercase !important;
             color: #000000 !important;
-            font-weight: bold !important;
+            margin-bottom: 6px !important;
+            border-bottom: 1.5px solid #000000 !important;
+            padding-bottom: 3px !important;
         }
+        .gp-notes-title i {
+            display: none !important;
+        }
+
         textarea#packingNotes {
+            display: none !important;
+        }
+
+        .gp-print-notes {
+            display: block !important;
+            font-size: 11.5px !important;
+            font-weight: 700 !important;
             color: #000000 !important;
+            min-height: 45px !important;
+            white-space: pre-wrap !important;
+        }
+
+        .gp-general-remarks {
+            border: 1.5px solid #000000 !important;
+            background: #ffffff !important;
+            margin-top: 8px !important;
+        }
+
+        .gp-sign-row {
+            margin-top: 35px !important;
+        }
+
+        .gp-sign-box {
+            border-top: 2px solid #000000 !important;
+            margin-top: 25px !important;
+            padding-top: 6px !important;
+            text-align: center !important;
+            font-size: 11px !important;
+            font-weight: 900 !important;
+            color: #000000 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
         }
     }
 </style>
@@ -518,7 +743,7 @@
                     @endif
                     <div class="d-flex align-items-center gap-2 mt-2 flex-wrap">
                         <span class="gp-doc-tag"><i class="fa fa-file-invoice me-1"></i> Delivery Challan & Outward Gate Pass</span>
-                        <span class="small text-white-50"><i class="fa fa-location-dot me-1 text-warning"></i> Location: <strong>{{ $gp->location_name ?? 'Head Office' }}</strong></span>
+                        <span class="small text-white-50 gp-location-text"><i class="fa fa-location-dot me-1 text-warning"></i> Location: <strong>{{ $gp->location_name ?? 'Head Office' }}</strong></span>
                     </div>
                 </div>
                 <div class="col-md-5 text-md-end mt-2 mt-md-0">
@@ -687,6 +912,7 @@
                 <div class="gp-notes-card mb-2">
                     <div class="gp-notes-title"><i class="fa fa-pen-to-square"></i> Packing & Handling Notes</div>
                     <textarea id="packingNotes" rows="2" class="form-control border-0 bg-transparent p-0 small" placeholder="Enter packing instructions or special handling note...">{{ old('packing_notes', $gp->packing_notes ?? '') }}</textarea>
+                    <div class="gp-print-notes">{{ !empty($gp->packing_notes) ? $gp->packing_notes : '' }}</div>
                     <div class="mt-2 no-print d-flex align-items-center gap-2">
                         <button id="savePacking" class="gp-btn gp-btn-navy py-1 px-3" style="font-size:0.75rem;">Save Notes</button>
                         <span id="packingStatus" class="text-success small fw-bold" style="display:none">✔ Saved</span>
@@ -694,7 +920,7 @@
                 </div>
 
                 @if(!empty($gp->remarks))
-                <div class="p-2 border rounded bg-light">
+                <div class="p-2 border rounded bg-light gp-general-remarks">
                     <div class="small fw-bold text-muted uppercase">General Remarks:</div>
                     <div class="small text-dark italic">{{ $gp->remarks }}</div>
                 </div>
@@ -703,7 +929,7 @@
 
             <!-- Right: Official Authorization Signatures -->
             <div>
-                <div class="row g-3 text-center align-items-end" style="margin-top: 15px;">
+                <div class="row g-3 text-center align-items-end gp-sign-row" style="margin-top: 15px;">
                     <div class="col-4">
                         <div class="gp-sign-box">
                             Driver Signature

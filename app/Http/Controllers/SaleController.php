@@ -3422,38 +3422,11 @@ public function finddc($invoice)
             }
 
             // ------------------------------------------------------------------
-            // ALL STAGES: Reduce original sale_items qty, recalculate sale totals
+            // NOTE: Original sale_items and sales header totals are kept intact
+            // to maintain historical invoice integrity, reprint capability, and
+            // accurate Stock Movement Ledger (Cardex) tracking.
+            // Returns are tracked in sales_returns table and customer ledger.
             // ------------------------------------------------------------------
-            foreach ($returnMap as $pid => $retQty) {
-                DB::table('sale_items')
-                    ->where('sale_id', $saleId)
-                    ->where('product_id', $pid)
-                    ->update([
-                        'sales_qty'  => DB::raw('GREATEST(0, sales_qty - ' . (float)$retQty . ')'),
-                        'amount'     => DB::raw('GREATEST(0, sales_qty - ' . (float)$retQty . ') * retail_price'),
-                        'updated_at' => now(),
-                    ]);
-            }
-
-            // Recalculate sale header totals from updated sale_items
-            $sit = DB::table('sale_items')
-                ->where('sale_id', $saleId)
-                ->selectRaw('SUM(amount) as subtotal, SUM(sales_qty) as total_qty, SUM(discount_amount) as total_disc')
-                ->first();
-
-            $newSubtotal = (float)($sit->subtotal  ?? 0);
-            $newQty      = (float)($sit->total_qty ?? 0);
-            $newDisc     = (float)($sit->total_disc ?? 0);
-            $newNet      = $newSubtotal - $newDisc;
-
-            DB::table('sales')->where('id', $saleId)->update([
-                'sub_total1'      => $newSubtotal,
-                'sub_total2'      => $newSubtotal,
-                'discount_amount' => $newDisc,
-                'total_net'       => $newNet,
-                'total_balance'   => $newNet,
-                'updated_at'      => now(),
-            ]);
 
             // ------------------------------------------------------------------
             // Create SalesReturn record
@@ -3913,6 +3886,17 @@ public function finddc($invoice)
         $sale_customer = $sale->customer;
         $partyType = $sale->party_type ?? $sale->partyType ?? (!empty($sale->sub_customer) ? 'walking' : 'credit');
 
+        // Ensure accurate previous_balance on sale (from the initial ledger entry before this sale)
+        if ($sale->customer_id) {
+            $initialLedger = CustomerLedger::where('customer_id', $sale->customer_id)
+                ->where('reference_id', (string)$sale->id)
+                ->where('transaction_type', 'Sale')
+                ->first();
+            if ($initialLedger) {
+                $sale->previous_balance = (float)$initialLedger->previous_balance;
+            }
+        }
+
         return view('admin_panel.sale.add_sale222', [
             'warehouse'          => $warehouse,
             'allWarehouses'      => $allWarehouses,
@@ -4045,6 +4029,19 @@ public function finddc($invoice)
                     }
                 }
 
+                // Preserve true original previous balance prior to this invoice
+                $isSameCustomer = ($customerId && (int)$customerId === (int)$sale->customer_id);
+                $initialLedger = $isSameCustomer 
+                    ? CustomerLedger::where('customer_id', $sale->customer_id)
+                        ->where('reference_id', (string)$sale->id)
+                        ->where('transaction_type', 'Sale')
+                        ->first()
+                    : null;
+
+                $prevBalanceToSave = $initialLedger 
+                    ? (float)$initialLedger->previous_balance 
+                    : ($isSameCustomer ? floatval($sale->previous_balance ?? 0) : floatval($request->input('previousBalance', 0)));
+
                 $sale->update([
                     'branch_id'           => $branchId,
                     'customer_id'         => ($partyType === 'walking' ? null : ($customerId ?: $sale->customer_id)),
@@ -4060,7 +4057,7 @@ public function finddc($invoice)
                     'additional_discount' => $newAddDiscount,
                     'extra_charges'       => $newExtraCharges,
                     'total_net'           => $newTotal,
-                    'previous_balance'    => floatval($request->input('previousBalance', $sale->previous_balance)),
+                    'previous_balance'    => $prevBalanceToSave,
                     'total_balance'       => $newTotal,
                     'created_at'          => $saleDateTime,
                 ]);

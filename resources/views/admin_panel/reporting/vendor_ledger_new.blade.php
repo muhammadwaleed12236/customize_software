@@ -100,7 +100,7 @@
                     <button id="waShareBtn" onclick="shareWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
-                    <button onclick="window.print()" class="btn btn-sm btn-outline-light font-weight-bold">
+                    <button onclick="printVendorReferenceLedger()" class="btn btn-sm btn-outline-light font-weight-bold">
                         <i class="fas fa-print mr-1"></i> Print
                     </button>
                     <button onclick="showExportOptions()" class="btn btn-sm btn-light font-weight-bold text-dark border">
@@ -230,6 +230,9 @@
 
             </div>{{-- /ledgerBox --}}
 
+            {{-- 4.5 Dedicated Reference Print Container (Matches Reference Ledger Exactly) --}}
+            <div id="referencePrintContainer"></div>
+
         </div>
     </div>
 </div>
@@ -319,9 +322,69 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 /* Toggle Details CSS */
 #ledgerTable.hide-details .detail-row { display: none !important; }
 
+/* Reference Print Container Styles */
+#referencePrintContainer {
+    display: none;
+}
+
 @media print {
-    .card, button, form, #printBtnWrap { display:none !important; }
-    #ledgerBox, #printArea { display:block !important; }
+    @page {
+        size: A4 portrait;
+        margin: 6mm 8mm 8mm 8mm;
+    }
+
+    /* Force background colors and borders to print properly */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* Completely hide everything else on the page */
+    .header-navbar, .sidebar, .sidebar-wrapper, .app-header, .main-header,
+    .footer, .card, form, button, .btn, .btn-group, .modal, .modal-backdrop,
+    .rpt-header-bar, #kpiSummaryCards, .nav, .navbar, .topbar, #ledgerBox, #loader {
+        display: none !important;
+        visibility: hidden !important;
+    }
+
+    body * {
+        visibility: hidden !important;
+    }
+
+    #referencePrintContainer,
+    #referencePrintContainer * {
+        visibility: visible !important;
+    }
+
+    #referencePrintContainer {
+        display: block !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        box-sizing: border-box !important;
+    }
+
+    #referencePrintContainer table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+    }
+
+    #referencePrintContainer thead {
+        display: table-header-group !important;
+    }
+
+    #referencePrintContainer tfoot {
+        display: table-footer-group !important;
+    }
+
+    #referencePrintContainer tr {
+        page-break-inside: avoid !important;
+    }
 }
 </style>
 @endsection
@@ -329,6 +392,9 @@ tr.r-grand .b-cr { color:#4ade80 !important; font-weight:800; }
 @section('js')
 <script>
 $(document).ready(function () {
+    var lastVendorResponse = null;
+    var lastStartDate = '';
+    var lastEndDate = '';
 
     /* ---------- helpers ---------- */
     function n(v) { return parseFloat(v) || 0; }
@@ -701,7 +767,280 @@ $(document).ready(function () {
 
         $('#ledgerBox').show();
         $('#printBtnWrap').show();
+
+        lastVendorResponse = res;
+        lastStartDate = start;
+        lastEndDate = end;
+        buildVendorReferencePrint(res, start, end);
     }
+
+    /* ---------- Reference Print Builder (Exact Accounting Format Matching Reference) ---------- */
+    function buildVendorReferencePrint(res, start, end) {
+        if (!res || !res.vendor) return;
+        var v = res.vendor;
+        var ob = n(res.opening_balance);
+        var txns = res.transactions || [];
+
+        // Branch detection
+        var branchName = '';
+        var bSel = document.getElementById('branch_id');
+        if (bSel && bSel.selectedIndex > 0) {
+            var txt = bSel.options[bSel.selectedIndex].text;
+            if (txt && txt.indexOf('--') === -1) branchName = txt.trim();
+        }
+
+        // Date formatting helper: 2026-10-28 -> 28-Oct-2026
+        function refDate(dStr) {
+            if (!dStr) return '';
+            var parts = String(dStr).split(/[-/]/);
+            var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            if (parts.length === 3) {
+                if (parts[0].length === 4) {
+                    var mo = parseInt(parts[1], 10) - 1;
+                    return parts[2] + '-' + (months[mo] || parts[1]) + '-' + parts[0];
+                } else {
+                    var mo = parseInt(parts[1], 10) - 1;
+                    var yr = parts[2].length === 2 ? ('20' + parts[2]) : parts[2];
+                    return parts[0] + '-' + (months[mo] || parts[1]) + '-' + yr;
+                }
+            }
+            return dStr;
+        }
+
+        // Standard 2-decimal money format (e.g. 10,006,344.00)
+        function fmt2(val) {
+            var num = parseFloat(val) || 0;
+            return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Current Date & Time for header
+        var now = new Date();
+        var monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        var pDate = String(now.getDate()).padStart(2, '0') + '-' + monthNames[now.getMonth()] + '-' + now.getFullYear();
+        var hrs = now.getHours();
+        var mins = String(now.getMinutes()).padStart(2, '0');
+        var ampm = hrs >= 12 ? 'pm' : 'am';
+        hrs = hrs % 12; hrs = hrs ? hrs : 12;
+        var pDateTime = pDate + ' &nbsp;&nbsp; ' + hrs + ':' + mins + ' ' + ampm;
+
+        // Financial Year
+        var finYear = (start && start.length >= 4) ? start.substring(0, 4) : now.getFullYear();
+
+        // Account Details for Vendor
+        var acCode = '21-01-' + String(v.id || 1).padStart(6, '0');
+        var acDesc = (v.name || 'VENDOR').toUpperCase();
+        var acSub = '';
+        if (v.company && v.company !== '-') acSub += v.company;
+        if (v.mobile && v.mobile !== '-') acSub += (acSub ? ' &nbsp;|&nbsp; ' : '') + 'Ph: ' + v.mobile;
+
+        var html = '';
+        html += '<div style="font-family: \'Segoe UI\', Tahoma, Arial, sans-serif; color: #000; padding: 2px;">';
+
+        // 1. TOP HEADER (Center company name, report title, right date/time/page)
+        html += '<div style="position: relative; text-align: center; margin-bottom: 14px;">';
+        html += '  <div style="font-family: \'Times New Roman\', Times, Georgia, serif; font-size: 24px; font-weight: bold; color: #000; letter-spacing: 0.5px;">Ameen &amp; Sons</div>';
+        if (branchName) {
+            html += '  <div style="font-size: 12px; font-weight: 600; color: #333; margin-top: 1px;">Branch: ' + branchName + '</div>';
+        }
+        html += '  <div style="font-size: 15px; font-weight: 700; color: #111; margin-top: 3px;">Vendor Ledger Report</div>';
+        html += '  <div style="position: absolute; right: 0; top: 0; text-align: right; font-size: 11px; line-height: 1.4; color: #222;">';
+        html += '    <div>' + pDateTime + '</div>';
+        html += '    <div style="margin-top: 2px;">Page 1 of 1</div>';
+        html += '  </div>';
+        html += '</div>';
+
+        // 2. ACCOUNT HEADER ROW (Left rounded box + Right dates)
+        html += '<div style="display: flex; justify-content: space-between; align-items: stretch; margin-bottom: 8px;">';
+        // Left Box
+        html += '  <div style="width: 63%; border: 1.5px solid #000; border-radius: 14px; padding: 8px 14px; font-size: 12px; line-height: 1.5; box-sizing: border-box;">';
+        html += '    <div><strong>A/C Code :</strong> &nbsp; <span style="font-family: monospace; font-size: 12.5px;">' + acCode + '</span></div>';
+        html += '    <div style="margin-top: 2px;"><strong>A/C Description :</strong> &nbsp; <strong style="font-size: 12.5px;">' + acDesc + '</strong></div>';
+        if (acSub) {
+            html += '    <div style="font-size: 10.5px; color: #333; margin-top: 1px; padding-left: 110px;">' + acSub + '</div>';
+        }
+        html += '  </div>';
+        // Right Dates
+        html += '  <div style="width: 33%; display: flex; flex-direction: column; justify-content: center; font-size: 12px; box-sizing: border-box;">';
+        html += '    <div style="display: flex; align-items: baseline; margin-bottom: 8px;">';
+        html += '      <strong style="width: 80px;">From Date :</strong>';
+        html += '      <span style="flex: 1; border-bottom: 1px solid #000; text-align: center; font-weight: 600; padding-bottom: 2px;">' + refDate(start) + '</span>';
+        html += '    </div>';
+        html += '    <div style="display: flex; align-items: baseline;">';
+        html += '      <strong style="width: 80px;">To Date :</strong>';
+        html += '      <span style="flex: 1; border-bottom: 1px solid #000; text-align: center; font-weight: 600; padding-bottom: 2px;">' + refDate(end) + '</span>';
+        html += '    </div>';
+        html += '  </div>';
+        html += '</div>';
+
+        // 3. SUB-BOXES ROW (Left: Financial Year & Op Bal, Right: Balance Before)
+        html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">';
+        // Left Sub-box
+        html += '  <div style="width: 48%; border: 1.5px solid #000; border-radius: 12px; padding: 6px 14px; font-size: 11.5px; line-height: 1.5; box-sizing: border-box;">';
+        html += '    <div><strong>Financial Year :</strong> &nbsp;&nbsp;&nbsp;&nbsp; <span>' + finYear + '</span></div>';
+        html += '    <div style="display: flex; justify-content: space-between; margin-top: 2px;">';
+        html += '      <span><strong>Year Op. Bal :</strong> &nbsp; ' + fmt2(Math.abs(ob)) + '</span>';
+        html += '      <strong>' + (ob < 0 ? 'Debit' : 'Credit') + '</strong>';
+        html += '    </div>';
+        html += '  </div>';
+        // Right Sub-box
+        html += '  <div style="width: 38%; border: 1.5px solid #000; border-radius: 12px; padding: 10px 16px; font-size: 12px; display: flex; justify-content: space-between; align-items: center; box-sizing: border-box;">';
+        html += '    <strong>Balance Before :</strong>';
+        html += '    <strong style="font-size: 13px; font-family: monospace;">' + fmt2(Math.abs(ob)) + '</strong>';
+        html += '  </div>';
+        html += '</div>';
+
+        // 4. THE 9-COLUMN ACCOUNTING TABLE
+        html += '<table style="width: 100%; border-collapse: collapse; font-size: 10.5px; margin-top: 4px; font-family: inherit;">';
+        html += '  <thead>';
+        html += '    <tr style="background: #f1f3f5; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">';
+        html += '      <th style="border: 1px solid #555; padding: 4px 3px; text-align: center; width: 75px;">Date</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 3px; text-align: center; width: 95px;">Voucher #</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 3px; text-align: center; width: 55px;">Ref #</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 3px; text-align: center; width: 55px;">Doc. #</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 6px; text-align: left;">Remarks</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 3px; text-align: center; width: 70px;">Cheque #</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 6px; text-align: right; width: 95px;">Debit</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 6px; text-align: right; width: 95px;">Credit</th>';
+        html += '      <th style="border: 1px solid #555; padding: 4px 6px; text-align: right; width: 105px;">Balance</th>';
+        html += '    </tr>';
+        html += '  </thead>';
+        html += '  <tbody>';
+
+        // ROW 1: OPENING BALANCE
+        html += '    <tr style="border-bottom: 1px solid #777;">';
+        html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + refDate(start) + '</td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">-</td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;"></td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;"></td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: left;"><strong>OPENING BALANCE</strong></td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;"></td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right;">' + (ob < 0 ? fmt2(Math.abs(ob)) : '0.00') + '</td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right;">' + (ob > 0 ? fmt2(ob) : '0.00') + '</td>';
+        html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right; font-weight: bold;">' + fmt2(Math.abs(ob)) + '</td>';
+        html += '    </tr>';
+
+        // TRANSACTION ROWS
+        var i = 0;
+        while (i < txns.length) {
+            var t = txns[i];
+
+            if (t.row_type === 'sale_header') {
+                var header = t;
+                var items = [];
+                i++;
+                while (i < txns.length && txns[i].row_type === 'sale_item') {
+                    items.push(txns[i]);
+                    i++;
+                }
+                if (i < txns.length && txns[i].row_type === 'sale_total') {
+                    i++;
+                }
+
+                var credit = n(header.credit);
+                var refVal = (header.bill && header.bill !== '-') ? header.bill : '';
+                var docVal = header.vno ? header.vno.replace(/^[A-Za-z]+-/, '') : '';
+
+                var remarks = '';
+                if (items.length > 0) {
+                    var itemParts = [];
+                    for (var k = 0; k < items.length; k++) {
+                        var it = items[k];
+                        var iName = (it.item_name_urdu && it.item_name_urdu.trim()) ? it.item_name_urdu : (it.item_name || 'Item');
+                        var itQty = n(it.qty);
+                        itemParts.push(iName + (itQty > 0 ? ' (' + itQty + ')' : ''));
+                    }
+                    remarks = itemParts.join(', ');
+                }
+                if (!remarks) remarks = header.description || 'PURCHASE INVOICE';
+
+                html += '    <tr style="border-bottom: 1px solid #777;">';
+                html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + refDate(header.date) + '</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center; font-weight: 600;">' + (header.vno || '') + '</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + refVal + '</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + docVal + '</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: left;">' + remarks + '</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;"></td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right;">0.00</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right;">' + (credit > 0 ? fmt2(credit) : '0.00') + '</td>';
+                html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right; font-weight: 600;">' + (header.balance !== null ? fmt2(Math.abs(header.balance)) : '') + '</td>';
+                html += '    </tr>';
+                continue;
+            }
+
+            var dVal = refDate(t.date);
+            var vVal = t.vno || '';
+            var rVal = (t.bill && t.bill !== '-') ? t.bill : ((t.reference_no && t.reference_no !== '-') ? t.reference_no : '');
+            var docNo = vVal ? vVal.replace(/^[A-Za-z]+-/, '') : '';
+            var remVal = t.description || '';
+            if (t.item_name && t.item_name !== '-') {
+                remVal += (remVal ? ' - ' : '') + t.item_name;
+            }
+            var chqVal = (t.cheque_no && t.cheque_no !== '-') ? t.cheque_no : '';
+            var dr = n(t.debit);
+            var cr = n(t.credit);
+            var bal = t.balance !== null && t.balance !== undefined ? fmt2(Math.abs(t.balance)) : '';
+
+            html += '    <tr style="border-bottom: 1px solid #777;">';
+            html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + dVal + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center; font-weight: 600;">' + vVal + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + rVal + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + docNo + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: left;">' + remVal + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 3px; text-align: center;">' + chqVal + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right;">' + (dr > 0 ? fmt2(dr) : '0.00') + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right;">' + (cr > 0 ? fmt2(cr) : '0.00') + '</td>';
+            html += '      <td style="border: 1px solid #777; padding: 4px 6px; text-align: right; font-weight: 600;">' + bal + '</td>';
+            html += '    </tr>';
+
+            i++;
+        }
+
+        html += '  </tbody>';
+
+        // 5. TOTALS ROW (Footer)
+        var finalClose = n(res.closing_balance);
+        html += '  <tfoot>';
+        html += '    <tr style="background: #f8fafc; font-weight: bold; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000;">';
+        html += '      <td colspan="6" style="border: 1px solid #555; padding: 6px 8px; text-align: right; font-size: 11px;">Total Sum :</td>';
+        html += '      <td style="border: 1px solid #555; padding: 6px 6px; text-align: right; font-size: 11px;">' + fmt2(res.total_debit) + '</td>';
+        html += '      <td style="border: 1px solid #555; padding: 6px 6px; text-align: right; font-size: 11px;">' + fmt2(res.total_credit) + '</td>';
+        html += '      <td style="border: 1px solid #555; padding: 6px 6px; text-align: right; font-size: 11px;">' + fmt2(Math.abs(finalClose)) + '</td>';
+        html += '    </tr>';
+        html += '  </tfoot>';
+        html += '</table>';
+
+        // 6. SIGNATURE LINES
+        html += '<div style="margin-top: 45px; display: flex; justify-content: space-between; padding: 0 40px; page-break-inside: avoid;">';
+        html += '  <div style="text-align: center; width: 160px;">';
+        html += '    <div style="border-top: 1.5px solid #000; padding-top: 5px; font-weight: bold; font-size: 11px;">Prepared By</div>';
+        html += '  </div>';
+        html += '  <div style="text-align: center; width: 160px;">';
+        html += '    <div style="border-top: 1.5px solid #000; padding-top: 5px; font-weight: bold; font-size: 11px;">Checked By</div>';
+        html += '  </div>';
+        html += '  <div style="text-align: center; width: 160px;">';
+        html += '    <div style="border-top: 1.5px solid #000; padding-top: 5px; font-weight: bold; font-size: 11px;">Authorized By</div>';
+        html += '  </div>';
+        html += '</div>';
+
+        html += '</div>';
+
+        var container = document.getElementById('referencePrintContainer');
+        if (container) {
+            container.innerHTML = html;
+        }
+    }
+
+    /* Print Trigger */
+    window.printVendorReferenceLedger = function() {
+        if (!lastVendorResponse || !lastVendorResponse.vendor) {
+            alert('Please choose a vendor and click GENERATE first.');
+            return;
+        }
+        buildVendorReferencePrint(lastVendorResponse, lastStartDate, lastEndDate);
+        setTimeout(function() {
+            window.print();
+        }, 100);
+    };
 
     /* ---------- WhatsApp Share ---------- */
     window.shareWhatsApp = function() {

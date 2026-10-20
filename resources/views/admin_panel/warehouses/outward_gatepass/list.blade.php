@@ -321,7 +321,7 @@
                 <small>View and manage all created gate passes</small>
             </div>
             <div class="gp-actions">
-                <a href="{{ route('OutwardGatepass.list') }}" class="btn-action btn-primary-custom">
+                <a href="{{ route('OutwardGatepass.selectDC') }}" class="btn-action btn-primary-custom">
                     <i class="fas fa-plus"></i> Create New
                 </a>
                 <a href="{{ route('OutwardGatepass.home') }}" class="btn-action btn-outline">
@@ -446,9 +446,12 @@
                 <div class="empty-state">
                     <i class="fas fa-inbox"></i>
                     <p style="font-size: 1.1rem; margin: 20px 0;">No gate passes found</p>
-                    <p style="font-size: 0.9rem; color: #d1d5db;">
-                        Create your first gate pass by clicking the "Create New" button above
+                    <p style="font-size: 0.9rem; color: #d1d5db; margin-bottom: 20px;">
+                        Create your first gate pass by clicking the button below or "Create New" above
                     </p>
+                    <a href="{{ route('OutwardGatepass.selectDC') }}" class="btn-action btn-primary-custom" style="display: inline-flex;">
+                        <i class="fas fa-plus"></i> Create Gate Pass from DC
+                    </a>
                 </div>
             @endif
         </div>

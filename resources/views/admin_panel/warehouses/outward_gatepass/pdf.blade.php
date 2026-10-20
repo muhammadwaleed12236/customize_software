@@ -5,32 +5,32 @@
     <title>Outward Gate Pass {{ $gp->gatepass_number ?? ('GP-' . str_pad($gp->id, 4, '0', STR_PAD_LEFT)) }}</title>
     <style>
         body { font-family: DejaVu Sans, sans-serif; font-size: 11px; color:#000000; line-height: 1.4; }
-        .wrap{ max-width:100%; margin:0 auto; padding: 10px; }
-        .brand-header { background: #ffffff; color: #000000; padding: 10px 0px; border-bottom: 2px solid #000000; margin-bottom: 12px; }
-        .brand-title { font-size: 18px; font-weight: bold; margin: 0; color: #000000; }
-        .brand-subtitle { font-size: 10px; color: #000000; text-transform: uppercase; letter-spacing: 1px; font-weight: bold; }
+        .wrap{ max-width:100%; margin:0 auto; padding: 12px; border: 2px solid #000000; }
+        .brand-header { background: #ffffff; color: #000000; padding: 0 0 10px 0; border-bottom: 2.5px solid #000000; margin-bottom: 12px; }
+        .brand-title { font-size: 20px; font-weight: bold; margin: 0; color: #000000; text-transform: uppercase; }
+        .brand-subtitle { font-size: 11px; color: #000000; text-transform: uppercase; letter-spacing: 0.5px; font-weight: bold; margin-top: 2px; }
         
         .details-table { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
         .details-table td { width: 50%; vertical-align: top; padding: 0 4px; }
         
-        .box { border: 1px solid #000000; border-radius: 4px; padding: 8px 10px; background: #ffffff; }
-        .box-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #000000; border-bottom: 1px solid #000000; padding-bottom: 4px; margin-bottom: 6px; }
+        .box { border: 2px solid #000000; border-radius: 4px; padding: 8px 10px; background: #ffffff; }
+        .box-title { font-size: 11px; font-weight: bold; text-transform: uppercase; color: #000000; border-bottom: 1.5px solid #000000; padding: 2px 4px 4px 4px; margin-bottom: 6px; background: #e8e8e8; }
         
-        .field-row { margin-bottom: 3px; }
-        .field-label { color: #000000; font-weight: bold; }
-        .field-val { color: #000000; font-weight: bold; }
+        .field-row { margin-bottom: 4px; border-bottom: 1px solid #000000; padding-bottom: 2px; }
+        .field-label { color: #000000; font-weight: bold; font-size: 10px; text-transform: uppercase; }
+        .field-val { color: #000000; font-weight: bold; font-size: 11px; }
 
-        table.items { width:100%; border-collapse:collapse; margin-top:8px; border: 1px solid #000000; }
-        table.items th { background: #f0f0f0; color: #000000; padding: 6px 8px; font-size: 10px; text-transform: uppercase; text-align: left; border-bottom: 1.5px solid #000000; font-weight: bold; }
-        table.items td { padding: 6px 8px; border-bottom: 1px solid #cccccc; font-size: 10px; color: #000000; }
-        table.items tfoot td { background: #f8f8f8; font-weight: bold; font-size: 11px; border-top: 2px solid #000000; color: #000000; }
+        table.items { width:100%; border-collapse:collapse; margin-top:8px; border: 2px solid #000000; }
+        table.items th { background: #dcdcdc; color: #000000; padding: 7px 8px; font-size: 11px; text-transform: uppercase; text-align: left; border: 1.5px solid #000000; font-weight: bold; }
+        table.items td { padding: 6px 8px; border: 1.5px solid #000000; font-size: 11px; color: #000000; font-weight: bold; }
+        table.items tfoot td { background: #dcdcdc; font-weight: bold; font-size: 12px; border: 2px solid #000000; color: #000000; }
         
         .text-end { text-align: right; }
         .text-center { text-align: center; }
         
         .signatures { margin-top: 30px; width: 100%; border-collapse: collapse; }
         .signatures td { width: 33%; text-align: center; vertical-align: bottom; }
-        .sign-line { border-top: 1px solid #000000; margin-top: 35px; padding-top: 4px; font-weight: bold; font-size: 9px; text-transform: uppercase; color: #000000; }
+        .sign-line { border-top: 2px solid #000000; margin-top: 35px; padding-top: 5px; font-weight: bold; font-size: 10px; text-transform: uppercase; color: #000000; }
     </style>
 </head>
 <body>

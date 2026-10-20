@@ -552,14 +552,23 @@
             $paidAmount = (float)(($sale->receipt1 ?? 0) + ($sale->receipt2 ?? 0));
 
             if ($sale->customer) {
-                $lastLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)->latest('id')->first();
-                if ($lastLedger) {
-                    $prevBalance = (float) ($lastLedger->previous_balance ?? 0);
-                    $closingBalance = (float) ($lastLedger->closing_balance ?? 0);
+                // 1. Get the customer's previous balance prior to this specific sale invoice
+                $saleLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
+                    ->where('reference_id', (string)$sale->id)
+                    ->where('transaction_type', 'Sale')
+                    ->first();
+
+                if ($saleLedger) {
+                    $prevBalance = (float) ($saleLedger->previous_balance ?? 0);
+                } elseif (isset($sale->previous_balance) && $sale->previous_balance !== null) {
+                    $prevBalance = (float) ($sale->previous_balance ?? 0);
                 } else {
                     $prevBalance = (float) (optional($sale->customer)->opening_balance ?? 0);
-                    $closingBalance = $totalPayable - $paidAmount + $prevBalance;
                 }
+
+                // 2. Total customer closing balance from ledger
+                $lastLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)->latest('id')->first();
+                $closingBalance = $lastLedger ? (float) ($lastLedger->closing_balance ?? 0) : ($totalPayable - $paidAmount + $prevBalance);
             } else {
                 $closingBalance = $totalPayable - $paidAmount;
             }

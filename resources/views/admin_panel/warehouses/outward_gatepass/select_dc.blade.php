@@ -10,7 +10,7 @@
             <small class="text-muted">Select a delivery challan to create gate pass</small>
         </div>
         <div class="col-md-4 text-end">
-            <a href="{{ route('OutwardGatepass.home') }}" class="btn btn-outline-secondary btn-sm">
+            <a href="{{ route('OutwardGatepass.list') }}" class="btn btn-outline-secondary btn-sm">
                 <i class="fas fa-arrow-left"></i> Back to Gate Passes
             </a>
         </div>
@@ -69,17 +69,14 @@
                                         </small>
                                     </td>
                                     <td>
-                                        {{ optional($dc->warehouse)->warehouse_name ?? 'N/A' }}
+                                        {{ optional($dc->warehouse)->warehouse_name ?? ($dc->delivery_location_type === 'branch' ? 'Branch Counter' : 'Direct Dispatch') }}
                                     </td>
                                     <td>
-                                        @php
-                                            $itemCount = $dc->saleItems ? $dc->saleItems()->count() : 0;
-                                        @endphp
-                                        <span class="badge bg-info">{{ $itemCount }} Items</span>
+                                        <span class="badge bg-info">{{ $dc->item_count ?? 0 }} Items</span>
                                     </td>
                                     <td>
                                         <small class="text-muted">
-                                            {{ $dc->created_at ? $dc->created_at->format('d-m-Y H:i') : 'N/A' }}
+                                            {{ $dc->created_at ? \Carbon\Carbon::parse($dc->created_at)->format('d-m-Y H:i') : 'N/A' }}
                                         </small>
                                     </td>
                                     <td>
@@ -100,10 +97,18 @@
                     {{ $deliveryChallans->links() }}
                 </nav>
             @else
-                <div class="alert alert-info text-center" role="alert">
-                    <i class="fas fa-check-circle"></i>
-                    <strong>No pending delivery challans!</strong>
-                    <p class="mb-0 small mt-2">All DCs either have gate passes or are being prepared.</p>
+                <div class="alert alert-info text-center py-4" role="alert">
+                    <i class="fas fa-check-circle fa-2x mb-2 text-info"></i>
+                    <h5 class="alert-heading fw-bold">No Pending Delivery Challans!</h5>
+                    <p class="mb-0 small text-muted">All Delivery Challans either already have Gate Passes created or are being processed.</p>
+                    <div class="mt-3 d-flex justify-content-center gap-2">
+                        <a href="{{ route('OutwardGatepass.home') }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-boxes mr-1"></i> View All Delivery Challans
+                        </a>
+                        <a href="{{ route('OutwardGatepass.list') }}" class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-receipt mr-1"></i> View Existing Gate Passes
+                        </a>
+                    </div>
                 </div>
             @endif
         </div>

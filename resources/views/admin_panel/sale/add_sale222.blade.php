@@ -1833,6 +1833,12 @@
                 let prev = d.previous_balance !== undefined ? d.previous_balance : (d.closing_balance !== undefined ? d.closing_balance : (d.opening_balance || 0));
                 let prevVal = parseFloat(prev || 0);
 
+                // In EDIT MODE: If this is the original customer of this sale, the previous balance
+                // is the balance BEFORE this sale was created, NOT the customer's current balance (which includes this sale!)
+                if (window.IS_EDIT_MODE && window.EDIT_SALE && String(d.id || '') === String(window.EDIT_SALE.customer_id || '')) {
+                    prevVal = parseFloat(window.EDIT_SALE.previous_balance !== undefined ? window.EDIT_SALE.previous_balance : 0);
+                }
+
                 $('#previousBalance').val(prevVal.toFixed(2));
                 $('#badgeCustomerPrevBal').text('Rs ' + prevVal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                 $('#displayPrevBalance').text(prevVal.toFixed(2));
@@ -3064,7 +3070,9 @@
                             let cust = window.EDIT_SALE.customer || {};
                             let custText = (cust.customer_id ? cust.customer_id + ' — ' : '') + (cust.customer_name || 'Customer #' + window.EDIT_SALE.customer_id);
                             let opt = new Option(custText, window.EDIT_SALE.customer_id, true, true);
-                            let prev = window.EDIT_SALE.previous_balance || cust.previous_balance || cust.closing_balance || 0;
+                            let prev = (window.EDIT_SALE.previous_balance !== undefined && window.EDIT_SALE.previous_balance !== null)
+                                ? window.EDIT_SALE.previous_balance
+                                : (cust.previous_balance !== undefined ? cust.previous_balance : (cust.opening_balance || 0));
                             $(opt).attr('data-prev-balance', prev);
                             $(opt).attr('data-address', window.EDIT_SALE.address || cust.address || '');
                             $(opt).attr('data-mobile', window.EDIT_SALE.tel || cust.mobile || '');
