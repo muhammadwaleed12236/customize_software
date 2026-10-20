@@ -158,38 +158,17 @@ class CleanDuplicateAccountLedgerEntries extends Command
 
             // 6. Re-sequence entry_no and recalculate running balance
             if (!$isDryRun) {
-                // Re-sequence entry numbers cleanly (BR-1, BR-2... or CR-1, CR-2...)
-                $headName = strtolower($account->head?->name ?? '');
-                $prefix = str_contains($headName, 'bank') ? 'BR' : (str_contains($headName, 'cash') ? 'CR' : 'JV');
-
-                $entries = AccountLedgerEntry::where('account_id', $accId)
-                    ->orderBy('id', 'asc')
-                    ->get();
-
-                $seq = 1;
-                foreach ($entries as $entry) {
-                    if ($entry->voucher_type === 'opening_balance') {
-                        if ($entry->entry_no !== 'OB-1') {
-                            $entry->entry_no = 'OB-1';
-                            $entry->save();
-                        }
-                    } else {
-                        $expectedEntryNo = $prefix . '-' . $seq;
-                        if ($entry->entry_no !== $expectedEntryNo) {
-                            $entry->entry_no = $expectedEntryNo;
-                            $entry->save();
-                        }
-                        $seq++;
-                    }
-                }
-
-                // Recalculate running balance
+                // Re-sequence entry numbers cleanly and recalculate running balance in chronological date order
                 AccountLedgerEntry::recalculateRunningBalance($accId);
 
                 // Update account opening_balance or current balance
-                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
+                $lastEntry = AccountLedgerEntry::where('account_id', $accId)
+                    ->orderBy('transaction_date', 'desc')
+                    ->orderBy('id', 'desc')
+                    ->first();
+                $entryCount = AccountLedgerEntry::where('account_id', $accId)->count();
                 if ($lastEntry) {
-                    $this->info("  Cleaned! Final Balance: " . number_format($lastEntry->running_balance, 2) . " (Total valid entries: {$entries->count()})");
+                    $this->info("  Cleaned! Final Balance: " . number_format($lastEntry->running_balance, 2) . " (Total valid entries: {$entryCount})");
                 }
             }
         }

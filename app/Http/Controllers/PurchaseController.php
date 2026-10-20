@@ -2139,6 +2139,8 @@ class PurchaseController extends Controller
             'running_balance'   => $newBalance,
             'created_by'        => auth()->id(),
         ]);
+
+        \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
     }
 
     /**

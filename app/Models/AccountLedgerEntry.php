@@ -74,23 +74,26 @@ class AccountLedgerEntry extends Model
             $prefix = 'JV';
         }
 
-        // Get last sequential number for this account with this prefix
-        $lastEntry = self::where('account_id', $accountId)
+        // Get max sequential number for this account with this prefix
+        $entries = self::where('account_id', $accountId)
             ->where('entry_no', 'like', $prefix . '-%')
-            ->orderByDesc('id')
-            ->value('entry_no');
+            ->pluck('entry_no');
 
-        $lastNum = 0;
-        if ($lastEntry) {
-            $parts = explode('-', $lastEntry);
-            $lastNum = (int) end($parts);
+        $maxNum = 0;
+        foreach ($entries as $eNo) {
+            $parts = explode('-', $eNo);
+            $num = (int) end($parts);
+            if ($num > $maxNum) {
+                $maxNum = $num;
+            }
         }
 
-        return $prefix . '-' . ($lastNum + 1);
+        return $prefix . '-' . ($maxNum + 1);
     }
 
     /**
-     * Recalculates the cumulative running balance for all ledger entries of an account.
+     * Recalculates the cumulative running balance and re-sequences entry numbers
+     * for all ledger entries of an account in strict chronological (date-wise) order.
      */
     public static function recalculateRunningBalance(int $accountId): void
     {
@@ -100,7 +103,14 @@ class AccountLedgerEntry extends Model
         }
 
         $isCredit = trim(strtolower($account->type ?? 'debit')) === 'credit';
-        $entries = self::where('account_id', $accountId)->orderBy('id', 'asc')->get();
+        $headName = strtolower($account->head?->name ?? '');
+        $prefix = str_contains($headName, 'bank') ? 'BR' : (str_contains($headName, 'cash') ? 'CR' : 'JV');
+
+        $entries = self::where('account_id', $accountId)
+            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END")
+            ->orderBy('transaction_date', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
 
         if ($entries->isEmpty()) {
             return;
@@ -111,6 +121,14 @@ class AccountLedgerEntry extends Model
 
         $firstEntry = $entries->first();
         if ($firstEntry && $firstEntry->voucher_type === 'opening_balance') {
+            // Keep opening balance entry date at or before earliest non-OB entry
+            $earliestNonOb = $entries->where('voucher_type', '!=', 'opening_balance')->first();
+            if ($earliestNonOb && $firstEntry->transaction_date > $earliestNonOb->transaction_date) {
+                $firstEntry->transaction_date = $earliestNonOb->transaction_date;
+            }
+            if ($firstEntry->entry_no !== 'OB-1') {
+                $firstEntry->entry_no = 'OB-1';
+            }
             $running = (float)$firstEntry->running_balance;
             $startIndex = 1;
         } else {
@@ -118,10 +136,22 @@ class AccountLedgerEntry extends Model
             $startIndex = 0;
         }
 
+        $seq = 1;
         foreach ($entries as $index => $entry) {
             if ($index < $startIndex) {
+                if ($entry->isDirty()) {
+                    $entry->save();
+                }
                 continue;
             }
+
+            // Re-sequence entry_no in date order
+            $expectedEntryNo = $prefix . '-' . $seq;
+            if ($entry->entry_no !== $expectedEntryNo) {
+                $entry->entry_no = $expectedEntryNo;
+            }
+            $seq++;
+
             $debit = (float)$entry->debit;
             $credit = (float)$entry->credit;
 
@@ -133,6 +163,9 @@ class AccountLedgerEntry extends Model
 
             if (abs($entry->running_balance - $running) > 0.0001) {
                 $entry->running_balance = $running;
+            }
+
+            if ($entry->isDirty()) {
                 $entry->save();
             }
         }

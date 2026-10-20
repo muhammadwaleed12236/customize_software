@@ -1361,6 +1361,8 @@ class VoucherService
             'running_balance'   => $newBalance,
             'created_by'        => $userId ?? auth()->id(),
         ]);
+
+        AccountLedgerEntry::recalculateRunningBalance($accountId);
     }
 
     /**

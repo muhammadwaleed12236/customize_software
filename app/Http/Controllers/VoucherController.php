@@ -416,22 +416,20 @@ public function getOpeningBalance($type, $id)
         $type = strtolower($request->query('type', ''));
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
         
-        if ($isSuper && $request->has('branch_id') && $request->branch_id != '') {
+        if ($isSuper && $request->filled('branch_id')) {
             $branchId = $request->branch_id;
         } else {
             $branchId = Auth::check() ? Auth::user()->branch_id : null;
         }
 
         if ($type === 'customer') {
-            $query = Customer::with(['ledgers' => fn($q) => $q->latest('id')])
-                ->whereIn('customer_type', ['credit', 'cash']);
+            $query = Customer::with(['ledgers' => fn($q) => $q->latest('id')]);
 
-            // Branch filter
-            if (!$isSuper && $branchId) {
-                $query->where('branch_id', $branchId);
-            }
-            if ($isSuper && $request->has('branch_id') && $request->branch_id != '') {
-                $query->where('branch_id', $branchId);
+            // Branch filter (allow matching branch or unassigned customers)
+            if ($branchId && $branchId !== 'all') {
+                $query->where(function ($q) use ($branchId) {
+                    $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+                });
             }
 
             $customers = $query->get()->map(function ($c) {
@@ -447,13 +445,12 @@ public function getOpeningBalance($type, $id)
             return response()->json($customers);
 
         } elseif ($type === 'walkin') {
-            $query = Customer::where('customer_type', 'walking');
+            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer']);
 
-            if (!$isSuper && $branchId) {
-                $query->where('branch_id', $branchId);
-            }
-            if ($isSuper && $request->has('branch_id') && $request->branch_id != '') {
-                $query->where('branch_id', $branchId);
+            if ($branchId && $branchId !== 'all') {
+                $query->where(function ($q) use ($branchId) {
+                    $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+                });
             }
 
             $walkins = $query->get()->map(function ($c) {
@@ -1704,6 +1701,8 @@ public function getOpeningBalance($type, $id)
             'running_balance'   => $newBalance,
             'created_by'        => auth()->id(),
         ]);
+
+        \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
     }
 
     public function storeNarrationAjax(\Illuminate\Http\Request $request)
@@ -2105,11 +2104,13 @@ public function getOpeningBalance($type, $id)
             : (Auth::check() ? Auth::user()->branch_id : null);
 
         if ($type === 'customer') {
-            $query = \App\Models\Customer::with(['ledgers' => fn($q) => $q->latest()])
-                ->whereIn('customer_type', ['credit', 'cash']);
+            $query = \App\Models\Customer::with(['ledgers' => fn($q) => $q->latest()]);
 
-            if (!$isSuper && $branchId) $query->where('branch_id', $branchId);
-            if ($isSuper && $request->filled('branch_id')) $query->where('branch_id', $branchId);
+            if ($branchId && $branchId !== 'all') {
+                $query->where(function ($q) use ($branchId) {
+                    $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+                });
+            }
 
             return response()->json($query->get()->map(function ($c) {
                 $ledger  = $c->ledgers->first();

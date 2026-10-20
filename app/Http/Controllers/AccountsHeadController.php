@@ -444,12 +444,17 @@ class AccountsHeadController extends Controller
         // ✅ Automatically sync any unrecorded receipts or vouchers for this account
         $this->syncAccountLedger($account);
 
+        // ✅ Ensure balances and sequence numbers are cleanly maintained in date order
+        \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
+
         // Date filters
         $dateFrom = $request->input('date_from');
         $dateTo   = $request->input('date_to');
 
-        // Fetch ledger entries
+        // Fetch ledger entries ordered chronologically by transaction_date
         $query = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END")
+            ->orderBy('transaction_date', 'asc')
             ->orderBy('id', 'asc');
 
         if ($dateFrom) {
@@ -470,6 +475,8 @@ class AccountsHeadController extends Controller
         if ($dateFrom) {
             $prevEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                 ->where('transaction_date', '<', $dateFrom)
+                ->where('voucher_type', '!=', 'opening_balance')
+                ->orderBy('transaction_date', 'desc')
                 ->orderBy('id', 'desc')
                 ->first();
             $openingBalance = $prevEntry ? (float)$prevEntry->running_balance : $initialOpening;
@@ -488,6 +495,8 @@ class AccountsHeadController extends Controller
         return view('admin_panel.chart_of_accounts.account_ledger', compact(
             'account',
             'entries',
+            'obEntry',
+            'nonObEntries',
             'totalDebit',
             'totalCredit',
             'openingBalance',
@@ -758,6 +767,8 @@ class AccountsHeadController extends Controller
                 'created_by'        => auth()->id() ?? 1,
             ]);
         }
+
+        \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
     }
 }
 
