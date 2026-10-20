@@ -19,6 +19,11 @@ class Account extends Model
         'total_credit',
         'status',        // active/inactive
         'opening_balance', // opening balance
+        'opening_date',    // manual opening balance date
+    ];
+
+    protected $casts = [
+        'opening_date' => 'date',
     ];
 
     // Relation with AccountHead

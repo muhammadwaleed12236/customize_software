@@ -222,6 +222,7 @@ class AccountsHeadController extends Controller
         $status = $request->status === 'on' ? 1 : 0;
 
         $openingBal = (float)($request->opening_balance ?? 0);
+        $openingDate = $request->opening_date ?: now()->toDateString();
 
         // ✅ Create account with auto-generated code
         $account = Account::create([
@@ -231,6 +232,7 @@ class AccountsHeadController extends Controller
             'title'           => $request->title,
             'type'            => $request->type,
             'opening_balance' => $openingBal,
+            'opening_date'    => $openingDate,
             'status'          => $status,
         ]);
 
@@ -243,7 +245,7 @@ class AccountsHeadController extends Controller
                 'voucher_no'       => null,
                 'voucher_id'       => null,
                 'entry_no'         => $obEntryNo,
-                'transaction_date' => now()->toDateString(),
+                'transaction_date' => $openingDate,
                 'description'      => 'Opening Balance',
                 'debit'            => $openingBal >= 0 ? $openingBal : 0,
                 'credit'           => $openingBal < 0 ? abs($openingBal) : 0,
@@ -276,28 +278,32 @@ class AccountsHeadController extends Controller
             'title'           => 'required|string|max:150',
             'type'            => 'required|in:Debit,Credit',
             'opening_balance' => 'nullable|numeric',
+            'opening_date'    => 'nullable|date',
             'status'          => 'nullable',
         ];
 
         $request->validate($rules);
 
         // Store old values for audit log
-        $oldTitle   = $account->title;
-        $oldOpening = (float)($account->opening_balance ?? 0);
-        $oldHeadId  = $account->head_id;
-        $oldType    = $account->type;
-        $oldStatus  = (int)($account->status == 1 || $account->status == 'active');
+        $oldTitle       = $account->title;
+        $oldOpening     = (float)($account->opening_balance ?? 0);
+        $oldOpeningDate = $account->opening_date ? $account->opening_date->format('Y-m-d') : null;
+        $oldHeadId      = $account->head_id;
+        $oldType        = $account->type;
+        $oldStatus      = (int)($account->status == 1 || $account->status == 'active');
 
-        $newTitle   = $request->title;
-        $newOpening = (float)($request->opening_balance ?? 0);
-        $newHeadId  = (int)$request->head_id;
-        $newType    = $request->type;
-        $newStatus  = ($request->status === 'on' || $request->status == '1' || $request->status === true || $request->status === 'active') ? 1 : 0;
+        $newTitle       = $request->title;
+        $newOpening     = (float)($request->opening_balance ?? 0);
+        $newOpeningDate = $request->opening_date ?: ($oldOpeningDate ?: now()->toDateString());
+        $newHeadId      = (int)$request->head_id;
+        $newType        = $request->type;
+        $newStatus      = ($request->status === 'on' || $request->status == '1' || $request->status === true || $request->status === 'active') ? 1 : 0;
 
         $data = [
             'title'           => $newTitle,
             'type'            => $newType,
             'opening_balance' => $newOpening,
+            'opening_date'    => $newOpeningDate,
             'status'          => $newStatus,
         ];
 
@@ -320,6 +326,9 @@ class AccountsHeadController extends Controller
         $changes = [];
         if (abs($diff) > 0.0001) {
             $changes[] = "Opening Balance: PKR " . number_format($oldOpening, 2) . " → PKR " . number_format($newOpening, 2);
+        }
+        if ($oldOpeningDate !== $newOpeningDate) {
+            $changes[] = "Opening Date: " . ($oldOpeningDate ?: 'None') . " → {$newOpeningDate}";
         }
         if ($oldTitle !== $newTitle) {
             $changes[] = "Title: '{$oldTitle}' → '{$newTitle}'";
@@ -349,20 +358,37 @@ class AccountsHeadController extends Controller
             ]);
         }
 
-        if (abs($diff) > 0.0001) {
-            $obEntry = AccountLedgerEntry::where('account_id', $account->id)
-                ->where('voucher_type', 'opening_balance')
-                ->first();
-            if ($obEntry) {
-                $obEntry->update([
-                    'debit'           => $newOpening >= 0 ? $newOpening : 0,
-                    'credit'          => $newOpening < 0 ? abs($newOpening) : 0,
-                    'running_balance' => $newOpening,
-                ]);
-            }
+        $obEntry = AccountLedgerEntry::where('account_id', $account->id)
+            ->where('voucher_type', 'opening_balance')
+            ->first();
+
+        if ($obEntry) {
+            $obEntry->update([
+                'transaction_date' => $newOpeningDate,
+                'debit'            => $newOpening >= 0 ? $newOpening : 0,
+                'credit'           => $newOpening < 0 ? abs($newOpening) : 0,
+                'running_balance'  => $newOpening,
+            ]);
+        } elseif ($newOpening != 0) {
+            $obEntryNo = AccountLedgerEntry::generateEntryNo($account->id, 'opening_balance');
+            AccountLedgerEntry::create([
+                'account_id'       => $account->id,
+                'branch_id'        => $account->branch_id,
+                'voucher_type'     => 'opening_balance',
+                'voucher_no'       => null,
+                'voucher_id'       => null,
+                'entry_no'         => $obEntryNo,
+                'transaction_date' => $newOpeningDate,
+                'description'      => 'Opening Balance',
+                'debit'            => $newOpening >= 0 ? $newOpening : 0,
+                'credit'           => $newOpening < 0 ? abs($newOpening) : 0,
+                'running_balance'  => $newOpening,
+                'created_by'       => Auth::id() ?? 1,
+            ]);
         }
 
         $account->update($data);
+        AccountLedgerEntry::recalculateRunningBalance($account->id);
 
         return redirect()->back()->with('success', 'Account updated successfully.');
     }
@@ -470,7 +496,7 @@ class AccountsHeadController extends Controller
         $obEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
             ->where('voucher_type', 'opening_balance')
             ->first();
-        $initialOpening = $obEntry ? (float)$obEntry->running_balance : (float)($account->opening_balance ?? 0);
+        $initialOpening = (float)($account->opening_balance ?? 0);
 
         if ($dateFrom) {
             $prevEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
@@ -635,11 +661,8 @@ class AccountsHeadController extends Controller
 
         // If no entries at all in AccountLedgerEntry, determine base initial opening balance
         if (!$hasAnyEntry) {
-            $currentAccBal = (float)($account->opening_balance ?? 0);
-            $baseOpening = $currentAccBal - $totalReceiptAmount;
-            if ($baseOpening < 0) {
-                $baseOpening = 0;
-            }
+            $baseOpening = (float)($account->opening_balance ?? 0);
+            $openingDate = $account->opening_date ? $account->opening_date->toDateString() : ($account->created_at ? $account->created_at->toDateString() : now()->toDateString());
 
             // Create initial OB entry
             $obEntryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'opening_balance');
@@ -650,17 +673,13 @@ class AccountsHeadController extends Controller
                 'voucher_no'        => null,
                 'voucher_id'        => null,
                 'entry_no'          => $obEntryNo,
-                'transaction_date'  => $account->created_at ? $account->created_at->toDateString() : now()->toDateString(),
+                'transaction_date'  => $openingDate,
                 'description'       => 'Opening Balance',
                 'debit'             => $baseOpening >= 0 ? $baseOpening : 0,
                 'credit'            => $baseOpening < 0 ? abs($baseOpening) : 0,
                 'running_balance'   => $baseOpening,
                 'created_by'        => auth()->id() ?? 1,
             ]);
-
-            // Update account's opening_balance in DB to reflect the real initial OB
-            $account->opening_balance = $baseOpening;
-            $account->save();
         }
 
         // Post unrecorded receipts

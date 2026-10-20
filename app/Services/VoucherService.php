@@ -33,26 +33,7 @@ class VoucherService
             $rvid        = $voucher->rvid;
             $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
-            // 1. REVERSE ACCOUNT SIDE (Debit Cash/Bank was posted originally, now revert balances)
-            $accounts = self::safeDecodeArray($voucher->row_account_id);
-            $amounts  = self::safeDecodeArray($voucher->amount);
-
-            foreach ($accounts as $index => $accId) {
-                $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
-                if ($rowAmount > 0 && $accId) {
-                    $rowAccount = Account::find($accId);
-                    if ($rowAccount) {
-                        if (trim(strtolower($rowAccount->type)) === 'debit') {
-                            $rowAccount->opening_balance -= $rowAmount;
-                        } else {
-                            $rowAccount->opening_balance += $rowAmount;
-                        }
-                        $rowAccount->save();
-                    }
-                }
-            }
-
-            // Delete AccountLedgerEntry for this receipt voucher
+            // 1. REVERSE ACCOUNT SIDE: Delete AccountLedgerEntry for this receipt voucher
             AccountLedgerEntry::where(function($q) use ($rvid, $voucher) {
                 $q->where('voucher_no', $rvid);
                 if ($voucher->id) {
@@ -90,11 +71,6 @@ class VoucherService
                     VendorLedger::where('reference_id', $rvid)->where('vendor_id', $pId)->delete();
                     self::recalculateVendorLedger((int)$pId, $branchId);
                 } elseif (is_numeric($pType)) {
-                    $acc = Account::find($pId);
-                    if ($acc && $pAmount > 0) {
-                        $acc->opening_balance += $pAmount;
-                        $acc->save();
-                    }
                     $affectedAccountIds[] = (int)$pId;
                 }
             }
@@ -102,12 +78,6 @@ class VoucherService
             // Recalculate running balance for affected accounts
             foreach (array_unique(array_filter($affectedAccountIds)) as $accId) {
                 AccountLedgerEntry::recalculateRunningBalance((int)$accId);
-                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
-                $accModel  = Account::find($accId);
-                if ($accModel && $lastEntry) {
-                    $accModel->opening_balance = $lastEntry->running_balance;
-                    $accModel->save();
-                }
             }
 
             // 3. Mark Voucher Status
@@ -230,8 +200,6 @@ class VoucherService
                         $partyAmount,
                         $userId
                     );
-                    $account->opening_balance -= $partyAmount;
-                    $account->save();
                     AccountLedgerEntry::recalculateRunningBalance((int)$account->id);
                 }
             }
@@ -245,32 +213,27 @@ class VoucherService
             ? $data['amount'] 
             : self::safeDecodeArray($voucher->amount);
 
+        $accountTotals = [];
         foreach ($rowAccountIds as $index => $accId) {
             $rowAmount = (float)($amounts[$index] ?? 0);
-            if ($rowAmount <= 0 || !$accId) continue;
-
-            $rowAccount = Account::find($accId);
-            if ($rowAccount) {
-                if (trim(strtolower($rowAccount->type)) === 'debit') {
-                    $rowAccount->opening_balance += $rowAmount;
-                } else {
-                    $rowAccount->opening_balance -= $rowAmount;
-                }
-                $rowAccount->save();
-
-                self::postLedgerEntry(
-                    $accId,
-                    'receipt',
-                    $rvid,
-                    $voucher->id,
-                    $receiptDate,
-                    "Receipt from Party: " . ($remarks ?: "Voucher #{$rvid}"),
-                    $rowAmount,
-                    0,
-                    $userId
-                );
-                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
+            if ($rowAmount > 0 && $accId) {
+                $accountTotals[(int)$accId] = ($accountTotals[(int)$accId] ?? 0) + $rowAmount;
             }
+        }
+
+        foreach ($accountTotals as $accId => $totalAccAmount) {
+            self::postLedgerEntry(
+                $accId,
+                'receipt',
+                $rvid,
+                $voucher->id,
+                $receiptDate,
+                "Receipt from Party: " . ($remarks ?: "Voucher #{$rvid}"),
+                $totalAccAmount,
+                0,
+                $userId
+            );
+            AccountLedgerEntry::recalculateRunningBalance((int)$accId);
         }
 
         return true;
@@ -351,22 +314,7 @@ class VoucherService
             $pvid        = $voucher->pvid;
             $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
-            // 1. REVERSE ROW ACCOUNTS (Cash / Bank accounts credited originally, now debited back)
-            $accounts = self::safeDecodeArray($voucher->row_account_id);
-            $amounts  = self::safeDecodeArray($voucher->amount);
-
-            foreach ($accounts as $index => $accId) {
-                $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
-                if ($rowAmount > 0 && $accId) {
-                    $rowAccount = Account::find($accId);
-                    if ($rowAccount) {
-                        $rowAccount->opening_balance += $rowAmount;
-                        $rowAccount->save();
-                    }
-                }
-            }
-
-            // Delete AccountLedgerEntry for this payment voucher
+            // 1. REVERSE ROW ACCOUNTS: Delete AccountLedgerEntry for this payment voucher
             AccountLedgerEntry::where(function($q) use ($pvid, $voucher) {
                 $q->where('voucher_no', $pvid);
                 if ($voucher->id) {
@@ -404,11 +352,6 @@ class VoucherService
                     CustomerLedger::where('reference_id', $pvid)->where('customer_id', $pId)->delete();
                     self::recalculateCustomerLedger((int)$pId);
                 } elseif (is_numeric($pType)) {
-                    $acc = Account::find($pId);
-                    if ($acc && $pAmount > 0) {
-                        $acc->opening_balance -= $pAmount;
-                        $acc->save();
-                    }
                     $affectedAccountIds[] = (int)$pId;
                 }
             }
@@ -416,12 +359,6 @@ class VoucherService
             // Recalculate running balance for affected accounts
             foreach (array_unique(array_filter($affectedAccountIds)) as $accId) {
                 AccountLedgerEntry::recalculateRunningBalance((int)$accId);
-                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
-                $accModel  = Account::find($accId);
-                if ($accModel && $lastEntry) {
-                    $accModel->opening_balance = $lastEntry->running_balance;
-                    $accModel->save();
-                }
             }
 
             // 3. Mark Voucher Status
@@ -460,28 +397,27 @@ class VoucherService
             ? $data['amount'] 
             : self::safeDecodeArray($voucher->amount);
 
+        $accountTotals = [];
         foreach ($rowAccountIds as $index => $accId) {
             $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
             if ($rowAmount > 0 && $accId) {
-                $rowAccount = Account::find($accId);
-                if ($rowAccount) {
-                    $rowAccount->opening_balance -= $rowAmount;
-                    $rowAccount->save();
-
-                    self::postLedgerEntry(
-                        $accId,
-                        'payment',
-                        $pvid,
-                        $voucher->id,
-                        $receiptDate,
-                        $remarks ?: "Payment Voucher #{$pvid}",
-                        0,
-                        $rowAmount,
-                        $userId
-                    );
-                    AccountLedgerEntry::recalculateRunningBalance((int)$accId);
-                }
+                $accountTotals[(int)$accId] = ($accountTotals[(int)$accId] ?? 0) + $rowAmount;
             }
+        }
+
+        foreach ($accountTotals as $accId => $totalAccAmount) {
+            self::postLedgerEntry(
+                $accId,
+                'payment',
+                $pvid,
+                $voucher->id,
+                $receiptDate,
+                $remarks ?: "Payment Voucher #{$pvid}",
+                0,
+                $totalAccAmount,
+                $userId
+            );
+            AccountLedgerEntry::recalculateRunningBalance((int)$accId);
         }
 
         // 2. PARTY SIDE POSTING (DEBIT - Vendor payable reduced / Customer receivable increased)
@@ -661,20 +597,7 @@ class VoucherService
 
             // 1. REVERSE EXPENSE ACCOUNTS (Row side: Debited originally, now Credited back)
             $accounts = self::safeDecodeArray($voucher->row_account_id);
-            $amounts  = self::safeDecodeArray($voucher->amount);
-
-            foreach ($accounts as $index => $accId) {
-                $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
-                if ($rowAmount > 0 && $accId) {
-                    $rowAccount = Account::find($accId);
-                    if ($rowAccount) {
-                        $rowAccount->opening_balance -= $rowAmount; // Deduct expense back
-                        $rowAccount->save();
-                    }
-                }
-            }
-
-            // Delete AccountLedgerEntry for this expense voucher
+            // 1. REVERSE EXPENSE ACCOUNTS: Delete AccountLedgerEntry for this expense voucher
             AccountLedgerEntry::where(function($q) use ($evid, $voucher) {
                 $q->where('voucher_no', $evid);
                 if ($voucher->id) {
@@ -713,11 +636,6 @@ class VoucherService
                     self::recalculateCustomerLedger((int)$pId);
                 } else {
                     $accountId = is_numeric($pId) ? $pId : $pType;
-                    $account   = Account::find($accountId);
-                    if ($account && $pAmount > 0) {
-                        $account->opening_balance += $pAmount; // Cash restored
-                        $account->save();
-                    }
                     $affectedAccountIds[] = (int)$accountId;
                 }
             }
@@ -725,12 +643,6 @@ class VoucherService
             // Recalculate running balance for affected accounts
             foreach (array_unique(array_filter($affectedAccountIds)) as $accId) {
                 AccountLedgerEntry::recalculateRunningBalance((int)$accId);
-                $lastEntry = AccountLedgerEntry::where('account_id', $accId)->orderBy('id', 'desc')->first();
-                $accModel  = Account::find($accId);
-                if ($accModel && $lastEntry) {
-                    $accModel->opening_balance = $lastEntry->running_balance;
-                    $accModel->save();
-                }
             }
 
             // 3. Mark Voucher Status
@@ -768,28 +680,27 @@ class VoucherService
             ? $data['amount'] 
             : self::safeDecodeArray($voucher->amount);
 
+        $accountTotals = [];
         foreach ($rowAccountIds as $index => $accId) {
             $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
             if ($rowAmount > 0 && $accId) {
-                $rowAccount = Account::find($accId);
-                if ($rowAccount) {
-                    $rowAccount->opening_balance += $rowAmount;
-                    $rowAccount->save();
-
-                    self::postLedgerEntry(
-                        $accId,
-                        'expense',
-                        $evid,
-                        $voucher->id,
-                        $entryDate,
-                        $remarks ?: "Expense Voucher #{$evid}",
-                        $rowAmount,
-                        0,
-                        $userId
-                    );
-                    AccountLedgerEntry::recalculateRunningBalance((int)$accId);
-                }
+                $accountTotals[(int)$accId] = ($accountTotals[(int)$accId] ?? 0) + $rowAmount;
             }
+        }
+
+        foreach ($accountTotals as $accId => $totalAccAmount) {
+            self::postLedgerEntry(
+                $accId,
+                'expense',
+                $evid,
+                $voucher->id,
+                $entryDate,
+                $remarks ?: "Expense Voucher #{$evid}",
+                $totalAccAmount,
+                0,
+                $userId
+            );
+            AccountLedgerEntry::recalculateRunningBalance((int)$accId);
         }
 
         // 2. PAYMENT SOURCE / PARTY SIDE POSTING (CREDIT - Funds decreased)
@@ -874,9 +785,6 @@ class VoucherService
                 $accountId = is_numeric($partyId) ? $partyId : $partyType;
                 $account   = Account::find($accountId);
                 if ($account) {
-                    $account->opening_balance -= $partyAmount;
-                    $account->save();
-
                     self::postLedgerEntry(
                         $account->id,
                         'expense',
@@ -1016,9 +924,6 @@ class VoucherService
                 $accId   = $voucher->debit_party_id;
                 $account = Account::find($accId);
                 if ($account) {
-                    $account->opening_balance -= $amount;
-                    $account->save();
-
                     self::postLedgerEntry(
                         $account->id,
                         'manual',
@@ -1081,9 +986,6 @@ class VoucherService
                 $accId   = $voucher->credit_party_id;
                 $account = Account::find($accId);
                 if ($account) {
-                    $account->opening_balance += $amount;
-                    $account->save();
-
                     self::postLedgerEntry(
                         $account->id,
                         'manual',
@@ -1176,9 +1078,6 @@ class VoucherService
             $accId   = $debitPartyId;
             $account = Account::find($accId);
             if ($account) {
-                $account->opening_balance += $amount;
-                $account->save();
-
                 self::postLedgerEntry(
                     $account->id,
                     'manual',
@@ -1241,9 +1140,6 @@ class VoucherService
             $accId   = $creditPartyId;
             $account = Account::find($accId);
             if ($account) {
-                $account->opening_balance -= $amount;
-                $account->save();
-
                 self::postLedgerEntry(
                     $account->id,
                     'manual',
@@ -1303,7 +1199,7 @@ class VoucherService
                     'voucher_no'        => null,
                     'voucher_id'        => null,
                     'entry_no'          => $obEntryNo,
-                    'transaction_date'  => now()->toDateString(),
+                    'transaction_date'  => $account->opening_date ? (is_string($account->opening_date) ? substr($account->opening_date, 0, 10) : $account->opening_date->format('Y-m-d')) : ($account->created_at ? $account->created_at->format('Y-m-d') : now()->toDateString()),
                     'description'       => 'Opening Balance',
                     'debit'             => $openingBalance >= 0 ? $openingBalance : 0,
                     'credit'            => $openingBalance < 0 ? abs($openingBalance) : 0,

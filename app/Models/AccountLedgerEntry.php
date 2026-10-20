@@ -121,15 +121,35 @@ class AccountLedgerEntry extends Model
 
         $firstEntry = $entries->first();
         if ($firstEntry && $firstEntry->voucher_type === 'opening_balance') {
-            // Keep opening balance entry date at or before earliest non-OB entry
-            $earliestNonOb = $entries->where('voucher_type', '!=', 'opening_balance')->first();
-            if ($earliestNonOb && $firstEntry->transaction_date > $earliestNonOb->transaction_date) {
-                $firstEntry->transaction_date = $earliestNonOb->transaction_date;
+            // Strictly respect the head's manual opening date if configured
+            if ($account->opening_date) {
+                $manualDate = is_string($account->opening_date)
+                    ? explode(' ', $account->opening_date)[0]
+                    : $account->opening_date->format('Y-m-d');
+                $firstEntry->transaction_date = $manualDate;
+            } else {
+                $earliestNonOb = $entries->where('voucher_type', '!=', 'opening_balance')->first();
+                if ($earliestNonOb && $firstEntry->transaction_date > $earliestNonOb->transaction_date) {
+                    $firstEntry->transaction_date = $earliestNonOb->transaction_date;
+                }
             }
+
             if ($firstEntry->entry_no !== 'OB-1') {
                 $firstEntry->entry_no = 'OB-1';
             }
-            $running = (float)$firstEntry->running_balance;
+
+            // Ensure opening balance entry matches account opening balance
+            $expectedOpening = (float)($account->opening_balance ?? 0);
+            if ($isCredit) {
+                $firstEntry->debit = 0;
+                $firstEntry->credit = abs($expectedOpening);
+            } else {
+                $firstEntry->debit = abs($expectedOpening);
+                $firstEntry->credit = 0;
+            }
+            $firstEntry->running_balance = $expectedOpening;
+
+            $running = $expectedOpening;
             $startIndex = 1;
         } else {
             $running = (float)($account->opening_balance ?? 0);

@@ -791,6 +791,7 @@
                                                         data-head-id="{{ $account->head_id }}"
                                                         data-type="{{ $account->type }}"
                                                         data-opening="{{ $account->opening_balance ?? 0 }}"
+                                                        data-opening-date="{{ $account->opening_date ? (is_string($account->opening_date) ? substr($account->opening_date, 0, 10) : $account->opening_date->format('Y-m-d')) : ($account->created_at ? $account->created_at->format('Y-m-d') : date('Y-m-d')) }}"
                                                         data-status="{{ $account->status }}"
                                                         title="Edit Account Details">
                                                     <i class="fas fa-pencil-alt"></i>
@@ -893,7 +894,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label for="accountType" class="font-weight-bold text-dark small mb-1">
                                 <i class="fas fa-exchange-alt mr-1"></i> Account Nature <span class="text-danger">*</span>
                             </label>
@@ -902,7 +903,7 @@
                                 <option value="Credit">Credit (Liability / Capital / Revenue)</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label for="accountOpeningBalance" class="font-weight-bold text-dark small mb-1">
                                 <i class="fas fa-wallet mr-1"></i> Opening Balance
                             </label>
@@ -912,6 +913,12 @@
                                 </div>
                                 <input type="number" step="0.01" class="form-control" id="accountOpeningBalance" name="opening_balance" placeholder="0.00" value="0.00" style="border-radius: 0 6px 6px 0;">
                             </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="accountOpeningDate" class="font-weight-bold text-dark small mb-1">
+                                <i class="fas fa-calendar-alt mr-1"></i> Opening Date <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" class="form-control" id="accountOpeningDate" name="opening_date" value="{{ date('Y-m-d') }}" required style="border-radius: 6px;">
                         </div>
                     </div>
 
@@ -979,7 +986,7 @@
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label for="editAccountType" class="font-weight-bold text-dark small mb-1">
                                 <i class="fas fa-exchange-alt mr-1"></i> Account Nature <span class="text-danger">*</span>
                             </label>
@@ -988,7 +995,7 @@
                                 <option value="Credit">Credit</option>
                             </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label for="editAccountOpeningBalance" class="font-weight-bold text-dark small mb-1">
                                 <i class="fas fa-wallet mr-1"></i> Opening Balance
                             </label>
@@ -998,6 +1005,12 @@
                                 </div>
                                 <input type="number" step="0.01" class="form-control" id="editAccountOpeningBalance" name="opening_balance" style="border-radius: 0 6px 6px 0;">
                             </div>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="editAccountOpeningDate" class="font-weight-bold text-dark small mb-1">
+                                <i class="fas fa-calendar-alt mr-1"></i> Opening Date
+                            </label>
+                            <input type="date" class="form-control" id="editAccountOpeningDate" name="opening_date" style="border-radius: 6px;">
                         </div>
                     </div>
 
@@ -1178,6 +1191,7 @@
             var headId  = $(this).data('head-id');
             var type    = $(this).data('type');
             var opening = $(this).data('opening');
+            var openingDate = $(this).data('opening-date');
             var status  = $(this).data('status');
             var $modal  = $('#editAccountModal');
             
@@ -1187,6 +1201,7 @@
             $modal.find('[name="title"]').val(title);
             $modal.find('[name="type"]').val(type).trigger('change');
             $modal.find('[name="opening_balance"]').val(opening);
+            $modal.find('[name="opening_date"]').val(openingDate);
             
             if (status == 1 || status == 'active' || status == '' || status == null || status == undefined) {
                 $modal.find('[name="status"]').prop('checked', true);

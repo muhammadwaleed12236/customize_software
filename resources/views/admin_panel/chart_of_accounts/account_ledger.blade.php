@@ -298,7 +298,19 @@
                             <td>
                                 <span class="entry-no ob" style="background:#e2e8f0; color:#334155; font-weight:800;">OPENING</span>
                             </td>
-                            <td>{{ $dateFrom ? \Carbon\Carbon::parse($dateFrom)->format('d M Y') : (($nonObEntries ?? $entries)->first() ? \Carbon\Carbon::parse(($nonObEntries ?? $entries)->first()->transaction_date)->format('d M Y') : '—') }}</td>
+                            <td>
+                                @if($dateFrom)
+                                    {{ \Carbon\Carbon::parse($dateFrom)->format('d M Y') }}
+                                @elseif($account->opening_date)
+                                    {{ \Carbon\Carbon::parse($account->opening_date)->format('d M Y') }}
+                                @elseif(isset($obEntry) && $obEntry && $obEntry->transaction_date)
+                                    {{ \Carbon\Carbon::parse($obEntry->transaction_date)->format('d M Y') }}
+                                @elseif(($nonObEntries ?? $entries)->first())
+                                    {{ \Carbon\Carbon::parse(($nonObEntries ?? $entries)->first()->transaction_date)->format('d M Y') }}
+                                @else
+                                    —
+                                @endif
+                            </td>
                             <td><span class="voucher-tag" style="background:#cbd5e1; color:#0f172a;">OB</span></td>
                             <td><strong style="color:var(--primary);">Opening Balance / Initial Balance</strong></td>
                             <td class="text-end">
