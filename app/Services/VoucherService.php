@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\Log;
 
 class VoucherService
 {
+    public static string $lastError = '';
+
     /* =========================================================================
      * 1. RECEIPTS VOUCHER (CRV / BRV)
      * ========================================================================= */
@@ -33,7 +35,24 @@ class VoucherService
             $rvid        = $voucher->rvid;
             $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
-            // 1. REVERSE ACCOUNT SIDE: Delete AccountLedgerEntry for this receipt voucher
+            // 1. REVERSE ACCOUNT SIDE: Extract accounts and delete AccountLedgerEntry for this receipt voucher
+            $accounts = self::safeDecodeArray($voucher->row_account_id);
+            if (empty($accounts) && !empty($voucher->row_account_id) && is_numeric($voucher->row_account_id)) {
+                $accounts = [(int)$voucher->row_account_id];
+            }
+
+            $existingAccIds = AccountLedgerEntry::where(function($q) use ($rvid, $voucher) {
+                $q->where('voucher_no', $rvid);
+                if ($voucher->id) {
+                    $q->orWhere('voucher_id', $voucher->id);
+                }
+                if ($voucher->reference_no) {
+                    $q->orWhere('voucher_no', $voucher->reference_no);
+                }
+            })->pluck('account_id')->toArray();
+
+            $accounts = array_unique(array_filter(array_merge($accounts, $existingAccIds)));
+
             AccountLedgerEntry::where(function($q) use ($rvid, $voucher) {
                 $q->where('voucher_no', $rvid);
                 if ($voucher->id) {
@@ -91,6 +110,7 @@ class VoucherService
             return true;
         } catch (\Exception $e) {
             DB::rollBack();
+            self::$lastError = $e->getMessage();
             Log::error("Receipt Voucher Reversal Error: " . $e->getMessage());
             return false;
         }
@@ -314,7 +334,24 @@ class VoucherService
             $pvid        = $voucher->pvid;
             $branchId    = (int)($voucher->branch_id ?? (auth()->check() ? auth()->user()->branch_id : 1));
 
-            // 1. REVERSE ROW ACCOUNTS: Delete AccountLedgerEntry for this payment voucher
+            // 1. REVERSE ROW ACCOUNTS: Extract accounts and delete AccountLedgerEntry for this payment voucher
+            $accounts = self::safeDecodeArray($voucher->row_account_id);
+            if (empty($accounts) && !empty($voucher->row_account_id) && is_numeric($voucher->row_account_id)) {
+                $accounts = [(int)$voucher->row_account_id];
+            }
+
+            $existingAccIds = AccountLedgerEntry::where(function($q) use ($pvid, $voucher) {
+                $q->where('voucher_no', $pvid);
+                if ($voucher->id) {
+                    $q->orWhere('voucher_id', $voucher->id);
+                }
+                if ($voucher->reference_no) {
+                    $q->orWhere('voucher_no', $voucher->reference_no);
+                }
+            })->pluck('account_id')->toArray();
+
+            $accounts = array_unique(array_filter(array_merge($accounts, $existingAccIds)));
+
             AccountLedgerEntry::where(function($q) use ($pvid, $voucher) {
                 $q->where('voucher_no', $pvid);
                 if ($voucher->id) {
@@ -372,6 +409,7 @@ class VoucherService
             return true;
         } catch (\Exception $e) {
             DB::rollBack();
+            self::$lastError = $e->getMessage();
             Log::error("Payment Voucher Reversal Error: " . $e->getMessage());
             return false;
         }
@@ -655,6 +693,7 @@ class VoucherService
             return true;
         } catch (\Exception $e) {
             DB::rollBack();
+            self::$lastError = $e->getMessage();
             Log::error("Expense Voucher Reversal Error: " . $e->getMessage());
             return false;
         }
@@ -1010,6 +1049,7 @@ class VoucherService
             return true;
         } catch (\Exception $e) {
             DB::rollBack();
+            self::$lastError = $e->getMessage();
             Log::error("JV Reversal Error: " . $e->getMessage());
             return false;
         }

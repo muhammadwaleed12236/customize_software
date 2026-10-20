@@ -617,9 +617,20 @@ $(document).ready(function () {
                                 rateStr  = perW > 0 ? '<strong style="color:#1e3a5f;">' + fmt(perW) + '</strong>' : '';
                             }
                         } else {
-                            var pVal = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
-                            priceStr = pVal > 0 ? '<strong style="color:#0f2b48;">' + fmt(pVal) + '</strong>' : '';
-                            rateStr  = dash();
+                            var rVal = itemRate > 0 ? itemRate : (itemQty > 0 ? itemAmt / itemQty : 0);
+                            var pVal = (itemQty > 0 && itemAmt > 0) ? (itemAmt / itemQty) : rVal;
+                            rateStr  = rVal > 0 ? '<strong style="color:#1e3a5f;">' + fmt(rVal) + '</strong>' : dash();
+                            priceStr = pVal > 0 ? '<strong style="color:#0f2b48;">' + fmt(pVal) + '</strong>' : dash();
+                        }
+
+                        // Final safety fallback: If rateStr is empty or dash but unit price exists, populate rateStr
+                        if ((!rateStr || rateStr === dash()) && (itemRate > 0 || (itemQty > 0 && itemAmt > 0))) {
+                            var fallbackR = itemRate > 0 ? itemRate : (itemAmt / itemQty);
+                            rateStr = '<strong style="color:#1e3a5f;">' + fmt(fallbackR) + '</strong>';
+                        }
+                        if ((!priceStr || priceStr === dash()) && (itemRate > 0 || (itemQty > 0 && itemAmt > 0))) {
+                            var fallbackP = (itemQty > 0 && itemAmt > 0) ? (itemAmt / itemQty) : itemRate;
+                            priceStr = '<strong style="color:#0f2b48;">' + fmt(fallbackP) + '</strong>';
                         }
 
                         var borderStyle = idx === 0 ? 'border-top: 1.5px solid #cbd5e1; background: #f0fdf4;' : 'border-top: 1px dashed #e2e8f0; background: #f6fdf8;';
@@ -730,8 +741,10 @@ $(document).ready(function () {
             bodyHtml += td(t.date  || '', 'center');                                              // 4. Date
             bodyHtml += td(refVal, 'center');                                                     // 5. Ref
             bodyHtml += td(descHtml, 'left');                                                     // 6. Details
-            bodyHtml += td('', 'right');                                                          // 7. Rate
-            bodyHtml += td(t.rate && n(t.rate) > 0 ? fmt(t.rate) : '', 'right');                 // 8. Price
+            var txRateVal = (t.rate && n(t.rate) > 0) ? ('<strong style="color:#1e3a5f;">' + fmt(t.rate) + '</strong>') : '';
+            var txPriceVal = (t.rate && n(t.rate) > 0) ? ('<strong style="color:#0f2b48;">' + fmt(t.rate) + '</strong>') : '';
+            bodyHtml += td(txRateVal, 'right');                                                   // 7. Rate
+            bodyHtml += td(txPriceVal, 'right');                                                  // 8. Price
             bodyHtml += td(t.qty  && n(t.qty)  > 0 ? fmt(t.qty)  : '', 'right');                  // 9. Qty
             bodyHtml += td(debit  > 0 ? '<strong style="color:#c62828;">' + fmt(debit)  + '</strong>' : '', 'right'); // 10. Debit
             bodyHtml += td(credit > 0 ? '<strong style="color:#2e7d32;">' + fmt(credit) + '</strong>' : '', 'right');// 11. Credit

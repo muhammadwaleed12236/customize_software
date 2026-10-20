@@ -510,7 +510,12 @@ class ReportingController extends Controller
                 'sale_items.product_id as product_id',
                 'sale_items.sales_qty  as qty',
                 'sale_items.discount_amount as item_discount',
-                DB::raw('CASE WHEN sale_items.sales_price > 0 THEN sale_items.sales_price WHEN sale_items.sales_qty > 0 THEN ROUND((sale_items.amount + sale_items.discount_amount) / sale_items.sales_qty, 2) ELSE 0 END as rate'),
+                DB::raw('CASE 
+                    WHEN sale_items.sales_price > 0 THEN sale_items.sales_price 
+                    WHEN sale_items.sales_qty > 0 AND (sale_items.amount + sale_items.discount_amount) > 0 THEN ROUND((sale_items.amount + sale_items.discount_amount) / sale_items.sales_qty, 2)
+                    WHEN sale_items.retail_price > 0 THEN sale_items.retail_price
+                    WHEN products.price > 0 THEN products.price
+                    ELSE 0 END as rate'),
                 'sale_items.amount  as line_amount'
             )
             ->orderBy('sales.created_at', 'asc')
@@ -554,9 +559,15 @@ class ReportingController extends Controller
             }
             $qty       = floatval($row->qty ?? 0);
             $rate      = floatval($row->rate ?? 0);
+            if ($rate == 0 && floatval($row->retail_price ?? 0) > 0) {
+                $rate = floatval($row->retail_price);
+            }
             $lineAmt   = floatval($row->line_amount ?? 0);
             if ($lineAmt == 0 && $qty > 0 && $rate > 0) {
                 $lineAmt = $qty * $rate;
+            }
+            if ($rate == 0 && $qty > 0 && $lineAmt > 0) {
+                $rate = round($lineAmt / $qty, 2);
             }
 
             $salesGrouped[$row->sale_id]['items_sum'] += $lineAmt;
@@ -1391,13 +1402,22 @@ class ReportingController extends Controller
                 ];
             }
             if ($row->item_name) {
+                $pQty     = floatval($row->qty ?? 0);
+                $pRate    = floatval($row->rate ?? 0);
+                $pLineAmt = floatval($row->line_amount ?? 0);
+                if ($pRate == 0 && $pQty > 0 && $pLineAmt > 0) {
+                    $pRate = round($pLineAmt / $pQty, 2);
+                }
+                if ($pLineAmt == 0 && $pQty > 0 && $pRate > 0) {
+                    $pLineAmt = round($pQty * $pRate, 2);
+                }
                 $purchasesGrouped[$row->purchase_id]['items'][] = [
                     'item_name'     => $row->item_name,
                     'item_name_urdu'=> $row->item_name_urdu ?? null,
-                    'qty'           => floatval($row->qty ?? 0),
-                    'rate'          => floatval($row->rate ?? 0),
+                    'qty'           => $pQty,
+                    'rate'          => $pRate,
                     'item_discount' => floatval($row->item_discount ?? 0),
-                    'line_amount'   => floatval($row->line_amount ?? 0),
+                    'line_amount'   => $pLineAmt,
                 ];
             }
         }

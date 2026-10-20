@@ -630,7 +630,8 @@ public function getOpeningBalance($type, $id)
         if ($success) {
             return back()->with('success', 'Receipt Voucher voided successfully! Ledgers reversed.');
         } else {
-            return back()->with('error', 'Failed to void Receipt Voucher.');
+            $err = \App\Services\VoucherService::$lastError;
+            return back()->with('error', 'Failed to void Receipt Voucher.' . ($err ? " Error: {$err}" : ''));
         }
     }
 
@@ -946,7 +947,8 @@ public function getOpeningBalance($type, $id)
         if ($success) {
             return back()->with('success', 'Payment Voucher voided successfully! Ledgers reversed.');
         } else {
-            return back()->with('error', 'Failed to void Payment Voucher.');
+            $err = \App\Services\VoucherService::$lastError;
+            return back()->with('error', 'Failed to void Payment Voucher.' . ($err ? " Error: {$err}" : ''));
         }
     }
 
@@ -1392,7 +1394,8 @@ public function getOpeningBalance($type, $id)
         if ($success) {
             return back()->with('success', 'Expense Voucher voided successfully! Ledgers reversed.');
         } else {
-            return back()->with('error', 'Failed to void Expense Voucher.');
+            $err = \App\Services\VoucherService::$lastError;
+            return back()->with('error', 'Failed to void Expense Voucher.' . ($err ? " Error: {$err}" : ''));
         }
     }
 
@@ -1991,7 +1994,8 @@ public function getOpeningBalance($type, $id)
             $jv->delete();
             return back()->with('success', "Journal Voucher #{$jv->jvid} voided and ledgers reversed successfully.");
         } else {
-            return back()->with('error', "Failed to void Journal Voucher.");
+            $err = \App\Services\VoucherService::$lastError;
+            return back()->with('error', "Failed to void Journal Voucher." . ($err ? " Error: {$err}" : ''));
         }
     }
 
