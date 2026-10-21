@@ -924,6 +924,8 @@ public function getOpeningBalance($type, $id)
                 'party_id'     => $partyIds,
                 'party_amount' => $partyAmounts,
                 'party_tel'    => $partyTels,
+                'branch_id'    => $branchId,
+                'narration_id' => $narrationIds,
             ]), auth()->id());
 
             DB::commit();
@@ -1342,6 +1344,8 @@ public function getOpeningBalance($type, $id)
                 'party_id'     => $partyIds,
                 'party_amount' => $partyAmounts,
                 'party_tel'    => $partyTels,
+                'branch_id'    => $branchId,
+                'narration_id' => $narrationIds,
             ]), auth()->id());
 
             DB::commit();

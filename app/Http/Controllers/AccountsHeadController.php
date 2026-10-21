@@ -470,7 +470,7 @@ class AccountsHeadController extends Controller
         }
 
         // ✅ Automatically sync any unrecorded receipts or vouchers for this account
-        $this->syncAccountLedger($account);
+        self::syncAccountLedger($account);
 
         // ✅ Ensure balances and sequence numbers are cleanly maintained in date order
         \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
@@ -539,7 +539,7 @@ class AccountsHeadController extends Controller
     /**
      * ✅ Auto-sync any unrecorded receipts or vouchers into account_ledger_entries.
      */
-    private function syncAccountLedger($account)
+    public static function syncAccountLedger($account)
     {
         $accountId = $account->id;
         $accountType = trim(strtolower($account->type ?? 'debit'));
@@ -563,14 +563,15 @@ class AccountsHeadController extends Controller
                         if (empty($types) && !empty($pv->type)) {
                             $types = [$pv->type];
                         }
-                        $hasNumeric = false;
+                        $isAccountType = false;
                         foreach ($types as $t) {
-                            if (is_numeric($t)) {
-                                $hasNumeric = true;
+                            $tStr = strtolower(trim((string)$t));
+                            if (is_numeric($t) || in_array($tStr, ['account', 'ledger'])) {
+                                $isAccountType = true;
                                 break;
                             }
                         }
-                        if (!$hasNumeric) {
+                        if (!$isAccountType) {
                             $entry->delete();
                             $deletedCount++;
                         }
@@ -584,14 +585,15 @@ class AccountsHeadController extends Controller
                         if (empty($types) && !empty($rv->type)) {
                             $types = [$rv->type];
                         }
-                        $hasNumeric = false;
+                        $isAccountType = false;
                         foreach ($types as $t) {
-                            if (is_numeric($t)) {
-                                $hasNumeric = true;
+                            $tStr = strtolower(trim((string)$t));
+                            if (is_numeric($t) || in_array($tStr, ['account', 'ledger'])) {
+                                $isAccountType = true;
                                 break;
                             }
                         }
-                        if (!$hasNumeric) {
+                        if (!$isAccountType) {
                             $entry->delete();
                             $deletedCount++;
                         }
@@ -690,6 +692,7 @@ class AccountsHeadController extends Controller
             $rvQuery->where(function($q) use ($accountId) {
                 $q->where('row_account_id', $accountId)
                   ->orWhere('row_account_id', (string)$accountId)
+                  ->orWhere('row_account_id', 'like', '%"' . $accountId . '"%')
                   ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
                   ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
                   ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
@@ -707,9 +710,17 @@ class AccountsHeadController extends Controller
             if ($amt > 0) {
                 $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($rv) {
-                        $q->where('voucher_id', $rv->id)
-                          ->orWhere('voucher_no', $rv->rvid)
-                          ->orWhere('voucher_no', $rv->reference_no);
+                        $q->where('voucher_id', $rv->id);
+                        if (!empty($rv->rvid)) {
+                            $q->orWhere('voucher_no', $rv->rvid);
+                        }
+                        $cleanRefs = \App\Services\VoucherService::safeDecodeArray($rv->reference_no);
+                        foreach ($cleanRefs as $ref) {
+                            $refStr = trim((string)$ref);
+                            if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                                $q->orWhere('voucher_no', $refStr);
+                            }
+                        }
                     })->exists();
 
                 if (!$alreadyRecorded) {
@@ -747,6 +758,7 @@ class AccountsHeadController extends Controller
             $pvQuery->where(function($q) use ($accountId) {
                 $q->where('row_account_id', $accountId)
                   ->orWhere('row_account_id', (string)$accountId)
+                  ->orWhere('row_account_id', 'like', '%"' . $accountId . '"%')
                   ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
                   ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
                   ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
@@ -764,9 +776,17 @@ class AccountsHeadController extends Controller
             if ($amt > 0) {
                 $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($pv) {
-                        $q->where('voucher_id', $pv->id)
-                          ->orWhere('voucher_no', $pv->pvid)
-                          ->orWhere('voucher_no', $pv->reference_no);
+                        $q->where('voucher_id', $pv->id);
+                        if (!empty($pv->pvid)) {
+                            $q->orWhere('voucher_no', $pv->pvid);
+                        }
+                        $cleanRefs = \App\Services\VoucherService::safeDecodeArray($pv->reference_no);
+                        foreach ($cleanRefs as $ref) {
+                            $refStr = trim((string)$ref);
+                            if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                                $q->orWhere('voucher_no', $refStr);
+                            }
+                        }
                     })->exists();
 
                 if (!$alreadyRecorded) {

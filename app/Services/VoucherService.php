@@ -46,8 +46,12 @@ class VoucherService
                 if ($voucher->id) {
                     $q->orWhere('voucher_id', $voucher->id);
                 }
-                if ($voucher->reference_no) {
-                    $q->orWhere('voucher_no', $voucher->reference_no);
+                $cleanRefs = self::safeDecodeArray($voucher->reference_no);
+                foreach ($cleanRefs as $ref) {
+                    $refStr = trim((string)$ref);
+                    if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                        $q->orWhere('voucher_no', $refStr);
+                    }
                 }
             })->pluck('account_id')->toArray();
 
@@ -58,8 +62,12 @@ class VoucherService
                 if ($voucher->id) {
                     $q->orWhere('voucher_id', $voucher->id);
                 }
-                if ($voucher->reference_no) {
-                    $q->orWhere('voucher_no', $voucher->reference_no);
+                $cleanRefs = self::safeDecodeArray($voucher->reference_no);
+                foreach ($cleanRefs as $ref) {
+                    $refStr = trim((string)$ref);
+                    if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                        $q->orWhere('voucher_no', $refStr);
+                    }
                 }
             })->delete();
 
@@ -206,7 +214,7 @@ class VoucherService
                 ]);
 
                 self::recalculateVendorLedger((int)$partyId, $branchId);
-            } elseif (is_numeric($partyType)) {
+            } elseif (is_numeric($partyType) || in_array(strtolower(trim((string)$partyType)), ['account', 'ledger']) || !in_array(strtolower(trim((string)$partyType)), ['vendor', 'customer', 'walkin', 'sale_receipt'])) {
                 $account = Account::find($partyId);
                 if ($account) {
                     self::postLedgerEntry(
@@ -345,8 +353,12 @@ class VoucherService
                 if ($voucher->id) {
                     $q->orWhere('voucher_id', $voucher->id);
                 }
-                if ($voucher->reference_no) {
-                    $q->orWhere('voucher_no', $voucher->reference_no);
+                $cleanRefs = self::safeDecodeArray($voucher->reference_no);
+                foreach ($cleanRefs as $ref) {
+                    $refStr = trim((string)$ref);
+                    if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                        $q->orWhere('voucher_no', $refStr);
+                    }
                 }
             })->pluck('account_id')->toArray();
 
@@ -357,8 +369,12 @@ class VoucherService
                 if ($voucher->id) {
                     $q->orWhere('voucher_id', $voucher->id);
                 }
-                if ($voucher->reference_no) {
-                    $q->orWhere('voucher_no', $voucher->reference_no);
+                $cleanRefs = self::safeDecodeArray($voucher->reference_no);
+                foreach ($cleanRefs as $ref) {
+                    $refStr = trim((string)$ref);
+                    if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                        $q->orWhere('voucher_no', $refStr);
+                    }
                 }
             })->delete();
 
@@ -535,7 +551,7 @@ class VoucherService
                 ]);
 
                 self::recalculateCustomerLedger((int)$partyId);
-            } elseif (is_numeric($partyType)) {
+            } elseif (is_numeric($partyType) || in_array(strtolower(trim((string)$partyType)), ['account', 'ledger']) || !in_array(strtolower(trim((string)$partyType)), ['vendor', 'customer', 'walkin', 'sale_receipt'])) {
                 $account = Account::find($partyId);
                 if ($account) {
                     self::postLedgerEntry(
@@ -641,8 +657,12 @@ class VoucherService
                 if ($voucher->id) {
                     $q->orWhere('voucher_id', $voucher->id);
                 }
-                if ($voucher->reference_no) {
-                    $q->orWhere('voucher_no', $voucher->reference_no);
+                $cleanRefs = self::safeDecodeArray($voucher->reference_no);
+                foreach ($cleanRefs as $ref) {
+                    $refStr = trim((string)$ref);
+                    if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                        $q->orWhere('voucher_no', $refStr);
+                    }
                 }
             })->pluck('account_id')->toArray();
 
@@ -654,8 +674,12 @@ class VoucherService
                 if ($voucher->id) {
                     $q->orWhere('voucher_id', $voucher->id);
                 }
-                if ($voucher->reference_no) {
-                    $q->orWhere('voucher_no', $voucher->reference_no);
+                $cleanRefs = self::safeDecodeArray($voucher->reference_no);
+                foreach ($cleanRefs as $ref) {
+                    $refStr = trim((string)$ref);
+                    if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
+                        $q->orWhere('voucher_no', $refStr);
+                    }
                 }
             })->delete();
 
