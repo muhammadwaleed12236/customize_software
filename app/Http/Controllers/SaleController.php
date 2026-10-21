@@ -3519,7 +3519,7 @@ public function finddc($invoice)
             }
 
             // ------------------------------------------------------------------
-            // Accounts: Cash Refund — debit selected accounts
+            // Accounts: Cash Refund — post payment entry to selected accounts
             // ------------------------------------------------------------------
             if ($request->refund_type === 'cash') {
                 $refundAccountIds = $request->input('refund_account_id', []);
@@ -3527,9 +3527,18 @@ public function finddc($invoice)
                 foreach ($refundAccountIds as $i => $accountId) {
                     $refAmt = (float)($refundAmounts[$i] ?? 0);
                     if (! $accountId || $refAmt <= 0) continue;
-                    DB::table('accounts')
-                        ->where('id', (int)$accountId)
-                        ->decrement('opening_balance', $refAmt);
+
+                    \App\Services\VoucherService::postLedgerEntry(
+                        (int)$accountId,
+                        'payment',
+                        $saleReturn->reference ?? ('RET-' . $saleReturn->id),
+                        $saleReturn->id,
+                        now()->toDateString(),
+                        'Sale Return Cash Refund — ' . ($saleReturn->reference ?? ('#' . $saleReturn->id)),
+                        0,
+                        $refAmt,
+                        auth()->id() ?? 1
+                    );
                 }
             }
 

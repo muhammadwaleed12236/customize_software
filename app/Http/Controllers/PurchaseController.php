@@ -632,10 +632,6 @@ class PurchaseController extends Controller
                     $amt = $paymentAmounts[$index];
                     $sourceAccount = \App\Models\Account::find($accId);
                     if ($sourceAccount) {
-                        // Update Account Balance
-                        $sourceAccount->opening_balance = $sourceAccount->opening_balance - $amt;
-                        $sourceAccount->save();
-                        
                         $rowAccountHeads[] = $sourceAccount->head_id ?? 1;
 
                         // ✅ NEW: Post to Account Ledger (Account-side detail)

@@ -51,10 +51,7 @@ class AccountsHeadController extends Controller
         $branchesWithTotals = $branches->map(function ($branch) {
             $accounts = $branch->accounts;
             $openingSum = (float)$accounts->sum(function ($acc) {
-                $obEntry = AccountLedgerEntry::where('account_id', $acc->id)
-                    ->where('voucher_type', 'opening_balance')
-                    ->first();
-                return $obEntry ? (float)$obEntry->running_balance : (float)($acc->opening_balance ?? 0);
+                return (float)($acc->opening_balance ?? 0);
             });
             $currentSum = (float)$accounts->sum(function ($acc) {
                 return AccountLedgerEntry::getClosingBalance($acc->id);
@@ -113,10 +110,7 @@ class AccountsHeadController extends Controller
 
         // ✅ Get accounts with current running balances from ledger
         $allAccounts = $branch->accounts()->with('head')->get()->map(function ($acc) {
-            $obEntry = AccountLedgerEntry::where('account_id', $acc->id)
-                ->where('voucher_type', 'opening_balance')
-                ->first();
-            $acc->opening_balance = $obEntry ? (float)$obEntry->running_balance : (float)($acc->opening_balance ?? 0);
+            $acc->opening_balance = (float)($acc->opening_balance ?? 0);
 
             $lastEntry = AccountLedgerEntry::getClosingEntry($acc->id);
             $acc->current_balance = $lastEntry ? (float)$lastEntry->running_balance : (float)$acc->opening_balance;
@@ -220,7 +214,7 @@ class AccountsHeadController extends Controller
         // ✅ Set status (1 = active, 0 = inactive)
         $status = $request->status === 'on' ? 1 : 0;
 
-        $openingBal = (float)($request->opening_balance ?? 0);
+        $openingBal = abs((float)($request->opening_balance ?? 0));
         $openingDate = $request->opening_date ?: now()->toDateString();
 
         // ✅ Create account with auto-generated code
@@ -292,7 +286,7 @@ class AccountsHeadController extends Controller
         $oldStatus      = (int)($account->status == 1 || $account->status == 'active');
 
         $newTitle       = $request->title;
-        $newOpening     = (float)($request->opening_balance ?? 0);
+        $newOpening     = abs((float)($request->opening_balance ?? 0));
         $newOpeningDate = $request->opening_date ?: ($oldOpeningDate ?: now()->toDateString());
         $newHeadId      = (int)$request->head_id;
         $newType        = $request->type;

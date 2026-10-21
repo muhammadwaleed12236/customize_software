@@ -790,7 +790,7 @@
                                                         data-title="{{ addslashes($account->title) }}"
                                                         data-head-id="{{ $account->head_id }}"
                                                         data-type="{{ $account->type }}"
-                                                        data-opening="{{ $account->opening_balance ?? 0 }}"
+                                                        data-opening="{{ max(0, (float)($account->opening_balance ?? 0)) }}"
                                                         data-opening-date="{{ $account->opening_date ? (is_string($account->opening_date) ? substr($account->opening_date, 0, 10) : $account->opening_date->format('Y-m-d')) : ($account->created_at ? $account->created_at->format('Y-m-d') : date('Y-m-d')) }}"
                                                         data-status="{{ $account->status }}"
                                                         title="Edit Account Details">
@@ -911,7 +911,7 @@
                                 <div class="input-group-prepend">
                                     <span class="input-group-text bg-light font-weight-bold" style="border-radius: 6px 0 0 6px;">PKR</span>
                                 </div>
-                                <input type="number" step="0.01" class="form-control" id="accountOpeningBalance" name="opening_balance" placeholder="0.00" value="0.00" style="border-radius: 0 6px 6px 0;">
+                                <input type="number" step="0.01" min="0" class="form-control" id="accountOpeningBalance" name="opening_balance" placeholder="0.00" value="0.00" style="border-radius: 0 6px 6px 0;">
                             </div>
                         </div>
                         <div class="col-md-4 mb-3">
@@ -1003,7 +1003,7 @@
                                 <div class="input-group-prepend">
                                     <span class="input-group-text bg-light font-weight-bold" style="border-radius: 6px 0 0 6px;">PKR</span>
                                 </div>
-                                <input type="number" step="0.01" class="form-control" id="editAccountOpeningBalance" name="opening_balance" style="border-radius: 0 6px 6px 0;">
+                                <input type="number" step="0.01" min="0" class="form-control" id="editAccountOpeningBalance" name="opening_balance" style="border-radius: 0 6px 6px 0;">
                             </div>
                         </div>
                         <div class="col-md-4 mb-3">
@@ -1200,7 +1200,7 @@
             $modal.find('[name="head_id"]').val(headId).trigger('change');
             $modal.find('[name="title"]').val(title);
             $modal.find('[name="type"]').val(type).trigger('change');
-            $modal.find('[name="opening_balance"]').val(opening);
+            $modal.find('[name="opening_balance"]').val(Math.max(0, parseFloat(opening) || 0));
             $modal.find('[name="opening_date"]').val(openingDate);
             
             if (status == 1 || status == 'active' || status == '' || status == null || status == undefined) {

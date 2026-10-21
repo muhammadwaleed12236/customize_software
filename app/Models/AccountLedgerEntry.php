@@ -168,7 +168,7 @@ class AccountLedgerEntry extends Model
             }
 
             // Ensure opening balance entry matches account opening balance
-            $expectedOpening = (float)($account->opening_balance ?? 0);
+            $expectedOpening = abs((float)($account->opening_balance ?? 0));
             if ($isCredit) {
                 $firstEntry->debit = 0;
                 $firstEntry->credit = abs($expectedOpening);
@@ -184,7 +184,7 @@ class AccountLedgerEntry extends Model
             $running = $expectedOpening;
             $startIndex = 1;
         } else {
-            $running = (float)($account->opening_balance ?? 0);
+            $running = abs((float)($account->opening_balance ?? 0));
             $startIndex = 0;
         }
 
