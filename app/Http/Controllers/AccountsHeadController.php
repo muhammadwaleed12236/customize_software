@@ -57,8 +57,7 @@ class AccountsHeadController extends Controller
                 return $obEntry ? (float)$obEntry->running_balance : (float)($acc->opening_balance ?? 0);
             });
             $currentSum = (float)$accounts->sum(function ($acc) {
-                $lastEntry = AccountLedgerEntry::where('account_id', $acc->id)->latest('id')->first();
-                return $lastEntry ? (float)$lastEntry->running_balance : (float)($acc->opening_balance ?? 0);
+                return AccountLedgerEntry::getClosingBalance($acc->id);
             });
 
             return [
@@ -119,7 +118,7 @@ class AccountsHeadController extends Controller
                 ->first();
             $acc->opening_balance = $obEntry ? (float)$obEntry->running_balance : (float)($acc->opening_balance ?? 0);
 
-            $lastEntry = AccountLedgerEntry::where('account_id', $acc->id)->latest('id')->first();
+            $lastEntry = AccountLedgerEntry::getClosingEntry($acc->id);
             $acc->current_balance = $lastEntry ? (float)$lastEntry->running_balance : (float)$acc->opening_balance;
             return $acc;
         });
@@ -319,8 +318,7 @@ class AccountsHeadController extends Controller
 
         // Calculate differences and build change notes
         $diff = $newOpening - $oldOpening;
-        $lastEntry = AccountLedgerEntry::where('account_id', $account->id)->latest('id')->first();
-        $currentBal = $lastEntry ? (float)$lastEntry->running_balance : $oldOpening;
+        $currentBal = AccountLedgerEntry::getClosingBalance($account->id);
         $resultingCurrentBal = $currentBal + $diff;
 
         $changes = [];
@@ -396,8 +394,7 @@ class AccountsHeadController extends Controller
     public function getAccountHistory($id)
     {
         $account = Account::with(['head', 'branch'])->findOrFail($id);
-        $lastEntry = AccountLedgerEntry::where('account_id', $id)->latest('id')->first();
-        $currentBal = $lastEntry ? (float)$lastEntry->running_balance : (float)($account->opening_balance ?? 0);
+        $currentBal = AccountLedgerEntry::getClosingBalance($id);
 
         $histories = AccountEditHistory::with('user:id,name')
             ->where('account_id', $id)
@@ -465,6 +462,17 @@ class AccountsHeadController extends Controller
         // ✅ Authorization: Branch users can only view their own branch accounts
         if (!$isSuperAdmin && $account->branch_id != $user->branch_id) {
             return redirect()->back()->with('error', 'Unauthorized.');
+        }
+
+        // ✅ Purge any stale ledger entries from voided vouchers for this account
+        $voidedEvids = \App\Models\ExpenseVoucher::where('status', 'voided')->pluck('evid')->filter()->toArray();
+        $voidedPvids = \App\Models\PaymentVoucher::where('status', 'voided')->pluck('pvid')->filter()->toArray();
+        $voidedRvids = \App\Models\ReceiptsVoucher::where('status', 'voided')->pluck('rvid')->filter()->toArray();
+        $allVoidedNos = array_unique(array_filter(array_merge($voidedEvids, $voidedPvids, $voidedRvids)));
+        if (!empty($allVoidedNos)) {
+            \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                ->whereIn('voucher_no', $allVoidedNos)
+                ->delete();
         }
 
         // ✅ Automatically sync any unrecorded receipts or vouchers for this account
@@ -543,7 +551,65 @@ class AccountsHeadController extends Controller
         $accountType = trim(strtolower($account->type ?? 'debit'));
         $isReceivable = (int)($account->head_id ?? 0) === 8 || str_contains(strtolower($account->head?->name ?? ''), 'receivable');
 
-        // Helper to extract account-specific amount from voucher fields
+        // ✅ 0. Clean up any improperly synced party entries that belong to vendors or customers
+        if ($isReceivable) {
+            $erroneousEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                ->whereIn('voucher_type', ['payment', 'receipt'])
+                ->where('description', 'like', '%Party Side%')
+                ->get();
+
+            $deletedCount = 0;
+            foreach ($erroneousEntries as $entry) {
+                if ($entry->voucher_type === 'payment') {
+                    $pv = \App\Models\PaymentVoucher::where('pvid', $entry->voucher_no)
+                        ->orWhere('id', $entry->voucher_id)
+                        ->first();
+                    if ($pv) {
+                        $types = \App\Services\VoucherService::safeDecodeArray($pv->type);
+                        if (empty($types) && !empty($pv->type)) {
+                            $types = [$pv->type];
+                        }
+                        $hasNumeric = false;
+                        foreach ($types as $t) {
+                            if (is_numeric($t)) {
+                                $hasNumeric = true;
+                                break;
+                            }
+                        }
+                        if (!$hasNumeric) {
+                            $entry->delete();
+                            $deletedCount++;
+                        }
+                    }
+                } elseif ($entry->voucher_type === 'receipt') {
+                    $rv = \App\Models\ReceiptsVoucher::where('rvid', $entry->voucher_no)
+                        ->orWhere('id', $entry->voucher_id)
+                        ->first();
+                    if ($rv) {
+                        $types = \App\Services\VoucherService::safeDecodeArray($rv->type);
+                        if (empty($types) && !empty($rv->type)) {
+                            $types = [$rv->type];
+                        }
+                        $hasNumeric = false;
+                        foreach ($types as $t) {
+                            if (is_numeric($t)) {
+                                $hasNumeric = true;
+                                break;
+                            }
+                        }
+                        if (!$hasNumeric) {
+                            $entry->delete();
+                            $deletedCount++;
+                        }
+                    }
+                }
+            }
+            if ($deletedCount > 0) {
+                \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
+            }
+        }
+
+        // Helper to extract account-specific amount from voucher fields (Bank / Cash side)
         $getAccountAmount = function($rowAccountsRaw, $amountsRaw, $totalAmountRaw, $targetAccId) {
             $accIds = is_array($rowAccountsRaw) ? $rowAccountsRaw : json_decode($rowAccountsRaw, true);
             $amts = is_array($amountsRaw) ? $amountsRaw : json_decode($amountsRaw, true);
@@ -564,6 +630,45 @@ class AccountsHeadController extends Controller
             return 0;
         };
 
+        // Helper to extract party amount for an Account (strictly verifies party is an Account, NOT a Vendor or Customer)
+        $getPartyAccountAmount = function($voucher, $targetAccId) {
+            $vObj = is_array($voucher) ? (object)$voucher : $voucher;
+            $partyTypes   = \App\Services\VoucherService::safeDecodeArray($vObj->type ?? null);
+            $partyIds     = \App\Services\VoucherService::safeDecodeArray($vObj->party_id ?? null);
+            $partyAmounts = \App\Services\VoucherService::safeDecodeArray($vObj->party_amount ?? null);
+
+            // Legacy scalar voucher
+            if (empty($partyIds) && !empty($vObj->party_id)) {
+                if ((string)$vObj->party_id === (string)$targetAccId) {
+                    $pType = strtolower(trim((string)($vObj->type ?? '')));
+                    if (in_array($pType, ['vendor', 'customer', 'walkin', 'sale_receipt'])) {
+                        return 0.0;
+                    }
+                    if (is_numeric($pType) || empty($pType)) {
+                        return (float)($vObj->total_amount ?? $vObj->debit_amount ?? $vObj->credit_amount ?? 0);
+                    }
+                }
+                return 0.0;
+            }
+
+            $total = 0.0;
+            foreach ($partyIds as $idx => $pId) {
+                if ((string)$pId === (string)$targetAccId) {
+                    $pType = strtolower(trim((string)($partyTypes[$idx] ?? ($partyTypes[0] ?? ''))));
+                    if (in_array($pType, ['vendor', 'customer', 'walkin', 'sale_receipt'])) {
+                        continue;
+                    }
+                    if (is_numeric($pType) || empty($pType)) {
+                        $amt = isset($partyAmounts[$idx]) && is_numeric($partyAmounts[$idx])
+                            ? (float)$partyAmounts[$idx]
+                            : (count($partyIds) === 1 ? (float)($vObj->total_amount ?? 0) : 0.0);
+                        $total += $amt;
+                    }
+                }
+            }
+            return (float)$total;
+        };
+
         // 1. Gather all active receipts vouchers that reference this account
         $rvQuery = \App\Models\ReceiptsVoucher::where(function($q) {
             $q->whereNull('status')->orWhere('status', '!=', 'voided');
@@ -578,6 +683,14 @@ class AccountsHeadController extends Controller
                   ->orWhere('party_id', 'like', '%,' . $accountId . ']%')
                   ->orWhere('party_id', 'like', '%[' . $accountId . ']%')
                   ->orWhere('party_id', 'like', '%,' . $accountId . ',%');
+            })->where(function($q) {
+                $q->whereNull('type')
+                  ->orWhere(function($sub) {
+                      $sub->where('type', 'not like', '%vendor%')
+                          ->where('type', 'not like', '%customer%')
+                          ->where('type', 'not like', '%walkin%')
+                          ->where('type', 'not like', '%SALE_RECEIPT%');
+                  });
             });
         } else {
             $rvQuery->where(function($q) use ($accountId) {
@@ -594,11 +707,9 @@ class AccountsHeadController extends Controller
         $unrecordedReceipts = [];
         foreach ($rvs as $rv) {
             $amt = $isReceivable
-                ? \App\Services\VoucherService::getPartyAmount($rv, $accountId, '8')
+                ? $getPartyAccountAmount($rv, $accountId)
                 : $getAccountAmount($rv->row_account_id, $rv->amount, $rv->total_amount, $accountId);
-            if ($amt <= 0 && $isReceivable) {
-                $amt = (float)$rv->total_amount;
-            }
+
             if ($amt > 0) {
                 $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($rv) {
@@ -630,6 +741,13 @@ class AccountsHeadController extends Controller
                   ->orWhere('party_id', 'like', '%,' . $accountId . ']%')
                   ->orWhere('party_id', 'like', '%[' . $accountId . ']%')
                   ->orWhere('party_id', 'like', '%,' . $accountId . ',%');
+            })->where(function($q) {
+                $q->whereNull('type')
+                  ->orWhere(function($sub) {
+                      $sub->where('type', 'not like', '%vendor%')
+                          ->where('type', 'not like', '%customer%')
+                          ->where('type', 'not like', '%walkin%');
+                  });
             });
         } else {
             $pvQuery->where(function($q) use ($accountId) {
@@ -646,11 +764,9 @@ class AccountsHeadController extends Controller
         $unrecordedPayments = [];
         foreach ($pvs as $pv) {
             $amt = $isReceivable
-                ? \App\Services\VoucherService::getPartyAmount($pv, $accountId, '8')
+                ? $getPartyAccountAmount($pv, $accountId)
                 : $getAccountAmount($pv->row_account_id, $pv->amount, $pv->total_amount, $accountId);
-            if ($amt <= 0 && $isReceivable) {
-                $amt = (float)$pv->total_amount;
-            }
+
             if ($amt > 0) {
                 $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($pv) {
@@ -668,15 +784,21 @@ class AccountsHeadController extends Controller
             }
         }
 
-        // 3. Gather all expense vouchers that reference this account
-        $evs = \App\Models\ExpenseVoucher::where(function($q) use ($accountId) {
+        // 3. Gather all active expense vouchers that reference this account
+        $evQuery = \App\Models\ExpenseVoucher::where(function($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'voided');
+        });
+
+        $evQuery->where(function($q) use ($accountId) {
             $q->where('row_account_id', $accountId)
               ->orWhere('row_account_id', (string)$accountId)
+              ->orWhere('row_account_id', 'like', '%"' . $accountId . '"%')
               ->orWhere('row_account_id', 'like', '%[' . $accountId . ',%')
               ->orWhere('row_account_id', 'like', '%,' . $accountId . ']%')
               ->orWhere('row_account_id', 'like', '%[' . $accountId . ']%')
               ->orWhere('row_account_id', 'like', '%,' . $accountId . ',%');
-        })->orderBy('id', 'asc')->get();
+        });
+        $evs = $evQuery->orderBy('id', 'asc')->get();
 
         $unrecordedExpenses = [];
         foreach ($evs as $ev) {

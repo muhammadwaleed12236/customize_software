@@ -502,7 +502,7 @@ public function getOpeningBalance($type, $id)
                     'id'              => $acc->id,
                     'text'            => $acc->title . ' (' . ($acc->account_code ?? '') . ')',
                     'mobile'          => $acc->account_code ?? '',
-                    'closing_balance' => (float)($acc->opening_balance ?? 0),
+                    'closing_balance' => \App\Models\AccountLedgerEntry::getClosingBalance($acc->id),
                 ];
             });
             return response()->json($accounts);

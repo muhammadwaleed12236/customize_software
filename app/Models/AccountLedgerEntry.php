@@ -92,6 +92,34 @@ class AccountLedgerEntry extends Model
     }
 
     /**
+     * Get the final closing ledger entry for an account in strict chronological order.
+     * Matches the bottom-most row displayed in the Account Ledger.
+     */
+    public static function getClosingEntry(int $accountId): ?self
+    {
+        return self::where('account_id', $accountId)
+            ->orderBy('transaction_date', 'desc')
+            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 1 ELSE 0 END ASC")
+            ->orderByRaw("CASE WHEN debit > 0 THEN 1 ELSE 0 END ASC")
+            ->orderBy('id', 'desc')
+            ->first();
+    }
+
+    /**
+     * Get the final closing balance for an account from its ledger in date order.
+     */
+    public static function getClosingBalance(int $accountId): float
+    {
+        $lastEntry = self::getClosingEntry($accountId);
+        if ($lastEntry) {
+            return (float)$lastEntry->running_balance;
+        }
+
+        $account = Account::find($accountId);
+        return (float)($account?->opening_balance ?? 0);
+    }
+
+    /**
      * Recalculates the cumulative running balance and re-sequences entry numbers
      * for all ledger entries of an account in strict chronological (date-wise) order.
      */

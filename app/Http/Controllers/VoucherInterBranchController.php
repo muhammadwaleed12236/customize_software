@@ -120,8 +120,7 @@ class VoucherInterBranchController extends Controller
 
                 // 2. Post Ledger Entry for Sending Account (Money goes OUT)
                 if ($fromAccount) {
-                    $lastEntryFrom = AccountLedgerEntry::where('account_id', $fromAccountId)->latest('id')->first();
-                    $prevBalFrom = $lastEntryFrom ? (float)$lastEntryFrom->running_balance : (float)$fromAccount->opening_balance;
+                    $prevBalFrom = AccountLedgerEntry::getClosingBalance($fromAccountId);
 
                     $debitFrom = 0;
                     $creditFrom = $amount;
@@ -145,12 +144,12 @@ class VoucherInterBranchController extends Controller
                         'running_balance'  => $newBalFrom,
                         'created_by'       => auth()->id(),
                     ]);
+                    AccountLedgerEntry::recalculateRunningBalance($fromAccountId);
                 }
 
                 // 3. Post Ledger Entry for Receiving Account (Money comes IN)
                 if ($toAccount) {
-                    $lastEntryTo = AccountLedgerEntry::where('account_id', $toAccountId)->latest('id')->first();
-                    $prevBalTo = $lastEntryTo ? (float)$lastEntryTo->running_balance : (float)$toAccount->opening_balance;
+                    $prevBalTo = AccountLedgerEntry::getClosingBalance($toAccountId);
 
                     $debitTo = $amount;
                     $creditTo = 0;
@@ -174,6 +173,7 @@ class VoucherInterBranchController extends Controller
                         'running_balance'  => $newBalTo,
                         'created_by'       => auth()->id(),
                     ]);
+                    AccountLedgerEntry::recalculateRunningBalance($toAccountId);
                 }
 
                 // 4. Create Inter-Branch Transactions & Update Branch Balances
@@ -289,8 +289,7 @@ class VoucherInterBranchController extends Controller
 
                 // 2. Post Ledger Entry for Sending Account (Money goes OUT)
                 if ($fromAccount) {
-                    $lastEntryFrom = AccountLedgerEntry::where('account_id', $fromAccountId)->latest('id')->first();
-                    $prevBalFrom = $lastEntryFrom ? (float)$lastEntryFrom->running_balance : (float)$fromAccount->opening_balance;
+                    $prevBalFrom = AccountLedgerEntry::getClosingBalance($fromAccountId);
 
                     $debitFrom = 0;
                     $creditFrom = $amount;
@@ -314,12 +313,12 @@ class VoucherInterBranchController extends Controller
                         'running_balance'  => $newBalFrom,
                         'created_by'       => auth()->id(),
                     ]);
+                    AccountLedgerEntry::recalculateRunningBalance($fromAccountId);
                 }
 
                 // 3. Post Ledger Entry for Receiving Account (Money comes IN)
                 if ($toAccount) {
-                    $lastEntryTo = AccountLedgerEntry::where('account_id', $toAccountId)->latest('id')->first();
-                    $prevBalTo = $lastEntryTo ? (float)$lastEntryTo->running_balance : (float)$toAccount->opening_balance;
+                    $prevBalTo = AccountLedgerEntry::getClosingBalance($toAccountId);
 
                     $debitTo = $amount;
                     $creditTo = 0;
@@ -343,6 +342,7 @@ class VoucherInterBranchController extends Controller
                         'running_balance'  => $newBalTo,
                         'created_by'       => auth()->id(),
                     ]);
+                    AccountLedgerEntry::recalculateRunningBalance($toAccountId);
                 }
 
                 // 4. Create Inter-Branch Transactions & Update Branch Balances
@@ -424,8 +424,7 @@ class VoucherInterBranchController extends Controller
             ->get();
 
         $formattedAccounts = $accounts->map(function ($acc) {
-            $lastEntry = AccountLedgerEntry::where('account_id', $acc->id)->latest('id')->first();
-            $balance = $lastEntry ? (float)$lastEntry->running_balance : (float)$acc->opening_balance;
+            $balance = AccountLedgerEntry::getClosingBalance($acc->id);
             
             return [
                 'id' => $acc->id,
@@ -447,8 +446,7 @@ class VoucherInterBranchController extends Controller
     public function getAccountBalance($accountId)
     {
         $acc = Account::findOrFail($accountId);
-        $lastEntry = AccountLedgerEntry::where('account_id', $acc->id)->latest('id')->first();
-        $balance = $lastEntry ? (float)$lastEntry->running_balance : (float)$acc->opening_balance;
+        $balance = AccountLedgerEntry::getClosingBalance($acc->id);
 
         return response()->json([
             'success' => true,

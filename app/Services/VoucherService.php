@@ -632,6 +632,22 @@ class VoucherService
 
             // 1. REVERSE EXPENSE ACCOUNTS (Row side: Debited originally, now Credited back)
             $accounts = self::safeDecodeArray($voucher->row_account_id);
+            if (empty($accounts) && !empty($voucher->row_account_id) && is_numeric($voucher->row_account_id)) {
+                $accounts = [(int)$voucher->row_account_id];
+            }
+
+            $existingAccIds = AccountLedgerEntry::where(function($q) use ($evid, $voucher) {
+                $q->where('voucher_no', $evid);
+                if ($voucher->id) {
+                    $q->orWhere('voucher_id', $voucher->id);
+                }
+                if ($voucher->reference_no) {
+                    $q->orWhere('voucher_no', $voucher->reference_no);
+                }
+            })->pluck('account_id')->toArray();
+
+            $accounts = array_unique(array_filter(array_merge($accounts, $existingAccIds)));
+
             // 1. REVERSE EXPENSE ACCOUNTS: Delete AccountLedgerEntry for this expense voucher
             AccountLedgerEntry::where(function($q) use ($evid, $voucher) {
                 $q->where('voucher_no', $evid);
