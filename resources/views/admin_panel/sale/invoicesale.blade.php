@@ -614,7 +614,7 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                         $custOpening = floatval(optional($sale->customer)->opening_balance ?? 0);
                         $prevInvoices = $displayPrevious - $custOpening;
                     @endphp
-                    @if($custOpening != 0 && $prevInvoices != 0)
+                    @if($custOpening != 0 && $prevInvoices > 0)
                     <tr>
                         <td style="background: #fafafa;">Opening Balance</td>
                         <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($custOpening, 2) }}</td>
