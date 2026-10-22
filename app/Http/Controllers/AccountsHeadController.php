@@ -471,6 +471,7 @@ class AccountsHeadController extends Controller
 
         // ✅ Automatically sync any unrecorded receipts or vouchers for this account
         self::syncAccountLedger($account);
+        $account->refresh();
 
         // ✅ Ensure balances and sequence numbers are cleanly maintained in date order
         \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
@@ -788,6 +789,27 @@ class AccountsHeadController extends Controller
             });
         });
         $pvs = $pvQuery->orderBy('id', 'asc')->get();
+
+        // ✅ Auto-heal legacy bug: If opening_balance was inflated by party vouchers, reset it to prevent double counting
+        $partyPvSum = 0.0;
+        foreach ($pvs as $pv) {
+            $partyPvSum += $getPartyAccountAmount($pv, $accountId);
+        }
+
+        if ($partyPvSum > 0 && abs((float)$account->opening_balance - $partyPvSum) < 0.01) {
+            $account->opening_balance = 0.00;
+            $account->save();
+
+            $obEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                ->where('voucher_type', 'opening_balance')
+                ->first();
+            if ($obEntry) {
+                $obEntry->debit = 0.00;
+                $obEntry->credit = 0.00;
+                $obEntry->running_balance = 0.00;
+                $obEntry->save();
+            }
+        }
 
         $unrecordedPayments = [];
         foreach ($pvs as $pv) {
