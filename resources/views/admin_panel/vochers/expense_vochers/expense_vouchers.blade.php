@@ -754,8 +754,9 @@ $(document).ready(function () {
             url: '{{ route("store.narration.ajax") }}',
             type: 'POST',
             data: {
-                _token: '{{ csrf_token() }}',
-                narration: text
+                _token: $('input[name="_token"]').val() || '{{ csrf_token() }}',
+                narration: text,
+                expense_head: 'Expense voucher'
             },
             success: function (res) {
                 if (res.success) {
@@ -765,12 +766,18 @@ $(document).ready(function () {
                         activeNarrationSelect.val(res.id).trigger('change');
                     }
                     $('#addNarrationModal').modal('hide');
+                    $('#new_narration_text').val('');
                 } else {
-                    alert('Error adding narration');
+                    alert(res.message || 'Error adding narration');
                 }
             },
-            error: function () {
-                alert('Server error while adding narration.');
+            error: function (xhr) {
+                if (xhr.status === 419) {
+                    alert('Session expired. Please refresh the page (F5) and try again.');
+                } else {
+                    var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Server error while adding narration.';
+                    alert(msg);
+                }
             },
             complete: function () {
                 $btn.prop('disabled', false).text('Save Narration');

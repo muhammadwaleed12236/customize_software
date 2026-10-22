@@ -609,11 +609,11 @@ public function getOpeningBalance($type, $id)
             ]), auth()->id());
 
             DB::commit();
-            return redirect()->route('all-recepit-vochers')->with('success', "Receipt Voucher #$rvid saved successfully!");
+            return redirect()->route('recepit-vochers')->with('success', "Receipt Voucher #$rvid saved successfully!");
         } catch (\Exception $e) {
             DB::rollBack();
             \Illuminate\Support\Facades\Log::error("Receipt Voucher Store Error: " . $e->getMessage());
-            return back()->with('error', "Error saving voucher: " . $e->getMessage());
+            return redirect()->route('recepit-vochers')->with('error', "Error saving voucher: " . $e->getMessage());
         }
     }
 
@@ -929,10 +929,10 @@ public function getOpeningBalance($type, $id)
             ]), auth()->id());
 
             DB::commit();
-            return back()->with('success', 'Payment Voucher saved successfully!');
+            return redirect()->route('Payment-vochers')->with('success', 'Payment Voucher saved successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', $e->getMessage());
+            return redirect()->route('Payment-vochers')->with('error', $e->getMessage());
         }
     }
 
@@ -1349,10 +1349,10 @@ public function getOpeningBalance($type, $id)
             ]), auth()->id());
 
             DB::commit();
-            return back()->with('success', 'Expense Voucher saved successfully!');
+            return redirect()->route('expense-vochers')->with('success', 'Expense Voucher saved successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', $e->getMessage());
+            return redirect()->route('expense-vochers')->with('error', $e->getMessage());
         }
     }
 
@@ -1714,20 +1714,48 @@ public function getOpeningBalance($type, $id)
 
     public function storeNarrationAjax(\Illuminate\Http\Request $request)
     {
-        $request->validate([
-            'narration' => 'required|string|max:255'
-        ]);
+        try {
+            $request->validate([
+                'narration'    => 'required|string|max:255',
+                'expense_head' => 'nullable|string|max:255',
+            ]);
 
-        $narration = \App\Models\Narration::create([
-            'expense_head' => 'Receipts Voucher',
-            'narration'    => $request->narration,
-        ]);
+            $expenseHead = $request->input('expense_head');
+            if (empty($expenseHead)) {
+                $referer = strtolower($request->header('referer', ''));
+                if (str_contains($referer, 'payment')) {
+                    $expenseHead = 'Payment voucher';
+                } elseif (str_contains($referer, 'expense')) {
+                    $expenseHead = 'Expense voucher';
+                } elseif (str_contains($referer, 'journal')) {
+                    $expenseHead = 'Journal Voucher';
+                } else {
+                    $expenseHead = 'Receipts Voucher';
+                }
+            }
 
-        return response()->json([
-            'success' => true,
-            'id' => $narration->id,
-            'text' => $narration->narration
-        ]);
+            $narration = \App\Models\Narration::create([
+                'expense_head' => $expenseHead,
+                'narration'    => trim($request->narration),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'id'      => $narration->id,
+                'text'    => $narration->narration
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $ve) {
+            return response()->json([
+                'success' => false,
+                'message' => $ve->validator->errors()->first()
+            ], 422);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("storeNarrationAjax error: " . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /* =====================================================================

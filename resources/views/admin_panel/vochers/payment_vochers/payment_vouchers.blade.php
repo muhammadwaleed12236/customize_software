@@ -680,7 +680,7 @@ $(document).ready(function () {
                 </td>
                 <td><input name="reference_no[]" type="text" class="form-control" placeholder="Ref / Cheque #"></td>
                 <td>
-                    <select name="row_account_head[]" class="form-select rowAccountHead">
+                    <select name="row_account_head[]" class="form-select rowAccountHead" required>
                         <option value="">— Select Head —</option>
                         ${accountHeadOptions}
                     </select>
@@ -689,6 +689,9 @@ $(document).ready(function () {
                     <select name="row_account_id[]" class="form-select rowAccountSub" required>
                         <option value="">— Select Account —</option>
                     </select>
+                </td>
+                <td>
+                    <input name="discount_value[]" type="number" step="0.01" min="0" class="form-control discount" value="0">
                 </td>
                 <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" placeholder="0.00" required></td>
                 <td>
@@ -769,8 +772,9 @@ $(document).ready(function () {
             url: '{{ route("store.narration.ajax") }}',
             type: 'POST',
             data: {
-                _token: '{{ csrf_token() }}',
-                narration: text
+                _token: $('input[name="_token"]').val() || '{{ csrf_token() }}',
+                narration: text,
+                expense_head: 'Payment voucher'
             },
             success: function (res) {
                 if (res.success) {
@@ -780,12 +784,18 @@ $(document).ready(function () {
                         activeNarrationSelect.val(res.id).trigger('change');
                     }
                     $('#addNarrationModal').modal('hide');
+                    $('#new_narration_text').val('');
                 } else {
-                    alert('Error adding narration');
+                    alert(res.message || 'Error adding narration');
                 }
             },
-            error: function () {
-                alert('Server error while adding narration.');
+            error: function (xhr) {
+                if (xhr.status === 419) {
+                    alert('Session expired. Please refresh the page (F5) and try again.');
+                } else {
+                    var msg = xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Server error while adding narration.';
+                    alert(msg);
+                }
             },
             complete: function () {
                 $btn.prop('disabled', false).text('Save Narration');

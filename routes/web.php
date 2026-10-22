@@ -696,6 +696,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('/all-recepit-vochers', [VoucherController::class, 'all_recepit_vochers'])->middleware('permission:receipts.voucher.view')->name('all-recepit-vochers');
     Route::get('/recepit-vochers', [VoucherController::class, 'recepit_vochers'])->middleware('permission:receipts.voucher.view')->name('recepit-vochers');
     Route::post('/recepit/vochers/stote', [VoucherController::class, 'store_rec_vochers'])->middleware('permission:receipts.voucher.create')->name('recepit.vochers.store');
+    Route::get('/recepit/vochers/stote', function () { return redirect()->route('recepit-vochers'); });
     
     // Receipt Voucher Edit & Delete Routes
     Route::get('/recepit-vochers/{id}/edit', [VoucherController::class, 'edit_receipt'])->middleware('permission:receipts.voucher.create')->name('recepit-vochers.edit');
@@ -704,10 +705,11 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
 
     ////// payment vouchers
     Route::get('/Payment-vochers', [VoucherController::class, 'Payment_vochers'])->middleware('permission:payment.voucher.view')->name('Payment-vochers');
-route::post('/Payment/vochers/stote', [VoucherController::class, 'store_Pay_vochers'])->middleware('permission:payment.voucher.create')->name('Payment.vochers.store');
-Route::get('/all-Payment-vochers', [VoucherController::class, 'all_Payment_vochers'])->middleware('permission:payment.voucher.view')->name('all-Payment-vochers');
-Route::get('/Payment-voucher/print/{id}', [VoucherController::class, 'Paymentprint'])->middleware('permission:payment.voucher.print')->name('PaymentVoucher.print');
-Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'uploadProof'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.upload-proof');
+    Route::post('/Payment/vochers/stote', [VoucherController::class, 'store_Pay_vochers'])->middleware('permission:payment.voucher.create')->name('Payment.vochers.store');
+    Route::get('/Payment/vochers/stote', function () { return redirect()->route('Payment-vochers'); });
+    Route::get('/all-Payment-vochers', [VoucherController::class, 'all_Payment_vochers'])->middleware('permission:payment.voucher.view')->name('all-Payment-vochers');
+    Route::get('/Payment-voucher/print/{id}', [VoucherController::class, 'Paymentprint'])->middleware('permission:payment.voucher.print')->name('PaymentVoucher.print');
+    Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'uploadProof'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.upload-proof');
 
     // Payment Voucher Edit & Delete Routes
     Route::get('/payment-vouchers/{id}/edit', [VoucherController::class, 'edit_payment'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.edit');
@@ -718,6 +720,7 @@ Route::post('/payment-vouchers/{id}/upload-proof', [VoucherController::class, 'u
     Route::get('/all-expense-vochers', [VoucherController::class, 'all_expense_vochers'])->middleware('permission:expense.voucher.view')->name('all-expense-vochers');
     Route::get('/expense-vochers', [VoucherController::class, 'expense_vochers'])->middleware('permission:expense.voucher.view')->name('expense-vochers');
     Route::post('/expense/vochers/stote', [VoucherController::class, 'store_expense_vochers'])->middleware('permission:expense.voucher.create')->name('expense.vochers.store');
+    Route::get('/expense/vochers/stote', function () { return redirect()->route('expense-vochers'); });
     Route::get('/expense-voucher/print/{id}', [VoucherController::class, 'expenseprint'])->middleware('permission:expense.voucher.print')->name('expenseVoucher.print');
     Route::get('/expense-vouchers/{id}/edit', [VoucherController::class, 'edit_expense'])->middleware('permission:expense.voucher.create')->name('expense-vouchers.edit');
     Route::put('/expense-vouchers/{id}', [VoucherController::class, 'update_expense'])->middleware('permission:expense.voucher.create')->name('expense-vouchers.update');
