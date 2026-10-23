@@ -452,9 +452,9 @@ class SaleController extends Controller
                     'sale_invoice' => $sale->invoice_no,
                 ]);
 
+                $rowAccountIds = [];
+                $rowAmounts = [];
                 if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
-                    $rowAccountIds = [];
-                    $rowAmounts = [];
                     foreach ($request->receipt_account_id as $i => $accId) {
                         $acc = $accId;
                         $amt = (float) ($request->receipt_amount[$i] ?? 0);
@@ -465,8 +465,26 @@ class SaleController extends Controller
                         $rowAccountIds[] = (int) $acc;
                         $rowAmounts[] = $amt;
                     }
+                }
 
-                    if (!empty($rowAccountIds)) {
+                // Fallback for Walk-in / Cash sales: If no payment row provided or 0, default to branch Cash in Hand
+                $isCashOrWalkin = in_array(strtolower($partyType ?? ''), ['walking', 'cash']) || !empty($isWalkin);
+                if (empty($rowAccountIds) && $isCashOrWalkin && (float)$sale->total_net > 0) {
+                    $saleBranchId = $sale->branch_id ?? ($branchId ?? 1);
+                    $defaultCashAcc = Account::where('branch_id', $saleBranchId)
+                        ->where(function($q) {
+                            $q->where('head_id', 1)->orWhere('title', 'like', '%Cash%');
+                        })
+                        ->orderByRaw("CASE WHEN LOWER(title) LIKE '%cash in hand%' THEN 0 ELSE 1 END")
+                        ->first();
+
+                    if ($defaultCashAcc) {
+                        $rowAccountIds[] = (int)$defaultCashAcc->id;
+                        $rowAmounts[] = (float)$sale->total_net;
+                    }
+                }
+
+                if (!empty($rowAccountIds)) {
                         $unique = [];
                         $uniqueAccountIds = [];
                         $uniqueAmounts = [];
@@ -519,7 +537,6 @@ class SaleController extends Controller
                             }
                         }
                     }
-                }
 
                 // If booking had unprocessed receipts in DB, mark them
                 if ($booking) {
@@ -835,9 +852,9 @@ class SaleController extends Controller
                     'sale_invoice' => $sale->invoice_no,
                 ]);
                 
+                $rowAccountIds = [];
+                $rowAmounts = [];
                 if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
-                    $rowAccountIds = [];
-                    $rowAmounts = [];
                     foreach ($request->receipt_account_id as $i => $accId) {
                         $acc = $accId;
                         $amt = (float) ($request->receipt_amount[$i] ?? 0);
@@ -848,8 +865,26 @@ class SaleController extends Controller
                         $rowAccountIds[] = (int) $acc;
                         $rowAmounts[] = $amt;
                     }
+                }
 
-                    if (!empty($rowAccountIds)) {
+                // Fallback for Walk-in / Cash sales: If no payment row provided or 0, default to branch Cash in Hand
+                $isCashOrWalkin = in_array(strtolower($partyType ?? ''), ['walking', 'cash']) || !empty($isWalkin);
+                if (empty($rowAccountIds) && $isCashOrWalkin && (float)$sale->total_net > 0) {
+                    $saleBranchId = $sale->branch_id ?? ($branchId ?? 1);
+                    $defaultCashAcc = Account::where('branch_id', $saleBranchId)
+                        ->where(function($q) {
+                            $q->where('head_id', 1)->orWhere('title', 'like', '%Cash%');
+                        })
+                        ->orderByRaw("CASE WHEN LOWER(title) LIKE '%cash in hand%' THEN 0 ELSE 1 END")
+                        ->first();
+
+                    if ($defaultCashAcc) {
+                        $rowAccountIds[] = (int)$defaultCashAcc->id;
+                        $rowAmounts[] = (float)$sale->total_net;
+                    }
+                }
+
+                if (!empty($rowAccountIds)) {
                         $existsProcessed = ReceiptsVoucher::where('reference_no', $booking->invoice_no)
                             ->where('type', 'SALE_RECEIPT')
                             ->where('processed', true)
@@ -928,7 +963,6 @@ class SaleController extends Controller
                             }
                         }
                     }
-                }
 
                 $receipts = ReceiptsVoucher::query()
                     ->where('type', 'SALE_RECEIPT')
@@ -1524,6 +1558,7 @@ class SaleController extends Controller
                 }
 
                 // Process Receipts (if advance payments provided)
+                // Process receipts with auto-fallback for walk-in/cash sales
                 if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
                     $rvNo = 'RV-' . time();
                     $receiptRowAccounts = [];
@@ -2762,9 +2797,9 @@ public function finddc($invoice)
             }
 
             // If receipts provided for direct sale, create per-account receipt vouchers
+            $rowAccountIds = [];
+            $rowAmounts = [];
             if (!empty($request->receipt_account_id) && is_array($request->receipt_account_id)) {
-                $rowAccountIds = [];
-                $rowAmounts = [];
                 foreach ($request->receipt_account_id as $i => $accId) {
                     $acc = $accId;
                     $amt = (float) ($request->receipt_amount[$i] ?? 0);
@@ -2772,8 +2807,26 @@ public function finddc($invoice)
                     $rowAccountIds[] = (int) $acc;
                     $rowAmounts[] = $amt;
                 }
+            }
 
-                if (!empty($rowAccountIds)) {
+            // Fallback for Walk-in / Cash sales: If no payment row provided or 0, default to branch Cash in Hand
+            $isCashOrWalkin = in_array(strtolower($partyType ?? ''), ['walking', 'cash']) || !empty($isWalkin);
+            if (empty($rowAccountIds) && $isCashOrWalkin && (float)$sale->total_net > 0) {
+                $saleBranchId = $sale->branch_id ?? (auth()->user()->branch_id ?? 1);
+                $defaultCashAcc = Account::where('branch_id', $saleBranchId)
+                    ->where(function($q) {
+                        $q->where('head_id', 1)->orWhere('title', 'like', '%Cash%');
+                    })
+                    ->orderByRaw("CASE WHEN LOWER(title) LIKE '%cash in hand%' THEN 0 ELSE 1 END")
+                    ->first();
+
+                if ($defaultCashAcc) {
+                    $rowAccountIds[] = (int)$defaultCashAcc->id;
+                    $rowAmounts[] = (float)$sale->total_net;
+                }
+            }
+
+            if (!empty($rowAccountIds)) {
                     // Deduplicate
                     $unique = [];
                     $uniqueAccountIds = [];
@@ -2847,7 +2900,6 @@ public function finddc($invoice)
                             Log::error('Failed to apply direct-sale receipt', ['error' => $e->getMessage(), 'rv' => $rv->id ?? null]);
                         }
                     }
-                }
             }
 
             // ✅ UPDATE CUSTOMER LEDGER WITH SALE AMOUNT
@@ -4325,6 +4377,32 @@ public function finddc($invoice)
 
                 $receiptAccounts = $request->input('receipt_account_id', []);
                 $receiptAmounts = $request->input('receipt_amount', []);
+
+                $hasValidReceipt = false;
+                if (is_array($receiptAccounts)) {
+                    foreach ($receiptAccounts as $i => $accId) {
+                        $amt = floatval($receiptAmounts[$i] ?? 0);
+                        if ($amt > 0 && $accId) {
+                            $hasValidReceipt = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Fallback for Walk-in / Cash sales: If no payment row provided or 0, default to branch Cash in Hand
+                $isCashOrWalkin = in_array(strtolower($partyType ?? ($sale->party_type ?? '')), ['walking', 'cash']) || !empty($request->is_walkin);
+                if (!$hasValidReceipt && $isCashOrWalkin && (float)$sale->total_net > 0) {
+                    $defaultCashAcc = Account::where('branch_id', $branchId)
+                        ->where(function($q) {
+                            $q->where('head_id', 1)->orWhere('title', 'like', '%Cash%');
+                        })
+                        ->orderByRaw("CASE WHEN LOWER(title) LIKE '%cash in hand%' THEN 0 ELSE 1 END")
+                        ->first();
+                    if ($defaultCashAcc) {
+                        $receiptAccounts = [$defaultCashAcc->id];
+                        $receiptAmounts = [(float)$sale->total_net];
+                    }
+                }
 
                 if (is_array($receiptAccounts)) {
                     foreach ($receiptAccounts as $i => $accId) {

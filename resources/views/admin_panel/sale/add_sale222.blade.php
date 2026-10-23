@@ -972,6 +972,10 @@
                                                         $firstRvAccId = is_array($rawAccId) ? ($rawAccId[0] ?? null) : $rawAccId;
                                                     }
                                                 }
+                                                if ($firstRvAccId && !$accounts->contains('id', (int)$firstRvAccId)) {
+                                                    $firstRvAccId = null;
+                                                }
+                                                $hasMatchedAcc = false;
                                             @endphp
                                             @foreach ($accounts as $acc)
                                                 @php
@@ -979,7 +983,11 @@
                                                     if ($firstRvAccId !== null) {
                                                         $isAccSel = ((string)$acc->id === (string)$firstRvAccId);
                                                     } else {
-                                                        $isAccSel = (isset($defaultBranchId) && $acc->branch_id == $defaultBranchId && $loop->first) || (!isset($defaultBranchId) && $loop->first);
+                                                        $isCash = str_contains(strtolower($acc->title ?? ''), 'cash in hand');
+                                                        if (!$hasMatchedAcc && ($isCash || $loop->first)) {
+                                                            $isAccSel = true;
+                                                            $hasMatchedAcc = true;
+                                                        }
                                                     }
                                                 @endphp
                                                 <option value="{{ $acc->id }}" {{ $isAccSel ? 'selected' : '' }}>{{ $acc->title }}</option>
@@ -1293,7 +1301,7 @@
         window.EDIT_SALE = @json($sale ?? null);
         window.EDIT_SALE_ITEMS = @json($saleItems ?? []);
         window.EDIT_RECEIPTS = @json($receipts ?? []);
-        window.UPDATE_URL = "{{ isset($sale) ? route('sales.update', $sale->id) : '' }}";
+        window.UPDATE_URL = "{{ isset($sale) ? route('sales.update', $sale->id, false) : '' }}";
         window.BOOKING_DATA = @json($booking ?? null);
         window.BOOKING_CUSTOMER = @json($booking_customer ?? null);
         window.BOOKING_ITEMS = @json($bookingItems ?? []);
@@ -1513,7 +1521,14 @@
                 if (!prodId) return;
                 let loc = $row.find('.warehouse-select, .warehouse').val() || $('#globalWarehouseSelect').val() || '';
                 let branchId = $('#branch_id').val() || '';
-                $.get("{{ route('sale.check.stock') }}", { product_id: prodId, location_id: loc, branch_id: branchId }, function(res) {
+                // Immediate synchronous stock set from local memory
+                let immediateStock = getProductLocationStock(prodId, loc);
+                if (immediateStock !== null && immediateStock !== undefined) {
+                    $row.find('.stock').val(immediateStock);
+                    $row.find('.stock').attr('title', 'Location Stock: ' + immediateStock);
+                }
+
+                $.get("{{ route('sale.check.stock', [], false) }}", { product_id: prodId, location_id: loc, branch_id: branchId }, function(res) {
                     if (res) {
                         if (res.location_breakdown) {
                             const pIdStr = String(prodId);
@@ -1536,6 +1551,15 @@
                                 ? res.branch_stock 
                                 : ((res.overall_stock !== undefined) ? res.overall_stock : (res.stock || res.available || 0)));
                         $row.find('.stock').val(displayStock);
+
+                        // Also update Select2 product text to reflect correct stock if it showed [Stock: 0]
+                        const $pSelect = $row.find('.product-select');
+                        const $selOpt = $pSelect.find('option:selected');
+                        if ($selOpt.length && $selOpt.text().includes('[Stock:')) {
+                            let updatedText = $selOpt.text().replace(/\[Stock:\s*[^\]]+\]/, '[Stock: ' + displayStock + ']');
+                            $selOpt.text(updatedText);
+                            $pSelect.trigger('change.select2');
+                        }
                         $row.find('.stock').attr('title', `Location Stock: ${res.location_stock} | Branch Stock: ${res.branch_stock} | Overall Stock: ${res.overall_stock}`);
                     }
                 });
@@ -1556,7 +1580,34 @@
             });
 
             // --- Product-wise Warehouse Change Event ---
-            $(document).on('change', '.warehouse-select', function() {
+            $(document).on('change input', '.warehouse-select', function() {
+                const $row = $(this).closest('tr');
+                const pId = $row.find('.product-select').val();
+                const loc = $(this).val();
+                if (pId) {
+                    let localStock = getProductLocationStock(pId, loc);
+                    if (localStock !== null && localStock !== undefined) {
+                        $row.find('.stock').val(localStock);
+                    }
+                    fetchRowStock($row, pId);
+                }
+            });
+
+            // Handle clicking on warehouse dropdown so if already selected, it still updates stock
+            $(document).on('click mouseup', '.warehouse-select', function() {
+                const $row = $(this).closest('tr');
+                const pId = $row.find('.product-select').val();
+                const loc = $(this).val();
+                if (pId && loc) {
+                    let localStock = getProductLocationStock(pId, loc);
+                    if (localStock !== null && localStock !== undefined) {
+                        $row.find('.stock').val(localStock);
+                    }
+                }
+            });
+
+            // Legacy handler placeholder
+            $(document).on('_ignore_warehouse_change', '.warehouse-select', function() {
                 const $row = $(this).closest('tr');
                 const pId = $row.find('.product-select').val();
                 if (pId) {
@@ -1603,7 +1654,7 @@
                             results = (data.products || []).map(mapProduct);
                             return { results: results, pagination: { more: !!data.has_more } };
                         },
-                        cache: true
+                        cache: false
                     }
                 });
             }
@@ -1618,7 +1669,18 @@
                 const prod = data ? data.product : null;
 
                 if (prod) {
-                    let initialStock = (prod.stock !== undefined && prod.stock !== null) ? prod.stock : (prod.overall_stock || 0);
+
+                    const $whSel = $row.find('.warehouse-select');
+                    let currentLoc = $whSel.val() || $row.find('.warehouse').val() || $('#globalWarehouseSelect').val() || '';
+                    if ($whSel.length) {
+                        $whSel.html(buildWarehouseOptionsHtml(currentLoc, prodId));
+                        currentLoc = $whSel.val() || currentLoc;
+                    }
+
+                    let initialStock = getProductLocationStock(prodId, currentLoc);
+                    if (initialStock === null || initialStock === undefined) {
+                        initialStock = (prod.stock !== undefined && prod.stock !== null) ? prod.stock : (prod.overall_stock || 0);
+                    }
                     $row.find('.stock').val(initialStock);
                     $row.find('.retail-price').val(prod.retail_price || prod.price || prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
                     $row.find('.total-pieces').val($row.find('.sales-qty').val() || 1);
@@ -1641,9 +1703,9 @@
                         }
                     }
 
-                    const $whSel = $row.find('.warehouse-select');
+
                     if ($whSel.length) {
-                        $whSel.html(buildWarehouseOptionsHtml($whSel.val(), prodId));
+// warehouse html already updated above
                     }
 
                     fetchRowStock($row, prodId);
@@ -1703,12 +1765,18 @@
                 let overallDisc = toNum($('#walkinDiscountRs').val());
                 let finalNet = Math.max(0, tNet - overallDisc);
 
+                let isWalkin = $('#walkinToggle').is(':checked');
+                let $firstRv = $('#rvWrapper .rv-amount').first();
+                if (isWalkin && $firstRv.length && finalNet > 0) {
+                    if (toNum($firstRv.val()) === 0 || $firstRv.data('auto-synced')) {
+                        $firstRv.val(finalNet.toFixed(2)).data('auto-synced', true);
+                    }
+                }
+
                 let receipts = 0;
                 $('.rv-amount').each(function() {
                     receipts += toNum($(this).val());
                 });
-
-                let isWalkin = $('#walkinToggle').is(':checked');
                 let prevBal = isWalkin ? 0 : toNum($('#previousBalance').val());
                 let totalPayable = isWalkin ? finalNet : (finalNet + prevBal);
                 let remainingDue = Math.max(0, totalPayable - receipts);
@@ -1864,6 +1932,14 @@
                     $('#badgeCustomerPrevBal').text('Rs 0.00');
                     $('#displayPrevBalance').text('0.00');
                     updateGrandTotals();
+                    let fNet = toNum($('#subTotal2').val());
+                    if (fNet > 0) {
+                        let $firstRv = $('#rvWrapper .rv-amount').first();
+                        if ($firstRv.length && (toNum($firstRv.val()) === 0 || $firstRv.data('auto-synced'))) {
+                            $firstRv.val(fNet.toFixed(2)).data('auto-synced', true);
+                            updateGrandTotals();
+                        }
+                    }
                 } else {
                     $('#walkinNameInput').addClass('d-none').hide();
                     $('#customerSelectBoxContainer').removeClass('d-none').show();
@@ -2126,7 +2202,7 @@
                     }
                     let formData = $('#saleForm').serialize();
                     let isEdit = window.IS_EDIT_MODE && window.UPDATE_URL;
-                    let targetUrl = isEdit ? window.UPDATE_URL : "{{ route('sale.ajax.save') }}";
+                    let targetUrl = isEdit ? window.UPDATE_URL : "{{ route('sale.ajax.save', [], false) }}";
                     let targetMethod = isEdit ? 'POST' : 'POST';
 
                     if (isEdit) {
@@ -2208,7 +2284,7 @@
                 let postData = $('#saleForm').serialize();
 
                 $.ajax({
-                    url: "{{ route('sale.ajax.post') }}",
+                    url: "{{ route('sale.ajax.post', [], false) }}",
                     type: 'POST',
                     data: postData,
                     success: function(res) {
@@ -2560,6 +2636,10 @@
                 }
             });
 
+            $(document).on('input', '.rv-amount', function() {
+                $(this).data('auto-synced', false);
+            });
+
             $(document).on('keydown', '.rv-account', function(e) {
                 if (e.key === 'Enter' || e.keyCode === 13) {
                     e.preventDefault();
@@ -2674,7 +2754,7 @@
                 btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Issuing DC…');
 
                 $.ajax({
-                    url: "{{ Route::has('sale.ajax.post-partial') ? route('sale.ajax.post-partial') : url('/sale/ajax/post-partial') }}",
+                    url: "{{ Route::has('sale.ajax.post-partial') ? route('sale.ajax.post-partial', [], false) : url('/sale/ajax/post-partial') }}",
                     type: 'POST',
                     data: dispatchData,
                     success: function(res) {
@@ -2731,7 +2811,7 @@
                 let btn = $(this);
                 btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
                 $.ajax({
-                    url: '{{ route('customers.store') }}',
+                    url: '{{ route('customers.store', [], false) }}',
                     type: 'POST',
                     data: form.serialize(),
                     success: function(res) {
@@ -2795,7 +2875,8 @@
                     const prodId = item.id;
                     const prodName = item.item_name || item.name || '';
                     const price = parseFloat(item.price || item.retail_price || 0) || 0;
-                    const stock = item.stock || 0;
+                    let stock = getProductLocationStock(prodId, currentWarehouse);
+                    if (stock === null || stock === undefined) { stock = item.stock || 0; }
                     const qty = parseFloat(item.qty || 1) || 1;
                     const discVal = parseFloat(item.disc || item.discount || 0) || 0;
                     const discType = item.discType || 'percent';

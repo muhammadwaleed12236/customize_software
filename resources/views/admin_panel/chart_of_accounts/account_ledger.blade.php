@@ -139,8 +139,13 @@
     padding:2px 7px; border-radius:4px;
 }
 .entry-no.br { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
-.entry-no.cr { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
-.entry-no.jv { background:#fef3c7; color:#b45309; border:1px solid #fde68a; }
+.entry-no.bp { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+.entry-no.cr { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
+.entry-no.cp { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+.entry-no.ev { background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
+.entry-no.pv { background:#fef2f2; color:#b91c1c; border:1px solid #fca5a5; }
+.entry-no.rv { background:#ecfdf5; color:#047857; border:1px solid #a7f3d0; }
+.entry-no.jv { background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; }
 .entry-no.ob { background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; }
 
 .voucher-tag {
@@ -368,8 +373,19 @@
                                         $desc = str_replace(': N/A', ': ' . ($account->title ?? 'Account'), $desc);
                                     }
                                     // ✅ Also clean up "Party Side:" prefix for cleaner display
-                                    $desc = str_replace('Receipt Voucher Party Side: ', 'RV — ', $desc);
-                                    $desc = str_replace('Payment Voucher Party Side: ', 'PV — ', $desc);
+                                    $desc = str_replace([
+                                        'Receipt Voucher Party Side: ',
+                                        'Payment Voucher Party Side: ',
+                                        'Expense Voucher Party Side: ',
+                                        'Expense Voucher — Expense Voucher — ',
+                                        'Party Side: '
+                                    ], [
+                                        'RV — ',
+                                        'PV — ',
+                                        'EV — ',
+                                        'EV — ',
+                                        ''
+                                    ], $desc);
                                 @endphp
                                 {{ $desc }}
                             </td>

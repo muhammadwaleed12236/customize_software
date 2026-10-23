@@ -57,22 +57,29 @@ class AccountLedgerEntry extends Model
      *   - Opening balance entry              → OB-1
      *   - Everything else                   → JV-1, JV-2 ...
      */
-    public static function generateEntryNo(int $accountId, string $voucherType = 'manual'): string
+    public static function generateEntryNo(int $accountId, string $voucherType = 'manual', float $credit = 0): string
     {
         // Get the account with its head
         $account = Account::with('head')->find($accountId);
         $headName = strtolower($account?->head?->name ?? '');
 
-        // Determine prefix
+        $titleName = strtolower($account?->title ?? '');
+        $isBank = str_contains($headName, 'bank') || str_contains($titleName, 'bank') || str_contains($titleName, 'jazz cash') || str_contains($titleName, 'easypaisa');
+        $isCash = str_contains($headName, 'cash') || str_contains($titleName, 'cash');
+
+        // Determine prefix based on transaction nature and account
         if ($voucherType === 'opening_balance') {
             $prefix = 'OB';
-        } elseif (str_contains($headName, 'bank')) {
-            $prefix = 'BR';
-        } elseif (str_contains($headName, 'cash')) {
-            $prefix = 'CR';
+        } elseif ($voucherType === 'expense') {
+            $prefix = 'EV';
+        } elseif ($isBank) {
+            $prefix = ($credit > 0 || $voucherType === 'payment') ? 'BP' : 'BR';
+        } elseif ($isCash) {
+            $prefix = ($credit > 0 || $voucherType === 'payment') ? 'CP' : 'CR';
         } else {
-            $prefix = 'JV';
+            $prefix = ($credit > 0 || $voucherType === 'payment') ? 'PV' : 'RV';
         }
+
 
         // Get max sequential number for this account with this prefix
         $entries = self::where('account_id', $accountId)
@@ -132,7 +139,10 @@ class AccountLedgerEntry extends Model
 
         $isCredit = trim(strtolower($account->type ?? 'debit')) === 'credit';
         $headName = strtolower($account->head?->name ?? '');
-        $prefix = str_contains($headName, 'bank') ? 'BR' : (str_contains($headName, 'cash') ? 'CR' : 'JV');
+        $titleName = strtolower($account->title ?? '');
+        $isBank = str_contains($headName, 'bank') || str_contains($titleName, 'bank') || str_contains($titleName, 'jazz cash') || str_contains($titleName, 'easypaisa');
+        $isCash = str_contains($headName, 'cash') || str_contains($titleName, 'cash');
+        $prefix = $isBank ? 'BR' : ($isCash ? 'CR' : 'JV');
 
         $entries = self::where('account_id', $accountId)
             ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END ASC")
@@ -198,7 +208,24 @@ class AccountLedgerEntry extends Model
             }
 
             // Re-sequence entry_no in date order
-            $expectedEntryNo = $prefix . '-' . $seq;
+            $vType = strtolower($entry->voucher_type ?? '');
+            $vNo = (string)($entry->voucher_no ?? '');
+            $isExpense = ($vType === 'expense' || str_starts_with($vNo, 'EVID') || str_starts_with($vNo, 'EV'));
+            $isPayment = ($vType === 'payment' || str_starts_with($vNo, 'PVID') || str_starts_with($vNo, 'PV') || (float)$entry->credit > 0);
+
+            if ($vType === 'opening_balance') {
+                $p = 'OB';
+            } elseif ($isExpense) {
+                $p = 'EV';
+            } elseif ($isBank) {
+                $p = $isPayment ? 'BP' : 'BR';
+            } elseif ($isCash) {
+                $p = $isPayment ? 'CP' : 'CR';
+            } else {
+                $p = $isPayment ? 'PV' : 'RV';
+            }
+
+            $expectedEntryNo = $p . '-' . $seq;
             if ($entry->entry_no !== $expectedEntryNo) {
                 $entry->entry_no = $expectedEntryNo;
             }

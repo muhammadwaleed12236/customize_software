@@ -1214,21 +1214,19 @@ class PurchaseController extends Controller
                 if ($shouldUpdateStock) {
                     $oldBranchId = $purchase->branch_id;
                     foreach ($purchase->items as $oldItem) {
-                        $oldItemWarehouse = $oldItem->warehouse_id ?: $purchase->warehouse_id;
-                        if ($oldItemWarehouse) {
-                            $this->upsertStocks((int)$oldItem->product_id, -$oldItem->qty, $oldBranchId, $oldItemWarehouse);
-                            
-                            DB::table('stock_movements')->insert([
-                                'product_id' => (int)$oldItem->product_id,
-                                'type'       => 'out',
-                                'qty'        => $oldItem->qty,
-                                'ref_type'   => 'PURCHASE_EDIT_REMOVE',
-                                'ref_id'     => $purchase->id,
-                                'note'       => 'Rollback old stock during purchase edit',
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                        }
+                        $oldItemWarehouse = (int)($oldItem->warehouse_id ?: $purchase->warehouse_id);
+                        $this->upsertStocks((int)$oldItem->product_id, -$oldItem->qty, $oldBranchId, $oldItemWarehouse);
+                        
+                        DB::table('stock_movements')->insert([
+                            'product_id' => (int)$oldItem->product_id,
+                            'type'       => 'out',
+                            'qty'        => $oldItem->qty,
+                            'ref_type'   => 'PURCHASE_EDIT_REMOVE',
+                            'ref_id'     => $purchase->id,
+                            'note'       => 'Rollback old stock during purchase edit',
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
                     }
                 }
 
@@ -1293,8 +1291,8 @@ class PurchaseController extends Controller
                     ]);
 
                     // --- 2. APPLY NEW STOCKS (for local purchases) ---
-                    if ($shouldUpdateStock && $itemWarehouse) {
-                        $this->upsertStocks((int)$pid, +$qty, $branchId, $itemWarehouse);
+                    if ($shouldUpdateStock) {
+                        $this->upsertStocks((int)$pid, +$qty, $branchId, (int)$itemWarehouse);
                         
                         DB::table('stock_movements')->insert([
                             'product_id' => (int)$pid,
@@ -1577,9 +1575,7 @@ class PurchaseController extends Controller
                     ];
 
                     // stocks rollback
-                    if ($itemWarehouse) {
-                        $this->upsertStocks($pid, -$qty, $branchId, $itemWarehouse);
-                    }
+                    $this->upsertStocks($pid, -$qty, $branchId, (int)$itemWarehouse);
                 }
 
                 if (!empty($movs)) {
