@@ -42,4 +42,17 @@ class Account extends Model
     {
         return $this->hasMany(AccountEditHistory::class, 'account_id')->latest();
     }
+
+    /**
+     * ✅ Ensure Debit/Cash/Bank accounts never get corrupted with a negative opening balance.
+     */
+    public function setOpeningBalanceAttribute($value)
+    {
+        $val = (float) $value;
+        $isDebit = strtolower($this->type ?? 'debit') === 'debit' || (int)($this->head_id ?? 0) === 1;
+        if ($isDebit && $val < 0) {
+            $val = abs($val);
+        }
+        $this->attributes['opening_balance'] = $val;
+    }
 }

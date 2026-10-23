@@ -148,6 +148,8 @@ class AccountLedgerEntry extends Model
             ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END ASC")
             ->orderBy('transaction_date', 'asc')
             ->orderByRaw("CASE WHEN debit > 0 THEN 0 ELSE 1 END ASC")
+            ->orderByRaw("CASE WHEN voucher_no IS NOT NULL AND voucher_no != '' THEN 0 ELSE 1 END ASC")
+            ->orderBy('voucher_no', 'asc')
             ->orderBy('id', 'asc')
             ->get();
 

@@ -485,6 +485,8 @@ class AccountsHeadController extends Controller
             ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 0 ELSE 1 END ASC")
             ->orderBy('transaction_date', 'asc')
             ->orderByRaw("CASE WHEN debit > 0 THEN 0 ELSE 1 END ASC")
+            ->orderByRaw("CASE WHEN voucher_no IS NOT NULL AND voucher_no != '' THEN 0 ELSE 1 END ASC")
+            ->orderBy('voucher_no', 'asc')
             ->orderBy('id', 'asc');
 
         if ($dateFrom) {
@@ -545,6 +547,22 @@ class AccountsHeadController extends Controller
         $accountId = $account->id;
         $accountType = trim(strtolower($account->type ?? 'debit'));
         $isReceivable = (int)($account->head_id ?? 0) === 8 || str_contains(strtolower($account->head?->name ?? ''), 'receivable');
+
+        // ✅ Auto-heal: Ensure Debit/Cash accounts never have negative opening balance
+        if ($accountType === 'debit' && (float)$account->opening_balance < 0) {
+            $account->opening_balance = 0.00;
+            $account->save();
+
+            $obEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                ->where('voucher_type', 'opening_balance')
+                ->first();
+            if ($obEntry) {
+                $obEntry->debit = 0.00;
+                $obEntry->credit = 0.00;
+                $obEntry->running_balance = 0.00;
+                $obEntry->save();
+            }
+        }
 
         // ✅ 0. Clean up any improperly synced party entries that belong to vendors or customers
         $erroneousEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
@@ -842,7 +860,7 @@ class AccountsHeadController extends Controller
                             }
                         }
                     })
-                    ->where('description', 'not like', '%Party Side%')
+                    ->where('debit', '>', 0)
                     ->exists();
 
                 if (!$alreadyRecordedRow) {
@@ -870,7 +888,7 @@ class AccountsHeadController extends Controller
                             }
                         }
                     })
-                    ->where('description', 'like', '%Party Side%')
+                    ->where('credit', '>', 0)
                     ->exists();
 
                 if (!$alreadyRecordedParty) {
@@ -955,7 +973,7 @@ class AccountsHeadController extends Controller
                             }
                         }
                     })
-                    ->where('description', 'not like', '%Party Side%')
+                    ->where('credit', '>', 0)
                     ->exists();
 
                 if (!$alreadyRecordedRow) {
@@ -983,7 +1001,7 @@ class AccountsHeadController extends Controller
                             }
                         }
                     })
-                    ->where('description', 'like', '%Party Side%')
+                    ->where('debit', '>', 0)
                     ->exists();
 
                 if (!$alreadyRecordedParty) {
@@ -1033,12 +1051,12 @@ class AccountsHeadController extends Controller
         foreach ($evs as $ev) {
             $rowAmt = $getAccountAmount($ev->row_account_id, $ev->amount, $ev->total_amount, $accountId);
             if ($rowAmt > 0) {
+                // ✅ Fixed: Check for ANY existing entry with this voucher to prevent duplicates
                 $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($ev) {
                         $q->where('voucher_id', $ev->id)
                           ->orWhere('voucher_no', $ev->evid);
                     })
-                    ->where('description', 'not like', '%Party Side%')
                     ->exists();
 
                 if (!$alreadyRecordedRow) {
@@ -1052,12 +1070,12 @@ class AccountsHeadController extends Controller
 
             $partyAmt = $getPartyAccountAmount($ev, $accountId);
             if ($partyAmt > 0) {
+                // ✅ Fixed: Check for ANY existing entry with this voucher (not just "Party Side" description)
                 $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where(function($q) use ($ev) {
                         $q->where('voucher_id', $ev->id)
                           ->orWhere('voucher_no', $ev->evid);
                     })
-                    ->where('description', 'like', '%Party Side%')
                     ->exists();
 
                 if (!$alreadyRecordedParty) {
