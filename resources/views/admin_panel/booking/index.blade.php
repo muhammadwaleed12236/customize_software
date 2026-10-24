@@ -211,6 +211,14 @@
                                     <td>
                                         <a href="{{ route('booking.invoice', $booking->id) }}" target="_blank"
                                             class="btn btn-sm btn-outline-secondary" title="View Receipt">Receipt</a>
+                                        @can('sale.create')
+                                        @if(($booking->status ?? 'pending') !== 'sale' && !($booking->is_posted))
+                                        <a href="{{ route('sales.from.booking', $booking->id) }}"
+                                            class="btn btn-sm btn-success text-white" title="Confirm Booking & Convert to Sale">
+                                            <i class="fas fa-check-circle"></i> Confirm
+                                        </a>
+                                        @endif
+                                        @endcan
                                         @can('booking.edit')
                                         <a href="{{ route('bookings.edit', $booking->id) }}"
                                             class="btn btn-sm btn-primary" title="Edit Booking"><i class="fa fa-edit"></i> Edit</a>

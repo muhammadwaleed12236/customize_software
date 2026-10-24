@@ -3540,7 +3540,7 @@ class ReportingController extends Controller
         }
 
         // Security / Branch isolation
-        if (!$isSuperAdmin) {
+        if (!$isSuperAdmin && $user) {
             $branchId = (int) $user->branch_id;
         }
 
@@ -3627,12 +3627,24 @@ class ReportingController extends Controller
                 ->sum('quantity');
         }
 
-        // E. Sales before start_date
+        // E. Sales & Gatepasses before start_date
+        // Bulk identify sales that have delivery challans (warehouse_orders)
+        $dcSaleIds = DB::table('warehouse_orders')
+            ->whereNotNull('sale_id')
+            ->pluck('sale_id')
+            ->unique()
+            ->toArray();
+
         $saleBeforeQuery = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where('sale_items.product_id', $productId)
             ->where('sales.status', '!=', 'cancelled')
             ->where('sales.created_at', '<', $startDt);
+
+        if (!empty($dcSaleIds)) {
+            $saleBeforeQuery->whereNotIn('sales.id', $dcSaleIds);
+        }
+
         if ($branchId !== 'all' && !empty($branchId)) {
             $saleBeforeQuery->where('sales.branch_id', $branchId);
         }
@@ -3640,6 +3652,39 @@ class ReportingController extends Controller
             $saleBeforeQuery->where('sale_items.warehouse_id', $warehouseId);
         }
         $salesBefore = (float) $saleBeforeQuery->sum('sale_items.sales_qty');
+
+        // Add Outward Gatepasses issued BEFORE start_date
+        $gpBeforeQuery = DB::table('outward_gatepasses')
+            ->leftJoin('warehouse_orders', 'outward_gatepasses.order_id', '=', 'warehouse_orders.id')
+            ->whereNotNull('outward_gatepasses.items')
+            ->where('outward_gatepasses.created_at', '<', $startDt);
+
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $gpBeforeQuery->where(function ($q) use ($branchId) {
+                $q->where('outward_gatepasses.branch_id', $branchId)
+                  ->orWhere('warehouse_orders.branch_id', $branchId);
+            });
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $gpBeforeQuery->where(function ($q) use ($warehouseId) {
+                $q->where('outward_gatepasses.warehouse_id', $warehouseId)
+                  ->orWhere('warehouse_orders.warehouse_id', $warehouseId);
+            });
+        }
+
+        $gpsBefore = $gpBeforeQuery->select('outward_gatepasses.items')->get();
+        $gpOutBefore = 0;
+        foreach ($gpsBefore as $gp) {
+            $items = is_string($gp->items) ? json_decode($gp->items, true) : $gp->items;
+            if (is_array($items)) {
+                foreach ($items as $it) {
+                    if ((int)($it['product_id'] ?? 0) === $productId) {
+                        $gpOutBefore += (float) ($it['qty'] ?? 0);
+                    }
+                }
+            }
+        }
+        $salesBefore += $gpOutBefore;
 
         // F. Purchase Returns before start_date
         $purReturnBeforeQuery = DB::table('purchase_return_items')
@@ -3790,6 +3835,7 @@ class ReportingController extends Controller
             $saleRangeQuery->where('sale_items.warehouse_id', $warehouseId);
         }
         $saleRangeQuery->select(
+            'sales.id as sale_id',
             'sales.created_at',
             'sales.invoice_no',
             'customers.customer_name',
@@ -3801,28 +3847,121 @@ class ReportingController extends Controller
             'sales.remarks'
         );
         foreach ($saleRangeQuery->get() as $sale) {
+            $isDcSale = in_array($sale->sale_id, $dcSaleIds);
             $cName = !empty($sale->customer_name) ? $sale->customer_name : 'Customer';
             $whName = !empty($sale->warehouse_name) ? $sale->warehouse_name : 'Main Store';
             $sQty = (float) $sale->sales_qty;
             $sPrice = (float) $sale->retail_price > 0 ? (float) $sale->retail_price : ((float) $sale->sales_price > 0 ? (float) $sale->sales_price : ((float) $sale->amount / max(1, $sQty)));
             $sTotal = (float) $sale->amount > 0 ? (float) $sale->amount : ($sQty * $sPrice);
-            $events[] = [
-                'datetime'      => $sale->created_at,
-                'date'          => date('d-M-Y H:i', strtotime($sale->created_at)),
-                'type'          => 'Sale Invoice',
-                'badge'         => 'badge-danger',
-                'icon'          => 'fa-file-invoice-dollar',
-                'ref_no'        => $sale->invoice_no ?? 'SALE',
-                'party'         => $cName,
-                'warehouse'     => $whName,
-                'in_qty'        => 0,
-                'in_price'      => 0,
-                'in_total'      => 0,
-                'out_qty'       => $sQty,
-                'out_price'     => $sPrice,
-                'out_total'     => $sTotal,
-                'remarks'       => $sale->remarks ?? 'Sold to Customer',
-            ];
+
+            if ($isDcSale) {
+                // Booking / Delivery Challan sale: Goods are physically dispatched via Outward Gatepasses
+                $events[] = [
+                    'datetime'      => $sale->created_at,
+                    'date'          => date('d-M-Y H:i', strtotime($sale->created_at)),
+                    'type'          => 'Sale Booking (DC)',
+                    'badge'         => 'badge-info',
+                    'icon'          => 'fa-calendar-check',
+                    'ref_no'        => $sale->invoice_no ?? 'SALE',
+                    'party'         => $cName,
+                    'warehouse'     => $whName,
+                    'in_qty'        => 0,
+                    'in_price'      => 0,
+                    'in_total'      => 0,
+                    'out_qty'       => 0, // No immediate stock reduction
+                    'out_price'     => $sPrice,
+                    'out_total'     => 0,
+                    'remarks'       => "Booking Order ({$sQty} pcs booked - Dispatched via Gatepass)",
+                ];
+            } else {
+                // Counter / Direct sale: Immediate stock reduction
+                $events[] = [
+                    'datetime'      => $sale->created_at,
+                    'date'          => date('d-M-Y H:i', strtotime($sale->created_at)),
+                    'type'          => 'Sale Invoice',
+                    'badge'         => 'badge-danger',
+                    'icon'          => 'fa-file-invoice-dollar',
+                    'ref_no'        => $sale->invoice_no ?? 'SALE',
+                    'party'         => $cName,
+                    'warehouse'     => $whName,
+                    'in_qty'        => 0,
+                    'in_price'      => 0,
+                    'in_total'      => 0,
+                    'out_qty'       => $sQty,
+                    'out_price'     => $sPrice,
+                    'out_total'     => $sTotal,
+                    'remarks'       => $sale->remarks ?? 'Sold to Customer',
+                ];
+            }
+        }
+
+        // C2. Outward Gatepasses in date range (Physical stock dispatch)
+        $gpRangeQuery = DB::table('outward_gatepasses')
+            ->leftJoin('warehouse_orders', 'outward_gatepasses.order_id', '=', 'warehouse_orders.id')
+            ->leftJoin('warehouses', 'outward_gatepasses.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('branches', 'outward_gatepasses.branch_id', '=', 'branches.id')
+            ->whereNotNull('outward_gatepasses.items')
+            ->whereBetween('outward_gatepasses.created_at', [$startDt, $endDt]);
+
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $gpRangeQuery->where(function ($q) use ($branchId) {
+                $q->where('outward_gatepasses.branch_id', $branchId)
+                  ->orWhere('warehouse_orders.branch_id', $branchId);
+            });
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $gpRangeQuery->where(function ($q) use ($warehouseId) {
+                $q->where('outward_gatepasses.warehouse_id', $warehouseId)
+                  ->orWhere('warehouse_orders.warehouse_id', $warehouseId);
+            });
+        }
+
+        $gpRangeQuery->select(
+            'outward_gatepasses.*',
+            'warehouses.warehouse_name',
+            'branches.name as branch_name',
+            'warehouse_orders.dc_no as order_dc_no'
+        );
+
+        foreach ($gpRangeQuery->get() as $gp) {
+            $items = is_string($gp->items) ? json_decode($gp->items, true) : $gp->items;
+            if (!is_array($items)) continue;
+
+            foreach ($items as $it) {
+                if ((int)($it['product_id'] ?? 0) !== $productId) continue;
+
+                $gQty = (float)($it['qty'] ?? 0);
+                if ($gQty <= 0) continue;
+
+                $gPrice = (float)($it['retail_price'] ?? $costRate);
+                $gTotal = (float)($it['amount'] ?? ($gQty * $gPrice));
+
+                $locName = !empty($gp->warehouse_name) ? $gp->warehouse_name : (!empty($gp->branch_name) ? "{$gp->branch_name} (Branch)" : 'Main Store');
+                $dcNum = !empty($gp->dc_no) ? $gp->dc_no : ($gp->order_dc_no ?? '');
+                $invNum = !empty($gp->invoice_no) ? $gp->invoice_no : '';
+                $refDetails = [];
+                if ($dcNum) $refDetails[] = "DC: {$dcNum}";
+                if ($invNum) $refDetails[] = "Inv: {$invNum}";
+                $refText = !empty($refDetails) ? ' (' . implode(', ', $refDetails) . ')' : '';
+
+                $events[] = [
+                    'datetime'      => $gp->created_at,
+                    'date'          => date('d-M-Y H:i', strtotime($gp->created_at)),
+                    'type'          => 'Outward Gate Pass',
+                    'badge'         => 'badge-primary',
+                    'icon'          => 'fa-truck-arrow-right',
+                    'ref_no'        => $gp->gatepass_number ?? ('GP-' . $gp->id),
+                    'party'         => $gp->customer_name ?? 'Customer Dispatch',
+                    'warehouse'     => $locName,
+                    'in_qty'        => 0,
+                    'in_price'      => 0,
+                    'in_total'      => 0,
+                    'out_qty'       => $gQty,
+                    'out_price'     => $gPrice,
+                    'out_total'     => $gTotal,
+                    'remarks'       => "Goods Dispatched{$refText}" . ($gp->remarks ? " - {$gp->remarks}" : ''),
+                ];
+            }
         }
 
         // D. Sales Returns in date range

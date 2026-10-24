@@ -104,26 +104,47 @@ class AccountLedgerEntry extends Model
      */
     public static function getClosingEntry(int $accountId): ?self
     {
-        return self::where('account_id', $accountId)
+        // Pick the latest non-opening entry in chronological order;
+        // fallback to opening balance entry if no other entries exist.
+        $lastNonOb = self::where('account_id', $accountId)
+            ->where('voucher_type', '!=', 'opening_balance')
             ->orderBy('transaction_date', 'desc')
-            ->orderByRaw("CASE WHEN voucher_type = 'opening_balance' THEN 1 ELSE 0 END ASC")
-            ->orderByRaw("CASE WHEN debit > 0 THEN 1 ELSE 0 END ASC")
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($lastNonOb) {
+            return $lastNonOb;
+        }
+
+        return self::where('account_id', $accountId)
             ->orderBy('id', 'desc')
             ->first();
     }
 
     /**
      * Get the final closing balance for an account from its ledger in date order.
+     * Guaranteed mathematical accuracy: Opening Balance + Total Debit - Total Credit (or reverse for Credit accounts).
      */
     public static function getClosingBalance(int $accountId): float
     {
-        $lastEntry = self::getClosingEntry($accountId);
-        if ($lastEntry) {
-            return (float)$lastEntry->running_balance;
-        }
-
         $account = Account::find($accountId);
-        return (float)($account?->opening_balance ?? 0);
+        if (!$account) return 0.0;
+
+        $isCredit = trim(strtolower($account->type ?? 'debit')) === 'credit';
+        $ob = (float)($account->opening_balance ?? 0);
+
+        // Sum of all actual transactions (excluding OB row to avoid double counting)
+        $totals = self::where('account_id', $accountId)
+            ->where('voucher_type', '!=', 'opening_balance')
+            ->selectRaw('COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit')
+            ->first();
+
+        $totDebit = (float)($totals->total_debit ?? 0);
+        $totCredit = (float)($totals->total_credit ?? 0);
+
+        return $isCredit
+            ? ($ob + $totCredit - $totDebit)
+            : ($ob + $totDebit - $totCredit);
     }
 
     /**
@@ -162,14 +183,18 @@ class AccountLedgerEntry extends Model
 
         $firstEntry = $entries->first();
         if ($firstEntry && $firstEntry->voucher_type === 'opening_balance') {
-            // Strictly respect the head's manual opening date if configured
+            // Opening balance entry must always precede or match the earliest transaction
+            $earliestNonOb = $entries->where('voucher_type', '!=', 'opening_balance')->first();
             if ($account->opening_date) {
                 $manualDate = is_string($account->opening_date)
                     ? explode(' ', $account->opening_date)[0]
                     : $account->opening_date->format('Y-m-d');
-                $firstEntry->transaction_date = $manualDate;
+                if ($earliestNonOb && $manualDate > $earliestNonOb->transaction_date) {
+                    $firstEntry->transaction_date = $earliestNonOb->transaction_date;
+                } else {
+                    $firstEntry->transaction_date = $manualDate;
+                }
             } else {
-                $earliestNonOb = $entries->where('voucher_type', '!=', 'opening_balance')->first();
                 if ($earliestNonOb && $firstEntry->transaction_date > $earliestNonOb->transaction_date) {
                     $firstEntry->transaction_date = $earliestNonOb->transaction_date;
                 }

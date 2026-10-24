@@ -435,6 +435,12 @@
         border: 1.5px solid #fca5a5;
     }
 
+    .current-bal-badge.zero {
+        background: #f1f5f9;
+        color: #64748b;
+        border: 1.5px solid #e2e8f0;
+    }
+
     .badge-status-active {
         background: #dcfce7;
         color: #15803d;
@@ -720,6 +726,17 @@
                                     @php
                                         $headSlug = Str::slug($account->head->name ?? 'general');
                                         $currBal = (float)($account->current_balance ?? $account->opening_balance ?? 0);
+                                        $isDebitAccount = strtolower($account->type ?? 'debit') === 'debit';
+                                        
+                                        $balSign = '';
+                                        $badgeClass = 'zero';
+                                        if ($currBal > 0) {
+                                            $balSign = $isDebitAccount ? 'Dr' : 'Cr';
+                                            $badgeClass = 'positive';
+                                        } elseif ($currBal < 0) {
+                                            $balSign = $isDebitAccount ? 'Cr' : 'Dr';
+                                            $badgeClass = 'negative';
+                                        }
                                     @endphp
                                     <tr class="account-item-row" data-head-slug="{{ $headSlug }}">
                                         <td style="color: #94a3b8; font-weight: 600;">
@@ -753,9 +770,11 @@
                                             PKR {{ number_format($account->opening_balance ?? 0, 2) }}
                                         </td>
                                         <td style="text-align: right;">
-                                            <span class="current-bal-badge {{ $currBal >= 0 ? 'positive' : 'negative' }}">
+                                            <span class="current-bal-badge {{ $badgeClass }}">
                                                 PKR {{ number_format(abs($currBal), 2) }}
-                                                <small style="font-size: 10px; font-weight: 800;">{{ $currBal < 0 ? 'Dr' : 'Cr' }}</small>
+                                                @if($balSign)
+                                                    <small style="font-size: 10px; font-weight: 800;">{{ $balSign }}</small>
+                                                @endif
                                             </span>
                                         </td>
                                         <td style="text-align: center;">

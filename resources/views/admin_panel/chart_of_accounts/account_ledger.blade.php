@@ -232,11 +232,22 @@
                 <div class="s-card-label">Total Credit (Out)</div>
                 <div class="s-card-value" style="color:var(--danger);">PKR {{ number_format($totalCredit, 2) }}</div>
             </div>
+            @php
+                $isDebitAcc = strtolower($account->type ?? 'debit') === 'debit';
+                $closingSign = '';
+                if ($closingBalance > 0) {
+                    $closingSign = $isDebitAcc ? 'Dr' : 'Cr';
+                } elseif ($closingBalance < 0) {
+                    $closingSign = $isDebitAcc ? 'Cr' : 'Dr';
+                }
+            @endphp
             <div class="s-card bal">
                 <div class="s-card-label" style="color:#047857;">Closing Balance</div>
                 <div class="s-card-value" style="color:{{ $closingBalance >= 0 ? '#047857' : 'var(--danger)' }};">
                     PKR {{ number_format(abs($closingBalance), 2) }}
-                    @if($closingBalance < 0) <small style="font-size:.7rem;">(Cr)</small> @endif
+                    @if($closingSign)
+                        <small style="font-size: .85rem; font-weight: 800; margin-left: 2px;">({{ $closingSign }})</small>
+                    @endif
                 </div>
             </div>
         </div>
@@ -404,10 +415,18 @@
                                 @endif
                             </td>
                             <td class="text-end">
+                                @php
+                                    $rowSign = '';
+                                    if ($entry->running_balance > 0) {
+                                        $rowSign = $isDebitAcc ? 'Dr' : 'Cr';
+                                    } elseif ($entry->running_balance < 0) {
+                                        $rowSign = $isDebitAcc ? 'Cr' : 'Dr';
+                                    }
+                                @endphp
                                 <span class="running-balance {{ $entry->running_balance >= 0 ? 'positive' : 'negative' }}">
                                     {{ number_format(abs($entry->running_balance), 2) }}
-                                    @if($entry->running_balance < 0)
-                                        <small style="font-size:.7rem; opacity:.7;">Cr</small>
+                                    @if($rowSign)
+                                        <small style="font-size:.7rem; opacity:.7; margin-left: 2px;">{{ $rowSign }}</small>
                                     @endif
                                 </span>
                             </td>
@@ -419,7 +438,7 @@
                             <td colspan="5" style="text-align:right;">TOTALS</td>
                             <td style="text-align:right; color:#4ade80;">{{ number_format($totalDebit, 2) }}</td>
                             <td style="text-align:right; color:#f87171;">{{ number_format($totalCredit, 2) }}</td>
-                            <td style="text-align:right; color:#38bdf8;">{{ number_format(abs($closingBalance), 2) }}</td>
+                            <td style="text-align:right; color:#38bdf8;">{{ number_format(abs($closingBalance), 2) }}{{ $closingSign ? ' ' . $closingSign : '' }}</td>
                         </tr>
                     </tfoot>
                 </table>

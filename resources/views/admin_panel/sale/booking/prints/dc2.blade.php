@@ -300,9 +300,16 @@
 
             <div class="no-print d-flex justify-content-between align-items-center mb-2">
                 <span class="badge bg-secondary fs-6">DC #{{ $loop->iteration }} of {{ count($dcData) }}</span>
-                <button type="button" class="btn btn-sm btn-outline-dark" onclick="printSingleDC('dc-{{ $loop->index }}')">
-                    <i class="fas fa-print me-1"></i> Print This DC
-                </button>
+                <div class="d-flex gap-2">
+                    @if(!empty($dc['warehouse_order_id']))
+                    <a href="{{ route('outward_gatepass.create', $dc['warehouse_order_id']) }}" class="btn btn-sm btn-success">
+                        <i class="fas fa-truck-loading me-1"></i> Create Gate Pass
+                    </a>
+                    @endif
+                    <button type="button" class="btn btn-sm btn-outline-dark" onclick="printSingleDC('dc-{{ $loop->index }}')">
+                        <i class="fas fa-print me-1"></i> Print This DC
+                    </button>
+                </div>
             </div>
 
             <!-- HEADER -->
@@ -446,35 +453,28 @@
                                     }
                                 }
                                 
-                                // Look up in CustomerRemaining table or calculate total dispatched
+                                // Look up actual dispatched quantity from Outward Gatepasses
+                                $actualDispatched = (float)($actualDispatchedByProduct[$pId] ?? 0);
+                                
+                                // Look up in CustomerRemaining table
                                 $remRecord = null;
                                 if (isset($remainingItems) && count($remainingItems) > 0) {
                                     $remRecord = $remainingItems->where('product_id', $pId)->first();
                                 }
                                 
-                                if ($remRecord) {
+                                if ($remRecord && isset($remRecord->remaining_qty)) {
                                     $remaining = (float)$remRecord->remaining_qty;
-                                    $totalDispatched = max(0, $booked - $remaining);
+                                    $totalDispatched = max($actualDispatched, max(0, $booked - $remaining));
                                     $status = $remRecord->status;
                                 } else {
-                                    $totalDispatched = 0;
-                                    if (!empty($dcData)) {
-                                        foreach ($dcData as $d) {
-                                            foreach ($d['items'] as $itemArr) {
-                                                $itemPid = is_array($itemArr) ? ($itemArr['product_id'] ?? null) : ($itemArr->product_id ?? null);
-                                                if ($itemPid == $pId) {
-                                                    $totalDispatched += (float)(is_array($itemArr) ? ($itemArr['qty'] ?? 0) : ($itemArr->qty ?? 0));
-                                                }
-                                            }
-                                        }
-                                    }
+                                    $totalDispatched = $actualDispatched;
                                     $remaining = max(0, $booked - $totalDispatched);
-                                    if ($remaining <= 0) {
-                                        $status = 'completed';
-                                    } elseif ($totalDispatched > 0) {
-                                        $status = 'partial';
-                                    } else {
+                                    if ($totalDispatched <= 0) {
                                         $status = 'pending';
+                                    } elseif ($remaining <= 0) {
+                                        $status = 'completed';
+                                    } else {
+                                        $status = 'partial';
                                     }
                                 }
 
@@ -512,7 +512,7 @@
                                     @elseif($status === 'partial' || ($totalDispatched > 0 && $remaining > 0))
                                         <span class="badge-status badge-partial">Partially Out</span>
                                     @else
-                                        <span class="badge-status badge-pending">Pending</span>
+                                        <span class="badge-status badge-pending">Pending Gate Pass</span>
                                     @endif
                                 </td>
                             </tr>
@@ -534,8 +534,10 @@
                         <td class="text-center">
                             @if($totRemaining <= 0)
                                 <span class="badge-status badge-completed">Fully Delivered</span>
-                            @else
+                            @elseif($totTotalDispatched > 0)
                                 <span class="badge-status badge-partial">{{ $totRemaining }} Pending</span>
+                            @else
+                                <span class="badge-status badge-pending">Pending Gate Pass</span>
                             @endif
                         </td>
                     </tr>

@@ -595,15 +595,13 @@
         }
 
         // Live calculation of remaining quantity
-        $(document).on('change keyup', '.quantity', function() {
+        $(document).on('change keyup input', '.quantity', function() {
             const $row = $(this).closest('tr');
             const available = parseFloat($row.find('.available_qty').val()) || 0;
             const delivered = parseFloat($(this).val()) || 0;
-            const totalSaleQty = parseFloat($(this).data('total-sale-qty')) || available;
-            const previouslyDelivered = parseFloat($(this).data('previously-delivered')) || 0;
             
-            // Remaining = Total - Previously Delivered - Current Delivery
-            const remaining = Math.max(0, totalSaleQty - previouslyDelivered - delivered);
+            // Remaining = Available - Delivered
+            const remaining = Math.max(0, available - delivered);
             
             $row.find('.remaining_qty').val(remaining.toFixed(2));
             
@@ -763,5 +761,6 @@
         });
 
         updateItemCount();
+        $('.quantity').trigger('input');
     });
 </script>

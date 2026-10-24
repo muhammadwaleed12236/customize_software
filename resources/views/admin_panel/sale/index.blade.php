@@ -231,13 +231,13 @@
                         <th>branch</th>
                         @endif
                         <th>Invoice No</th>
-                        <th>Customer Type</th>
+                        <th>Sale Type / Status</th>
                         <th>Customer name</th>
                         {{-- <th>Quantity</th> --}}
-                        <th>Subtotal</th>
-                        <th>Discount %</th>
-                        <th>Discount Amount</th>
-                        <th>Total Balance</th>
+                        <th>Booking / Total Amount</th>
+                        <th>Discount</th>
+                        <th>Advance / Paid</th>
+                        <th>Balance Due</th>
                         <th>Delivery / Remaining Qty</th>
                         {{-- <th>Receipt</th> --}}
                         <th>Date</th>
@@ -245,58 +245,134 @@
                     </tr>
                 </thead>
                 <tbody>@foreach($sales as $sale)
+@php
+    $isBooking = !empty($sale->booking_id) || ($sale->booking && $sale->booking->id);
+    $totalAmt = $sale->calc_total_amount ?? (float)($sale->total_net ?: ($sale->sub_total1 ?: 0));
+    $advPaid = $sale->calc_advance_paid ?? ((float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0));
+    $balDue = $sale->calc_balance_due ?? (($sale->party_type == 'credit') ? (float)$sale->total_balance : (float)$sale->total_net);
+@endphp
 <tr>
     <td>{{ $sale->id }}</td>
     @if(Auth::check() && Auth::user()->hasRole('super admin'))
     <td>{{ $sale->branch->name ?? optional($sale->customer->branch)->name ?? 'N/A' }}</td>
     @endif
-    <td>{{ $sale->invoice_no }}</td>
-    <td>{{ $sale->party_type }}</td>
+    <td>
+        <span class="fw-bold">{{ $sale->invoice_no }}</span>
+        @if($isBooking)
+            <div class="mt-1">
+                <span class="badge" style="background: #4f46e5; color: #fff; font-size: 0.68rem; font-weight: 500;" title="Converted from Booking Order">
+                    <i class="fas fa-bookmark me-1"></i>{{ $sale->booking->invoice_no ?? ('BINV-' . str_pad($sale->booking_id, 4, '0', STR_PAD_LEFT)) }}
+                </span>
+            </div>
+        @endif
+    </td>
+    <td>
+        @if($isBooking)
+            <span class="badge text-white py-1 px-2 mb-1 d-inline-block" style="background: #6366f1; font-size: 0.72rem; font-weight: 600;">
+                <i class="fas fa-calendar-check me-1"></i>Booking
+            </span>
+            <div class="text-muted" style="font-size: 0.7rem;">{{ ucfirst($sale->party_type) }}</div>
+        @else
+            <span class="badge bg-light text-secondary border py-1 px-2 mb-1 d-inline-block" style="font-size: 0.72rem;">
+                Direct
+            </span>
+            <div class="text-muted" style="font-size: 0.7rem;">{{ ucfirst($sale->party_type) }}</div>
+        @endif
+    </td>
     <!-- Customer Name: prefer linked customer, otherwise show sub_customer (walking) -->
     <td>{{ optional($sale->customer)->customer_name ?? $sale->sub_customer ?? 'N/A' }}</td>
     {{-- <td>{{ $sale->quantity ?? 0 }}</td> --}}
-    <td>{{ number_format($sale->sub_total1, 2) }}</td>
     <td>
-        @if($sale->saleItems && $sale->saleItems->count() > 0)
-            @php
-                $avgDiscountPercent = $sale->saleItems->avg('discount_percent');
-            @endphp
-            {{ number_format($avgDiscountPercent, 2) }}%
-        @else
-            {{ number_format($sale->discount_percent, 2) }}%
+        <span class="fw-semibold">{{ number_format($totalAmt, 2) }}</span>
+        @if($isBooking)
+            <small class="text-primary d-block" style="font-size: 0.68rem; font-weight: 600;">Booking Total</small>
         @endif
     </td>
     <td>
         @if($sale->saleItems && $sale->saleItems->count() > 0)
             @php
                 $totalDiscountAmount = $sale->saleItems->sum('discount_amount');
+                $avgDiscountPercent = $sale->saleItems->avg('discount_percent');
             @endphp
-            {{ number_format($totalDiscountAmount, 2) }}
+            @if($totalDiscountAmount > 0)
+                <span class="text-danger fw-semibold">{{ number_format($totalDiscountAmount, 2) }}</span>
+                @if($avgDiscountPercent > 0)
+                    <small class="text-muted d-block" style="font-size: 0.68rem;">({{ number_format($avgDiscountPercent, 1) }}%)</small>
+                @endif
+            @else
+                <span class="text-muted">—</span>
+            @endif
         @else
-            {{ number_format($sale->discount_amount, 2) }}
+            @if($sale->discount_amount > 0)
+                <span class="text-danger fw-semibold">{{ number_format($sale->discount_amount, 2) }}</span>
+                @if($sale->discount_percent > 0)
+                    <small class="text-muted d-block" style="font-size: 0.68rem;">({{ number_format($sale->discount_percent, 1) }}%)</small>
+                @endif
+            @else
+                <span class="text-muted">—</span>
+            @endif
         @endif
     </td>
-    <td>{{ number_format(($sale->party_type== 'credit')?($sale->total_balance):($sale->total_net), 2) }}</td>
+    <td>
+        @if($advPaid > 0)
+            @if($isBooking)
+                <span class="badge text-white py-1 px-2" style="background: #059669; font-size: 0.75rem; font-weight: 600;">
+                    <i class="fas fa-check-circle me-1"></i>Adv: {{ number_format($advPaid, 2) }}
+                </span>
+            @else
+                <span class="text-success fw-semibold">{{ number_format($advPaid, 2) }}</span>
+            @endif
+        @else
+            <span class="text-muted">—</span>
+        @endif
+    </td>
+    <td>
+        @if($balDue > 0)
+            <span class="fw-bold" style="color: #dc2626;">{{ number_format($balDue, 2) }}</span>
+        @else
+            <span class="badge bg-light text-success border border-success py-1 px-2" style="font-size: 0.72rem;">
+                <i class="fas fa-check me-1"></i>Paid
+            </span>
+        @endif
+    </td>
     <td>
         @php
             $rem = $sale->total_remaining_qty ?? 0;
             $del = $sale->total_delivered_qty ?? 0;
             $ord = $sale->total_ordered_qty ?? 0;
         @endphp
-        @if($rem <= 0)
-            <span class="badge bg-success text-white py-1 px-2" style="font-size: 0.72rem; font-weight: 500;">
-                <i class="fas fa-check-circle me-1"></i>Delivered (0 Rem)
-            </span>
-        @elseif($del > 0)
-            <span class="badge bg-secondary text-white py-1 px-2 mb-1 d-inline-block" style="font-size: 0.72rem; font-weight: 500;">
-                <i class="fas fa-truck-loading me-1"></i>Partial ({{ number_format($rem) }} Rem)
-            </span>
-            <div class="text-muted" style="font-size: 0.68rem;">Delivered: {{ number_format($del) }} / {{ number_format($ord) }}</div>
+        @if($isBooking)
+            @if($rem <= 0 && $ord > 0)
+                <span class="badge bg-success text-white py-1 px-2" style="font-size: 0.72rem; font-weight: 500;">
+                    <i class="fas fa-check-double me-1"></i>Delivered (0 Rem)
+                </span>
+            @elseif($del > 0)
+                <span class="badge text-white py-1 px-2 mb-1 d-inline-block" style="background: #4f46e5; font-size: 0.72rem; font-weight: 600;">
+                    <i class="fas fa-truck-loading me-1"></i>Booking Partial ({{ number_format($rem) }} Rem)
+                </span>
+                <div class="text-muted" style="font-size: 0.68rem;">Delivered: {{ number_format($del) }} / {{ number_format($ord) }}</div>
+            @else
+                <span class="badge text-white py-1 px-2 mb-1 d-inline-block" style="background: #6366f1; font-size: 0.72rem; font-weight: 600;">
+                    <i class="fas fa-calendar-check me-1"></i>Booking ({{ number_format($rem) }} Rem)
+                </span>
+                <div class="text-muted" style="font-size: 0.68rem;">Pending Delivery: {{ number_format($rem) }} / {{ number_format($ord) }}</div>
+            @endif
         @else
-            <span class="badge bg-dark text-white py-1 px-2 mb-1 d-inline-block" style="font-size: 0.72rem; font-weight: 500;">
-                <i class="fas fa-clock me-1"></i>Pending ({{ number_format($rem) }} Rem)
-            </span>
-            <div class="text-muted" style="font-size: 0.68rem;">Total Qty: {{ number_format($ord) }}</div>
+            @if($rem <= 0)
+                <span class="badge bg-success text-white py-1 px-2" style="font-size: 0.72rem; font-weight: 500;">
+                    <i class="fas fa-check-circle me-1"></i>Delivered (0 Rem)
+                </span>
+            @elseif($del > 0)
+                <span class="badge bg-secondary text-white py-1 px-2 mb-1 d-inline-block" style="font-size: 0.72rem; font-weight: 500;">
+                    <i class="fas fa-truck-loading me-1"></i>Partial ({{ number_format($rem) }} Rem)
+                </span>
+                <div class="text-muted" style="font-size: 0.68rem;">Delivered: {{ number_format($del) }} / {{ number_format($ord) }}</div>
+            @else
+                <span class="badge bg-dark text-white py-1 px-2 mb-1 d-inline-block" style="font-size: 0.72rem; font-weight: 500;">
+                    <i class="fas fa-clock me-1"></i>Pending ({{ number_format($rem) }} Rem)
+                </span>
+                <div class="text-muted" style="font-size: 0.68rem;">Total Qty: {{ number_format($ord) }}</div>
+            @endif
         @endif
         <div>
             <button type="button" class="btn btn-link btn-sm p-0 text-decoration-none view-movement-btn mt-1" data-sale-id="{{ $sale->id }}" style="font-size: 0.72rem; color: #0d6efd; font-weight: 600;">
@@ -317,6 +393,30 @@
             <i class="fas fa-print"></i> A4 Print
         </a>
 
+        @php
+            $isConfirmed = !empty($sale->is_confirmed) 
+                || !empty($sale->finalized_at) 
+                || ($sale->booking && $sale->booking->is_finalized)
+                || ($rem <= 0 && $ord > 0);
+        @endphp
+
+        @if($isBooking && !$isConfirmed)
+            <!-- CONFIRM BOOKING BUTTON (Opens Sale Screen to verify & confirm) -->
+            <a href="{{ route('sales.edit', $sale->id) }}" class="btn btn-sm text-white me-1" style="background: #059669; font-weight: 600;" title="Confirm Booking in Sale Screen">
+                <i class="fas fa-check-circle me-1"></i> Confirm Booking
+            </a>
+        @elseif($isBooking && $isConfirmed)
+            <!-- ONCE CONFIRMED: CREATE GATE PASS (for dispatch) & DC BUTTON -->
+            @if($rem > 0)
+                <a href="{{ route('sale.create.gatepass', $sale->id) }}" class="btn btn-sm text-white me-1" style="background: #4f46e5; font-weight: 600;" title="Create Gate Pass for Delivery">
+                    <i class="fas fa-truck-loading me-1"></i> Create Gate Pass
+                </a>
+            @endif
+            <a href="{{ route('sale.dc', $sale->id) }}" class="btn btn-sm btn-secondary text-white me-1" title="Delivery Challan">
+                <i class="fas fa-truck me-1"></i> DC
+            </a>
+        @endif
+
         <!-- DELETE BUTTON -->
         @can('sale.delete')
         <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" class="d-inline me-1" onsubmit="return confirm('Are you sure you want to delete Invoice #{{ $sale->invoice_no }}? Stock, customer ledger, and account balances will be reverted.');">
@@ -335,6 +435,41 @@
             </button>
 
             <ul class="dropdown-menu dropdown-menu-end shadow-lg action-dropdown">
+                @if($isBooking && !$isConfirmed)
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 text-success fw-bold" href="{{ route('sales.edit', $sale->id) }}" title="Confirm / Manage Booking in Sale Screen">
+                        <i class="fas fa-check-circle text-success"></i> Confirm Booking
+                    </a>
+                </li>
+                @endif
+                @if($rem > 0)
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 text-primary fw-semibold" href="{{ route('sale.create.gatepass', $sale->id) }}" title="Create Outward Gate Pass">
+                        <i class="fas fa-truck-loading text-primary"></i> Create Gate Pass
+                    </a>
+                </li>
+                @endif
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.dc', $sale->id) }}" title="Delivery Challan">
+                        <i class="fas fa-truck text-secondary"></i> Delivery Challan (DC)
+                    </a>
+                </li>
+                @if($rem > 0 && $isBooking)
+                <li>
+                    <form action="{{ route('sale.booking.confirm', $sale->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to confirm this booking and mark all {{ number_format($rem) }} items as delivered?');">
+                        @csrf
+                        <button type="submit" class="dropdown-item d-flex align-items-center gap-2 text-success fw-semibold">
+                            <i class="fas fa-truck-loading text-success"></i> Mark as Delivered
+                        </button>
+                    </form>
+                </li>
+                @endif
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sales.edit', $sale->id) }}" title="Edit Sale">
+                        <i class="fas fa-edit text-warning"></i> Edit Sale
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
                 <li>
                     <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.invoice.a4', $sale->id) }}" target="_blank">
                         <i class="fas fa-print text-danger"></i> A4 Size Print

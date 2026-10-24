@@ -561,12 +561,21 @@
                         <a href="{{ route('sale.index') }}" class="btn btn-sm btn-light border rounded-circle" title="Back"><i class="fas fa-arrow-left text-secondary"></i></a>
                         <div>
                             <h5 class="mb-0 fw-bold text-dark d-flex align-items-center gap-2" style="font-size: 1.05rem;">
-                                <i class="fas fa-{{ isset($isEditMode) && $isEditMode ? 'edit text-warning' : 'shopping-cart text-primary' }}"></i> {{ isset($isEditMode) && $isEditMode ? 'Edit Sale #' . ($sale->invoice_no ?? '') : 'New Sale' }}
+                                @if(isset($sale) && $sale->booking_id)
+                                    <i class="fas fa-calendar-check text-primary"></i> Confirm Booking Sale #{{ $sale->invoice_no ?? '' }}
+                                    <span class="badge" style="background:#6366f1; color:#fff; font-size: 0.74rem;">
+                                        <i class="fas fa-bookmark me-1"></i>{{ $sale->booking->invoice_no ?? ('BINV-' . str_pad($sale->booking_id, 4, '0', STR_PAD_LEFT)) }}
+                                    </span>
+                                @elseif(isset($isEditMode) && $isEditMode)
+                                    <i class="fas fa-edit text-warning"></i> Edit Sale #{{ $sale->invoice_no ?? '' }}
+                                @else
+                                    <i class="fas fa-shopping-cart text-primary"></i> New Sale
+                                @endif
                                 <span class="badge bg-success-subtle text-success border border-success-subtle font-monospace px-2 py-1 rounded-pill" style="font-size: 0.78rem; background: #e6fcf5;">
                                     <i class="fas fa-file-invoice me-1"></i><span id="activePrefixLabelHeader">{{ $activePrefix ?? 'INV' }}</span>-<span id="headerInvoiceNoDisplay">{{ $sale->invoice_no ?? $nextInvoiceNumber }}</span>
                                 </span>
                             </h5>
-                            <small class="text-muted" style="font-size: 0.7rem;">{{ isset($isEditMode) && $isEditMode ? 'Modify existing sale record' : 'Create a new invoice' }}</small>
+                            <small class="text-muted" style="font-size: 0.7rem;">{{ isset($sale) && $sale->booking_id ? 'Confirm / Update booking sale order' : (isset($isEditMode) && $isEditMode ? 'Modify existing sale record' : 'Create a new invoice') }}</small>
                         </div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
@@ -998,7 +1007,7 @@
                                 </div>
 
                                 <button type="button" class="btn btn-save-complete w-100 mt-auto py-1.5" id="btnSaveAndComplete" style="padding: 6px 12px !important; font-size: 0.85rem !important;">
-                                    <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? 'Update Sale' : 'Save & Complete (F9)' }}
+                                    <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? (isset($sale) && $sale->booking_id ? 'Confirm & Update Sale' : 'Update Sale') : 'Save & Complete (F9)' }}
                                 </button>
                             </div>
                         </div>
@@ -1032,7 +1041,7 @@
                     </div>
 
                     <button type="button" class="btn btn-save-complete" id="btnSaveAndComplete2">
-                        <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? 'Update Sale' : 'Save & Complete (F9)' }}
+                        <i class="fas fa-save me-2"></i>{{ isset($isEditMode) && $isEditMode ? (isset($sale) && $sale->booking_id ? 'Confirm & Update Sale' : 'Update Sale') : 'Save & Complete (F9)' }}
                     </button>
                 </div>
 
@@ -1048,7 +1057,7 @@
                 <div class="d-flex flex-wrap gap-2 justify-content-center py-2 px-3 mt-2 border-top bg-white rounded-3 shadow-sm">
                     @if(isset($isEditMode) && $isEditMode)
                         <button type="button" class="btn btn-success btn-sm px-5 py-2 fw-bold fs-6 shadow-sm" id="btnPosted" style="background:#16a34a !important; border-color:#16a34a !important;">
-                            <i class="fas fa-save me-1"></i>Update Sale
+                            <i class="fas fa-check-circle me-1"></i>{{ isset($sale) && $sale->booking_id ? 'Confirm & Update Sale' : 'Update Sale' }}
                         </button>
                     @else
                         <button type="button" class="btn btn-primary btn-sm px-4 py-2 fw-bold shadow-sm" id="btnSave" style="background:#2563eb !important; border-color:#2563eb !important;">

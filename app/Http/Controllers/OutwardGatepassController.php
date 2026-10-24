@@ -211,26 +211,30 @@ class OutwardGatepassController extends Controller
             if (!empty($order->items) && is_array($order->items)) {
                 foreach ($order->items as $dcItem) {
                     $productId = $dcItem['product_id'] ?? null;
-                    $product = $sale->saleItems->where('product_id', $productId)->first()?->product;
-                    $saleItem = $sale->saleItems->where('product_id', $productId)->first();
+                    $product = $sale ? $sale->saleItems->where('product_id', $productId)->first()?->product : null;
+                    $saleItem = $sale ? $sale->saleItems->where('product_id', $productId)->first() : null;
                     
-                    // ✅ FIXED: Calculate remaining accounting for PREVIOUS deliveries
-                    $totalSaleQty = $saleItem?->sales_qty ?? 0;
-                    $dcQty = (float)($dcItem['qty'] ?? 0);
+                    // Total quantity originally sold in this sale
+                    $totalSaleQty = (float) ($saleItem?->sales_qty ?? $dcItem['qty'] ?? 0);
+                    $dcQty = (float) ($dcItem['qty'] ?? 0);
                     
                     // Get total quantity already delivered via previous gatepasses for this sale + product
-                    $previouslyDelivered = DB::table('outward_gatepasses')
+                    $previouslyDelivered = (float) DB::table('outward_gatepasses')
                         ->join('warehouse_orders', 'outward_gatepasses.order_id', '=', 'warehouse_orders.id')
                         ->where('warehouse_orders.sale_id', $order->sale_id)
                         ->whereNotNull('outward_gatepasses.items')
+                        ->select('outward_gatepasses.id', 'outward_gatepasses.items')
                         ->get()
                         ->sum(function($gatepass) use ($productId) {
                             $items = json_decode($gatepass->items, true);
                             return collect($items)->where('product_id', $productId)->sum('qty') ?? 0;
                         });
                     
-                    // Remaining = Total - Previous Deliveries - Current Delivery
-                    $remainingQty = max(0, $totalSaleQty - $previouslyDelivered - $dcQty);
+                    // Available remaining to deliver = Total - Previously Delivered
+                    $availableToDeliver = max(0, $totalSaleQty - $previouslyDelivered);
+                    // Default current delivery qty is remaining available
+                    $currentDeliveryQty = $availableToDeliver;
+                    $remainingQty = max(0, $availableToDeliver - $currentDeliveryQty);
                     
                     // Log the calculation for audit
                     \Log::info('Outward Gatepass remaining calculation', [
@@ -239,8 +243,7 @@ class OutwardGatepassController extends Controller
                         'product_id' => $productId,
                         'total_sale_qty' => $totalSaleQty,
                         'previously_delivered' => $previouslyDelivered,
-                        'current_dc_qty' => $dcQty,
-                        'remaining_after_this_gatepass' => $remainingQty,
+                        'available_to_deliver' => $availableToDeliver,
                     ]);
                     
                     $prefill[] = [
@@ -249,11 +252,11 @@ class OutwardGatepassController extends Controller
                         'item_code' => $product?->item_code ?? $dcItem['item_code'] ?? null,
                         'brand' => optional($product?->brand)->name ?? $productsMap[$productId]['brand'] ?? '',
                         'unit' => optional($product?->unit)->name ?? $product?->unit_id ?? $productsMap[$productId]['unit'] ?? '',
-                        'qty' => $dcQty,  // ← DC qty to deliver
-                        'available_qty' => $dcQty,  // ← Available from DC
-                        'total_sale_qty' => $totalSaleQty,  // ← For remaining calculation
-                        'previously_delivered' => $previouslyDelivered,  // ← For audit trail
-                        'remaining_qty' => $remainingQty,  // ← Remaining for future deliveries (after this gatepass)
+                        'qty' => $currentDeliveryQty,
+                        'available_qty' => $availableToDeliver,
+                        'total_sale_qty' => $totalSaleQty,
+                        'previously_delivered' => $previouslyDelivered,
+                        'remaining_qty' => $remainingQty,
                     ];
                 }
             }
@@ -920,6 +923,33 @@ class OutwardGatepassController extends Controller
                 $gp->branch_name = 'Branch';
             }
         }
+
+        // Clean up branch address & phone for executive prints
+        $cleanAddress = trim($gp->branch_address ?? '');
+        if (strtolower($cleanAddress) === 'hyd' || empty($cleanAddress)) {
+            $cleanAddress = 'Hyderabad, Sindh';
+        }
+        $gp->branch_address = $cleanAddress;
+
+        $cleanPhone = trim($gp->branch_phone ?? '');
+        if ($cleanPhone === '00000' || $cleanPhone === '0' || empty($cleanPhone)) {
+            $cleanPhone = null;
+        }
+        $gp->branch_phone = $cleanPhone;
+
+        // Clean location name: if "ibrahim", make "Ibrahim Branch"
+        if (!empty($gp->location_name) && $gp->location_name !== 'N/A') {
+            $loc = trim($gp->location_name);
+            if (stripos($loc, 'branch') === false && stripos($loc, 'warehouse') === false) {
+                $gp->location_name = ucwords($loc) . ' Branch';
+            } else {
+                $gp->location_name = ucwords($loc);
+            }
+        } else {
+            $gp->location_name = 'Main Warehouse';
+        }
+
+        $gp->company_name = 'AMIN BROTHERS ENTERPRISES';
 
         // Convert created_at and updated_at to Carbon instances for proper formatting
         if ($gp->created_at && is_string($gp->created_at)) {

@@ -10,6 +10,7 @@ use App\Models\Branch;
 use App\Models\PurchaseAccountAllocaations;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class AccountsHeadController extends Controller
 {
@@ -108,12 +109,29 @@ class AccountsHeadController extends Controller
         $branch = Branch::with(['accounts.head'])
             ->findOrFail($branchId);
 
-        // ✅ Get accounts with current running balances from ledger
-        $allAccounts = $branch->accounts()->with('head')->get()->map(function ($acc) {
-            $acc->opening_balance = (float)($acc->opening_balance ?? 0);
+        // ✅ Preload real-time ledger totals in a single optimized query
+        $accountIds = $branch->accounts->pluck('id')->toArray();
+        $ledgerTotals = DB::table('account_ledger_entries')
+            ->whereIn('account_id', $accountIds)
+            ->where('voucher_type', '!=', 'opening_balance')
+            ->groupBy('account_id')
+            ->selectRaw('account_id, COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit')
+            ->get()
+            ->keyBy('account_id');
 
-            $lastEntry = AccountLedgerEntry::getClosingEntry($acc->id);
-            $acc->current_balance = $lastEntry ? (float)$lastEntry->running_balance : (float)$acc->opening_balance;
+        // Real-time exact ledger balance for all branch accounts (Opening + Debit - Credit)
+        $allAccounts = $branch->accounts()->with('head')->get()->map(function ($acc) use ($ledgerTotals) {
+            $acc->opening_balance = (float)($acc->opening_balance ?? 0);
+            $isCredit = trim(strtolower($acc->type ?? 'debit')) === 'credit';
+            
+            $totals = $ledgerTotals->get($acc->id);
+            $totDebit = (float)($totals->total_debit ?? 0);
+            $totCredit = (float)($totals->total_credit ?? 0);
+
+            $acc->current_balance = $isCredit
+                ? ($acc->opening_balance + $totCredit - $totDebit)
+                : ($acc->opening_balance + $totDebit - $totCredit);
+
             return $acc;
         });
 

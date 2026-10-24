@@ -867,6 +867,8 @@
             events.forEach(function(ev, idx) {
                 var badgeClass = 'l-badge-secondary';
                 if (ev.type.indexOf('Purchase') !== -1) badgeClass = 'l-badge-success';
+                else if (ev.type.indexOf('Booking') !== -1) badgeClass = 'l-badge-info';
+                else if (ev.type.indexOf('Gate') !== -1) badgeClass = 'l-badge-warning';
                 else if (ev.type.indexOf('Sale') !== -1) badgeClass = 'l-badge-danger';
                 else if (ev.type.indexOf('Return') !== -1) badgeClass = 'l-badge-info';
                 else if (ev.type.indexOf('Opening') !== -1) badgeClass = 'l-badge-primary';

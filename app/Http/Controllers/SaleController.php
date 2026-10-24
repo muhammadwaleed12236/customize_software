@@ -2075,7 +2075,8 @@ public function finddc($invoice)
         // ✅ Eager load booking data to check draft_posted status
         $query = Sale::with([
             'customer.branch', 
-            'saleItems.product'
+            'saleItems.product',
+            'booking'
         ])->orderBy('id', 'desc');
 
         if (Auth::check()) {
@@ -2116,6 +2117,29 @@ public function finddc($invoice)
                 ->flip()
                 ->toArray();
 
+            // ✅ Bulk fetch receipts for all loaded sales (to calculate advance received and paid amounts)
+            $bookingIds = $sales->pluck('booking_id')->filter()->toArray();
+            $receiptsBySale = DB::table('receipts_vouchers')
+                ->where(function($q) use ($saleIds, $bookingIds) {
+                    $q->whereIn('sale_id', $saleIds);
+                    if (!empty($bookingIds)) {
+                        $q->orWhereIn('booking_id', $bookingIds);
+                    }
+                })
+                ->select('sale_id', 'booking_id', DB::raw('SUM(amount) as total_receipt'))
+                ->groupBy('sale_id', 'booking_id')
+                ->get();
+
+            $receiptMap = [];
+            foreach ($receiptsBySale as $r) {
+                if ($r->sale_id) {
+                    $receiptMap['sale_' . $r->sale_id] = ($receiptMap['sale_' . $r->sale_id] ?? 0) + (float)$r->total_receipt;
+                }
+                if ($r->booking_id) {
+                    $receiptMap['booking_' . $r->booking_id] = ($receiptMap['booking_' . $r->booking_id] ?? 0) + (float)$r->total_receipt;
+                }
+            }
+
             foreach ($sales as $sale) {
                 $totalOrdered = $sale->saleItems ? (float)$sale->saleItems->sum('sales_qty') : 0;
                 
@@ -2123,7 +2147,9 @@ public function finddc($invoice)
                 $hasDcs = $dcsBySale->has($sale->id);
                 $hasPendingRemaining = isset($pendingRemainingSales[$sale->id]);
 
-                $isRegularDirect = ($sale->status !== 'draft_posted' && $saleGps->isEmpty() && !$hasDcs && !$hasPendingRemaining);
+                $isBookingSale = !empty($sale->booking_id) || ($sale->booking && $sale->booking->id);
+
+                $isRegularDirect = (!$isBookingSale && $sale->status !== 'draft_posted' && $saleGps->isEmpty() && !$hasDcs && !$hasPendingRemaining);
 
                 if ($isRegularDirect) {
                     $totalDelivered = $totalOrdered;
@@ -2142,6 +2168,35 @@ public function finddc($invoice)
                 $sale->total_ordered_qty = $totalOrdered;
                 $sale->total_delivered_qty = $totalDelivered;
                 $sale->total_remaining_qty = $totalRemaining;
+
+                // ✅ Calculate booking amounts, advance received and remaining balance
+                $totalAmt = (float)($sale->total_net ?: ($sale->sub_total1 ?: 0));
+                
+                $paid = (float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0);
+                if ($paid <= 0) {
+                    if (isset($receiptMap['sale_' . $sale->id])) {
+                        $paid = (float)$receiptMap['sale_' . $sale->id];
+                    } elseif ($sale->booking_id && isset($receiptMap['booking_' . $sale->booking_id])) {
+                        $paid = (float)$receiptMap['booking_' . $sale->booking_id];
+                    } elseif ($sale->booking_id && (float)$sale->total_balance > 0 && $totalAmt > (float)$sale->total_balance) {
+                        $paid = $totalAmt - (float)$sale->total_balance;
+                    } elseif ($sale->party_type === 'walking' && (float)$sale->total_balance <= 0) {
+                        $paid = $totalAmt;
+                    }
+                }
+                
+                $balDue = ($sale->party_type === 'walking' && $paid >= $totalAmt)
+                    ? 0.00
+                    : (float)($sale->total_balance ?: max(0, $totalAmt - $paid));
+
+                $sale->calc_total_amount = $totalAmt;
+                $sale->calc_advance_paid = $paid;
+                $sale->calc_balance_due  = $balDue;
+                $sale->is_from_booking   = !empty($sale->booking_id) || ($sale->booking && $sale->booking->id);
+                $sale->is_confirmed      = !empty($sale->finalized_at) 
+                    || ($sale->booking && $sale->booking->is_finalized) 
+                    || ($totalRemaining <= 0 && $totalOrdered > 0)
+                    || $saleGps->isNotEmpty();
             }
         }
         
@@ -4457,6 +4512,15 @@ public function finddc($invoice)
                     AccountLedgerEntry::recalculateRunningBalance($affectedAccId);
                 }
 
+                // Mark sale as finalized / confirmed
+                $sale->finalized_at = now();
+                $sale->finalized_by = auth()->id();
+                $sale->save();
+
+                if (!empty($sale->booking_id)) {
+                    \App\Models\ProductBooking::where('id', $sale->booking_id)->update(['is_finalized' => 1]);
+                }
+
                 if ($request->wantsJson() || $request->ajax()) {
                     return response()->json([
                         'ok'          => true,
@@ -4797,10 +4861,10 @@ public function finddc($invoice)
 
                 // Determine branch to display
                 $user = Auth::user();
-                if ($user->hasRole('super admin')) {
+                if ($user && $user->hasRole('super admin')) {
                     $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
                 } else {
-                    $branch = $user->branch ?? Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
+                    $branch = ($user ? $user->branch : null) ?? Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
                 }
 
                 // ✅ FIRST: Check if warehouse_orders already exist for this sale
@@ -4986,13 +5050,37 @@ public function finddc($invoice)
                 $remainingItems = \App\Models\CustomerRemaining::where('sale_id', $sale->id)->get();
                 $latestLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer_id)->latest('id')->first();
 
+                // Fetch actual outward gatepasses linked via warehouse_orders.sale_id = $sale->id
+                $gatepassRows = DB::table('outward_gatepasses')
+                    ->join('warehouse_orders', 'outward_gatepasses.order_id', '=', 'warehouse_orders.id')
+                    ->where('warehouse_orders.sale_id', $sale->id)
+                    ->whereNotNull('outward_gatepasses.items')
+                    ->select('outward_gatepasses.id', 'outward_gatepasses.gatepass_number', 'outward_gatepasses.items', 'outward_gatepasses.created_at')
+                    ->get();
+
+                $actualDispatchedByProduct = [];
+                foreach ($gatepassRows as $gp) {
+                    $gpItems = is_string($gp->items) ? json_decode($gp->items, true) : (is_array($gp->items) ? $gp->items : []);
+                    if (is_array($gpItems)) {
+                        foreach ($gpItems as $gpItem) {
+                            $pId = is_array($gpItem) ? ($gpItem['product_id'] ?? null) : null;
+                            $qty = (float)(is_array($gpItem) ? ($gpItem['qty'] ?? 0) : 0);
+                            if ($pId && $qty > 0) {
+                                $actualDispatchedByProduct[$pId] = ($actualDispatchedByProduct[$pId] ?? 0) + $qty;
+                            }
+                        }
+                    }
+                }
+
                 // Return the DC view
                 return view('admin_panel.sale.booking.prints.dc2', [
                     'sale' => $sale,
                     'dcData' => $dcData,
                     'branch' => $branch,
                     'remainingItems' => $remainingItems,
-                    'latestLedger' => $latestLedger
+                    'latestLedger' => $latestLedger,
+                    'actualGatepasses' => $gatepassRows,
+                    'actualDispatchedByProduct' => $actualDispatchedByProduct,
                 ]);
 
             });
@@ -5003,6 +5091,113 @@ public function finddc($invoice)
                 'sale_id' => $sale->id
             ]);
             return back()->with('error', 'Error generating DC: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Create Gate Pass directly for a sale: ensures warehouse order exists, then redirects to gatepass create form
+     */
+    public function createGatepassForSale($saleId)
+    {
+        try {
+            $sale = Sale::with(['saleItems.product', 'customer'])->findOrFail($saleId);
+
+            // 1. Check if an active warehouse order already exists for this sale
+            $order = \App\Models\WarehouseOrder::where('sale_id', $sale->id)
+                ->where(function($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
+                })
+                ->orderBy('id', 'asc')
+                ->first();
+
+            if (!$order) {
+                // Generate warehouse orders for this sale using existing saleDc logic
+                $this->ensureWarehouseOrdersForSale($sale);
+                $order = \App\Models\WarehouseOrder::where('sale_id', $sale->id)
+                    ->where(function($q) {
+                        $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
+                    })
+                    ->orderBy('id', 'asc')
+                    ->first();
+            }
+
+            if (!$order) {
+                return redirect()->route('sale.index')->with('error', 'Unable to create delivery order for this sale.');
+            }
+
+            return redirect()->route('outward_gatepass.create', $order->id);
+        } catch (\Exception $e) {
+            Log::error('Create gatepass for sale failed: ' . $e->getMessage());
+            return redirect()->route('sale.index')->with('error', 'Error opening Gate Pass: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Helper to ensure WarehouseOrder (DC) records exist for a sale
+     */
+    public function ensureWarehouseOrdersForSale($sale)
+    {
+        if (!($sale instanceof Sale)) {
+            $sale = Sale::with(['customer', 'saleItems.product', 'saleItems.warehouse'])->findOrFail($sale);
+        } else {
+            $sale->loadMissing(['customer', 'saleItems.product', 'saleItems.warehouse']);
+        }
+
+        $existingCount = \App\Models\WarehouseOrder::where('sale_id', $sale->id)->count();
+        if ($existingCount > 0) {
+            return;
+        }
+
+        $user = Auth::user();
+        if ($user && $user->hasRole('super admin')) {
+            $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS', 'id' => 1];
+        } else {
+            $branch = ($user ? $user->branch : null) ?? Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS', 'id' => 1];
+        }
+
+        $groupedItems = $sale->saleItems->groupBy('warehouse_id');
+
+        foreach ($groupedItems as $warehouseId => $items) {
+            $whId = (!empty($warehouseId) && $warehouseId != '0') ? (int) $warehouseId : null;
+            $deliveryLocationType = $whId ? 'warehouse' : 'branch';
+
+            $branchForCounter = Branch::lockForUpdate()->find($branch->id ?? 1);
+            if (!$branchForCounter) {
+                $branchForCounter = Branch::lockForUpdate()->find(1);
+            }
+
+            $branchForCounter->dc_counter = ($branchForCounter->dc_counter ?? 0) + 1;
+            $branchForCounter->save();
+            $dcNo = 'DC-' . str_pad($branchForCounter->dc_counter, 4, '0', STR_PAD_LEFT);
+
+            $warehouseOrder = new \App\Models\WarehouseOrder();
+            $warehouseOrder->dc_no = $dcNo;
+            $warehouseOrder->warehouse_id = $whId;
+            $warehouseOrder->delivery_location_type = $deliveryLocationType;
+            $warehouseOrder->branch_id = $sale->branch_id;
+            $warehouseOrder->customer_id = $sale->customer_id;
+            $warehouseOrder->sale_id = $sale->id;
+            $warehouseOrder->status = 'pending';
+            $warehouseOrder->remarks = $sale->remarks ?? null;
+            $warehouseOrder->prepared_by = auth()->user()->name ?? null;
+            $warehouseOrder->created_by = auth()->id();
+            $warehouseOrder->updated_by = auth()->id();
+
+            $itemsArray = $items->map(function($si) use ($whId) {
+                return [
+                    'sale_item_id' => $si->id ?? null,
+                    'product_id'   => $si->product_id ?? null,
+                    'product_name' => optional($si->product)->item_name ?? $si->product_name ?? null,
+                    'item_code'    => optional($si->product)->item_code ?? null,
+                    'qty'          => $si->sales_qty ?? $si->qty ?? 0,
+                    'warehouse_id' => $whId,
+                    'retail_price' => isset($si->retail_price) ? (float) $si->retail_price : null,
+                    'amount'       => isset($si->amount) ? (float) $si->amount : null,
+                ];
+            })->values()->toArray();
+
+            $warehouseOrder->items = $itemsArray;
+            $warehouseOrder->save();
         }
     }
 
@@ -5018,12 +5213,12 @@ public function finddc($invoice)
 
         // Determine branch to display
         $user = Auth::user();
-        if ($user->hasRole('super admin')) {
+        if ($user && $user->hasRole('super admin')) {
             // Super admin: show branch 1
             $branch = Branch::find(1) ?? (object)['name' => 'ZAIN TRADERS'];
         } else {
             // Regular user: show their branch
-            $branch = $user->branch ?? (object)['name' => 'ZAIN TRADERS'];
+            $branch = ($user ? $user->branch : null) ?? (object)['name' => 'ZAIN TRADERS'];
         }
 
         // 1. Check if warehouse_orders already exist for this sale (same as saleDc)
@@ -5178,6 +5373,108 @@ public function finddc($invoice)
             'dcData' => $dcData,
             'branch' => $branch
         ]);
+    }
+
+    /**
+     * Confirm a booking sale and mark its delivery as complete
+     */
+    public function confirmBooking(Request $request, $saleId)
+    {
+        try {
+            return DB::transaction(function () use ($saleId) {
+                $sale = Sale::with(['saleItems.product', 'booking', 'customer'])->findOrFail($saleId);
+
+                // 1. Ensure Delivery Challan (WarehouseOrder) exists and marked delivered
+                $order = WarehouseOrder::where('sale_id', $sale->id)->first();
+                if (!$order) {
+                    $branchForCounter = Branch::lockForUpdate()->find($sale->branch_id ?? 1);
+                    if (!$branchForCounter) {
+                        $branchForCounter = Branch::lockForUpdate()->first();
+                    }
+                    $branchForCounter->dc_counter = ($branchForCounter->dc_counter ?? 0) + 1;
+                    $branchForCounter->save();
+                    $dcNo = 'DC-' . str_pad($branchForCounter->dc_counter, 4, '0', STR_PAD_LEFT);
+
+                    $itemsArray = $sale->saleItems->map(function($si) {
+                        return [
+                            'sale_item_id' => $si->id ?? null,
+                            'product_id'   => $si->product_id ?? null,
+                            'product_name' => optional($si->product)->item_name ?? $si->product_name ?? null,
+                            'item_code'    => optional($si->product)->item_code ?? null,
+                            'qty'          => $si->sales_qty ?? $si->qty ?? 0,
+                            'warehouse_id' => $si->warehouse_id ?? null,
+                            'retail_price' => isset($si->retail_price) ? (float) $si->retail_price : null,
+                            'amount'       => isset($si->amount) ? (float) $si->amount : null,
+                        ];
+                    })->values()->toArray();
+
+                    $order = new WarehouseOrder();
+                    $order->dc_no = $dcNo;
+                    $order->warehouse_id = $sale->saleItems->first()->warehouse_id ?? null;
+                    $order->delivery_location_type = $order->warehouse_id ? 'warehouse' : 'branch';
+                    $order->branch_id = $sale->branch_id ?? 1;
+                    $order->customer_id = $sale->customer_id;
+                    $order->sale_id = $sale->id;
+                    $order->status = 'delivered';
+                    $order->prepared_by = auth()->user()->name ?? 'System';
+                    $order->created_by = auth()->id();
+                    $order->updated_by = auth()->id();
+                    $order->items = $itemsArray;
+                    $order->save();
+                } else {
+                    $order->status = 'delivered';
+                    $order->save();
+                }
+
+                // 2. Create OutwardGatepass if none exists
+                $hasGp = DB::table('outward_gatepasses')->where('order_id', $order->id)->exists();
+                if (!$hasGp) {
+                    $gpItems = [];
+                    foreach ($sale->saleItems as $si) {
+                        $gpItems[] = [
+                            'product_id'   => $si->product_id,
+                            'product_name' => optional($si->product)->item_name ?? '',
+                            'item_code'    => optional($si->product)->item_code ?? '',
+                            'qty'          => (float)$si->sales_qty,
+                        ];
+                    }
+
+                    $maxGpId = DB::table('outward_gatepasses')->max('id') ?? 0;
+                    $gpNumber = 'GP-' . str_pad($maxGpId + 1, 4, '0', STR_PAD_LEFT);
+
+                    DB::table('outward_gatepasses')->insert([
+                        'branch_id'       => $sale->branch_id ?? 1,
+                        'gatepass_number' => $gpNumber,
+                        'order_id'        => $order->id,
+                        'warehouse_id'    => $order->warehouse_id,
+                        'dc_no'           => $order->dc_no,
+                        'invoice_no'      => $sale->invoice_no,
+                        'customer_name'   => optional($sale->customer)->customer_name ?? $sale->sub_customer ?? 'Customer',
+                        'delivery_city'   => $sale->address ?? null,
+                        'status'          => 'completed',
+                        'items'           => json_encode($gpItems),
+                        'issued_by'       => auth()->user()->name ?? 'Admin',
+                        'prepared_by'     => auth()->user()->name ?? 'Admin',
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
+                    ]);
+                }
+
+                // 3. Update linked booking delivery_status
+                if ($sale->booking_id) {
+                    $booking = ProductBooking::find($sale->booking_id);
+                    if ($booking) {
+                        $booking->delivery_status = 'delivered';
+                        $booking->save();
+                    }
+                }
+
+                return redirect()->back()->with('success', 'Booking #' . $sale->invoice_no . ' confirmed and marked as delivered successfully!');
+            });
+        } catch (\Exception $e) {
+            Log::error('Error confirming booking delivery: ' . $e->getMessage());
+            return redirect()->back()->with('error', 'Error confirming booking: ' . $e->getMessage());
+        }
     }
     /**
      * Delete a sale record

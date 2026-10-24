@@ -555,6 +555,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     // Route::get('/sale/dc/{sale}', [SaleController::class, 'bookingDc'])->middleware('permission:booking.view')->name('sale.dc');
     // Route::get('/booking/dc/{id}', function(){
         Route::get('/sale/dc/{sale}', [SaleController::class, 'saleDc'])->middleware('permission:booking.view')->name('sale.dc');
+        Route::get('/sale/{sale}/create-gatepass', [SaleController::class, 'createGatepassForSale'])->name('sale.create.gatepass');
         
         // ✅ Warehouse Selection for Draft Delivery (before DC creation)
         Route::get('/sale/warehouse-select/{sale}', [SaleController::class, 'showWarehouseSelection'])
@@ -565,6 +566,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
         
         // ✅ Sale Movement & Delivery Details Modal Data
         Route::get('/sale/{id}/movement-details', [SaleController::class, 'getMovementDetails'])->name('sale.movement.details');
+        Route::post('/sale/{sale}/confirm-booking', [SaleController::class, 'confirmBooking'])->name('sale.booking.confirm');
         
     // Dedicated thermal print view for DC (server-rendered)
     Route::get('/sale/dc/{sale}/thermal', [SaleController::class, 'saleDcThermal'])->middleware('permission:booking.view')->name('sale.dc.thermal');
