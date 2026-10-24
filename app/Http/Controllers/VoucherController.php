@@ -15,12 +15,14 @@ use App\Models\Vendor;
 use App\Models\VendorLedger;
 use App\Models\JournalVoucher;
 use App\Models\Voucher;
+use App\Http\Controllers\Concerns\BranchScope;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class VoucherController extends Controller
 {
+    use BranchScope;
     public function index($type)
     {
         $user = Auth::user();
@@ -352,7 +354,10 @@ class VoucherController extends Controller
         $previousBalance = $party ? $party->balance : 0;
 
         $branch = null;
-        if (\Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->branch_id) {
+        if (!empty($voucher->branch_id)) {
+            $branch = DB::table('branches')->where('id', $voucher->branch_id)->first();
+        }
+        if (!$branch && \Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->branch_id) {
             $branch = DB::table('branches')->where('id', \Illuminate\Support\Facades\Auth::user()->branch_id)->first();
         }
 
@@ -847,10 +852,20 @@ class VoucherController extends Controller
                 }
             }
 
-            if (Auth::user()->hasRole('super admin') && $request->filled('branch_id')) {
+            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
                 $branchId = (int) $request->branch_id;
             } else {
-                $branchId = (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
+                $detectedBranch = null;
+                if (!empty($request->row_account_id)) {
+                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                    if ($firstAccId) {
+                        $accObj = Account::find($firstAccId);
+                        if ($accObj && $accObj->branch_id) {
+                            $detectedBranch = (int) $accObj->branch_id;
+                        }
+                    }
+                }
+                $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
 
             $partyTypes   = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
@@ -933,11 +948,30 @@ class VoucherController extends Controller
                     $narrationIds[] = (string)$narrId; // force string format
                 }
             }
-            // Branch handling
-            if (Auth::user()->hasRole('super admin') && $request->filled('branch_id')) {
+            // Branch handling: use explicit branch if provided, otherwise auto-detect from paying account or party
+            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
                 $branchId = (int) $request->branch_id;
             } else {
-                $branchId = (int) (auth()->user()->branch_id ?? 1);
+                $detectedBranch = null;
+                if (!empty($request->row_account_id)) {
+                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                    if ($firstAccId) {
+                        $accObj = Account::find($firstAccId);
+                        if ($accObj && $accObj->branch_id) {
+                            $detectedBranch = (int) $accObj->branch_id;
+                        }
+                    }
+                }
+                if (!$detectedBranch && !empty($partyIds)) {
+                    $firstPartyId = is_array($partyIds) ? ($partyIds[0] ?? null) : $partyIds;
+                    if ($firstPartyId) {
+                        $vendObj = Vendor::find($firstPartyId);
+                        if ($vendObj && $vendObj->branch_id) {
+                            $detectedBranch = (int) $vendObj->branch_id;
+                        }
+                    }
+                }
+                $branchId = $detectedBranch ?? (int) (auth()->user()->branch_id ?? 1);
             }
 
             // Party arrays (support multiple parties)
@@ -1158,10 +1192,20 @@ class VoucherController extends Controller
                 }
             }
 
-            if (Auth::user()->hasRole('super admin') && $request->filled('branch_id')) {
+            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
                 $branchId = (int) $request->branch_id;
             } else {
-                $branchId = (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
+                $detectedBranch = null;
+                if (!empty($request->row_account_id)) {
+                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                    if ($firstAccId) {
+                        $accObj = Account::find($firstAccId);
+                        if ($accObj && $accObj->branch_id) {
+                            $detectedBranch = (int) $accObj->branch_id;
+                        }
+                    }
+                }
+                $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
 
             $partyTypes   = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
@@ -1193,19 +1237,35 @@ class VoucherController extends Controller
     {
         $user = Auth::user();
         $isSuperAdmin = $user && $user->hasRole('super admin');
-        $userBranchId = $user ? $user->branch_id : 0;
-        $branches = \App\Models\Branch::where(function ($q) {
-            $q->whereNull('status')->orWhere('status', '!=', 'inactive');
-        })->orderBy('name')->get();
+        $userBranchId = $user ? (int)$user->branch_id : 0;
         $selectedBranch = $request->get('branch_id', 'all');
 
         $query = \App\Models\PaymentVoucher::with('branch');
 
-        if (!$isSuperAdmin) {
-            $query->where('branch_id', $userBranchId);
-        } else {
+        if ($isSuperAdmin) {
+            $branches = \App\Models\Branch::where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'inactive');
+            })->orderBy('name')->get();
+
             if ($request->filled('branch_id') && $request->branch_id !== 'all') {
-                $query->where('branch_id', $request->branch_id);
+                $query->where('branch_id', (int)$request->branch_id);
+            }
+        } else {
+            $allowedBranches = $this->allowedBranches('payment.voucher.view');
+            if (empty($allowedBranches) && $userBranchId > 0) {
+                $allowedBranches = [$userBranchId];
+            }
+
+            if (!empty($allowedBranches)) {
+                $branches = \App\Models\Branch::whereIn('id', $allowedBranches)->orderBy('name')->get();
+                if ($request->filled('branch_id') && $request->branch_id !== 'all' && in_array((int)$request->branch_id, $allowedBranches)) {
+                    $query->where('branch_id', (int)$request->branch_id);
+                } else {
+                    $query->whereIn('branch_id', $allowedBranches);
+                }
+            } else {
+                $branches = collect();
+                $query->where('branch_id', $userBranchId);
             }
         }
 
@@ -1215,6 +1275,7 @@ class VoucherController extends Controller
             $formatted = $this->formatVoucherParties($voucher);
             $voucher->type_label = $formatted['type_label'];
             $voucher->party_name = $formatted['party_name'];
+            $voucher->branch_name = $voucher->branch ? $voucher->branch->name : ($voucher->branch_id ? 'Branch #' . $voucher->branch_id : 'N/A');
         }
 
         return view('admin_panel.vochers.payment_vochers.all_payment_vochers', compact('receipts', 'branches', 'isSuperAdmin', 'selectedBranch'));
@@ -1300,7 +1361,10 @@ class VoucherController extends Controller
         $previousBalance = $party ? $party->balance : 0;
 
         $branch = null;
-        if (\Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->branch_id) {
+        if (!empty($voucher->branch_id)) {
+            $branch = DB::table('branches')->where('id', $voucher->branch_id)->first();
+        }
+        if (!$branch && \Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->branch_id) {
             $branch = DB::table('branches')->where('id', \Illuminate\Support\Facades\Auth::user()->branch_id)->first();
         }
 
@@ -1605,10 +1669,20 @@ class VoucherController extends Controller
                 }
             }
 
-            if (Auth::user()->hasRole('super admin') && $request->filled('branch_id')) {
+            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
                 $branchId = (int) $request->branch_id;
             } else {
-                $branchId = (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
+                $detectedBranch = null;
+                if (!empty($request->row_account_id)) {
+                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                    if ($firstAccId) {
+                        $accObj = Account::find($firstAccId);
+                        if ($accObj && $accObj->branch_id) {
+                            $detectedBranch = (int) $accObj->branch_id;
+                        }
+                    }
+                }
+                $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
 
             $partyTypes   = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
@@ -1682,7 +1756,10 @@ class VoucherController extends Controller
         $previousBalance = $party ? $party->balance : 0;
 
         $branch = null;
-        if (\Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->branch_id) {
+        if (!empty($voucher->branch_id)) {
+            $branch = DB::table('branches')->where('id', $voucher->branch_id)->first();
+        }
+        if (!$branch && \Illuminate\Support\Facades\Auth::check() && \Illuminate\Support\Facades\Auth::user()->branch_id) {
             $branch = DB::table('branches')->where('id', \Illuminate\Support\Facades\Auth::user()->branch_id)->first();
         }
 

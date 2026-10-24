@@ -41,6 +41,42 @@
         border-radius: 6px;
         border: 1px solid #cbd5e1;
     }
+    .badge-branch-chip {
+        font-size: 11.5px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 6px;
+        background: rgba(30, 58, 95, 0.08);
+        color: #1e3a5f;
+        border: 1px solid rgba(30, 58, 95, 0.15);
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        white-space: nowrap;
+    }
+    .branch-filter-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        padding: 12px 18px;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 12px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+    }
+    .branch-filter-select {
+        border: 1.5px solid #cbd5e1;
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1e293b;
+        min-width: 240px;
+        background-color: #f8fafc;
+    }
 </style>
 
 <div class="main-content">
@@ -53,6 +89,99 @@
             @if (session()->has('error'))
                 <div class="alert alert-danger mt-2"><strong>Error!</strong> {{ session('error') }}</div>
             @endif
+
+            @php
+                $totalPaid = $receipts->where('status', '!=', 'voided')->sum('total_amount');
+                $activeCount = $receipts->where('status', '!=', 'voided')->count();
+                $voidedCount = $receipts->where('status', '===', 'voided')->count();
+            @endphp
+
+            {{-- Branch Filter for Super Admin / Multi-branch users --}}
+            @if($isSuperAdmin || (isset($branches) && $branches->count() > 1))
+                <div class="branch-filter-card mt-3">
+                    <div class="d-flex align-items-center" style="gap: 10px;">
+                        <div style="width: 34px; height: 34px; background: rgba(30, 58, 95, 0.08); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #1e3a5f;">
+                            <i class="fas fa-filter"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">
+                                Branch Filter Scope
+                            </div>
+                            <div style="font-size: 13px; font-weight: 700; color: #1e293b;">
+                                Filter Payment Vouchers by Branch
+                            </div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center" style="gap: 8px;">
+                        <label for="branchFilter" class="small font-weight-bold text-muted mb-0 d-none d-sm-inline">
+                            Branch:
+                        </label>
+                        <select id="branchFilter" class="form-select branch-filter-select">
+                            <option value="all" {{ ($selectedBranch == 'all' || empty($selectedBranch)) ? 'selected' : '' }}>
+                                🌐 All Branches (Consolidated View)
+                            </option>
+                            @foreach($branches as $b)
+                                <option value="{{ $b->id }}" {{ ($selectedBranch == $b->id) ? 'selected' : '' }}>
+                                    🏬 {{ $b->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @if($selectedBranch && $selectedBranch != 'all')
+                            <a href="{{ route('all-Payment-vochers') }}" class="btn btn-sm btn-outline-secondary" title="Clear Filter">
+                                <i class="fas fa-times"></i>
+                            </a>
+                        @endif
+                    </div>
+                </div>
+            @endif
+
+            {{-- KPI Summary Cards --}}
+            <div class="row g-2 mb-3 mt-2">
+                <div class="col-md-3 col-sm-6 mb-2">
+                    <div class="card border-0 shadow-sm p-3 d-flex flex-row align-items-center" style="gap: 14px; border-radius: 10px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(30, 58, 95, 0.1); display: flex; align-items: center; justify-content: center; color: #1e3a5f;">
+                            <i class="fas fa-file-invoice-dollar fa-lg"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small font-weight-bold text-uppercase">Total Vouchers</div>
+                            <div class="h5 mb-0 fw-bold">{{ $receipts->count() }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-2">
+                    <div class="card border-0 shadow-sm p-3 d-flex flex-row align-items-center" style="gap: 14px; border-radius: 10px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(220, 38, 38, 0.1); display: flex; align-items: center; justify-content: center; color: #dc2626;">
+                            <i class="fas fa-money-bill-wave fa-lg"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small font-weight-bold text-uppercase">Total Amount Paid</div>
+                            <div class="h5 mb-0 fw-bold text-danger">PKR {{ number_format($totalPaid, 2) }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-2">
+                    <div class="card border-0 shadow-sm p-3 d-flex flex-row align-items-center" style="gap: 14px; border-radius: 10px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(13, 159, 110, 0.1); display: flex; align-items: center; justify-content: center; color: #0d9f6e;">
+                            <i class="fas fa-check-circle fa-lg"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small font-weight-bold text-uppercase">Active Payments</div>
+                            <div class="h5 mb-0 fw-bold text-success">{{ $activeCount }}</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3 col-sm-6 mb-2">
+                    <div class="card border-0 shadow-sm p-3 d-flex flex-row align-items-center" style="gap: 14px; border-radius: 10px;">
+                        <div style="width: 42px; height: 42px; border-radius: 8px; background: rgba(245, 158, 11, 0.1); display: flex; align-items: center; justify-content: center; color: #f59e0b;">
+                            <i class="fas fa-ban fa-lg"></i>
+                        </div>
+                        <div>
+                            <div class="text-muted small font-weight-bold text-uppercase">Voided Payments</div>
+                            <div class="h5 mb-0 fw-bold text-warning">{{ $voidedCount }}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             <div class="card shadow-sm border-0 mt-3">
                 <div class="card-header bg-light d-flex justify-content-between align-items-center">
@@ -73,6 +202,7 @@
                                 <tr>
                                     <th>ID</th>
                                     <th>Voucher No</th>
+                                    <th>Branch</th>
                                     <th>Receipt Date</th>
                                     <th>Entry Date</th>
                                     <th>Type</th>
@@ -101,6 +231,12 @@
                                 <tr>
                                     <td>{{ $item->id }}</td>
                                     <td><strong>{{ $item->pvid }}</strong></td>
+                                    <td>
+                                        <span class="badge-branch-chip">
+                                            <i class="fas fa-building text-primary" style="font-size: 10px;"></i>
+                                            {{ $item->branch->name ?? $item->branch_name ?? 'Branch #' . $item->branch_id }}
+                                        </span>
+                                    </td>
                                     <td>{{ $item->receipt_date }}</td>
                                     <td>{{ $item->entry_date }}</td>
                                     <td><span class="badge bg-secondary text-white">{{ $item->type_label }}</span></td>
@@ -242,6 +378,12 @@
 @section('js')
 <script>
 $(document).ready(function() {
+    // Branch filter redirect
+    $('#branchFilter').on('change', function() {
+        var val = $(this).val();
+        window.location.href = "{{ route('all-Payment-vochers') }}?branch_id=" + val;
+    });
+
     // Initialize DataTable to match project's style
     $('#paymentVoucherTable').DataTable({
         "order": [[ 0, "desc" ]] // Sort by ID desc by default
