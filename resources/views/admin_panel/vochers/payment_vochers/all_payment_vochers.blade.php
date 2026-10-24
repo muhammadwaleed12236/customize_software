@@ -77,6 +77,67 @@
         min-width: 240px;
         background-color: #f8fafc;
     }
+    /* Action Dropdown Styling */
+    .manage-dropdown {
+        position: relative;
+        display: inline-block;
+    }
+    .btn-manage {
+        transition: all 0.2s ease;
+        border: 1px solid #cbd5e1;
+        background: #ffffff;
+        color: #1e293b;
+        border-radius: 6px;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 5px 12px;
+        white-space: nowrap;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .manage-dropdown:hover .btn-manage, .btn-manage:focus, .manage-dropdown.show .btn-manage {
+        background: #1e3a5f;
+        color: #ffffff;
+        border-color: #1e3a5f;
+        box-shadow: 0 4px 10px rgba(30, 58, 95, 0.2);
+    }
+    .manage-dropdown .dropdown-menu {
+        position: absolute !important;
+        right: 0 !important;
+        left: auto !important;
+        top: 100% !important;
+        min-width: 185px !important;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        border-radius: 8px;
+        padding: 6px;
+        z-index: 1060 !important;
+        background: #ffffff !important;
+        margin-top: 2px !important;
+    }
+    .manage-dropdown .dropdown-item {
+        padding: 7px 12px !important;
+        font-size: 12.5px !important;
+        font-weight: 600;
+        color: #334155;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap !important;
+        cursor: pointer;
+        transition: all 0.15s ease;
+    }
+    .manage-dropdown .dropdown-item:hover {
+        background-color: #f1f5f9;
+        color: #1e3a5f;
+    }
+    .table-responsive {
+        padding-bottom: 60px;
+        margin-bottom: -60px;
+    }
 </style>
 
 <div class="main-content">
@@ -200,7 +261,7 @@
                         <table id="paymentVoucherTable" class="table table-striped table-bordered align-middle custom-compact-table" style="width:100%">
                             <thead class="table-light">
                                 <tr>
-                                    <th>ID</th>
+                                    <th style="width: 85px; min-width: 80px; text-align: center;">ID</th>
                                     <th>Voucher No</th>
                                     <th>Branch</th>
                                     <th>Receipt Date</th>
@@ -212,7 +273,7 @@
                                     <th>Amount</th>
                                     <th>Total Amount</th>
                                     <th>Created At</th>
-                                    <th>Actions</th>
+                                    <th style="width: 100px; min-width: 95px; text-align: center;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -229,7 +290,9 @@
                                 $narration = is_array($narrations) ? implode(', ', $narrations) : $item->narration_id;
                                 @endphp
                                 <tr>
-                                    <td>{{ $item->id }}</td>
+                                    <td data-order="{{ $item->id }}" style="width: 85px; min-width: 80px; text-align: center;">
+                                        <span class="badge" style="background: #f1f5f9; color: #1e3a5f; font-family: monospace; font-size: 12.5px; font-weight: 700; padding: 5px 10px; border: 1px solid #cbd5e1; border-radius: 6px;">#{{ $item->id }}</span>
+                                    </td>
                                     <td><strong>{{ $item->pvid }}</strong></td>
                                     <td>
                                         <span class="badge-branch-chip">
@@ -246,64 +309,64 @@
                                     <td>{{ number_format($amount, 2) }}</td>
                                     <td><strong class="text-success">{{ number_format((float)$item->total_amount, 2) }}</strong></td>
                                     <td>{{ $item->created_at }}</td>
-                                    <td>
-                                        <div class="action-buttons">
-                                            @if($item->status !== 'voided')
-                                                <a href="{{ route('PaymentVoucher.print', $item->id) }}"
-                                                    target="_blank"
-                                                    class="btn btn-sm btn-danger" title="Print Voucher">
-                                                    <i class="fas fa-print"></i>
-                                                </a>
-
-                                                @can('payment.voucher.create')
-                                                    <a href="{{ route('payment-vouchers.edit', $item->id) }}"
-                                                        class="btn btn-sm btn-primary" title="Edit Voucher">
-                                                        <i class="fas fa-edit"></i>
+                                    <td style="text-align: center;">
+                                        <div class="dropdown manage-dropdown">
+                                            <button class="btn btn-manage dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                                                <i class="fas fa-cog text-primary mr-1"></i> Action
+                                            </button>
+                                            <div class="dropdown-menu dropdown-menu-right shadow">
+                                                @if($item->status !== 'voided')
+                                                    <a class="dropdown-item" href="{{ route('PaymentVoucher.print', $item->id) }}" target="_blank">
+                                                        <i class="fas fa-print text-danger" style="width: 16px;"></i> Print Voucher
                                                     </a>
-                                                @endcan
 
-                                                @if($item->receiving_proof)
-                                                    <button type="button" 
-                                                        class="btn btn-sm btn-success btn-view-proof" 
-                                                        data-pvid="{{ $item->pvid }}" 
-                                                        data-url="{{ asset('uploads/receipts/' . $item->receiving_proof) }}" 
-                                                        title="View Receiving Proof">
-                                                        <i class="fas fa-image"></i>
-                                                    </button>
-                                                    <button type="button" 
-                                                        class="btn btn-sm btn-outline-secondary btn-upload-proof" 
-                                                        data-id="{{ $item->id }}" 
-                                                        data-pvid="{{ $item->pvid }}" 
-                                                        title="Change Proof">
-                                                        <i class="fas fa-sync-alt"></i>
-                                                    </button>
+                                                    @can('payment.voucher.create')
+                                                        <a class="dropdown-item" href="{{ route('payment-vouchers.edit', $item->id) }}">
+                                                        <i class="fas fa-edit text-primary" style="width: 16px;"></i> Edit Voucher
+                                                        </a>
+                                                    @endcan
+
+                                                    @if($item->receiving_proof)
+                                                        <a href="javascript:void(0)" 
+                                                            class="dropdown-item text-success btn-view-proof" 
+                                                            data-pvid="{{ $item->pvid }}" 
+                                                            data-url="{{ asset('uploads/receipts/' . $item->receiving_proof) }}">
+                                                            <i class="fas fa-image text-success" style="width: 16px;"></i> View Proof
+                                                        </a>
+                                                        <a href="javascript:void(0)" 
+                                                            class="dropdown-item text-secondary btn-upload-proof" 
+                                                            data-id="{{ $item->id }}" 
+                                                            data-pvid="{{ $item->pvid }}">
+                                                            <i class="fas fa-sync-alt text-secondary" style="width: 16px;"></i> Change Proof
+                                                        </a>
+                                                    @else
+                                                        <a href="javascript:void(0)" 
+                                                            class="dropdown-item text-info btn-upload-proof" 
+                                                            data-id="{{ $item->id }}" 
+                                                            data-pvid="{{ $item->pvid }}">
+                                                            <i class="fas fa-upload text-info" style="width: 16px;"></i> Upload Proof
+                                                        </a>
+                                                    @endif
+
+                                                    @can('payment.voucher.create')
+                                                        <div class="dropdown-divider my-1"></div>
+                                                        <form action="{{ route('payment-vouchers.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to VOID this payment? Ledgers will be reversed.');">
+                                                            @csrf
+                                                            @method('DELETE')
+                                                            <button type="submit" class="dropdown-item text-danger" style="background: none; border: none; width: 100%; text-align: left;">
+                                                                <i class="fas fa-ban text-danger" style="width: 16px;"></i> Void Payment
+                                                            </button>
+                                                        </form>
+                                                    @endcan
                                                 @else
-                                                    <button type="button" 
-                                                        class="btn btn-sm btn-outline-primary btn-upload-proof" 
-                                                        data-id="{{ $item->id }}" 
-                                                        data-pvid="{{ $item->pvid }}" 
-                                                        title="Upload Receiving Proof">
-                                                        <i class="fas fa-upload"></i> Proof
-                                                    </button>
+                                                    <div class="px-3 py-1">
+                                                        <span class="badge bg-danger text-white">Voided</span>
+                                                    </div>
+                                                    <a class="dropdown-item" href="{{ route('PaymentVoucher.print', $item->id) }}" target="_blank">
+                                                        <i class="fas fa-print text-muted" style="width: 16px;"></i> Print Voided
+                                                    </a>
                                                 @endif
-                                                
-                                                @can('payment.voucher.create')
-                                                <form action="{{ route('payment-vouchers.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to VOID this payment? Ledgers will be reversed.');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="btn btn-sm btn-warning" title="Void Payment">
-                                                        <i class="fas fa-ban"></i> Void
-                                                    </button>
-                                                </form>
-                                                @endcan
-                                            @else
-                                                <span class="badge bg-danger">Voided</span>
-                                                <a href="{{ route('PaymentVoucher.print', $item->id) }}"
-                                                    target="_blank"
-                                                    class="btn btn-sm btn-secondary" title="Print Voided Voucher">
-                                                    <i class="fas fa-print"></i>
-                                                </a>
-                                            @endif
+                                            </div>
                                         </div>
                                     </td>
                                 </tr>
@@ -384,9 +447,28 @@ $(document).ready(function() {
         window.location.href = "{{ route('all-Payment-vochers') }}?branch_id=" + val;
     });
 
-    // Initialize DataTable to match project's style
+    // Dropdown hover & click interaction
+    $(document).on('mouseenter', '.manage-dropdown', function() {
+        $('.manage-dropdown .dropdown-menu').removeClass('show');
+        $(this).find('.dropdown-menu').addClass('show');
+    }).on('mouseleave', '.manage-dropdown', function() {
+        $(this).find('.dropdown-menu').removeClass('show');
+    });
+
+    $(document).on('click', function(e) {
+        if (!$(e.target).closest('.manage-dropdown').length) {
+            $('.manage-dropdown .dropdown-menu').removeClass('show');
+        }
+    });
+
+    // Initialize DataTable with newest on top (ID descending by numeric sequence)
     $('#paymentVoucherTable').DataTable({
-        "order": [[ 0, "desc" ]] // Sort by ID desc by default
+        "order": [[ 0, "desc" ]],
+        "pageLength": 25,
+        "language": {
+            "search": "_INPUT_",
+            "searchPlaceholder": "Search vouchers..."
+        }
     });
 
     // Handle opening upload proof modal
