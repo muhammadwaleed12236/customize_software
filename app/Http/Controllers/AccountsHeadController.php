@@ -48,14 +48,29 @@ class AccountsHeadController extends Controller
               ->orWhere('status', '!=', 'inactive');
         })->with('accounts.head')->orderBy('name')->get();
 
+        // Preload ledger totals for all branches in one bulk query
+        $allAccountIds = $branches->flatMap->accounts->pluck('id')->toArray();
+        $ledgerTotals = DB::table('account_ledger_entries')
+            ->whereIn('account_id', $allAccountIds)
+            ->where('voucher_type', '!=', 'opening_balance')
+            ->groupBy('account_id')
+            ->selectRaw('account_id, COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit')
+            ->get()
+            ->keyBy('account_id');
+
         // Calculate totals for each branch
-        $branchesWithTotals = $branches->map(function ($branch) {
+        $branchesWithTotals = $branches->map(function ($branch) use ($ledgerTotals) {
             $accounts = $branch->accounts;
             $openingSum = (float)$accounts->sum(function ($acc) {
                 return (float)($acc->opening_balance ?? 0);
             });
-            $currentSum = (float)$accounts->sum(function ($acc) {
-                return AccountLedgerEntry::getClosingBalance($acc->id);
+            $currentSum = (float)$accounts->sum(function ($acc) use ($ledgerTotals) {
+                $ob = (float)($acc->opening_balance ?? 0);
+                $isCredit = trim(strtolower((string)($acc->type ?? 'debit'))) === 'credit';
+                $totals = $ledgerTotals->get($acc->id);
+                $totDebit = (float)($totals->total_debit ?? 0);
+                $totCredit = (float)($totals->total_credit ?? 0);
+                return $isCredit ? ($ob + $totCredit - $totDebit) : ($ob + $totDebit - $totCredit);
             });
 
             return [
@@ -122,7 +137,7 @@ class AccountsHeadController extends Controller
         // Real-time exact ledger balance for all branch accounts (Opening + Debit - Credit)
         $allAccounts = $branch->accounts()->with('head')->get()->map(function ($acc) use ($ledgerTotals) {
             $acc->opening_balance = (float)($acc->opening_balance ?? 0);
-            $isCredit = trim(strtolower($acc->type ?? 'debit')) === 'credit';
+            $isCredit = trim(strtolower((string)($acc->type ?? 'debit'))) === 'credit';
             
             $totals = $ledgerTotals->get($acc->id);
             $totDebit = (float)($totals->total_debit ?? 0);

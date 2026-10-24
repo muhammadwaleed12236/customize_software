@@ -233,7 +233,7 @@
                 <div class="s-card-value" style="color:var(--danger);">PKR {{ number_format($totalCredit, 2) }}</div>
             </div>
             @php
-                $isDebitAcc = strtolower($account->type ?? 'debit') === 'debit';
+                $isDebitAcc = trim(strtolower((string)($account->type ?? 'debit'))) === 'debit';
                 $closingSign = '';
                 if ($closingBalance > 0) {
                     $closingSign = $isDebitAcc ? 'Dr' : 'Cr';

@@ -726,7 +726,7 @@
                                     @php
                                         $headSlug = Str::slug($account->head->name ?? 'general');
                                         $currBal = (float)($account->current_balance ?? $account->opening_balance ?? 0);
-                                        $isDebitAccount = strtolower($account->type ?? 'debit') === 'debit';
+                                        $isDebitAccount = trim(strtolower((string)($account->type ?? 'debit'))) === 'debit';
                                         
                                         $balSign = '';
                                         $badgeClass = 'zero';

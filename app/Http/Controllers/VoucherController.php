@@ -381,28 +381,76 @@ class VoucherController extends Controller
                  $q->where('branch_id', $branchId);
             })
             ->get();
+
+        $accountIds = $accounts->pluck('id')->toArray();
+        $ledgerTotals = DB::table('account_ledger_entries')
+            ->whereIn('account_id', $accountIds)
+            ->where('voucher_type', '!=', 'opening_balance')
+            ->groupBy('account_id')
+            ->selectRaw('account_id, COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit')
+            ->get()
+            ->keyBy('account_id');
+
+        $result = $accounts->map(function ($acc) use ($ledgerTotals) {
+            $ob = (float)($acc->opening_balance ?? 0);
+            $isCredit = trim(strtolower((string)($acc->type ?? 'debit'))) === 'credit';
+            $totals = $ledgerTotals->get($acc->id);
+            $totDebit = (float)($totals->total_debit ?? 0);
+            $totCredit = (float)($totals->total_credit ?? 0);
+            $closing = $isCredit ? ($ob + $totCredit - $totDebit) : ($ob + $totDebit - $totCredit);
+
+            $acc->closing_balance = round($closing, 2);
+            $acc->current_balance = round($closing, 2);
+            $acc->balance         = round($closing, 2);
+            $acc->opening_balance = round($closing, 2);
+            return $acc;
+        });
         
-        return response()->json($accounts);
-    }
-public function getOpeningBalance($type, $id)
-{
-    if ($type === 'customer' || $type === 'walkin') {
-        $customer = Customer::find($id);
-        echo "<pre>";
-        print_r($customer);
-        echo "<pre>";
-        dd();
-        return response()->json([
-            'opening_balance' => $customer->opening_balance ?? 0
-        ]);
+        return response()->json($result);
     }
 
-    // Account case
-    $account = AccountHead::find($id);
-    return response()->json([
-        'opening_balance' => $account->opening_balance ?? 0
-    ]);
-}
+    public function getOpeningBalance($type, $id)
+    {
+        if ($type === 'customer' || $type === 'walkin') {
+            $customer = Customer::find($id);
+            if (!$customer) {
+                return response()->json(['opening_balance' => 0, 'closing_balance' => 0, 'balance' => 0]);
+            }
+            $lastLedger = CustomerLedger::where('customer_id', $id)->orderBy('id', 'desc')->first();
+            $closing = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+            return response()->json([
+                'opening_balance' => (float)($customer->opening_balance ?? 0),
+                'closing_balance' => $closing,
+                'balance'         => $closing,
+            ]);
+        }
+
+        if ($type === 'vendor') {
+            $vendor = Vendor::find($id);
+            if (!$vendor) {
+                return response()->json(['opening_balance' => 0, 'closing_balance' => 0, 'balance' => 0]);
+            }
+            $lastLedger = VendorLedger::where('vendor_id', $id)->orderBy('id', 'desc')->first();
+            $closing = $lastLedger ? (float)$lastLedger->closing_balance : (float)($vendor->opening_balance ?? 0);
+            return response()->json([
+                'opening_balance' => (float)($vendor->opening_balance ?? 0),
+                'closing_balance' => $closing,
+                'balance'         => $closing,
+            ]);
+        }
+
+        // Account case
+        $account = Account::find($id);
+        if (!$account) {
+            return response()->json(['opening_balance' => 0, 'closing_balance' => 0, 'balance' => 0]);
+        }
+        $closing = AccountLedgerEntry::getClosingBalance($account->id);
+        return response()->json([
+            'opening_balance' => (float)($account->opening_balance ?? 0),
+            'closing_balance' => $closing,
+            'balance'         => $closing,
+        ]);
+    }
 
 
 
@@ -445,7 +493,7 @@ public function getOpeningBalance($type, $id)
             return response()->json($customers);
 
         } elseif ($type === 'walkin') {
-            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer']);
+            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer'])->with(['ledgers' => fn($q) => $q->latest('id')]);
 
             if ($branchId && $branchId !== 'all') {
                 $query->where(function ($q) use ($branchId) {
@@ -454,7 +502,8 @@ public function getOpeningBalance($type, $id)
             }
 
             $walkins = $query->get()->map(function ($c) {
-                $closing = (float)($c->opening_balance ?? 0);
+                $ledger = $c->ledgers->first();
+                $closing = $ledger ? (float)$ledger->closing_balance : (float)($c->opening_balance ?? 0);
                 return [
                     'id'              => $c->id,
                     'text'            => $c->customer_name,
@@ -732,11 +781,12 @@ public function getOpeningBalance($type, $id)
                 $pTel  = $pTel ?: ($ven?->phone_number ?? '');
                 $lastLedger = VendorLedger::where('vendor_id', $pId)->latest('id')->first();
                 $pBal = $lastLedger ? (float)$lastLedger->closing_balance : (float)($ven?->opening_balance ?? 0);
-            } elseif (is_numeric($pType)) {
-                $acc = Account::find($pId);
+            } elseif (is_numeric($pType) || is_numeric($pId)) {
+                $targetAccId = is_numeric($pId) ? $pId : $pType;
+                $acc = Account::find($targetAccId);
                 $pName = $acc?->title ?? '';
                 $pTel  = $pTel ?: ($acc?->account_code ?? '');
-                $pBal  = (float)($acc?->opening_balance ?? 0);
+                $pBal  = $acc ? \App\Models\AccountLedgerEntry::getClosingBalance($acc->id) : 0;
             }
 
             $partyRows[] = [
@@ -1042,11 +1092,12 @@ public function getOpeningBalance($type, $id)
                 $pTel  = $pTel ?: ($cust?->mobile ?? '');
                 $lastLedger = CustomerLedger::where('customer_id', $pId)->latest('id')->first();
                 $pBal = $lastLedger ? (float)$lastLedger->closing_balance : (float)($cust?->opening_balance ?? 0);
-            } elseif (is_numeric($pType)) {
-                $acc = Account::find($pId);
+            } elseif (is_numeric($pType) || is_numeric($pId)) {
+                $targetAccId = is_numeric($pId) ? $pId : $pType;
+                $acc = Account::find($targetAccId);
                 $pName = $acc?->title ?? '';
                 $pTel  = $pTel ?: ($acc?->account_code ?? '');
-                $pBal  = (float)($acc?->opening_balance ?? 0);
+                $pBal  = $acc ? \App\Models\AccountLedgerEntry::getClosingBalance($acc->id) : 0;
             }
 
             $partyRows[] = [
@@ -1493,7 +1544,7 @@ public function getOpeningBalance($type, $id)
                 $acc = Account::find($accId);
                 $pName = $acc?->title ?? '';
                 $pTel  = $pTel ?: ($acc?->account_code ?? '');
-                $pBal  = (float)($acc?->opening_balance ?? 0);
+                $pBal  = $acc ? \App\Models\AccountLedgerEntry::getClosingBalance($acc->id) : 0;
             }
 
             $partyRows[] = [

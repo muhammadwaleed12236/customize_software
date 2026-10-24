@@ -468,7 +468,7 @@ $(document).ready(function () {
                 var html = '<option value="">— Select Account —</option>';
                 data.forEach(function (acc) {
                     html += '<option value="' + acc.id + '" '
-                        + 'data-bal="' + (acc.opening_balance || 0) + '" '
+                        + 'data-bal="' + (acc.closing_balance !== undefined ? acc.closing_balance : (acc.opening_balance || 0)) + '" '
                         + 'data-mobile="' + (acc.account_code || '') + '">'
                         + acc.title + ' (' + (acc.account_code || '') + ')</option>';
                 });

@@ -524,7 +524,7 @@ $(document).ready(function () {
                 data.forEach(function (acc) {
                     var isSel = (defaultId && String(defaultId) === String(acc.id)) ? 'selected' : '';
                     html += '<option value="' + acc.id + '" '
-                        + 'data-bal="' + (acc.opening_balance || 0) + '" '
+                        + 'data-bal="' + (acc.closing_balance !== undefined ? acc.closing_balance : (acc.opening_balance || 0)) + '" '
                         + 'data-mobile="' + (acc.account_code || '') + '" ' + isSel + '>'
                         + acc.title + ' (' + (acc.account_code || '') + ')</option>';
                 });
