@@ -647,10 +647,42 @@
                                 if ($finalTotal <= 0 && $computedTotal > 0) {
                                     $finalTotal = $computedTotal;
                                 }
+                                $receiptsA4 = \App\Models\ReceiptsVoucher::with('Account')
+                                    ->where(function($q) use ($sale) {
+                                        $q->where('sale_id', $sale->id)
+                                          ->orWhere('reference_no', $sale->invoice_no);
+                                    })
+                                    ->where(function($q) {
+                                        $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                                    })
+                                    ->get();
+                                $paidA4 = (float)$receiptsA4->sum('total_amount');
+                                if ($paidA4 <= 0) {
+                                    $paidA4 = (float)$receiptsA4->sum('amount');
+                                }
+                                if ($paidA4 <= 0) {
+                                    $paidA4 = (float)(($sale->receipt1 ?? 0) + ($sale->receipt2 ?? 0));
+                                }
+                                $balanceA4 = max(0, $finalTotal - $paidA4);
                             @endphp
                             {{ number_format($finalTotal, 2) }}
                         </span>
                     </div>
+
+                    @if($paidA4 > 0)
+                    <div class="total-row" style="margin-top: 4px;">
+                        <span class="total-label" style="font-size: 11.5px; color: #166534;">PAID:</span>
+                        <span class="total-amount" style="font-size: 12px; color: #166534; border-bottom: 1.5px solid #166534;">
+                            {{ number_format($paidA4, 2) }}
+                        </span>
+                    </div>
+                    <div class="total-row" style="margin-top: 4px;">
+                        <span class="total-label" style="font-size: 11.5px; color: {{ $balanceA4 > 0 ? '#b91c1c' : '#000' }};">BALANCE:</span>
+                        <span class="total-amount" style="font-size: 12px; color: {{ $balanceA4 > 0 ? '#b91c1c' : '#000' }}; border-bottom: 2px solid {{ $balanceA4 > 0 ? '#b91c1c' : '#000' }};">
+                            {{ number_format($balanceA4, 2) }}
+                        </span>
+                    </div>
+                    @endif
 
                     <div class="signature-row">
                         <span class="signature-label">Signature</span>

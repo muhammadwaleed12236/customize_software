@@ -180,6 +180,25 @@ body {
     margin-bottom: 4px;
 }
 
+.paid-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+}
+
+.payment-item-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-bottom: 1px dashed #cbd5e1;
+    font-size: 14px;
+    font-weight: 700;
+}
+
 .payment-remarks-line {
     border-top: 2px solid #000;
     margin-bottom: 6px;
@@ -441,9 +460,9 @@ $netTotal = $grossTotal - $orderLevelDiscount - $additionalDiscount + $extraChar
 $netTotal = max(0, $netTotal);
 
 $totalReceived = 0;
-if(isset($sale) && isset($sale->invoice_no)){
+if (!isset($receipts) || $receipts->isEmpty()) {
     $invBranchId = $sale->branch_id ?? null;
-    $receipts = \App\Models\ReceiptsVoucher::where(function($q) use ($sale, $invBranchId) {
+    $receipts = \App\Models\ReceiptsVoucher::with('Account')->where(function($q) use ($sale, $invBranchId) {
             $q->where('sale_id', $sale->id)
               ->orWhere(function($q2) use ($sale, $invBranchId) {
                   $q2->where('reference_no', $sale->invoice_no)
@@ -455,9 +474,17 @@ if(isset($sale) && isset($sale->invoice_no)){
                   }
               });
         })
-        ->where('type', 'SALE_RECEIPT')
+        ->where(function($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'voided');
+        })
         ->get();
-    $totalReceived = (float) $receipts->sum('total_amount');
+}
+$totalReceived = (float) $receipts->sum('total_amount');
+if ($totalReceived <= 0) {
+    $totalReceived = (float) $receipts->sum('amount');
+}
+if ($totalReceived <= 0 && isset($sale)) {
+    $totalReceived = (float)(($sale->receipt1 ?? 0) + ($sale->receipt2 ?? 0));
 }
 
 $displayPrevious = 0;
@@ -629,24 +656,69 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                         <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($displayPrevious, 2) }}</td>
                     </tr>
                     @endif
-                    <tr style="font-size: 12px; background: #fafafa;">
-                        <td>Grand Total</td>
+                    <tr style="background: #fafafa;">
+                        <td style="font-weight: 800;">Grand Total</td>
                         <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($grandTotal, 2) }}</td>
                     </tr>
-                    <tr style="font-size: 12px;">
-                        <td>Balance Due</td>
-                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($balanceDue, 2) }}</td>
+                    <tr style="background: #f0fdf4;">
+                        <td style="color: #166534; font-weight: 800;">Paid / Received</td>
+                        <td style="text-align: right; font-weight: 800; color: #166534;">Rs. {{ number_format($totalReceived, 2) }}</td>
+                    </tr>
+                    <tr style="background: {{ $balanceDue > 0 ? '#fef2f2' : '#ffffff' }};">
+                        <td style="font-weight: 800; color: {{ $balanceDue > 0 ? '#b91c1c' : '#000' }};">Balance Due</td>
+                        <td style="text-align: right; font-weight: 800; color: {{ $balanceDue > 0 ? '#b91c1c' : '#000' }};">Rs. {{ number_format($balanceDue, 2) }}</td>
                     </tr>
                 </table>
             </div>
 
             {{-- RIGHT: PAYMENT REMARKS & AMOUNT IN WORDS --}}
             <div style="width: 50%;">
-                <div class="payment-remarks-title">
-                    Payment Remarks:
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="payment-remarks-title mb-0">Payment Details:</span>
+                    @if($totalReceived >= $grandTotal && $grandTotal > 0)
+                        <span class="badge paid-badge" style="background: #166534; color: #fff;">PAID IN FULL</span>
+                    @elseif($totalReceived > 0)
+                        <span class="badge paid-badge" style="background: #d97706; color: #fff;">PARTIAL PAID</span>
+                    @else
+                        <span class="badge paid-badge" style="background: #b91c1c; color: #fff;">UNPAID</span>
+                    @endif
                 </div>
                 <div class="payment-remarks-line"></div>
-                <div class="amount-in-words">
+
+                @if(isset($receipts) && $receipts->count() > 0)
+                    <div style="margin-bottom: 6px;">
+                        @foreach($receipts as $rcpt)
+                            @php
+                                $accTitle = optional($rcpt->Account)->title ?? optional($rcpt->AccountHead)->title ?? 'Cash / Bank';
+                                $rcptAmt = (float)($rcpt->total_amount ?? $rcpt->amount ?? 0);
+                            @endphp
+                            <div class="payment-item-row">
+                                <span>
+                                    <span style="color: #166534;">✔ Received via </span>
+                                    <strong style="color: #000;">{{ $accTitle }}</strong>
+                                    @if(!empty($rcpt->receipt_date))
+                                        <span style="font-size: 11px; color: #64748b; font-weight: 600;">({{ \Carbon\Carbon::parse($rcpt->receipt_date)->format('d M Y') }})</span>
+                                    @endif
+                                    :
+                                </span>
+                                <span style="font-weight: 800; color: #000;">Rs. {{ number_format($rcptAmt, 2) }}</span>
+                            </div>
+                        @endforeach
+                    </div>
+                @elseif($totalReceived > 0)
+                    <div class="payment-item-row" style="margin-bottom: 6px;">
+                        <span style="color: #166534;">✔ Amount Received:</span>
+                        <span style="font-weight: 800; color: #000;">Rs. {{ number_format($totalReceived, 2) }}</span>
+                    </div>
+                @endif
+
+                @if(!empty($sale->remarks))
+                    <div class="mb-2" style="font-size: 13px; font-weight: 600; color: #334155;">
+                        <strong>Note:</strong> {{ $sale->remarks }}
+                    </div>
+                @endif
+
+                <div class="amount-in-words mt-2">
                     {{ invoiceNumberToWords($grandTotal) }}
                 </div>
             </div>
@@ -772,6 +844,7 @@ window.exportCSV = function () {
     
     rows.push([]);
     rows.push(['Grand Total', '', '', '', 'Rs. {{ number_format($grandTotal, 2) }}']);
+    rows.push(['Paid / Received', '', '', '', 'Rs. {{ number_format($totalReceived, 2) }}']);
     rows.push(['Balance Due', '', '', '', 'Rs. {{ number_format($balanceDue, 2) }}']);
 
     var csv  = rows.map(function(r){return r.join(',');}).join('\n');

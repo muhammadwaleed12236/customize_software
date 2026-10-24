@@ -4795,8 +4795,19 @@ public function finddc($invoice)
     {
         $sale->load([
             'customer.ledgers',
-            'saleItems.product'
+            'saleItems.product',
+            'branch'
         ]);
+
+        $receipts = ReceiptsVoucher::with('Account')
+            ->where(function($q) use ($sale) {
+                $q->where('sale_id', $sale->id)
+                  ->orWhere('reference_no', $sale->invoice_no);
+            })
+            ->where(function($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'voided');
+            })
+            ->get();
 
         // Determine branch to display
         $user = Auth::user();
@@ -4808,7 +4819,7 @@ public function finddc($invoice)
             $branch = ($user && $user->branch) ? $user->branch : (Branch::find($sale->branch_id ?? 1) ?? (object)['name' => 'ZAIN TRADERS', 'address' => '17th-Brandreth Road, Lahore, Pakistan.', 'mobile' => '0300-4235114 0300-4235114', 'phone' => '042-37635383 042-37651862']);
         }
 
-        return view('admin_panel.sale.invoicesale', compact('sale', 'branch'));
+        return view('admin_panel.sale.invoicesale', compact('sale', 'branch', 'receipts'));
     }
 
     /**

@@ -549,7 +549,22 @@
             // Customer ledger balances
             $prevBalance = 0;
             $closingBalance = 0;
-            $paidAmount = (float)(($sale->receipt1 ?? 0) + ($sale->receipt2 ?? 0));
+            $receipts = \App\Models\ReceiptsVoucher::with('Account')
+                ->where(function($q) use ($sale) {
+                    $q->where('sale_id', $sale->id)
+                      ->orWhere('reference_no', $sale->invoice_no);
+                })
+                ->where(function($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                })
+                ->get();
+            $paidAmount = (float)$receipts->sum('total_amount');
+            if ($paidAmount <= 0) {
+                $paidAmount = (float)$receipts->sum('amount');
+            }
+            if ($paidAmount <= 0) {
+                $paidAmount = (float)(($sale->receipt1 ?? 0) + ($sale->receipt2 ?? 0));
+            }
 
             if ($sale->customer) {
                 // 1. Get the customer's previous balance prior to this specific sale invoice
@@ -588,9 +603,18 @@
                 <td class="tot-val" style="padding-top: 4px;">{{ number_format($prevBalance, 0) }} Dr</td>
             </tr>
             <tr>
-                <td class="tot-lbl">Paid Amount:</td>
+                <td class="tot-lbl">Paid / Received:</td>
                 <td class="tot-val">{{ number_format($paidAmount, 0) }}</td>
             </tr>
+            @if(isset($receipts) && $receipts->count() > 0)
+                @foreach($receipts as $rc)
+                    @php $acTitle = optional($rc->Account)->title ?? 'Cash / Bank'; @endphp
+                    <tr>
+                        <td class="tot-lbl" style="font-size: 8px; padding-left: 6px; color: #555;">└ {{ $acTitle }}:</td>
+                        <td class="tot-val" style="font-size: 8px; color: #555;">{{ number_format($rc->total_amount ?? $rc->amount, 0) }}</td>
+                    </tr>
+                @endforeach
+            @endif
             <tr class="closing-box-row">
                 <td class="tot-lbl">CLOSING BALANCE:</td>
                 <td class="tot-val">{{ number_format($closingBalance, 0) }} Dr</td>
