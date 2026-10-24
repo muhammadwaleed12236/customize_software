@@ -3293,7 +3293,7 @@
                             let r2 = parseFloat(window.EDIT_SALE.receipt2) || 0;
                             if (r1 + r2 > 0) {
                                 fallbackPaid = r1 + r2;
-                            } else if (window.EDIT_SALE.party_type === 'cash' || window.EDIT_SALE.party_type === 'walking' || window.EDIT_SALE.status === 'posted' || window.EDIT_SALE.is_posted) {
+                            } else if (window.EDIT_SALE.party_type === 'cash' || window.EDIT_SALE.party_type === 'walking') {
                                 fallbackPaid = parseFloat(window.EDIT_SALE.total_balance || window.EDIT_SALE.sub_total2 || window.EDIT_SALE.total_net || 0);
                             }
                         }

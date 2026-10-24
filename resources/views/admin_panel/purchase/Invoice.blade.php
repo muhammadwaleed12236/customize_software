@@ -36,6 +36,8 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 0.75rem;
     }
 
     /* Header Banner */
@@ -65,9 +67,6 @@
     }
 
     .inv-doc-badge {
-        background: rgba(200, 151, 58, 0.2);
-        border: 1px solid var(--inv-gold);
-        color: #fef08a;
         padding: 4px 12px;
         border-radius: 5px;
         font-size: 0.7rem;
@@ -75,6 +74,24 @@
         letter-spacing: 1px;
         text-transform: uppercase;
         display: inline-block;
+    }
+
+    .inv-doc-badge.badge-paid {
+        background: rgba(16, 185, 129, 0.2);
+        border: 1px solid #10b981;
+        color: #a7f3d0;
+    }
+
+    .inv-doc-badge.badge-partial {
+        background: rgba(245, 158, 11, 0.25);
+        border: 1px solid #f59e0b;
+        color: #fef08a;
+    }
+
+    .inv-doc-badge.badge-unpaid {
+        background: rgba(239, 68, 68, 0.2);
+        border: 1px solid #ef4444;
+        color: #fca5a5;
     }
 
     .inv-meta-tag {
@@ -164,6 +181,14 @@
         background-color: #f1f5f9;
     }
 
+    .inv-table tfoot td {
+        background: #f1f5f9;
+        font-weight: 800;
+        border-top: 2px solid var(--inv-navy);
+        border-bottom: 2px solid var(--inv-navy);
+        padding: 10px 14px;
+    }
+
     .item-title { font-weight: 700; color: var(--inv-navy); font-size: 0.9rem; }
     .item-brand { font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600; }
 
@@ -177,6 +202,13 @@
     .inv-note-box {
         background: var(--inv-bg);
         border: 1px dashed var(--inv-slate);
+        border-radius: 8px;
+        padding: 1rem 1.25rem;
+    }
+
+    .payment-history-card {
+        background: #fbfcfe;
+        border: 1px solid #e2e8f0;
         border-radius: 8px;
         padding: 1rem 1.25rem;
     }
@@ -214,6 +246,18 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        margin-top: 10px;
+    }
+
+    .inv-cleared-box {
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        color: #065f46;
+        padding: 8px 14px;
+        border-radius: 6px;
+        font-weight: 800;
+        font-size: 0.9rem;
+        text-align: center;
         margin-top: 10px;
     }
 
@@ -267,6 +311,7 @@
         .inv-card { box-shadow: none !important; border: 1px solid #cbd5e1 !important; max-width: 100% !important; border-radius: 0 !important; }
         .inv-header-banner { background: #0f1f38 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         .inv-table thead th { background: #0f1f38 !important; color: #ffffff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .modal, .modal-backdrop { display: none !important; }
     }
 </style>
 
@@ -282,7 +327,19 @@
                 <span class="text-muted">|</span>
                 <span class="font-weight-bold text-dark" style="font-size: 14px;">Purchase Invoice #{{ $purchase->invoice_no }}</span>
             </div>
-            <div class="d-flex gap-2">
+            <div class="d-flex gap-2 flex-wrap">
+                @can('purchase.edit')
+                    <a href="{{ route('purchase.edit', $purchase->id) }}" class="btn btn-sm btn-outline-primary font-weight-bold shadow-sm" style="border-radius: 6px;">
+                        <i class="fas fa-edit me-1"></i> Edit Purchase
+                    </a>
+                @endcan
+
+                @if($purchase->due_amount > 0)
+                    <button type="button" class="btn btn-sm btn-success font-weight-bold shadow-sm" style="border-radius: 6px;" data-bs-toggle="modal" data-bs-target="#payInvoiceModal">
+                        <i class="fas fa-hand-holding-usd me-1"></i> Record Payment
+                    </button>
+                @endif
+
                 <button onclick="window.print()" class="btn btn-sm btn-dark font-weight-bold shadow-sm" style="border-radius: 6px;">
                     <i class="fas fa-print me-1"></i> Print Invoice
                 </button>
@@ -303,9 +360,19 @@
                 <div>
                     <div class="d-flex align-items-center gap-3 mb-2">
                         <h1 class="inv-brand-title">PURCHASE INVOICE</h1>
-                        <span class="inv-doc-badge">
-                            <i class="fas fa-check-circle me-1"></i> {{ $purchase->due_amount <= 0 ? 'PAID & RECEIVED' : 'CREDIT / PARTIAL' }}
-                        </span>
+                        @if($purchase->due_amount <= 0)
+                            <span class="inv-doc-badge badge-paid">
+                                <i class="fas fa-check-circle me-1"></i> FULLY PAID & SETTLED
+                            </span>
+                        @elseif($purchase->paid_amount > 0)
+                            <span class="inv-doc-badge badge-partial">
+                                <i class="fas fa-adjust me-1"></i> PARTIAL PAID (DUE: Rs. {{ number_format($purchase->due_amount, 2) }})
+                            </span>
+                        @else
+                            <span class="inv-doc-badge badge-unpaid">
+                                <i class="fas fa-clock me-1"></i> UNPAID / ON CREDIT
+                            </span>
+                        @endif
                     </div>
                     <div class="inv-brand-sub">
                         <span><i class="fas fa-barcode me-1" style="color: var(--inv-gold);"></i> INVOICE NO: <strong>{{ $purchase->invoice_no }}</strong></span>
@@ -424,29 +491,101 @@
                             </tr>
                         @endforeach
                     </tbody>
+                    <tfoot>
+                        <tr>
+                            <td colspan="3" class="text-end text-uppercase" style="font-size: 0.75rem; color: var(--inv-slate);">
+                                Total Items: <span class="text-dark">{{ $srNo - 1 }}</span>
+                            </td>
+                            <td class="text-center font-weight-bold" style="font-family: monospace; font-size: 0.95rem; color: var(--inv-navy);">
+                                {{ (float)$purchase->items->sum('qty') }}
+                            </td>
+                            <td></td>
+                            <td class="text-end text-danger font-weight-bold" style="font-family: monospace;">
+                                @php $sumDisc = $purchase->items->sum('item_discount'); @endphp
+                                {{ $sumDisc > 0 ? '-Rs. ' . number_format($sumDisc, 2) : '0.00' }}
+                            </td>
+                            <td class="text-end pe-4 font-weight-bold" style="font-family: monospace; color: var(--inv-navy); font-size: 1rem;">
+                                Rs. {{ number_format($purchase->items->sum('line_total'), 2) }}
+                            </td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
 
             {{-- Summary & Notes Section --}}
             <div class="inv-summary-section">
                 <div class="row g-4">
-                    {{-- Left: Notes & Settlement --}}
-                    <div class="col-md-6">
+                    {{-- Left: Notes & Settlement History --}}
+                    <div class="col-md-7">
                         <div class="inv-note-box mb-3">
-                            <h6 class="font-weight-bold text-uppercase small mb-1 text-slate-700"><i class="fas fa-sticky-note me-1 text-primary"></i> Remarks / Terms</h6>
-                            <p class="small text-muted m-0" style="font-style: italic;">{{ $purchase->note ?? 'No additional remarks entered for this invoice.' }}</p>
+                            <h6 class="font-weight-bold text-uppercase small mb-1 text-slate-700">
+                                <i class="fas fa-sticky-note me-1 text-primary"></i> Remarks / Terms
+                            </h6>
+                            <p class="small text-muted m-0" style="font-style: italic;">
+                                {{ $purchase->note ?? 'No additional remarks entered for this invoice.' }}
+                            </p>
                         </div>
 
-                        @if($purchase->paid_amount > 0)
-                            <div class="inv-paid-badge">
-                                <span><i class="fas fa-check-circle me-1"></i> Paid Settlement Amount:</span>
-                                <span class="font-weight-bold" style="font-family: monospace;">Rs. {{ number_format($purchase->paid_amount, 2) }}</span>
+                        {{-- Settlement & Payment History Section --}}
+                        <div class="payment-history-card">
+                            <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                <span class="font-weight-bold text-uppercase" style="font-size: 11px; letter-spacing: 0.5px; color: var(--inv-navy);">
+                                    <i class="fas fa-receipt me-1 text-success"></i> Payment Settlement History
+                                </span>
+                                @if($purchase->due_amount > 0)
+                                    <button type="button" class="btn btn-xs btn-outline-success font-weight-bold no-print" style="font-size: 10.5px; padding: 2px 8px; border-radius: 4px;" data-bs-toggle="modal" data-bs-target="#payInvoiceModal">
+                                        <i class="fas fa-plus-circle me-1"></i> Add Payment
+                                    </button>
+                                @endif
                             </div>
-                        @endif
+
+                            @if(!empty($paymentHistory) && count($paymentHistory) > 0)
+                                <table class="table table-sm table-borderless m-0" style="font-size: 11.5px;">
+                                    <thead>
+                                        <tr class="text-muted" style="border-bottom: 1px dashed #cbd5e1; font-size: 10px; text-transform: uppercase;">
+                                            <th style="padding: 4px 6px;">Voucher #</th>
+                                            <th style="padding: 4px 6px;">Date</th>
+                                            <th style="padding: 4px 6px;">Paid From Account</th>
+                                            <th class="text-end" style="padding: 4px 6px;">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($paymentHistory as $pay)
+                                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                                <td class="font-monospace font-weight-bold text-primary" style="padding: 6px;">{{ $pay['voucher_no'] }}</td>
+                                                <td class="text-muted" style="padding: 6px;">{{ \Carbon\Carbon::parse($pay['date'])->format('d M, Y') }}</td>
+                                                <td class="font-weight-bold text-dark" style="padding: 6px;">{{ $pay['account_name'] }}</td>
+                                                <td class="text-end font-monospace font-weight-bold text-success" style="padding: 6px;">Rs. {{ number_format($pay['amount'], 2) }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style="border-top: 1.5px solid #cbd5e1;">
+                                            <td colspan="3" class="font-weight-bold text-dark text-uppercase" style="font-size: 10px; padding: 6px;">Total Settled</td>
+                                            <td class="text-end font-monospace font-weight-bold text-success" style="font-size: 12px; padding: 6px;">
+                                                Rs. {{ number_format($purchase->paid_amount, 2) }}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            @elseif($purchase->paid_amount > 0)
+                                <div class="inv-paid-badge m-0">
+                                    <span><i class="fas fa-check-circle me-1"></i> Initial Paid Settlement:</span>
+                                    <span class="font-weight-bold" style="font-family: monospace;">Rs. {{ number_format($purchase->paid_amount, 2) }}</span>
+                                </div>
+                            @else
+                                <div class="p-2 text-center rounded text-muted" style="background: #f8fafc; border: 1px dashed #cbd5e1; font-size: 11px;">
+                                    <i class="fas fa-info-circle me-1 text-warning"></i> No payment recorded yet for this invoice.
+                                    <div class="mt-1">
+                                        <span class="text-danger font-weight-bold">Rs. {{ number_format($purchase->due_amount, 2) }}</span> remains outstanding.
+                                    </div>
+                                </div>
+                            @endif
+                        </div>
                     </div>
 
                     {{-- Right: Financial Totals --}}
-                    <div class="col-md-6">
+                    <div class="col-md-5">
                         <div class="inv-summary-row">
                             <span>Subtotal Amount</span>
                             <span style="font-family: monospace;">Rs. {{ number_format($purchase->subtotal, 2) }}</span>
@@ -468,15 +607,28 @@
                             <span style="font-family: monospace;">Rs. {{ number_format($purchase->net_amount, 2) }}</span>
                         </div>
 
+                        {{-- Amount in words --}}
+                        <div class="mt-2 py-1 px-2 rounded" style="background: #f8fafc; border: 1px dashed #cbd5e1; font-size: 11px; color: #475569;">
+                            <span class="text-uppercase font-weight-bold text-muted" style="font-size: 9px; display: block;">Amount in Words:</span>
+                            <span class="font-weight-bold text-dark" style="font-style: italic;">{{ $purchase->amountInWords() }}</span>
+                        </div>
+
                         <div class="mt-2 pt-2 border-top">
-                            <div class="d-flex justify-content-between text-success font-weight-bold small">
+                            <div class="d-flex justify-content-between text-success font-weight-bold small py-1">
                                 <span>Total Paid</span>
                                 <span style="font-family: monospace;">Rs. {{ number_format($purchase->paid_amount, 2) }}</span>
                             </div>
-                            <div class="inv-due-box">
-                                <span class="text-uppercase" style="font-size: 0.8rem;">Due Balance</span>
-                                <span style="font-family: monospace;">Rs. {{ number_format($purchase->due_amount, 2) }}</span>
-                            </div>
+
+                            @if($purchase->due_amount > 0)
+                                <div class="inv-due-box">
+                                    <span class="text-uppercase" style="font-size: 0.8rem;">Due Balance</span>
+                                    <span style="font-family: monospace;">Rs. {{ number_format($purchase->due_amount, 2) }}</span>
+                                </div>
+                            @else
+                                <div class="inv-cleared-box">
+                                    <i class="fas fa-check-double me-1"></i> Balance Cleared - Fully Settled
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -498,11 +650,140 @@
         </div>
     </div>
 </div>
+
+{{-- Record Payment Modal --}}
+@if($purchase->due_amount > 0)
+<div class="modal fade no-print" id="payInvoiceModal" tabindex="-1" aria-labelledby="payInvoiceModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content shadow-lg border-0" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header text-white" style="background: linear-gradient(135deg, var(--inv-navy) 0%, var(--inv-navy-light) 100%); border-bottom: 3px solid var(--inv-gold);">
+                <h5 class="modal-title font-weight-bold" id="payInvoiceModalLabel" style="font-size: 15px;">
+                    <i class="fas fa-hand-holding-usd me-2 text-warning"></i> Record Payment for Invoice #{{ $purchase->invoice_no }}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form id="payInvoiceForm" action="{{ route('purchase.pay', $purchase->id) }}" method="POST">
+                @csrf
+                <div class="modal-body p-4" style="background: #f8fafc;">
+                    {{-- Summary strip --}}
+                    <div class="p-3 mb-3 rounded border bg-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <div class="small text-muted text-uppercase" style="font-size: 10px; font-weight: 700;">Party / Supplier</div>
+                            <div class="font-weight-bold text-dark">{{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Supplier' }}</div>
+                        </div>
+                        <div class="text-end">
+                            <div class="small text-muted text-uppercase" style="font-size: 10px; font-weight: 700;">Outstanding Due</div>
+                            <div class="font-weight-bold text-danger font-monospace" style="font-size: 15px;">
+                                Rs. {{ number_format($purchase->due_amount, 2) }}
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Account Select --}}
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold small text-dark">
+                            <i class="fas fa-wallet text-primary me-1"></i> Payment Account (Cash / Bank) <span class="text-danger">*</span>
+                        </label>
+                        <select name="account_id" id="modal_account_id" class="form-select form-select-sm" required style="border-radius: 6px;">
+                            <option value="" disabled selected>-- Select Source Account --</option>
+                            @foreach($bankAccounts as $acc)
+                                <option value="{{ $acc->id }}">
+                                    {{ $acc->title }} ({{ $acc->head->name ?? $acc->head->title ?? 'Account' }}) — Available: Rs. {{ number_format($acc->closing_balance ?? $acc->balance ?? 0, 2) }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
+
+                    {{-- Amount --}}
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold small text-dark">
+                            <i class="fas fa-money-bill-wave text-success me-1"></i> Payment Amount (Rs.) <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text font-weight-bold bg-white">Rs.</span>
+                            <input type="number" step="0.01" min="0.01" max="{{ $purchase->due_amount }}" name="amount" id="modal_amount" value="{{ (float)$purchase->due_amount }}" class="form-control form-control-sm font-monospace font-weight-bold" required style="border-radius: 0 6px 6px 0;">
+                        </div>
+                        <div class="form-text small text-muted" style="font-size: 11px;">
+                            Max allowed: Rs. {{ number_format($purchase->due_amount, 2) }}. Supports partial payment.
+                        </div>
+                    </div>
+
+                    {{-- Payment Date --}}
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold small text-dark">
+                            <i class="fas fa-calendar-alt text-info me-1"></i> Payment Date <span class="text-danger">*</span>
+                        </label>
+                        <input type="date" name="date" id="modal_date" value="{{ date('Y-m-d') }}" class="form-control form-control-sm" required style="border-radius: 6px;">
+                    </div>
+
+                    {{-- Remarks / Note --}}
+                    <div class="mb-2">
+                        <label class="form-label font-weight-bold small text-dark">
+                            <i class="fas fa-sticky-note text-secondary me-1"></i> Note / Remarks
+                        </label>
+                        <input type="text" name="note" id="modal_note" placeholder="e.g. Paid via Cheque / Cash slip #..." class="form-control form-control-sm" style="border-radius: 6px;">
+                    </div>
+                </div>
+                <div class="modal-footer bg-white border-top">
+                    <button type="button" class="btn btn-sm btn-outline-secondary font-weight-bold" data-bs-dismiss="modal" style="border-radius: 6px;">Cancel</button>
+                    <button type="submit" id="btnSubmitPayment" class="btn btn-sm btn-success font-weight-bold px-3" style="border-radius: 6px;">
+                        <i class="fas fa-check-circle me-1"></i> Save & Confirm Payment
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+@endif
+
 @endsection
 
 @section('js')
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script>
+    // AJAX payment submission
+    $('#payInvoiceForm').on('submit', function(e) {
+        e.preventDefault();
+        const form = $(this);
+        const submitBtn = $('#btnSubmitPayment');
+        submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Processing...');
+
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            success: function(response) {
+                const modalEl = document.getElementById('payInvoiceModal');
+                if (modalEl && typeof bootstrap !== 'undefined') {
+                    const modal = bootstrap.Modal.getInstance(modalEl);
+                    if (modal) modal.hide();
+                } else {
+                    $('#payInvoiceModal').modal('hide');
+                }
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Payment Recorded!',
+                    text: response.success || 'Payment successfully recorded.',
+                    timer: 1600,
+                    showConfirmButton: false
+                }).then(() => {
+                    location.reload();
+                });
+            },
+            error: function(xhr) {
+                submitBtn.prop('disabled', false).html('<i class="fas fa-check-circle me-1"></i> Save & Confirm Payment');
+                let err = 'An error occurred while saving payment.';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    err = xhr.responseJSON.error;
+                } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                    err = xhr.responseJSON.message;
+                }
+                Swal.fire('Error', err, 'error');
+            }
+        });
+    });
+
     function exportPDF() {
         Swal.fire({
             title: 'Generating PDF...',
@@ -576,5 +857,3 @@
     }
 </script>
 @endsection
-
-

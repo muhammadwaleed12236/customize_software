@@ -393,6 +393,7 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
     Route::delete('/purchase/{id}', [PurchaseController::class, 'destroy'])->middleware('permission:purchase.delete')->name('purchase.destroy');
     Route::post('/search_products', [ProductController::class, 'searchProducts'])->middleware('permission:product.view')->name('search_products');
     Route::get('/purchase/{id}/invoice', [PurchaseController::class, 'Invoice'])->middleware('permission:purchase.invoice')->name('purchase.invoice');
+    Route::post('/purchase/{id}/pay', [PurchaseController::class, 'payPurchase'])->middleware('permission:purchase.create|purchase.edit')->name('purchase.pay');
 
     Route::get('purchase/return', [PurchaseController::class, 'purchaseReturnIndex'])->middleware('permission:purchase.return.view')->name('purchase.return.index');
     Route::get('purchase/return/{id}', [PurchaseController::class, 'showReturnForm'])->middleware('permission:purchase.return.view')->name('purchase.return.show');

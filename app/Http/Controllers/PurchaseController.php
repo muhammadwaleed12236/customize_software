@@ -183,14 +183,34 @@ class PurchaseController extends Controller
             }
         }
         
-        $Purchase = $query->latest()->get();
+        // ✅ Ordered DESC (Newest on top as requested)
+        $Purchase = $query->orderBy('id', 'desc')->get();
         
         // Determine if branch column should be shown
         // Show branch column if: user is super admin OR user has access to multiple branches
         $showBranchColumn = $isSuperAdmin || (count($allowedBranches) > 1);
         $userBranchId = $user->branch_id;
         
-        return view("admin_panel.purchase.index", compact('Purchase', 'showBranchColumn', 'isSuperAdmin', 'userBranchId'));
+        // Summary KPI figures
+        $totalPurchases = $Purchase->count();
+        $totalNet       = (float)$Purchase->sum('net_amount');
+        $totalPaid      = (float)$Purchase->sum('paid_amount');
+        $totalDue       = (float)$Purchase->sum('due_amount');
+
+        // Accounts with live balances for quick payment modal
+        $bankAccounts = $this->getAccountsWithLiveBalances($userBranchId, $isSuperAdmin);
+        
+        return view("admin_panel.purchase.index", compact(
+            'Purchase', 
+            'showBranchColumn', 
+            'isSuperAdmin', 
+            'userBranchId',
+            'totalPurchases',
+            'totalNet',
+            'totalPaid',
+            'totalDue',
+            'bankAccounts'
+        ));
     }
 
     /**
@@ -242,36 +262,7 @@ class PurchaseController extends Controller
         $branchId = $gatepass->branch_id;
 
         // ✅ Get all Debit accounts (Bank, Cash) for payment selection
-        $bankAccountsQuery = \App\Models\Account::with(['head', 'branch'])
-            ->where(function ($q) {
-                $q->whereIn('status', [1, '1', 'active'])
-                  ->orWhereNull('status');
-            })
-            ->where('branch_id', $branchId) // ✅ Filter by gatepass branch
-            ->where(function ($q) {
-                $q->whereHas('head', function ($hq) {
-                    $hq->whereIn('name', ['bank', 'cash', 'asset', 'Bank', 'Cash', 'Asset'])
-                       ->orWhere('name', 'LIKE', '%bank%')
-                       ->orWhere('name', 'LIKE', '%cash%');
-                })
-                ->orWhere('account_code', 'LIKE', '%BANK%')
-                ->orWhere('account_code', 'LIKE', '%CASH%')
-                ->orWhereNull('head_id');
-            });
-            
-        $bankAccounts = $bankAccountsQuery->orderBy('title')->get();
-        
-        // Fallback: if no accounts found, get all active accounts for that branch
-        if ($bankAccounts->isEmpty()) {
-            $bankAccounts = \App\Models\Account::with(['head', 'branch'])
-                ->where(function ($q) {
-                    $q->whereIn('status', [1, '1', 'active'])
-                      ->orWhereNull('status');
-                })
-                ->where('branch_id', $branchId)
-                ->orderBy('title')
-                ->get();
-        }
+        $bankAccounts = $this->getAccountsWithLiveBalances($branchId, false);
 
         // Pass the gatepass data to the view
         return view('admin_panel.inward.add_bill', compact('gatepass', 'bankAccounts'));
@@ -368,10 +359,10 @@ class PurchaseController extends Controller
             'line_warehouse_id'   => 'nullable|array',
             'line_warehouse_id.*' => 'nullable',  // ✅ Optional - uses header warehouse if not specified
             
-            // ✅ NEW: Payment fields (Arrays for multiple accounts)
+            // ✅ Payment fields (Arrays for multiple accounts)
             'payment_type'        => 'nullable|in:pay_now,pay_later',
-            'payment_account_id'  => 'nullable|required_if:payment_type,pay_now|array',
-            'payment_account_id.*'=> 'nullable|exists:accounts,id',
+            'payment_account_id'  => 'nullable|array',
+            'payment_account_id.*'=> 'nullable',
             'payment_amount'      => 'nullable|array',
             'payment_amount.*'    => 'nullable|numeric|min:0',
         ]);
@@ -565,9 +556,7 @@ class PurchaseController extends Controller
 
             // ⚠️ IMPORTANT: Do NOT default payment to full amount
             // User must explicitly specify payment amount (supports partial payments)
-            if ($paymentType === 'pay_now' && $paidAmount <= 0) {
-                return back()->with('error', 'When paying now, please enter valid payment amounts.');
-            }
+// Paying now with 0 or empty is allowed (credit purchase)
 
             // Update purchase with payment info
             $dueAmount = $netAmount - $paidAmount;
@@ -1085,35 +1074,11 @@ class PurchaseController extends Controller
 
         // ✅ NEW: Fetch bank accounts and pre-fill payment information
         $branchId = $purchase->branch_id;
-        $bankAccountsQuery = \App\Models\Account::with(['head', 'branch'])
-            ->where(function ($q) {
-                $q->whereIn('status', [1, '1', 'active'])
-                  ->orWhereNull('status');
-            })
-            ->where('branch_id', $branchId)
-            ->where(function ($q) {
-                $q->whereHas('head', function ($hq) {
-                    $hq->whereIn('name', ['bank', 'cash', 'asset', 'Bank', 'Cash', 'Asset'])
-                       ->orWhere('name', 'LIKE', '%bank%')
-                       ->orWhere('name', 'LIKE', '%cash%');
-                })
-                ->orWhere('account_code', 'LIKE', '%BANK%')
-                ->orWhere('account_code', 'LIKE', '%CASH%')
-                ->orWhereNull('head_id');
-            });
-        $bankAccounts = $bankAccountsQuery->orderBy('title')->get();
-        if ($bankAccounts->isEmpty()) {
-            $bankAccounts = \App\Models\Account::with(['head', 'branch'])
-                ->where(function ($q) {
-                    $q->whereIn('status', [1, '1', 'active'])
-                      ->orWhereNull('status');
-                })
-                ->where('branch_id', $branchId)
-                ->orderBy('title')
-                ->get();
-        }
+        $bankAccounts = $this->getAccountsWithLiveBalances($branchId, $isSuperAdmin);
 
-        $voucher = \App\Models\PaymentVoucher::where('reference_no', 'LIKE', '%' . $purchase->invoice_no . '%')->first();
+        $voucher = \App\Models\PaymentVoucher::where('reference_no', 'LIKE', '%' . $purchase->invoice_no . '%')
+            ->orWhere('remarks', 'LIKE', '%' . $purchase->invoice_no . '%')
+            ->first();
         $prefilledPayments = [];
         if ($voucher) {
             $rowAccountIds = json_decode($voucher->row_account_id, true) ?? [];
@@ -1121,9 +1086,16 @@ class PurchaseController extends Controller
             foreach ($rowAccountIds as $index => $accId) {
                 $prefilledPayments[] = [
                     'account_id' => $accId,
-                    'amount' => $amounts[$index] ?? 0,
+                    'amount'     => (float)($amounts[$index] ?? 0),
                 ];
             }
+        }
+        if (empty($prefilledPayments) && $purchase->paid_amount > 0) {
+            $firstAcc = $bankAccounts->first();
+            $prefilledPayments[] = [
+                'account_id' => $firstAcc ? $firstAcc->id : 1,
+                'amount'     => (float)$purchase->paid_amount,
+            ];
         }
 
         $Products = \App\Models\Product::with('unit')->get();
@@ -1137,7 +1109,25 @@ class PurchaseController extends Controller
                 : (float)($product->wholesale_price ?? 0);
         }
 
-        return view('admin_panel.purchase.edit', compact('purchase', 'Vendor', 'Warehouse', 'Branch', 'vendorRemaining', 'isSuperAdmin', 'bankAccounts', 'prefilledPayments', 'Products'));
+        $vendorIds = $Vendor->pluck('id')->toArray();
+        $lastVendorLedgers = VendorLedger::whereIn('vendor_id', $vendorIds)
+            ->orderBy('id', 'desc')
+            ->get()
+            ->groupBy('vendor_id');
+
+        $Vendor->each(function ($v) use ($lastVendorLedgers) {
+            $last = $lastVendorLedgers->get($v->id)?->first();
+            $v->closing_balance = $last ? (float)$last->closing_balance : (float)($v->opening_balance ?? 0);
+        });
+
+        $branches = Branch::with('warehouses')->get();
+        $allWarehouses = Warehouse::all();
+        $warehouseStocks = \App\Models\WarehouseStock::all()->toArray();
+        $categories = \App\Models\Category::all();
+        $brands = \App\Models\Brand::all();
+
+        $users = \App\Models\User::orderBy('name')->get();
+        return view('admin_panel.purchase.edit', compact('purchase', 'Vendor', 'Warehouse', 'Branch', 'vendorRemaining', 'isSuperAdmin', 'bankAccounts', 'prefilledPayments', 'Products', 'branches', 'allWarehouses', 'warehouseStocks', 'categories', 'brands', 'users'));
     }
 
 
@@ -1170,10 +1160,10 @@ class PurchaseController extends Controller
             'line_warehouse_id'   => 'required|array',
             'line_warehouse_id.*' => 'nullable',
 
-            // ✅ NEW: Payment fields (Arrays for multiple accounts)
+            // ✅ Payment fields (Arrays for multiple accounts)
             'payment_type'        => 'nullable|in:pay_now,pay_later',
-            'payment_account_id'  => 'nullable|required_if:payment_type,pay_now|array',
-            'payment_account_id.*'=> 'nullable|exists:accounts,id',
+            'payment_account_id'  => 'nullable|array',
+            'payment_account_id.*'=> 'nullable',
             'payment_amount'      => 'nullable|array',
             'payment_amount.*'    => 'nullable|numeric|min:0',
         ]);
@@ -1334,9 +1324,12 @@ class PurchaseController extends Controller
                 $paymentAmounts = [];
                 $paidAmount = 0;
 
-                if ($paymentType === 'pay_now' && !empty($validated['payment_account_id']) && !empty($validated['payment_amount'])) {
-                    foreach ($validated['payment_account_id'] as $index => $accId) {
-                        $amt = (float)($validated['payment_amount'][$index] ?? 0);
+                $reqAccounts = $request->payment_account_id ?? $validated['payment_account_id'] ?? [];
+                $reqAmounts  = $request->payment_amount ?? $validated['payment_amount'] ?? [];
+
+                if ($paymentType === 'pay_now' && !empty($reqAccounts) && !empty($reqAmounts)) {
+                    foreach ($reqAccounts as $index => $accId) {
+                        $amt = (float)($reqAmounts[$index] ?? 0);
                         if ($accId && $amt > 0) {
                             $paymentAccountIds[] = $accId;
                             $paymentAmounts[] = $amt;
@@ -1345,30 +1338,28 @@ class PurchaseController extends Controller
                     }
                 }
 
-                // ⚠️ Validation
-                if ($paymentType === 'pay_now' && $paidAmount <= 0) {
-                    throw new \Exception('When paying now, please enter valid payment amounts.');
-                }
+                // ⚠️ Only validate if payment exceeds invoice net total
                 if ($paidAmount > $netAmount) {
                     throw new \Exception("Total payment amount ({$paidAmount}) cannot exceed purchase amount ({$netAmount}).");
                 }
 
                 // --- 2. ROLLBACK OLD PAYMENTS (Refund Bank/Cash accounts & delete old ledger/voucher entries) ---
-                $oldVoucher = \App\Models\PaymentVoucher::where('reference_no', 'LIKE', '%' . $purchase->invoice_no . '%')->first();
-                if ($oldVoucher) {
-                    $oldAccountIds = json_decode($oldVoucher->row_account_id, true) ?? [];
-                    $oldAmounts = json_decode($oldVoucher->amount, true) ?? [];
+                $oldVouchers = \App\Models\PaymentVoucher::where(function($q) use ($purchase) {
+                    $q->where('reference_no', 'LIKE', '%' . $purchase->invoice_no . '%')
+                      ->orWhere('remarks', 'LIKE', '%' . $purchase->invoice_no . '%');
+                })->get();
+
+                foreach ($oldVouchers as $oldVoucher) {
                     // Delete old account ledger entries
                     \App\Models\AccountLedgerEntry::where('voucher_no', $oldVoucher->pvid)->delete();
-                    
-                    // Delete old vendor ledger entries for payment
-                    \App\Models\VendorLedger::where('reference_id', $purchase->id)
-                        ->where('transaction_type', 'payment')
-                        ->delete();
-
                     // Delete the old voucher record
                     $oldVoucher->delete();
                 }
+
+                // Delete old vendor ledger entries for payment
+                \App\Models\VendorLedger::where('reference_id', $purchase->id)
+                    ->where('transaction_type', 'payment')
+                    ->delete();
 
                 $dueAmount = $netAmount - $paidAmount;
 
@@ -1607,10 +1598,11 @@ class PurchaseController extends Controller
 
     public function Invoice($id)
     {
-        // ✅ Load branch relationship to display login branch in invoice header
-        $purchase   = Purchase::with(['items.product', 'branch', 'vendor', 'warehouse'])->findOrFail($id);
+        // ✅ Load relations to display in invoice header
+        $purchase   = Purchase::with(['items.product', 'branch', 'vendor', 'warehouse', 'inwardGatepasses'])->findOrFail($id);
         $Vendor     = Vendor::where('branch_id', $purchase->branch_id)->get();
-        if (Auth::check() && Auth::user()->hasRole('super admin')) {
+        $isSuperAdmin = Auth::check() && Auth::user()->hasRole('super admin');
+        if ($isSuperAdmin) {
             $Warehouse = Warehouse::all();
         } else {
             $allowedBranchIds = $this->allowedBranches('purchase.view');
@@ -1619,7 +1611,34 @@ class PurchaseController extends Controller
             })->get();
         }
 
-        return view('admin_panel.purchase.Invoice', compact('purchase', 'Vendor', 'Warehouse'));
+        // Fetch all payment vouchers linked to this purchase invoice
+        $paymentVouchers = \App\Models\PaymentVoucher::where(function($q) use ($purchase) {
+            $q->where('reference_no', 'LIKE', '%' . $purchase->invoice_no . '%')
+              ->orWhere('remarks', 'LIKE', '%' . $purchase->invoice_no . '%');
+        })->orderBy('id', 'asc')->get();
+
+        $paymentHistory = [];
+        foreach ($paymentVouchers as $pv) {
+            $accIds = json_decode($pv->row_account_id, true) ?? [];
+            $amounts = json_decode($pv->amount, true) ?? [];
+            if (is_array($accIds)) {
+                foreach ($accIds as $idx => $accId) {
+                    $account = \App\Models\Account::find($accId);
+                    $paymentHistory[] = [
+                        'voucher_no'   => $pv->pvid ?? ('PV-' . str_pad($pv->id, 4, '0', STR_PAD_LEFT)),
+                        'date'         => $pv->receipt_date ?? $pv->entry_date ?? ($pv->created_at ? $pv->created_at->format('Y-m-d') : now()->format('Y-m-d')),
+                        'account_name' => $account ? ($account->title . ' (' . ($account->head->name ?? $account->head->title ?? 'Account') . ')') : 'Payment Account',
+                        'amount'       => (float)($amounts[$idx] ?? 0),
+                        'remarks'      => $pv->remarks,
+                    ];
+                }
+            }
+        }
+
+        // Fetch bank accounts with live balances for the payment modal
+        $bankAccounts = $this->getAccountsWithLiveBalances($purchase->branch_id, $isSuperAdmin);
+
+        return view('admin_panel.purchase.Invoice', compact('purchase', 'Vendor', 'Warehouse', 'paymentVouchers', 'paymentHistory', 'bankAccounts'));
     }
 
 
@@ -1819,6 +1838,63 @@ class PurchaseController extends Controller
     }
 
     /**
+     * Helper to retrieve accounts with real-time ledger closing balances.
+     */
+    private function getAccountsWithLiveBalances($branchId = null, bool $isSuperAdmin = false)
+    {
+        $query = \App\Models\Account::with(['head', 'branch'])
+            ->where(function ($q) {
+                $q->whereIn('status', [1, '1', 'active'])
+                  ->orWhereNull('status');
+            });
+
+        if (!$isSuperAdmin && $branchId) {
+            $query->where(function ($q) use ($branchId) {
+                $q->where('branch_id', $branchId)->orWhereNull('branch_id');
+            });
+        }
+
+        $allAccounts = $query->orderBy('title')->get();
+
+        // Calculate real-time closing ledger balances
+        $accountIds = $allAccounts->pluck('id')->toArray();
+        $ledgerTotals = \Illuminate\Support\Facades\DB::table('account_ledger_entries')
+            ->whereIn('account_id', $accountIds)
+            ->where('voucher_type', '!=', 'opening_balance')
+            ->groupBy('account_id')
+            ->selectRaw('account_id, COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit')
+            ->get()
+            ->keyBy('account_id');
+
+        $allAccounts->each(function ($acc) use ($ledgerTotals) {
+            $ob = (float)($acc->opening_balance ?? 0);
+            $isCredit = trim(strtolower((string)($acc->type ?? 'debit'))) === 'credit';
+            $totals = $ledgerTotals->get($acc->id);
+            $totDebit = (float)($totals->total_debit ?? 0);
+            $totCredit = (float)($totals->total_credit ?? 0);
+            $closing = $isCredit ? ($ob + $totCredit - $totDebit) : ($ob + $totDebit - $totCredit);
+
+            $acc->closing_balance = round($closing, 2);
+            $acc->current_balance = round($closing, 2);
+            $acc->balance         = round($closing, 2);
+            $acc->opening_balance = round($closing, 2);
+        });
+
+        // Filter bank & cash accounts first
+        $bankAccounts = $allAccounts->filter(function ($acc) {
+            $headName = strtolower($acc->head->name ?? '');
+            $code = strtoupper($acc->account_code ?? '');
+            return str_contains($headName, 'bank') || 
+                   str_contains($headName, 'cash') || 
+                   str_contains($headName, 'asset') ||
+                   str_contains($code, 'BANK') || 
+                   str_contains($code, 'CASH');
+        });
+
+        return $bankAccounts->isNotEmpty() ? $bankAccounts->values() : $allAccounts->values();
+    }
+
+    /**
      * ✅ SHOW LOCAL PURCHASE FORM (Direct Stock Addition)
      */
     public function addLocalPurchase()
@@ -1857,42 +1933,28 @@ class PurchaseController extends Controller
         $nextPurchaseNumber = ((int)($branch->purchase_counter ?? 0)) + 1;
         $nextInvoice = 'P-INV-' . str_pad($nextPurchaseNumber, 4, '0', STR_PAD_LEFT);
 
-        $bankAccountsQuery = Account::with(['head', 'branch'])
-            ->where(function ($q) {
-                $q->whereIn('status', [1, '1', 'active'])
-                  ->orWhereNull('status');
-            })
-            ->where(function ($q) {
-                $q->whereHas('head', function ($hq) {
-                    $hq->whereIn('name', ['bank', 'cash', 'asset', 'Bank', 'Cash', 'Asset'])
-                       ->orWhere('name', 'LIKE', '%bank%')
-                       ->orWhere('name', 'LIKE', '%cash%');
-                })
-                ->orWhere('account_code', 'LIKE', '%BANK%')
-                ->orWhere('account_code', 'LIKE', '%CASH%')
-                ->orWhereNull('head_id');
-            });
+        $bankAccounts = $this->getAccountsWithLiveBalances($currentBranch, $isSuperAdmin);
 
-        if (!$isSuperAdmin) {
-            $bankAccountsQuery->where('branch_id', $currentBranch);
-        }
+        // Compute live vendor ledger balances
+        $vendorIds = $Vendor->pluck('id')->toArray();
+        $lastVendorLedgers = VendorLedger::whereIn('vendor_id', $vendorIds)
+            ->orderBy('id', 'desc')
+            ->get()
+            ->groupBy('vendor_id');
 
-        $bankAccounts = $bankAccountsQuery->orderBy('title')->get();
+        $Vendor->each(function ($v) use ($lastVendorLedgers) {
+            $last = $lastVendorLedgers->get($v->id)?->first();
+            $v->closing_balance = $last ? (float)$last->closing_balance : (float)($v->opening_balance ?? 0);
+        });
 
-        // Fallback: if no accounts found for the heads, get all active accounts (respecting branch filter)
-        if ($bankAccounts->isEmpty()) {
-            $fallbackQuery = Account::with(['head', 'branch'])
-                ->where(function ($q) {
-                    $q->whereIn('status', [1, '1', 'active'])
-                      ->orWhereNull('status');
-                });
-            if (!$isSuperAdmin) {
-                $fallbackQuery->where('branch_id', $currentBranch);
-            }
-            $bankAccounts = $fallbackQuery->orderBy('title')->get();
-        }
+        $branches = Branch::with('warehouses')->get();
+        $allWarehouses = Warehouse::all();
+        $warehouseStocks = \App\Models\WarehouseStock::all()->toArray();
+        $categories = \App\Models\Category::all();
+        $brands = \App\Models\Brand::all();
 
-        return view('admin_panel.purchase.add_local_purchase', compact('Vendor', 'Warehouse', 'Branch', 'nextInvoice', 'bankAccounts', 'isSuperAdmin', 'currentBranch', 'Products'));
+        $users = \App\Models\User::orderBy('name')->get();
+        return view('admin_panel.purchase.add_local_purchase', compact('Vendor', 'Warehouse', 'Branch', 'nextInvoice', 'bankAccounts', 'isSuperAdmin', 'currentBranch', 'Products', 'branches', 'allWarehouses', 'warehouseStocks', 'categories', 'brands', 'users'));
     }
 
     /**
@@ -1930,21 +1992,29 @@ class PurchaseController extends Controller
      * ✅ NEW: Pay Local Purchase directly from Report
      * This allows adding payments to an existing purchase after it's been created.
      */
-    public function payLocalPurchase(Request $request)
+    /**
+     * ✅ Pay Purchase Invoice (Supports both Vendor & Local Market Purchases)
+     * Handles Double-Entry bookkeeping for Account Ledger & Vendor Ledger
+     */
+    public function payPurchase(Request $request, $id = null)
     {
+        $purchaseId = $id ?: $request->input('purchase_id');
         $validated = $request->validate([
-            'purchase_id' => 'required|exists:purchases,id',
             'account_id'  => 'required|exists:accounts,id',
             'amount'      => 'required|numeric|min:0.01',
             'date'        => 'required|date',
             'note'        => 'nullable|string',
         ]);
 
-        $purchase = Purchase::findOrFail($validated['purchase_id']);
+        $purchase = Purchase::with(['vendor', 'branch'])->findOrFail($purchaseId);
         $amount   = (float)$validated['amount'];
 
-        if ($amount > $purchase->due_amount) {
-            return response()->json(['error' => "Payment amount (Rs. {$amount}) cannot exceed due balance (Rs. {$purchase->due_amount})."], 422);
+        if ($amount > (float)$purchase->due_amount) {
+            $msg = "Payment amount (Rs. " . number_format($amount, 2) . ") cannot exceed due balance (Rs. " . number_format($purchase->due_amount, 2) . ").";
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['error' => $msg], 422);
+            }
+            return back()->with('error', $msg);
         }
 
         DB::transaction(function () use ($purchase, $validated, $amount) {
@@ -1953,33 +2023,62 @@ class PurchaseController extends Controller
             $pvid = \App\Models\PaymentVoucher::generateInvoiceNo();
 
             // 1. Update Purchase Totals
-            $purchase->paid_amount += $amount;
-            $purchase->due_amount  -= $amount;
+            $purchase->paid_amount = (float)$purchase->paid_amount + $amount;
+            $purchase->due_amount  = max(0, (float)$purchase->due_amount - $amount);
             $purchase->save();
 
-            // 2. Post to Account Ledger (Double-Entry)
+            $partyLabel = $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Supplier';
+
+            // 2. Post to Account Ledger (Credit Bank/Cash)
             $this->postLedgerEntry(
                 $account->id,
                 'payment',
                 $pvid,
                 null,
                 $validated['date'],
-                "Local Market Payment: {$purchase->vendor_name} for Inv #{$purchase->invoice_no}. " . ($validated['note'] ?? ''),
+                "Payment for Purchase Inv #{$purchase->invoice_no} ({$partyLabel}). " . ($validated['note'] ?? ''),
                 0,
                 $amount
             );
 
+            // 3. Post to Vendor Ledger if vendor exists (Debit Vendor Payable)
+            if ($purchase->vendor_id) {
+                $lastLedger = VendorLedger::where('vendor_id', $purchase->vendor_id)
+                    ->where('branch_id', $branchId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $currentVendorBal = $lastLedger 
+                    ? (float)$lastLedger->closing_balance 
+                    : (float)($purchase->vendor->opening_balance ?? 0);
+
+                VendorLedger::create([
+                    'vendor_id'        => $purchase->vendor_id,
+                    'branch_id'        => $branchId,
+                    'admin_or_user_id' => auth()->id(),
+                    'transaction_type' => 'payment',
+                    'reference_id'     => $purchase->id,
+                    'transaction_date' => $validated['date'],
+                    'description'      => "Payment for Purchase #{$purchase->invoice_no} (via {$account->title})" . (!empty($validated['note']) ? ' - ' . $validated['note'] : ''),
+                    'opening_balance'  => $currentVendorBal,
+                    'previous_balance' => $currentVendorBal,
+                    'debit_amount'     => $amount,
+                    'closing_balance'  => $currentVendorBal - $amount,
+                ]);
+            }
+
             // 4. Create Payment Voucher record
             \App\Models\PaymentVoucher::create([
                 'pvid'                => $pvid,
+                'branch_id'           => $branchId,
                 'receipt_date'        => $validated['date'],
                 'entry_date'          => now()->format('Y-m-d'),
-                'type'                => 'local_market', // Custom type for local
-                'party_id'            => null,
-                'remarks'             => "Payment for Local Purchase Invoice: {$purchase->invoice_no} (Shop: {$purchase->vendor_name}). " . ($validated['note'] ?? ''),
+                'type'                => $purchase->vendor_id ? 'vendor' : 'local_market',
+                'party_id'            => $purchase->vendor_id ? $purchase->vendor_id : null,
+                'remarks'             => "Payment for Purchase Invoice: {$purchase->invoice_no} ({$partyLabel}). " . ($validated['note'] ?? ''),
                 'narration_id'        => json_encode(['1']),
                 'reference_no'        => json_encode([$purchase->invoice_no]),
-                'row_account_head'    => json_encode([$account->head_id]),
+                'row_account_head'    => json_encode([$account->head_id ?? 1]),
                 'row_account_id'      => json_encode([$account->id]),
                 'discount_value'      => json_encode([0]),
                 'amount'              => json_encode([$amount]),
@@ -1987,7 +2086,16 @@ class PurchaseController extends Controller
             ]);
         });
 
-        return response()->json(['success' => 'Payment recorded successfully. Balance updated.']);
+        $msg = "Payment of Rs. " . number_format($amount, 2) . " recorded successfully for Purchase Invoice #{$purchase->invoice_no}.";
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json(['success' => $msg]);
+        }
+        return back()->with('success', $msg);
+    }
+
+    public function payLocalPurchase(Request $request)
+    {
+        return $this->payPurchase($request, $request->input('purchase_id'));
     }
 
     /**

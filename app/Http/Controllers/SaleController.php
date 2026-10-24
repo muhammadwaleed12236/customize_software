@@ -2307,7 +2307,31 @@ public function finddc($invoice)
     public function getBranchAccounts($branchId)
     {
         $accounts = self::getCashBankAccountsQuery($branchId)->get();
-        return response()->json($accounts);
+        $accountIds = $accounts->pluck('id')->toArray();
+        $ledgerTotals = \Illuminate\Support\Facades\DB::table('account_ledger_entries')
+            ->whereIn('account_id', $accountIds)
+            ->where('voucher_type', '!=', 'opening_balance')
+            ->groupBy('account_id')
+            ->selectRaw('account_id, COALESCE(SUM(debit), 0) as total_debit, COALESCE(SUM(credit), 0) as total_credit')
+            ->get()
+            ->keyBy('account_id');
+
+        $result = $accounts->map(function ($acc) use ($ledgerTotals) {
+            $ob = (float)($acc->opening_balance ?? 0);
+            $isCredit = trim(strtolower((string)($acc->type ?? 'debit'))) === 'credit';
+            $totals = $ledgerTotals->get($acc->id);
+            $totDebit = (float)($totals->total_debit ?? 0);
+            $totCredit = (float)($totals->total_credit ?? 0);
+            $closing = $isCredit ? ($ob + $totCredit - $totDebit) : ($ob + $totDebit - $totCredit);
+
+            $acc->closing_balance = round($closing, 2);
+            $acc->current_balance = round($closing, 2);
+            $acc->balance         = round($closing, 2);
+            $acc->opening_balance = round($closing, 2);
+            return $acc;
+        });
+
+        return response()->json($result);
     }
 
     public function getBranchInvoiceNo($branchId)
@@ -3884,7 +3908,7 @@ public function finddc($invoice)
         // If no explicit receipts in table, synthesize from account ledger entry or branch account
         if ($receipts->isEmpty()) {
             $paidAmt = (float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0);
-            if ($paidAmt <= 0 && ($sale->party_type === 'cash' || $sale->party_type === 'walking' || $sale->status === 'posted' || $sale->is_posted)) {
+            if ($paidAmt <= 0 && ($sale->party_type === 'cash' || $sale->party_type === 'walking')) {
                 $paidAmt = (float)($sale->total_balance ?: ($sale->sub_total2 ?: ($sale->total_net ?: 0)));
             }
 

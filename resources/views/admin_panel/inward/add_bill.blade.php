@@ -364,7 +364,7 @@
                                         <select class="form-select fi rv-account" name="payment_account_id[]" style="height: 38px;">
                                             <option value="" disabled selected>-- Select Payment Account --</option>
                                             @foreach($bankAccounts as $acc)
-                                                <option value="{{ $acc->id }}">{{ $acc->title }} ({{ $acc->head->name ?? $acc->head->title ?? '' }})</option>
+                                                <option value="{{ $acc->id }}">{{ $acc->title }} ({{ $acc->head->name ?? $acc->head->title ?? '' }}) (Bal: Rs. {{ number_format($acc->closing_balance ?? $acc->opening_balance ?? 0, 2) }})</option>
                                             @endforeach
                                         </select>
                                         <div class="account-balance-wrapper mt-1 ms-1" style="display:none; font-size: 11px;">
@@ -563,7 +563,9 @@ $(document).ready(function() {
         });
 
         let html = '<option value="" disabled selected>-- Select Payment Account --</option>';
-        window.PAYMENT_ACCOUNTS.forEach(function(acc) {
+        let raw = window.PAYMENT_ACCOUNTS;
+        let accounts = Array.isArray(raw) ? raw : Object.values(raw || {});
+        accounts.forEach(function(acc) {
             const accId = String(acc.id);
             if (!usedAccounts.includes(accId) || accId === String(currentVal)) {
                 html += `<option value="${accId}">${acc.title} (${acc.account_code || ''})</option>`;
@@ -583,9 +585,12 @@ $(document).ready(function() {
             const val = $(this).val();
             const wrapper = $(this).siblings('.account-balance-wrapper');
             if (val) {
-                const acc = window.PAYMENT_ACCOUNTS.find(a => String(a.id) === String(val));
+                let raw = window.PAYMENT_ACCOUNTS;
+                let accounts = Array.isArray(raw) ? raw : Object.values(raw || {});
+                const acc = accounts.find(a => String(a.id) === String(val));
                 if (acc) {
-                    const bal = parseFloat(acc.opening_balance) || 0;
+                    const liveBal = (acc.closing_balance !== undefined) ? acc.closing_balance : (acc.opening_balance || 0);
+                    const bal = parseFloat(liveBal);
                     wrapper.find('.balance-amt').text(bal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
                     wrapper.slideDown(150);
                 } else { wrapper.hide(); }

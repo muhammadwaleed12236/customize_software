@@ -104,7 +104,7 @@
 
     .dropdown-menu {
         z-index: 10000 !important;
-        max-height: 300px;
+        max-height: 480px;
         overflow-y: auto;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -241,7 +241,7 @@
                         <th>Delivery / Remaining Qty</th>
                         {{-- <th>Receipt</th> --}}
                         <th>Date</th>
-                        <th>Action</th>
+                        <th class="text-center" style="width: 90px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>@foreach($sales as $sale)
@@ -382,17 +382,7 @@
     </td>
     {{-- <td>{{ number_format($sale->receipt1 + $sale->receipt2, 2) }}</td> --}}
     <td>{{ \Carbon\Carbon::parse($sale->created_at)->format('d-m-Y') }}</td>
-    <td class="text-center">
-        <!-- PRIMARY ACTION -->
-        <a href="{{ route('sale.invoice', $sale->id) }}" class="btn btn-sm btn-info text-white me-1" title="View Invoice">
-            <i class="fas fa-file-invoice"></i> Invoice
-        </a>
-
-        <!-- A4 PRINT INVOICE -->
-        <a href="{{ route('sale.invoice.a4', $sale->id) }}" target="_blank" class="btn btn-sm text-white me-1" style="background-color: #c23321;" title="Print A4 Invoice">
-            <i class="fas fa-print"></i> A4 Print
-        </a>
-
+    <td class="text-center" style="white-space: nowrap; width: 90px;">
         @php
             $isConfirmed = !empty($sale->is_confirmed) 
                 || !empty($sale->finalized_at) 
@@ -400,132 +390,101 @@
                 || ($rem <= 0 && $ord > 0);
         @endphp
 
-        @if($isBooking && !$isConfirmed)
-            <!-- CONFIRM BOOKING BUTTON (Opens Sale Screen to verify & confirm) -->
-            <a href="{{ route('sales.edit', $sale->id) }}" class="btn btn-sm text-white me-1" style="background: #059669; font-weight: 600;" title="Confirm Booking in Sale Screen">
-                <i class="fas fa-check-circle me-1"></i> Confirm Booking
-            </a>
-        @elseif($isBooking && $isConfirmed)
-            <!-- ONCE CONFIRMED: CREATE GATE PASS (for dispatch) & DC BUTTON -->
-            @if($rem > 0)
-                <a href="{{ route('sale.create.gatepass', $sale->id) }}" class="btn btn-sm text-white me-1" style="background: #4f46e5; font-weight: 600;" title="Create Gate Pass for Delivery">
-                    <i class="fas fa-truck-loading me-1"></i> Create Gate Pass
-                </a>
-            @endif
-            <a href="{{ route('sale.dc', $sale->id) }}" class="btn btn-sm btn-secondary text-white me-1" title="Delivery Challan">
-                <i class="fas fa-truck me-1"></i> DC
-            </a>
-        @endif
-
-        <!-- DELETE BUTTON -->
-        @can('sale.delete')
-        <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" class="d-inline me-1" onsubmit="return confirm('Are you sure you want to delete Invoice #{{ $sale->invoice_no }}? Stock, customer ledger, and account balances will be reverted.');">
-            @csrf
-            @method('DELETE')
-            <button type="submit" class="btn btn-sm btn-danger" title="Delete Sale Invoice">
-                <i class="fas fa-trash-alt"></i> Delete
-            </button>
-        </form>
-        @endcan
-
-        <!-- MORE OPTIONS DROPDOWN -->
-        <div class="btn-group">
-            <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle dropdown-toggle-split" data-boundary="window" aria-expanded="false">
-                <i class="fas fa-ellipsis-v"></i> More
+        <!-- CONSOLIDATED ACTIONS DROPDOWN -->
+        <div class="dropdown btn-group">
+            <button type="button" class="btn btn-sm btn-outline-dark dropdown-toggle d-inline-flex align-items-center justify-content-center gap-1" data-bs-toggle="dropdown" aria-expanded="false" style="font-size: 0.78rem; font-weight: 600; padding: 4px 12px; border-radius: 6px;">
+                <i class="fas fa-ellipsis-v"></i> <span>More</span>
             </button>
 
             <ul class="dropdown-menu dropdown-menu-end shadow-lg action-dropdown">
+                <!-- 1. Print / Invoice Options -->
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.invoice', $sale->id) }}" target="_blank" title="View Thermal Invoice">
+                        <i class="fas fa-file-invoice text-info" style="width: 16px;"></i> Invoice (Thermal)
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.invoice.a4', $sale->id) }}" target="_blank" title="Print A4 Invoice">
+                        <i class="fas fa-print" style="color: #c23321; width: 16px;"></i> A4 Size Print
+                    </a>
+                </li>
+
+                <!-- 2. Booking / Dispatch Operations -->
                 @if($isBooking && !$isConfirmed)
                 <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2 text-success fw-bold" href="{{ route('sales.edit', $sale->id) }}" title="Confirm / Manage Booking in Sale Screen">
-                        <i class="fas fa-check-circle text-success"></i> Confirm Booking
+                    <a class="dropdown-item d-flex align-items-center gap-2 text-success fw-bold" href="{{ route('sales.edit', $sale->id) }}" title="Confirm Booking in Sale Screen">
+                        <i class="fas fa-check-circle text-success" style="width: 16px;"></i> Confirm Booking
                     </a>
                 </li>
                 @endif
+
                 @if($rem > 0)
                 <li>
                     <a class="dropdown-item d-flex align-items-center gap-2 text-primary fw-semibold" href="{{ route('sale.create.gatepass', $sale->id) }}" title="Create Outward Gate Pass">
-                        <i class="fas fa-truck-loading text-primary"></i> Create Gate Pass
+                        <i class="fas fa-truck-loading text-primary" style="width: 16px;"></i> Create Gate Pass
                     </a>
                 </li>
                 @endif
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.dc', $sale->id) }}" title="Delivery Challan">
-                        <i class="fas fa-truck text-secondary"></i> Delivery Challan (DC)
-                    </a>
-                </li>
-                @if($rem > 0 && $isBooking)
-                <li>
-                    <form action="{{ route('sale.booking.confirm', $sale->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to confirm this booking and mark all {{ number_format($rem) }} items as delivered?');">
-                        @csrf
-                        <button type="submit" class="dropdown-item d-flex align-items-center gap-2 text-success fw-semibold">
-                            <i class="fas fa-truck-loading text-success"></i> Mark as Delivered
-                        </button>
-                    </form>
-                </li>
-                @endif
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sales.edit', $sale->id) }}" title="Edit Sale">
-                        <i class="fas fa-edit text-warning"></i> Edit Sale
-                    </a>
-                </li>
-                <li><hr class="dropdown-divider"></li>
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.invoice.a4', $sale->id) }}" target="_blank">
-                        <i class="fas fa-print text-danger"></i> A4 Size Print
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2 view-movement-btn" href="javascript:void(0)" data-sale-id="{{ $sale->id }}">
-                        <i class="fas fa-history text-info"></i> Movement Details
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sales.return.create', $sale->id) }}">
-                        <i class="fas fa-undo text-warning"></i> Return Sale
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sales.edit', $sale->id) }}">
-                        <i class="fas fa-edit text-primary"></i> Edit Sale
-                    </a>
-                </li>
-                <li>
-                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.invoice', $sale->id) }}">
-                        <i class="fas fa-receipt text-danger"></i> Receipt
-                    </a>
-                </li>
+
                 <li>
                     @php
-                        // ✅ Check if DC already exists for this sale
+                        // Check if DC already exists for this sale
                         $dcExists = \App\Models\WarehouseOrder::where('sale_id', $sale->id)->exists();
-                        
-                        // ✅ Check if sale is in draft_posted mode AND no DC created yet
                         $draftBooking = $sale;
                         $isDraftPosted = $draftBooking && $draftBooking->status === 'draft_posted';
                         $needsWarehouseSelection = $isDraftPosted && !$dcExists;
                     @endphp
 
                     @if($needsWarehouseSelection)
-                        {{-- 🎯 DRAFT MODE (First Time): Show warehouse selection before DC --}}
                         <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.warehouse.select', $sale->id) }}" title="Select warehouse for delivery">
-                            <i class="fas fa-warehouse text-warning"></i> Select Warehouse
+                            <i class="fas fa-warehouse text-warning" style="width: 16px;"></i> Select Warehouse
                         </a>
                     @else
-                        {{-- 📦 REGULAR MODE OR DC EXISTS: Direct DC generation/display --}}
-                        <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.dc', $sale->id) }}" title="Generate or display delivery challan">
-                            <i class="fas fa-truck text-success"></i> Delivery Challan
+                        <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sale.dc', $sale->id) }}" title="Delivery Challan">
+                            <i class="fas fa-truck text-secondary" style="width: 16px;"></i> Delivery Challan (DC)
                         </a>
                     @endif
                 </li>
+
+                @if($rem > 0 && $isBooking)
+                <li>
+                    <form action="{{ route('sale.booking.confirm', $sale->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to confirm this booking and mark all {{ number_format($rem) }} items as delivered?');">
+                        @csrf
+                        <button type="submit" class="dropdown-item d-flex align-items-center gap-2 text-success fw-semibold">
+                            <i class="fas fa-check-double text-success" style="width: 16px;"></i> Mark as Delivered
+                        </button>
+                    </form>
+                </li>
+                @endif
+
+                <li><hr class="dropdown-divider my-1"></li>
+
+                <!-- 3. Edit & Returns -->
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sales.edit', $sale->id) }}" title="Edit Sale">
+                        <i class="fas fa-edit text-warning" style="width: 16px;"></i> Edit Sale
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2" href="{{ route('sales.return.create', $sale->id) }}" title="Return Sale">
+                        <i class="fas fa-undo text-secondary" style="width: 16px;"></i> Return Sale
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item d-flex align-items-center gap-2 view-movement-btn" href="javascript:void(0)" data-sale-id="{{ $sale->id }}" title="Movement Details">
+                        <i class="fas fa-history text-info" style="width: 16px;"></i> Movement Details
+                    </a>
+                </li>
+
+                <!-- 4. Delete Option -->
                 @can('sale.delete')
-                <li><hr class="dropdown-divider"></li>
+                <li><hr class="dropdown-divider my-1"></li>
                 <li>
                     <form action="{{ route('sales.destroy', $sale->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete Invoice #{{ $sale->invoice_no }}? Stock, customer ledger, and account balances will be reverted.');">
                         @csrf
                         @method('DELETE')
                         <button type="submit" class="dropdown-item d-flex align-items-center gap-2 text-danger fw-semibold">
-                            <i class="fas fa-trash-alt text-danger"></i> Delete Sale
+                            <i class="fas fa-trash-alt text-danger" style="width: 16px;"></i> Delete Sale
                         </button>
                     </form>
                 </li>
@@ -707,10 +666,15 @@
             openDropdown($(this));
         });
 
-        // Open on Click
+        // Open on Click (Toggle)
         $(document).on('click', '.dropdown-toggle', function (e) {
             e.stopPropagation();
-            openDropdown($(this));
+            var $dropdown = $(this).data('dropdown-menu') || $(this).closest('.btn-group').find('.dropdown-menu');
+            if ($dropdown && $dropdown.hasClass('dropdown-appended') && $dropdown.is(':visible')) {
+                $dropdown.hide();
+            } else {
+                openDropdown($(this));
+            }
         });
 
         // Close when clicking outside
