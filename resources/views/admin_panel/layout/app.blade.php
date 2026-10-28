@@ -394,6 +394,7 @@
                                 <ul class="submenu-item">
                                     @can('product.view')
                                     <li><a href="{{route('product')}}"><i class="fas fa-box"></i> All Products</a></li>
+                                    <li><a href="{{route('products.bulk_assign')}}"><i class="fas fa-share-alt" style="color: #3b82f6;"></i> Branch Assigning</a></li>
                                     <li><a href="{{route('opening.stocks.index')}}"><i class="fas fa-hourglass-half" style="color: #ffc107;"></i> Opening Stocks</a></li>
                                     @endcan
                                     @can('category.view')

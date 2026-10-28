@@ -80,4 +80,10 @@ class Branch extends Model
             ->where('type', 'credit')
             ->sum('amount');
     }
+
+    public function sharedProducts()
+    {
+        return $this->belongsToMany(Product::class, 'product_branch_shares', 'branch_id', 'product_id')
+            ->withTimestamps();
+    }
 }

@@ -1,20 +1,30 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Auth;
+
 class CategoryController extends Controller
 {
-
     public function index()
     {
-    $category = Category::get();
+        $user = Auth::user();
+        $isSuperAdmin = $user && ($user->hasRole('super admin') || empty($user->branch_id));
+        $userBranch = $user ? $user->branch_id : null;
+
+        $query = Category::query();
+        if (!$isSuperAdmin && $userBranch) {
+            $query->forBranch((int)$userBranch);
+        }
+        $category = $query->get();
       
-      return  view("admin_panel.category.index",compact('category'));
+        return view("admin_panel.category.index", compact('category'));
     }
-    function catagorystore(Request $request)
+
+    public function catagorystore(Request $request)
     {
         // Validate input
         $validator = Validator::make($request->all(), [
@@ -27,8 +37,11 @@ class CategoryController extends Controller
             ], 422);
         }
 
-        // Check if category already exists (excluding the current category being edited)
-        $query = Category::where('name', $request->name);
+        $user = Auth::user();
+        $userBranch = $user ? ($user->branch_id ?? 1) : 1;
+
+        // Check if category already exists for this branch (excluding edit_id)
+        $query = Category::where('name', $request->name)->where('branch_id', $userBranch);
         if ($request->filled('edit_id')) {
             $query->where('id', '!=', $request->edit_id);
         }
@@ -46,6 +59,7 @@ class CategoryController extends Controller
             $message = 'Category Updated Successfully';
         } else {
             $category = new Category();
+            $category->branch_id = $userBranch;
             $message = 'Category Inserted Successfully';
         }
 
@@ -59,72 +73,68 @@ class CategoryController extends Controller
     }
 
     public function store(Request $request)
-{
+    {
+        $user = Auth::user();
+        $userBranch = $user ? ($user->branch_id ?? 1) : 1;
 
-    // Validation
-    $validator = Validator::make($request->all(), [
-        'name' => 'required|unique:categories,name,' . $request->edit_id . ',id',
-    ]);
+        // Validation
+        $validator = Validator::make($request->all(), [
+            'name' => 'required|string|max:255',
+        ]);
 
-     if ($validator->fails()) {
+        if ($validator->fails()) {
+            return redirect()->back()
+                ->withErrors($validator)
+                ->withInput()
+                ->with('catagory_swal_error', $validator->errors()->first());
+        }
 
-    return redirect()->back()
-        ->withErrors($validator)
-        ->withInput()
-        ->with('catagory_swal_error', $validator->errors()->first());
-}
+        /**
+         * UPDATE CATEGORY
+         */
+        if ($request->filled('edit_id')) {
+            $category = Category::findOrFail($request->edit_id);
+            $category->name = $request->name;
+            $category->save();
 
-    /**
-     * UPDATE CATEGORY
-     */
-    if ($request->filled('edit_id')) {
-        $category = Category::findOrFail($request->edit_id);
+            return response()->json([
+                'success' => 'Category Updated Successfully',
+                'reload'  => true
+            ]);
+        }
+
+        /**
+         * CREATE CATEGORY
+         */
+        $category = new Category();
         $category->name = $request->name;
+        $category->branch_id = $userBranch;
         $category->save();
 
+        /**
+         * IF REQUEST FROM PRODUCT PAGE
+         */
+        if ($request->page === 'product_edit') {
+            return redirect()
+                ->route('products.edit', $request->product_id)
+                ->with('success', 'Category added successfully');
+        } else if ($request->page === 'product_page') {
+            return redirect()
+                ->route('store')
+                ->with('success', 'Category added successfully');
+        }
+
+        /**
+         * NORMAL FLOW
+         */
         return response()->json([
-            'success' => 'Category Updated Successfully',
-            'reload'  => true
+            'success'  => 'Category Created Successfully',
+            'redirect' => route('Category.home')
         ]);
     }
 
-    /**
-     * CREATE CATEGORY
-     */
-    $category = new Category();
-    $category->name = $request->name;
-    $category->save();
-
-    /**
-     * IF REQUEST FROM PRODUCT PAGE
-     */
-    $obj = Category::all();
-       // RESPONSE FOR ALERT
-       if ($request->page === 'product_edit') {
-        return redirect()
-            ->route('products.edit', $request->product_id)
-            ->with('success', 'Category added successfully');
-
-    }else if($request->page === 'product_page'){
-
-    
-    return redirect()
-        ->route('store')
-        ->with('success', 'Category added successfully');
-}
-
-    /**
-     * NORMAL FLOW
-     */
-    return response()->json([
-        'success'  => 'Category Created Successfully',
-        'redirect' => route('Category.home')
-    ]);
-}
-
     public function delete($id)
     {
-
         $company = Category::find($id);
         if ($company) {
             $company->delete();
@@ -137,6 +147,4 @@ class CategoryController extends Controller
         }
         return response()->json($msg);
     }
-
-
 }

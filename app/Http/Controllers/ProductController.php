@@ -218,9 +218,14 @@ class ProductController extends Controller
      $q = $request->get('q');
      $vendorId = $request->get('vendor_id');
  
-     // ✅ GLOBAL PRODUCTS - Show all products from all branches
-     // But mark Primary/Secondary based on login branch stock
+     $branchId = Auth::check() ? Auth::user()->branch_id : null;
+     $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
+
+     // Only products owned by or shared with this branch
      $query = Product::with(['brand','unit','stockproduct']);
+     if (!$isSuper && $branchId) {
+         $query->forBranch($branchId);
+     }
  
      // Filter by vendor brands if vendor_id is provided
      if ($vendorId) {
@@ -297,11 +302,13 @@ public function searchProductsForSalebypagination(Request $request)
     $q = trim((string) $request->get('q', ''));
     $branchId = $request->get('branch_id') ?: (Auth::check() ? Auth::user()->branch_id : null);
 
-    // ✅ GLOBAL PRODUCTS - Show all products from all branches
-    // But mark Primary/Secondary based on login branch stock
+    $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
     $query = Product::with(['brand', 'unit', 'category_relation', 'sub_category_relation']);
 
-    // NO branch restriction - products are GLOBAL
+    // Only products owned by or shared with this branch
+    if (!$isSuper && $branchId) {
+        $query->forBranch($branchId);
+    }
 
     if ($q !== '') {
         $query->where(function ($builder) use ($q) {
@@ -431,93 +438,100 @@ public function searchProductsForSalebypagination(Request $request)
             }
         }
 
-        // Build query with relationships - INCLUDE branch product codes
+        // Build query with relationships - INCLUDE branch product codes & shared branches
         $query = Product::with([
             'category_relation', 
             'sub_category_relation', 
             'unit', 
             'brand', 
             'branch',
+            'sharedBranches',
             'branchProductCodes', // ✅ Load branch-specific codes
-            'warehouseStocks.branch' // ✅ Load all warehouse stocks with branch for super admin
+            'warehouseStocks.branch' // ✅ Load all warehouse stocks with branch
         ]);
 
-        if (!empty($allowedBranchIds)) {
-            $query->whereIn('branch_id', $allowedBranchIds);
+        if ($isSuperAdmin) {
+            // Super Admin: sees all products, or filters by selected branches
+            if (!empty($selectedBranchIds)) {
+                $query->whereIn('branch_id', $selectedBranchIds);
+            }
+        } elseif ($userBranch) {
+            // Branch User: ONLY sees products owned by own branch OR shared with own branch!
+            $query->forBranch($userBranch);
         } else {
-            // no branch allowed, return empty
             $query->whereRaw('1=0');
         }
 
         $products = $query->get()
             ->map(function ($product) use ($userBranch, $isSuperAdmin) {
-                if ($isSuperAdmin) {
-                    $product->branch_item_code = $product->getBranchItemCode($product->branch_id);
+                $product->branch_item_code = $userBranch ? $product->getBranchItemCode($userBranch) : $product->item_code;
 
-                    // Group warehouse stocks by branch
-                    $stocksByBranch = [];
-                    if ($product->warehouseStocks && $product->warehouseStocks->count() > 0) {
-                        foreach ($product->warehouseStocks as $ws) {
-                            if (!isset($stocksByBranch[$ws->branch_id])) {
-                                $stocksByBranch[$ws->branch_id] = [
-                                    'branch_id' => $ws->branch_id,
-                                    'branch_name' => $ws->branch->name ?? 'Unknown',
-                                    'quantity' => 0
-                                ];
-                            }
-                            $stocksByBranch[$ws->branch_id]['quantity'] += (float)$ws->quantity;
-                        }
-                    }
-
-                    // Fallback: Check stocks table for any branch missing in warehouse_stocks or with 0 quantity
-                    $allStocks = Stock::with('branch')->where('product_id', $product->id)->where('qty', '>', 0)->get();
-                    foreach ($allStocks as $st) {
-                        if (!isset($stocksByBranch[$st->branch_id]) || $stocksByBranch[$st->branch_id]['quantity'] == 0) {
-                            $stocksByBranch[$st->branch_id] = [
-                                'branch_id' => $st->branch_id,
-                                'branch_name' => $st->branch->name ?? 'Unknown',
-                                'quantity' => (float)$st->qty
+                // Group warehouse stocks by branch for all users
+                $stocksByBranch = [];
+                if ($product->warehouseStocks && $product->warehouseStocks->count() > 0) {
+                    foreach ($product->warehouseStocks as $ws) {
+                        if (!isset($stocksByBranch[$ws->branch_id])) {
+                            $stocksByBranch[$ws->branch_id] = [
+                                'branch_id' => $ws->branch_id,
+                                'branch_name' => $ws->branch->name ?? 'Unknown',
+                                'quantity' => 0
                             ];
                         }
+                        $stocksByBranch[$ws->branch_id]['quantity'] += (float)$ws->quantity;
                     }
+                }
 
-                    $stocksByBranch = array_filter($stocksByBranch, function ($item) {
-                        return $item['quantity'] > 0;
-                    });
+                // Fallback: Check stocks table for any branch missing in warehouse_stocks or with 0 quantity
+                $allStocks = Stock::with('branch')->where('product_id', $product->id)->where('qty', '>', 0)->get();
+                foreach ($allStocks as $st) {
+                    if (!isset($stocksByBranch[$st->branch_id]) || $stocksByBranch[$st->branch_id]['quantity'] == 0) {
+                        $stocksByBranch[$st->branch_id] = [
+                            'branch_id' => $st->branch_id,
+                            'branch_name' => $st->branch->name ?? 'Unknown',
+                            'quantity' => (float)$st->qty
+                        ];
+                    }
+                }
 
-                    $product->all_warehouse_stocks = array_values($stocksByBranch);
-                    $product->branch_stock_qty = array_sum(array_column($stocksByBranch, 'quantity'));
-                    $product->is_primary = ($product->branch_stock_qty > 0);
-                    $product->is_secondary = ($product->branch_stock_qty == 0);
-                    $product->user_branch_stock_qty = $product->branch_stock_qty;
-                    $product->has_stock_in_user_branch = ($product->branch_stock_qty > 0);
-                } elseif ($userBranch) {
-                    $product->branch_item_code = $product->getBranchItemCode($userBranch);
+                $stocksByBranch = array_filter($stocksByBranch, function ($item) {
+                    return $item['quantity'] > 0;
+                });
 
+                $product->all_warehouse_stocks = array_values($stocksByBranch);
+                $totalStock = array_sum(array_column($stocksByBranch, 'quantity'));
+                $product->total_all_branches_stock = $totalStock;
+
+                if ($userBranch) {
                     $stockQty = (float) $product->getStockForBranch($userBranch);
                     if ($stockQty == 0) {
                         $stockQty = (float) (Stock::where('product_id', $product->id)->where('branch_id', $userBranch)->value('qty') ?? 0);
                     }
-
                     $product->branch_stock_qty = $stockQty;
+                    $product->user_branch_stock_qty = $stockQty;
                     $product->is_primary = ($stockQty > 0);
                     $product->is_secondary = ($stockQty == 0);
-                    $product->user_branch_stock_qty = $stockQty;
                     $product->has_stock_in_user_branch = ($stockQty > 0);
-                    $product->all_warehouse_stocks = null;
                 } else {
-                    $product->branch_item_code = null;
-                    $product->is_primary = false;
-                    $product->is_secondary = true;
-                    $product->branch_stock_qty = 0;
-                    $product->user_branch_stock_qty = 0;
-                    $product->has_stock_in_user_branch = false;
-                    $product->all_warehouse_stocks = null;
+                    $product->branch_stock_qty = $totalStock;
+                    $product->user_branch_stock_qty = $totalStock;
+                    $product->is_primary = ($totalStock > 0);
+                    $product->is_secondary = ($totalStock == 0);
+                    $product->has_stock_in_user_branch = ($totalStock > 0);
                 }
+
+                // Ownership & Sharing flags
+                $product->is_owner = $userBranch ? ((int)$product->branch_id === (int)$userBranch) : true;
+                $product->is_shared = $userBranch ? (!$product->is_owner && $product->isAccessibleByBranch($userBranch)) : false;
+                $product->can_manage_shares = $isSuperAdmin || $product->is_owner;
+
                 return $product;
             });
 
-        $categories = Category::get();
+        $catQuery = Category::query();
+        if (!$isSuperAdmin && $userBranch) {
+            $catQuery->forBranch((int)$userBranch);
+        }
+        $categories = $catQuery->get();
         // supply branch list for add modal & filter (super admin can choose branch)
         $branchesList = Branch::orderBy('name')->get();
         
@@ -563,7 +577,11 @@ public function searchProductsForSalebypagination(Request $request)
             $branches = $userBranch ? collect([$userBranch]) : collect();
         }
         
-        $categories = Category::select('id', 'name')->get();
+        $catQuery = Category::select('id', 'name');
+        if (!$isSuperAdmin && $user->branch_id) {
+            $catQuery->forBranch((int)$user->branch_id);
+        }
+        $categories = $catQuery->get();
         $units      = Unit::select('id', 'name')->get();
         $brands     = Brand::select('id', 'name')->get();
         $types      = \App\Models\ProductType::all();
@@ -584,7 +602,15 @@ public function searchProductsForSalebypagination(Request $request)
     // ===== Dependent subcategories =====
     public function getSubcategories($category_id)
     {
-        $subcategories = Subcategory::where('category_id', $category_id)->get();
+        $user = Auth::user();
+        $isSuperAdmin = $user && ($user->hasRole('super admin') || empty($user->branch_id));
+        $userBranch = $user ? $user->branch_id : null;
+
+        $query = Subcategory::where('category_id', $category_id);
+        if (!$isSuperAdmin && $userBranch) {
+            $query->forBranch((int)$userBranch);
+        }
+        $subcategories = $query->get();
         return response()->json($subcategories);
     }
 
@@ -1154,8 +1180,14 @@ public function searchProductsForSalebypagination(Request $request)
 
         $product->current_branch_stock = $currentStock;
 
-        $categories    = Category::all();
-        $subcategories = SubCategory::all();
+        $catQuery = Category::query();
+        $subQuery = SubCategory::query();
+        if (!$isSuperAdmin && $user->branch_id) {
+            $catQuery->forBranch((int)$user->branch_id);
+            $subQuery->forBranch((int)$user->branch_id);
+        }
+        $categories    = $catQuery->get();
+        $subcategories = $subQuery->get();
         $brands        = Brand::all();
         $units         = Unit::select('id', 'name')->get();
         $types         = \App\Models\ProductType::all();
@@ -2146,6 +2178,216 @@ public function searchProductsForSalebypagination(Request $request)
             }
             return back()->with('error', 'Delete failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Get branch sharing status for a product (AJAX)
+     */
+    public function getBranchShares(int $id)
+    {
+        $product = Product::with(['branch', 'sharedBranches'])->findOrFail($id);
+        $user = Auth::user();
+
+        $canManage = $user->hasRole('super admin') || ((int)$user->branch_id === (int)$product->branch_id);
+
+        $creatorBranchId = (int) $product->branch_id;
+        $sharedBranchIds = $product->sharedBranches->pluck('id')->map(fn($bid) => (int)$bid)->toArray();
+
+        $branches = Branch::where('id', '!=', $creatorBranchId)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(function ($b) use ($sharedBranchIds) {
+                return [
+                    'id'     => (int) $b->id,
+                    'name'   => $b->name,
+                    'shared' => in_array((int) $b->id, $sharedBranchIds),
+                ];
+            });
+
+        return response()->json([
+            'product_id'          => $product->id,
+            'product_name'        => $product->item_name,
+            'item_code'           => $product->item_code,
+            'creator_branch_id'   => $creatorBranchId,
+            'creator_branch_name' => $product->branch->name ?? 'Head Office',
+            'can_manage'          => $canManage,
+            'branches'            => $branches,
+        ]);
+    }
+
+    /**
+     * Save branch sharing for a product (AJAX)
+     */
+    public function saveBranchShares(Request $request, int $id)
+    {
+        $product = Product::findOrFail($id);
+        $user = Auth::user();
+
+        if (!$user->hasRole('super admin') && (int)$user->branch_id !== (int)$product->branch_id) {
+            return response()->json(['error' => 'Only the product owner branch or Super Admin can grant permissions.'], 403);
+        }
+
+        $sharedBranchIds = $request->input('branch_ids', []);
+        if (!is_array($sharedBranchIds)) {
+            $sharedBranchIds = [];
+        }
+        $sharedBranchIds = array_map('intval', array_filter($sharedBranchIds));
+
+        $syncData = [];
+        foreach ($sharedBranchIds as $bid) {
+            if ($bid !== (int)$product->branch_id) {
+                $syncData[$bid] = ['shared_by' => $user->id];
+            }
+        }
+
+        $product->sharedBranches()->sync($syncData);
+
+        return response()->json([
+            'success' => true,
+            'message' => "Branch permissions updated for '{$product->item_name}'.",
+        ]);
+    }
+
+    /**
+     * Bulk Branch Assign View
+     */
+    public function bulkAssignView(Request $request)
+    {
+        $user = Auth::user();
+        $isSuperAdmin = $user->hasRole('super admin') || empty($user->branch_id);
+        $userBranch = $user->branch_id;
+
+        $branches = Branch::where(function ($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'inactive');
+        })->orderBy('name')->get();
+
+        // Source branch filter:
+        // Super Admin can select source branch or view all; regular users only see their own branch products
+        $sourceBranchId = null;
+        if ($isSuperAdmin) {
+            $sourceBranchId = $request->filled('source_branch_id') && $request->get('source_branch_id') !== 'all'
+                ? (int) $request->get('source_branch_id')
+                : null;
+        } else {
+            $sourceBranchId = (int) ($userBranch ?? 1);
+        }
+
+        $query = Product::with(['category_relation', 'brand', 'branch', 'sharedBranches']);
+
+        if ($sourceBranchId) {
+            $query->where('branch_id', $sourceBranchId);
+        }
+
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->get('category_id'));
+        }
+
+        if ($request->filled('search')) {
+            $s = trim($request->get('search'));
+            $query->where(function ($q) use ($s) {
+                $q->where('item_name', 'like', "%{$s}%")
+                  ->orWhere('item_name_urdu', 'like', "%{$s}%")
+                  ->orWhere('item_code', 'like', "%{$s}%")
+                  ->orWhere('model', 'like', "%{$s}%");
+            });
+        }
+
+        if ($request->filled('shared_with')) {
+            $sharedWith = (int) $request->get('shared_with');
+            $query->whereHas('sharedBranches', function ($sq) use ($sharedWith) {
+                $sq->where('branches.id', $sharedWith);
+            });
+        }
+
+        $catQuery = Category::orderBy('name');
+        if ($sourceBranchId) {
+            $catQuery->forBranch((int)$sourceBranchId);
+        }
+        $categories = $catQuery->get();
+
+        $perPage = (int) $request->get('per_page', 50);
+        if (!in_array($perPage, [25, 50, 100, 250, 500])) {
+            $perPage = 50;
+        }
+        $products = $query->orderBy('item_name')->paginate($perPage)->withQueryString();
+
+        return view('admin_panel.product.bulk_assign', compact(
+            'products',
+            'branches',
+            'categories',
+            'sourceBranchId',
+            'userBranch',
+            'isSuperAdmin'
+        ));
+    }
+
+    /**
+     * Save Bulk Branch Assign (AJAX)
+     */
+    public function saveBulkAssign(Request $request)
+    {
+        $request->validate([
+            'product_ids'         => 'required|array|min:1',
+            'product_ids.*'       => 'integer|exists:products,id',
+            'target_branch_ids'   => 'required|array|min:1',
+            'target_branch_ids.*' => 'integer|exists:branches,id',
+            'action'              => 'required|in:assign,revoke,sync',
+        ]);
+
+        $user = Auth::user();
+        $isSuperAdmin = $user->hasRole('super admin') || empty($user->branch_id);
+        $userBranch = (int) ($user->branch_id ?? 0);
+
+        $productIds = array_map('intval', $request->input('product_ids', []));
+        $targetBranchIds = array_map('intval', $request->input('target_branch_ids', []));
+        $action = $request->input('action', 'assign');
+
+        // Fetch products
+        $productsQuery = Product::whereIn('id', $productIds);
+        if (!$isSuperAdmin) {
+            // Non-super admin can ONLY modify products belonging to their branch
+            $productsQuery->where('branch_id', $userBranch);
+        }
+        $products = $productsQuery->get();
+
+        if ($products->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No authorized products found to update.',
+            ], 403);
+        }
+
+        DB::transaction(function () use ($products, $targetBranchIds, $action, $user) {
+            foreach ($products as $product) {
+                // Do not assign product to its own owner branch
+                $validTargetBranchIds = array_values(array_filter($targetBranchIds, fn($bid) => $bid !== (int)$product->branch_id));
+
+                if ($action === 'assign') {
+                    $syncData = [];
+                    foreach ($validTargetBranchIds as $bid) {
+                        $syncData[$bid] = ['shared_by' => $user->id];
+                    }
+                    $product->sharedBranches()->syncWithoutDetaching($syncData);
+                } elseif ($action === 'revoke') {
+                    $product->sharedBranches()->detach($validTargetBranchIds);
+                } elseif ($action === 'sync') {
+                    $syncData = [];
+                    foreach ($validTargetBranchIds as $bid) {
+                        $syncData[$bid] = ['shared_by' => $user->id];
+                    }
+                    $product->sharedBranches()->sync($syncData);
+                }
+            }
+        });
+
+        $count = $products->count();
+        $branchCount = count($targetBranchIds);
+        $actionWord = $action === 'assign' ? 'assigned to' : ($action === 'revoke' ? 'removed from' : 'synced with');
+
+        return response()->json([
+            'success' => true,
+            'message' => "Successfully {$actionWord} {$count} product(s) for {$branchCount} branch(es)!",
+        ]);
     }
 
 }

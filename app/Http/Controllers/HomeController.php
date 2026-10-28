@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\Category;
+use App\Models\Subcategory;
 use App\Models\Product;
 use App\Models\Purchase;
 use App\Models\Sale;
@@ -59,9 +61,15 @@ class HomeController extends Controller
             }
 
             // Stats Counters
-            $categoryCount = DB::table('categories')->count();
-            $subcategoryCount = DB::table('subcategories')->count();
-            $productCount = DB::table('products')->count();
+            $categoryCount = $selectedBranchId
+                ? Category::forBranch($selectedBranchId)->count()
+                : DB::table('categories')->count();
+            $subcategoryCount = $selectedBranchId
+                ? Subcategory::forBranch($selectedBranchId)->count()
+                : DB::table('subcategories')->count();
+            $productCount = $selectedBranchId
+                ? Product::forBranch($selectedBranchId)->count()
+                : DB::table('products')->count();
 
             $customersQuery = DB::table('customers');
             $purchasesQuery = DB::table('purchases');
@@ -263,7 +271,7 @@ class HomeController extends Controller
             // Low Stock Products
             $lowStockProducts = Product::with(['category_relation'])
                 ->select('id', 'item_code', 'item_name', 'item_name_urdu', 'alert_quantity', 'category_id', 'branch_id')
-                ->when($selectedBranchId, fn($q) => $q->where('branch_id', $selectedBranchId))
+                ->when($selectedBranchId, fn($q) => $q->forBranch($selectedBranchId))
                 ->latest()
                 ->take(6)
                 ->get();

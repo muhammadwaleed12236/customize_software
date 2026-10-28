@@ -1123,7 +1123,7 @@ class PurchaseController extends Controller
         $branches = Branch::with('warehouses')->get();
         $allWarehouses = Warehouse::all();
         $warehouseStocks = \App\Models\WarehouseStock::all()->toArray();
-        $categories = \App\Models\Category::all();
+        $categories = $isSuperAdmin ? \App\Models\Category::all() : \App\Models\Category::forBranch((int)($currentBranch ?? $branchId ?? $purchase->branch_id ?? 1))->get();
         $brands = \App\Models\Brand::all();
 
         $users = \App\Models\User::orderBy('name')->get();
@@ -1950,7 +1950,7 @@ class PurchaseController extends Controller
         $branches = Branch::with('warehouses')->get();
         $allWarehouses = Warehouse::all();
         $warehouseStocks = \App\Models\WarehouseStock::all()->toArray();
-        $categories = \App\Models\Category::all();
+        $categories = $isSuperAdmin ? \App\Models\Category::all() : \App\Models\Category::forBranch((int)($currentBranch ?? $branchId ?? $purchase->branch_id ?? 1))->get();
         $brands = \App\Models\Brand::all();
 
         $users = \App\Models\User::orderBy('name')->get();

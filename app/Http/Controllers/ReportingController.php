@@ -85,7 +85,11 @@ class ReportingController extends Controller
         $stockStatus = $request->get('stock_status', 'in_stock');
 
         // Master Lists for Filters
-        $categories = Category::orderBy('name')->get(['id', 'name']);
+        $catQuery = Category::orderBy('name');
+        if ($branchId) {
+            $catQuery->forBranch((int)$branchId);
+        }
+        $categories = $catQuery->get(['id', 'name']);
         $brands = Brand::orderBy('name')->get(['id', 'name']);
         $models = Product::whereNotNull('model')->where('model', '!=', '')->distinct()->orderBy('model')->pluck('model');
         $allProducts = Product::orderBy('item_name')->get(['id', 'item_name', 'item_code']);

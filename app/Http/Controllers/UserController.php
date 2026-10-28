@@ -253,7 +253,7 @@ class UserController extends Controller
 
             if (in_array($branchId, $branchIdsForAssigned)) {
                 $perm = Permission::firstOrCreate(['name' => $permName, 'guard_name' => 'web']);
-                if (!$user->hasDirectPermission($permName)) {
+                if (!$user->hasDirectPermission($perm)) {
                     $user->givePermissionTo($perm);
                 }
             } else {
@@ -261,7 +261,7 @@ class UserController extends Controller
                 if ($branchId === (int) $user->branch_id) continue;
 
                 $perm = Permission::where('name', $permName)->where('guard_name', 'web')->first();
-                if ($perm && $user->hasDirectPermission($permName)) {
+                if ($perm && $user->hasDirectPermission($perm)) {
                     $user->revokePermissionTo($perm);
                 }
             }
@@ -306,7 +306,7 @@ class UserController extends Controller
                     $perms[] = [
                         'key'     => $permName,
                         'label'   => $label,
-                        'checked' => $user->hasDirectPermission($crossPermName),
+                        'checked' => $user->getAllPermissions()->contains('name', $crossPermName),
                     ];
                 }
 
@@ -373,13 +373,13 @@ class UserController extends Controller
                         'name'       => $crossPermName,
                         'guard_name' => 'web',
                     ]);
-                    if (!$user->hasDirectPermission($crossPermName)) {
+                    if (!$user->hasDirectPermission($perm)) {
                         $user->givePermissionTo($perm);
                     }
                 } else {
                     // Revoke if user has it
                     $perm = Permission::where('name', $crossPermName)->where('guard_name', 'web')->first();
-                    if ($perm && $user->hasDirectPermission($crossPermName)) {
+                    if ($perm && $user->hasDirectPermission($perm)) {
                         $user->revokePermissionTo($perm);
                     }
                 }

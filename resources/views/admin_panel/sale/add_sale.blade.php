@@ -462,6 +462,15 @@ $(document).ready(function () {
                         const id = (p.id ?? '');
                         const colors = p.color ? p.color : '[]';
 
+                        let stockBadge = '';
+                        const myStock = parseFloat(p.my_branch_stock ?? 0);
+
+                        if (myStock > 0) {
+                            stockBadge = `<span class="badge" style="background:#10b981; color:#fff; font-size:11px; padding:2px 6px; border-radius:4px;">Stock: ${myStock}</span>`;
+                        } else {
+                            stockBadge = `<span class="badge" style="background:#ef4444; color:#fff; font-size:11px; padding:2px 6px; border-radius:4px;">Out of Stock</span>`;
+                        }
+
                         html += `
 <li class="list-group-item search-result-item"
     tabindex="0"
@@ -472,8 +481,12 @@ $(document).ready(function () {
     data-product-code="${code}"
     data-price="${price}"
     data-colors='${colors}'
-    data-available-stock="${p.available_stock ?? 0}">
-  ${name} - ${code} - Rs. ${price} <small class="text-muted">(Stock: ${p.available_stock ?? 0})</small>
+    data-available-stock="${myStock}"
+    data-my-stock="${myStock}">
+  <div class="d-flex justify-content-between align-items-center">
+    <span><strong>${name}</strong> <small class="text-muted">(${code})</small> - Rs. ${price}</span>
+    <div>${stockBadge}</div>
+  </div>
 </li>`;
                     });
                     $box.html(html);
@@ -498,9 +511,21 @@ $(document).ready(function () {
             $row.find('.product_id').val($li.data('product-id'));
 
             // Store available stock on the quantity input
-            const availableStock = parseInt($li.data('available-stock') || 0);
+            const availableStock = parseFloat($li.data('available-stock') || 0);
+            const isCross = $li.data('is-cross') === '1' || $li.data('is-cross') === 1;
+            const otherText = $li.data('other-stock-text') || '';
             $row.find('.quantity').attr('data-available-stock', availableStock);
             $row.find('.quantity').attr('data-product-name', $li.data('product-name'));
+            $row.find('.quantity').attr('data-is-cross', isCross ? '1' : '0');
+            $row.find('.quantity').attr('data-other-text', otherText);
+
+            if (isCross) {
+                $row.find('.productSearch').css({'background-color': '#fffbeb', 'border-color': '#fde68a'});
+                $row.find('.productSearch').attr('title', 'Available in: ' + otherText + ' (Stock Transfer Needed)');
+            } else {
+                $row.find('.productSearch').css({'background-color': '', 'border-color': ''});
+                $row.find('.productSearch').removeAttr('title');
+            }
 
             $row.find('.quantity').val(1);
             $row.find('.item_disc').val(0);

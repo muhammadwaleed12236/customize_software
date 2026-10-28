@@ -827,6 +827,10 @@
             </div>
             @endif
 
+            <a href="{{ route('products.bulk_assign') }}" class="btn btn-outline-primary" style="font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; border-color: #cbd5e1; background: #fff;">
+                <i class="fas fa-layer-group text-primary"></i> Branch Assigning
+            </a>
+
             <a href="{{ url('create_prodcut') }}" class="btn-add-product">
                 <i class="fas fa-plus"></i> Add Product
             </a>
@@ -906,23 +910,11 @@
                                     <span class="badge-no-qty">Out</span>
                                 @endif
                             </td>
-                        @endif
-
-                        {{-- 2. Stock Status --}}
-                        @if($isSuperAdmin)
-                            <td style="white-space: nowrap;">
-                                @if($product->all_warehouse_stocks && count($product->all_warehouse_stocks) > 0)
-                                    <span class="badge-in-stock"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>In Stock</span>
-                                @else
-                                    <span class="badge-no-stock"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>No Stock</span>
-                                @endif
-                            </td>
-                        @else
                             <td>
-                                @if($product->is_primary)
-                                    <span class="badge-primary-role"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>Primary</span>
+                                @if($product->branch_stock_qty > 0)
+                                    <span class="badge-primary-role"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>In Stock</span>
                                 @else
-                                    <span class="badge-secondary-role"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>Secondary</span>
+                                    <span class="badge-secondary-role"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>Out of Stock</span>
                                 @endif
                             </td>
                         @endif
@@ -940,7 +932,19 @@
                         </td>
                         <td>
                             <div class="item-name-text">{{ $product->item_name }}</div>
-                            @if($product->branch)
+                            @if($product->is_shared)
+                                <div style="margin-top: 3px;">
+                                    <span class="badge" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; font-size:10px; padding:2px 6px; border-radius:4px;">
+                                        <i class="fas fa-handshake mr-1"></i> Shared by {{ $product->branch->name ?? 'Origin Branch' }}
+                                    </span>
+                                </div>
+                            @elseif($product->sharedBranches && $product->sharedBranches->count() > 0)
+                                <div style="margin-top: 3px;">
+                                    <span class="badge" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; font-size:10px; padding:2px 6px; border-radius:4px;">
+                                        <i class="fas fa-share-alt mr-1"></i> Shared with {{ $product->sharedBranches->count() }} branch(es)
+                                    </span>
+                                </div>
+                            @elseif($product->branch)
                                 <div style="font-size: 11px; color: #64748b; opacity: 0.68; margin-top: 3px; font-weight: 500;">
                                     <i class="fas fa-store-alt mr-1" style="font-size: 9px;"></i>Origin: {{ $product->branch->name }}
                                 </div>
@@ -964,7 +968,11 @@
                                             <li><a class="dropdown-item" href="{{ route('products.edit', $product->id) }}"><i class="fas fa-edit" style="color:#1e3a5f; width:16px;"></i> Edit Profile</a></li>
                                             <li><a class="dropdown-item" href="{{ route('opening.stocks.edit', $product->id) }}"><i class="fas fa-dollar-sign" style="color:#0d9f6e; width:16px;"></i> Edit Stock &amp; Pricing</a></li>
                                         @endif
+                                        @if($product->can_manage_shares)
+                                            <li><a class="dropdown-item btn-share-branch" href="javascript:void(0)" data-id="{{ $product->id }}" data-name="{{ $product->item_name }}"><i class="fas fa-share-alt" style="color:#0284c7; width:16px;"></i> Branch Permissions</a></li>
+                                        @endif
                                         <li><a class="dropdown-item" href="{{ route('generate-barcode-image', $product->id) }}"><i class="fas fa-barcode" style="color:#64748b; width:16px;"></i> Generate Barcode</a></li>
+                                        <li><a class="dropdown-item" href="{{ route('inter_branch_stock_requests.create') }}"><i class="fas fa-truck-moving" style="color:#0284c7; width:16px;"></i> Request Stock Transfer</a></li>
                                         @if($product->is_assembled)
                                             <li><div class="dropdown-divider"></div></li>
                                             <li><a class="dropdown-item" href="{{ route('assembly.report.show', $product->id) }}"><i class="fas fa-cogs" style="color:#7c3aed; width:16px;"></i> Assembly Report</a></li>
@@ -979,6 +987,53 @@
             </table>
         </div>
 </div>
+</div>
+
+{{-- ==================== BRANCH PERMISSION / SHARE MODAL ==================== --}}
+<div class="modal fade" id="branchShareModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden; background: #ffffff;">
+            <div class="modal-header text-white px-3 py-3" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
+                <div class="d-flex align-items-center" style="gap: 10px;">
+                    <i class="fas fa-share-alt" style="font-size: 16px;"></i>
+                    <div>
+                        <h6 class="modal-title font-weight-bold mb-0 text-white" style="font-size: 15px;">Branch Permissions / Sharing</h6>
+                        <small class="opacity-75" id="bsm_product_title">Loading product...</small>
+                    </div>
+                </div>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="opacity: 0.9;">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body p-3" style="background: #f8fafc;">
+                <div class="alert alert-info border-0 py-2 px-3 mb-3 small" style="background:#e0f2fe; color:#0369a1; border-radius:8px;">
+                    <i class="fas fa-info-circle mr-1"></i> Select which branches are granted permission to view, purchase, and sell this product.
+                </div>
+
+                <div id="bsm_loading" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                    <div class="small text-muted mt-2">Loading branch list...</div>
+                </div>
+
+                <div id="bsm_content" style="display:none;">
+                    <input type="hidden" id="bsm_product_id">
+                    <div class="mb-2 d-flex justify-content-between align-items-center">
+                        <span class="font-weight-bold text-dark small">Owner Branch:</span>
+                        <span class="badge" style="background:#e2e8f0; color:#334155; font-size:11px;" id="bsm_creator_branch">-</span>
+                    </div>
+                    <div class="border rounded p-2 bg-white" style="max-height: 260px; overflow-y: auto;" id="bsm_branches_list">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer px-3 py-2 bg-white border-top">
+                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm font-weight-bold" id="bsm_save_btn">
+                    <i class="fas fa-save mr-1"></i> Save Permissions
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 {{-- ==================== PRODUCT VIEW MODAL (Compact Ameen & Sons Premium Theme) ==================== --}}
@@ -1472,6 +1527,107 @@ $(document).on('click', '.viewProductBtn', function () {
         error: function (xhr) {
             $('#productViewModal').modal('hide');
             Swal.fire('Error', 'Could not load product. (Status: ' + xhr.status + ')', 'error');
+        }
+    });
+});
+
+// ==================== BRANCH PERMISSION / SHARE HANDLERS ====================
+$(document).on('click', '.btn-share-branch', function(e) {
+    e.preventDefault();
+    var pid = $(this).data('id');
+    var pname = $(this).data('name');
+    $('#bsm_product_id').val(pid);
+    $('#bsm_product_title').text(pname);
+    $('#bsm_branches_list').empty();
+    $('#bsm_loading').show();
+    $('#bsm_content').hide();
+    $('#branchShareModal').modal('show');
+
+    $.getJSON('{{ url("/products") }}/' + pid + '/branch-shares', function(res) {
+        $('#bsm_loading').hide();
+        $('#bsm_content').show();
+        $('#bsm_creator_branch').text(res.creator_branch_name);
+
+        var list = $('#bsm_branches_list');
+        list.empty();
+
+        if (!res.branches || res.branches.length === 0) {
+            list.html('<div class="text-muted text-center py-3 small"><i class="fas fa-info-circle mr-1"></i> No other branches available.</div>');
+            return;
+        }
+
+        res.branches.forEach(function(b) {
+            var checked = b.shared ? 'checked' : '';
+            var disabled = !res.can_manage ? 'disabled' : '';
+            var item = `
+                <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
+                    <label class="mb-0 font-weight-bold text-dark small" style="cursor:pointer;" for="share_b_${b.id}">
+                        <i class="fas fa-store-alt mr-2 text-info"></i> ${b.name}
+                    </label>
+                    <div class="custom-control custom-switch">
+                        <input type="checkbox" class="custom-control-input bsm-branch-cb" id="share_b_${b.id}" value="${b.id}" ${checked} ${disabled}>
+                        <label class="custom-control-label" for="share_b_${b.id}"></label>
+                    </div>
+                </div>
+            `;
+            list.append(item);
+        });
+
+        if (!res.can_manage) {
+            $('#bsm_save_btn').hide();
+        } else {
+            $('#bsm_save_btn').show();
+        }
+    }).fail(function() {
+        $('#bsm_loading').hide();
+        $('#bsm_branches_list').html('<div class="text-danger text-center py-3 small">Failed to load branches.</div>');
+    });
+});
+
+$('#bsm_save_btn').on('click', function() {
+    var pid = $('#bsm_product_id').val();
+    var btn = $(this);
+    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Saving...');
+
+    var branchIds = [];
+    $('.bsm-branch-cb:checked').each(function() {
+        branchIds.push($(this).val());
+    });
+
+    $.ajax({
+        url: '{{ url("/products") }}/' + pid + '/branch-shares',
+        type: 'POST',
+        data: {
+            _token: '{{ csrf_token() }}',
+            branch_ids: branchIds
+        },
+        success: function(res) {
+            $('#branchShareModal').modal('hide');
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Permissions Saved!',
+                    text: res.message || 'Branch permissions updated.',
+                    timer: 1600,
+                    showConfirmButton: false
+                }).then(() => {
+                    location.reload();
+                });
+            } else {
+                alert(res.message || 'Permissions updated successfully.');
+                location.reload();
+            }
+        },
+        error: function(xhr) {
+            var err = xhr.responseJSON?.error || 'Failed to save branch permissions.';
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({ icon: 'error', title: 'Error', text: err });
+            } else {
+                alert('Error: ' + err);
+            }
+        },
+        complete: function() {
+            btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Save Permissions');
         }
     });
 });

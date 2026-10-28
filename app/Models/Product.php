@@ -171,4 +171,38 @@ public function stocks()
             ->where('branch_id', $branchId)
             ->sum('quantity');
     }
+
+    /**
+     * Branches that have been granted access to this product
+     */
+    public function sharedBranches()
+    {
+        return $this->belongsToMany(Branch::class, 'product_branch_shares', 'product_id', 'branch_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Scope: Products accessible by a specific branch
+     * (Owned by branch OR explicitly shared with branch)
+     */
+    public function scopeForBranch($query, $branchId)
+    {
+        return $query->where(function ($q) use ($branchId) {
+            $q->where('branch_id', $branchId)
+              ->orWhereHas('sharedBranches', function ($sq) use ($branchId) {
+                  $sq->where('branches.id', $branchId);
+              });
+        });
+    }
+
+    /**
+     * Check if product is accessible to a given branch
+     */
+    public function isAccessibleByBranch($branchId)
+    {
+        if ((int) $this->branch_id === (int) $branchId) {
+            return true;
+        }
+        return $this->sharedBranches()->where('branches.id', $branchId)->exists();
+    }
 }

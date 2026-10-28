@@ -206,6 +206,10 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
 
     Route::put('/product/update/{id}', [ProductController::class, 'update'])->middleware('permission:product.edit')->name('product.update');
     Route::get('/products/{id}/edit', [ProductController::class, 'edit'])->middleware('permission:product.edit')->name('products.edit');
+    Route::get('/products/bulk-assign', [ProductController::class, 'bulkAssignView'])->name('products.bulk_assign');
+    Route::post('/products/bulk-assign', [ProductController::class, 'saveBulkAssign'])->name('products.bulk_assign.save');
+    Route::get('/products/{id}/branch-shares', [ProductController::class, 'getBranchShares'])->name('products.branch_shares.get');
+    Route::post('/products/{id}/branch-shares', [ProductController::class, 'saveBranchShares'])->name('products.branch_shares.save');
     Route::get('/generate-barcode-image', [ProductController::class, 'generateBarcode'])->middleware('permission:product.barcode')->name('generate-barcode-image');
     
     // ✅ Phase 2 Routes: Opening Stock Configuration (legacy)
