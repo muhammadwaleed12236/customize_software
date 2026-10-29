@@ -172,7 +172,7 @@ class PurchaseController extends Controller
         $allowedBranches = $this->allowedBranches('purchase');
         
         // Build purchase query
-        $query = Purchase::with(['branch', 'warehouse', 'vendor', 'items.warehouse']);  // ✅ Added: eager load warehouse for each item
+        $query = Purchase::with(['branch', 'warehouse', 'vendor', 'customer', 'items.warehouse']);  // ✅ Added: eager load warehouse for each item
         
         // Apply branch filter unless super admin
         if (!$isSuperAdmin) {
@@ -336,7 +336,9 @@ class PurchaseController extends Controller
         // (B) Validation (warehouse_id now OPTIONAL - each line specifies its own warehouse)
         $validated = $request->validate([
             'invoice_no'          => 'nullable|string',
-            'vendor_id'           => 'nullable|exists:vendors,id',
+            'vendor_id'           => 'nullable',
+            'customer_id'         => 'nullable',
+            'party_type'          => 'nullable|string',
             'purchase_date'       => 'nullable|date',
             'branch_id'           => 'nullable|exists:branches,id',
             'warehouse_id'        => 'nullable',  // Temporarily relaxed for debugging
@@ -347,7 +349,7 @@ class PurchaseController extends Controller
             'product_id'          => 'array',
             'product_id.*'        => 'nullable|exists:products,id',
             'qty'                 => 'array',
-            'qty.*'               => 'nullable|required_with:product_id.*|numeric|min:1',
+            'qty.*'               => 'nullable|required_with:product_id.*|numeric|min:0.001',
             'price'               => 'array',
             'price.*'             => 'nullable|required_with:product_id.*|numeric|min:0',
             'unit'                => 'array',
@@ -409,13 +411,17 @@ class PurchaseController extends Controller
             // ✅ CHANGED: warehouse_id now optional (each line specifies its own warehouse)
             $warehouseId = (int)($validated['warehouse_id'] ?? 0);  // May be 0 if not selected
 
-            $vendorId = $validated['vendor_id'] ?? null;
+            $partyType = $request->party_type ?? ($request->customer_id ? 'customer' : 'vendor');
+            $customerId = ($partyType === 'customer') ? ($request->customer_id ?? null) : null;
+            $vendorId = ($partyType === 'vendor') ? ($request->vendor_id ?? $validated['vendor_id'] ?? null) : null;
 
             // create header
             $purchase = Purchase::create([
                 'branch_id'     => $branchId,
                 'warehouse_id'  => $warehouseId > 0 ? $warehouseId : null,  // ✅ Nullable for Branch Shop
                 'vendor_id'     => $vendorId,
+                'customer_id'   => $customerId,
+                'party_type'    => $partyType,
                 'vendor_name'   => $request->vendor_name ?? null, // ✅ NEW: Store local market shop name
                 'purchase_date' => $validated['purchase_date'] ?? now(),
                 'invoice_no'    => $invoiceNo, // ✅ Always use the calculated ERP invoice number
@@ -443,12 +449,20 @@ class PurchaseController extends Controller
             $packingQtys    = $request->packing_qty ?? [];
             $itemsPerPieces = $request->item_per_piece ?? [];
             $loosePieces    = $request->loose_piece ?? [];
+            $totalPiecesArr = $request->total_pieces ?? [];
+            $totalPiecesArr = $request->total_pieces ?? [];
 
             foreach ($pids as $i => $pid) {
                 $pid = (int)($pid ?? 0);
                 $qty = (float)($qtys[$i] ?? 0);
                 $price = (float)($prices[$i] ?? 0);
                 if (!$pid || $qty <= 0 || $price < 0) continue;
+
+                $product = Product::find($pid);
+                $multiplier = $product ? (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1) : 1;
+                $lineTotalPieces = isset($totalPiecesArr[$i]) && (float)$totalPiecesArr[$i] > 0
+                    ? (float)$totalPiecesArr[$i]
+                    : ($multiplier > 1 ? ($qty * $multiplier) : $qty);
 
                 $disc = (float)($itemDiscs[$i] ?? 0);
                 $unit = $units[$i] ?? null;
@@ -469,35 +483,28 @@ class PurchaseController extends Controller
                     'unit'          => $unit,
                     'price'         => $price,
                     'item_discount' => $disc,
-                    'qty'           => $qty,
+                    'qty'           => $lineTotalPieces,
                     'line_total'    => $lineTotal,
                     // ✅ Store Packing Details
-                    'packing_type'  => $packingTypes[$i] ?? null,
-                    'packing_qty'   => $packingQtys[$i] ?? null,
-                    'item_per_piece'=> $itemsPerPieces[$i] ?? null,
+                    'packing_type'  => $packingTypes[$i] ?? ($multiplier > 1 ? 'Customize' : 'Standard'),
+                    'packing_qty'   => $qty,
+                    'item_per_piece'=> $multiplier,
                     'loose_piece'   => $loosePieces[$i] ?? null,
                 ]);
 
                 // ✅ ERP STANDARD: Initialize tracking for receiving (Vendor Remaining)
-                // If this bill is created FROM a gatepass OR is a Local Purchase, it means items are ALREADY received.
-                // Otherwise, they are pending physical receipt.
-                // ✅ ERP STANDARD: Initialize tracking for receiving (Vendor Remaining)
-                // If this bill is created FROM a gatepass OR is a Local Purchase, it means items are ALREADY received.
-                // Otherwise, they are pending physical receipt.
                 $isLocal = ($request->purchase_type === 'local');
                 $isReceived = ($gatepass !== null || $isLocal);
                 
                 // Skip VendorRemaining for Local Market (No Vendor ID)
                 if ($vendorId) {
-                    // ✅ FIXED: Handle duplicate product entries (e.g. different colors) by aggregating quantities
-                    // This prevents "UniqueConstraintViolationException" on (purchase_id, product_id)
                     $existingVR = \App\Models\VendorRemaining::where('purchase_id', $purchase->id)
                         ->where('product_id', $pid)
                         ->first();
 
                     if ($existingVR) {
-                        $newOrdered = $existingVR->ordered_qty + $qty;
-                        $newReceived = $existingVR->received_qty + ($isReceived ? $qty : 0);
+                        $newOrdered = $existingVR->ordered_qty + $lineTotalPieces;
+                        $newReceived = $existingVR->received_qty + ($isReceived ? $lineTotalPieces : 0);
                         $newRemaining = $newOrdered - $newReceived;
                         
                         $existingVR->update([
@@ -512,9 +519,9 @@ class PurchaseController extends Controller
                             'vendor_id'     => $vendorId,
                             'product_id'    => $pid,
                             'warehouse_id'  => $dbWarehouseId,
-                            'ordered_qty'   => $qty,
-                            'received_qty'  => $isReceived ? $qty : 0,
-                            'remaining_qty' => $isReceived ? 0 : $qty,
+                            'ordered_qty'   => $lineTotalPieces,
+                            'received_qty'  => $isReceived ? $lineTotalPieces : 0,
+                            'remaining_qty' => $isReceived ? 0 : $lineTotalPieces,
                             'status'        => $isReceived ? 'completed' : 'pending',
                         ]);
                     }
@@ -524,9 +531,21 @@ class PurchaseController extends Controller
 
                 // ⚠️ IMPORTANT: Stock update DISABLED for Company Purchases
                 // Stock is updated later via InwardGatepass.store()
-                // BUT for Local Purchases, we update it IMMEDIATELY.
+                // BUT for Local Purchases, we update it IMMEDIATELY in pieces.
                 if ($isLocal) {
-                    $this->upsertStocks($pid, +$qty, $branchId, $itemWarehouse);
+                    $this->upsertStocks($pid, +$lineTotalPieces, $branchId, $itemWarehouse);
+
+                    DB::table('stock_movements')->insert([
+                        'product_id' => $pid,
+                        'branch_id'  => $branchId,
+                        'type'       => 'in',
+                        'qty'        => $lineTotalPieces,
+                        'ref_type'   => 'PURCHASE',
+                        'ref_id'     => $purchase->id,
+                        'note'       => $multiplier > 1 ? "Local Purchase: {$qty} Crtn ({$lineTotalPieces} Pcs) - #{$purchase->invoice_no}" : "Local Purchase: #{$purchase->invoice_no}",
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
                 }
             }
 
@@ -577,8 +596,33 @@ class PurchaseController extends Controller
 
             // ✅ PAYMENT LOGIC - ERP Standard (Double-Entry Bookkeeping)
             
-            // ===== STEP 1: Record PURCHASE in Vendor Ledger (SKIP if Local Market/No Vendor) =====
-            if ($vendorId) {
+            // ===== STEP 1: Record PURCHASE in Vendor or Customer Ledger =====
+            if ($partyType === 'customer' && $customerId) {
+                $customer = \App\Models\Customer::find($customerId);
+                $lastLedger = \App\Models\CustomerLedger::where('customer_id', $customerId)
+                    ->orderBy('id', 'desc')
+                    ->first();
+
+                $customerCurrentBalance = $lastLedger 
+                    ? (float)$lastLedger->closing_balance 
+                    : (float)($customer->opening_balance ?? 0);
+
+                // In accounting, Purchase from Customer credits their ledger (reduces receivable)
+                \App\Models\CustomerLedger::create([
+                    'customer_id'      => $customerId,
+                    'admin_or_user_id' => auth()->id(),
+                    'transaction_type' => 'Purchase',
+                    'reference_id'     => (string)$purchase->id,
+                    'description'      => "Purchase Invoice #{$purchase->invoice_no} (Contra Party: " . ($customer->customer_name ?? 'Customer') . ")",
+                    'opening_balance'  => $customer->opening_balance ?? 0,
+                    'previous_balance' => $customerCurrentBalance,
+                    'total_debit'      => 0,
+                    'total_credit'     => $netAmount,
+                    'closing_balance'  => $customerCurrentBalance - $netAmount,
+                ]);
+
+                $latestCustomerBalance = $customerCurrentBalance - $netAmount;
+            } elseif ($vendorId) {
                 // Get vendor's current outstanding balance BEFORE this purchase (branch-specific)
                 $lastLedger = VendorLedger::where('vendor_id', $vendorId)
                     ->where('branch_id', $branchId)
@@ -635,8 +679,22 @@ class PurchaseController extends Controller
                             $amt
                         );
 
-                        // ✅ NEW: Detailed Vendor Ledger entry for THIS payment account (SKIP if No Vendor)
-                        if ($vendorId) {
+                        // ✅ Detailed Ledger entry for THIS payment account
+                        if ($partyType === 'customer' && $customerId) {
+                            \App\Models\CustomerLedger::create([
+                                'customer_id'      => $customerId,
+                                'admin_or_user_id' => auth()->id(),
+                                'transaction_type' => 'Payment',
+                                'reference_id'     => (string)$purchase->id,
+                                'description'      => "Payment for Purchase #{$purchase->invoice_no} (via {$sourceAccount->title})",
+                                'opening_balance'  => $customer->opening_balance ?? 0,
+                                'previous_balance' => $latestCustomerBalance,
+                                'total_debit'      => $amt,
+                                'total_credit'     => 0,
+                                'closing_balance'  => $latestCustomerBalance + $amt,
+                            ]);
+                            $latestCustomerBalance += $amt;
+                        } elseif ($vendorId) {
                             VendorLedger::create([
                                 'vendor_id'        => $vendorId,
                                 'branch_id'        => $branchId,
@@ -664,8 +722,8 @@ class PurchaseController extends Controller
                     'pvid'                => $pvid,
                     'receipt_date'        => now()->format('Y-m-d'),
                     'entry_date'          => now()->format('Y-m-d'),
-                    'type'                => 'vendor',
-                    'party_id'            => $validated['vendor_id'] ?? null,
+                    'type'                => ($partyType === 'customer') ? 'customer' : 'vendor',
+                    'party_id'            => ($partyType === 'customer') ? $customerId : ($validated['vendor_id'] ?? null),
                     'tel'                 => $request->tel ?? null,
                     'remarks'             => 'Payment for Purchase Invoice: ' . $purchase->invoice_no,
                     'narration_id'        => json_encode(['1']), // Default narration
@@ -1106,7 +1164,9 @@ class PurchaseController extends Controller
 
             $product->last_purchase_price = $lastPurchaseItem
                 ? (float)$lastPurchaseItem->price
-                : (float)($product->wholesale_price ?? 0);
+                : ((float)($product->wholesale_price ?? 0) > 0 
+                    ? (float)$product->wholesale_price 
+                    : (float)($product->price ?? 0));
         }
 
         $vendorIds = $Vendor->pluck('id')->toArray();
@@ -1127,7 +1187,31 @@ class PurchaseController extends Controller
         $brands = \App\Models\Brand::all();
 
         $users = \App\Models\User::orderBy('name')->get();
-        return view('admin_panel.purchase.edit', compact('purchase', 'Vendor', 'Warehouse', 'Branch', 'vendorRemaining', 'isSuperAdmin', 'bankAccounts', 'prefilledPayments', 'Products', 'branches', 'allWarehouses', 'warehouseStocks', 'categories', 'brands', 'users'));
+        $settings = \App\Models\SaleSetting::getSettings();
+        $partySource = $settings->purchase_party_source ?? 'both';
+
+        // Load customers (always include purchase customer if set)
+        $Customer = $isSuperAdmin 
+            ? \App\Models\Customer::orderBy('customer_name')->get() 
+            : \App\Models\Customer::where('branch_id', $currentBranch)->orderBy('customer_name')->get();
+
+        if ($purchase->customer_id && !$Customer->contains('id', $purchase->customer_id)) {
+            $pCust = \App\Models\Customer::find($purchase->customer_id);
+            if ($pCust) $Customer->push($pCust);
+        }
+
+        $customerIds = $Customer->pluck('id')->toArray();
+        $lastCustomerLedgers = \App\Models\CustomerLedger::whereIn('customer_id', $customerIds)
+            ->orderBy('id', 'desc')
+            ->get()
+            ->groupBy('customer_id');
+
+        $Customer->each(function ($c) use ($lastCustomerLedgers) {
+            $last = $lastCustomerLedgers->get($c->id)?->first();
+            $c->closing_balance = $last ? (float)$last->closing_balance : (float)($c->opening_balance ?? 0);
+        });
+
+        return view('admin_panel.purchase.edit', compact('purchase', 'Vendor', 'Customer', 'partySource', 'Warehouse', 'Branch', 'vendorRemaining', 'isSuperAdmin', 'bankAccounts', 'prefilledPayments', 'Products', 'branches', 'allWarehouses', 'warehouseStocks', 'categories', 'brands', 'users'));
     }
 
 
@@ -1263,6 +1347,12 @@ class PurchaseController extends Controller
                     $lineWarehouse = (int)($lineWarehouseIds[$i] ?? 0);
                     $itemWarehouse = ($lineWarehouse > 0) ? $lineWarehouse : $warehouseId;
 
+                    $prod = Product::find($pid);
+                    $multiplier = $prod ? (float)($prod->piece_per_pack > 1 ? $prod->piece_per_pack : 1) : 1;
+                    $lineTotalPieces = isset($totalPiecesArr[$i]) && (float)$totalPiecesArr[$i] > 0
+                        ? (float)$totalPiecesArr[$i]
+                        : ($multiplier > 1 ? ($qty * $multiplier) : $qty);
+
                     PurchaseItem::create([
                         'purchase_id'   => $purchase->id,
                         'product_id'    => $pid,
@@ -1271,38 +1361,45 @@ class PurchaseController extends Controller
                         'unit'          => $unit,
                         'price'         => $price,
                         'item_discount' => $disc,
-                        'qty'           => $qty,
+                        'qty'           => $lineTotalPieces,
                         'line_total'    => $lineTotal,
                         // Store Packing Details
-                        'packing_type'  => $packingTypes[$i] ?? null,
-                        'packing_qty'   => $packingQtys[$i] ?? null,
-                        'item_per_piece'=> $itemsPerPieces[$i] ?? null,
+                        'packing_type'  => $packingTypes[$i] ?? ($multiplier > 1 ? 'Customize' : 'Standard'),
+                        'packing_qty'   => $qty,
+                        'item_per_piece'=> $multiplier,
                         'loose_piece'   => $loosePieces[$i] ?? null,
                     ]);
 
                     // --- 2. APPLY NEW STOCKS (for local purchases) ---
                     if ($shouldUpdateStock) {
-                        $this->upsertStocks((int)$pid, +$qty, $branchId, (int)$itemWarehouse);
+                        $this->upsertStocks((int)$pid, +$lineTotalPieces, $branchId, (int)$itemWarehouse);
                         
                         DB::table('stock_movements')->insert([
                             'product_id' => (int)$pid,
+                            'branch_id'  => $branchId,
                             'type'       => 'in',
-                            'qty'        => $qty,
+                            'qty'        => $lineTotalPieces,
                             'ref_type'   => 'PURCHASE_EDIT_ADD',
                             'ref_id'     => $purchase->id,
-                            'note'       => 'Reapply new stock during purchase edit',
+                            'note'       => $multiplier > 1 ? "Reapply new stock during purchase edit: {$qty} Crtn ({$lineTotalPieces} Pcs)" : 'Reapply new stock during purchase edit',
                             'created_at' => now(),
                             'updated_at' => now(),
                         ]);
                     }
 
                     $subtotal += $lineTotal;
-                    $newMap[$pid] = ($newMap[$pid] ?? 0) + $qty;
+                    $newMap[$pid] = ($newMap[$pid] ?? 0) + $lineTotalPieces;
                 }
+
+                $partyType = $request->party_type ?? ($request->customer_id ? 'customer' : 'vendor');
+                $customerId = ($partyType === 'customer') ? ($request->customer_id ?? null) : null;
+                $vendorId = ($partyType === 'vendor') ? ($request->vendor_id ?? $validated['vendor_id'] ?? null) : null;
 
                 // header update
                 $purchase->update([
-                    'vendor_id'     => $validated['vendor_id'] ?? $purchase->vendor_id,
+                    'vendor_id'     => $vendorId,
+                    'customer_id'   => $customerId,
+                    'party_type'    => $partyType,
                     'branch_id'     => $branchId,
                     'warehouse_id'  => $warehouseId,
                     'purchase_date' => $validated['purchase_date'] ?? $purchase->purchase_date,
@@ -1356,10 +1453,11 @@ class PurchaseController extends Controller
                     $oldVoucher->delete();
                 }
 
-                // Delete old vendor ledger entries for payment
+                // Delete old vendor & customer ledger entries for payment/purchase
                 \App\Models\VendorLedger::where('reference_id', $purchase->id)
                     ->where('transaction_type', 'payment')
                     ->delete();
+                \App\Models\CustomerLedger::where('reference_id', (string)$purchase->id)->delete();
 
                 $dueAmount = $netAmount - $paidAmount;
 
@@ -1599,7 +1697,7 @@ class PurchaseController extends Controller
     public function Invoice($id)
     {
         // ✅ Load relations to display in invoice header
-        $purchase   = Purchase::with(['items.product', 'branch', 'vendor', 'warehouse', 'inwardGatepasses'])->findOrFail($id);
+        $purchase   = Purchase::with(['items.product', 'branch', 'vendor', 'customer', 'warehouse', 'inwardGatepasses'])->findOrFail($id);
         $Vendor     = Vendor::where('branch_id', $purchase->branch_id)->get();
         $isSuperAdmin = Auth::check() && Auth::user()->hasRole('super admin');
         if ($isSuperAdmin) {
@@ -1916,7 +2014,9 @@ class PurchaseController extends Controller
 
             $product->last_purchase_price = $lastPurchaseItem
                 ? (float)$lastPurchaseItem->price
-                : (float)($product->wholesale_price ?? 0);
+                : ((float)($product->wholesale_price ?? 0) > 0 
+                    ? (float)$product->wholesale_price 
+                    : (float)($product->price ?? 0));
         }
         
         // Fetch warehouses with branch info for better identification
@@ -1954,7 +2054,28 @@ class PurchaseController extends Controller
         $brands = \App\Models\Brand::all();
 
         $users = \App\Models\User::orderBy('name')->get();
-        return view('admin_panel.purchase.add_local_purchase', compact('Vendor', 'Warehouse', 'Branch', 'nextInvoice', 'bankAccounts', 'isSuperAdmin', 'currentBranch', 'Products', 'branches', 'allWarehouses', 'warehouseStocks', 'categories', 'brands', 'users'));
+        $settings = \App\Models\SaleSetting::getSettings();
+        $partySource = $settings->purchase_party_source ?? 'both';
+
+        $Customer = collect();
+        if ($partySource !== 'vendors_only') {
+            $Customer = $isSuperAdmin 
+                ? \App\Models\Customer::orderBy('customer_name')->get() 
+                : \App\Models\Customer::where('branch_id', $currentBranch)->orderBy('customer_name')->get();
+
+            $customerIds = $Customer->pluck('id')->toArray();
+            $lastCustomerLedgers = \App\Models\CustomerLedger::whereIn('customer_id', $customerIds)
+                ->orderBy('id', 'desc')
+                ->get()
+                ->groupBy('customer_id');
+
+            $Customer->each(function ($c) use ($lastCustomerLedgers) {
+                $last = $lastCustomerLedgers->get($c->id)?->first();
+                $c->closing_balance = $last ? (float)$last->closing_balance : (float)($c->opening_balance ?? 0);
+            });
+        }
+
+        return view('admin_panel.purchase.add_local_purchase', compact('Vendor', 'Customer', 'partySource', 'Warehouse', 'Branch', 'nextInvoice', 'bankAccounts', 'isSuperAdmin', 'currentBranch', 'Products', 'branches', 'allWarehouses', 'warehouseStocks', 'categories', 'brands', 'users'));
     }
 
     /**
@@ -2119,7 +2240,7 @@ class PurchaseController extends Controller
         }
 
         $affectedWarehouse = $query->update([
-            'quantity'   => DB::raw('quantity + '.((int)$qtyDelta)),
+            'quantity'   => DB::raw('quantity + '.((float)$qtyDelta)),
             'updated_at' => $now,
         ]);
 
@@ -2128,7 +2249,7 @@ class PurchaseController extends Controller
                 'branch_id'    => $branchId,
                 'warehouse_id' => $whId,
                 'product_id'   => $productId,
-                'quantity'     => (int)$qtyDelta,
+                'quantity'     => (float)$qtyDelta,
                 'price'        => null,
                 'remarks'      => 'Direct purchase stock',
                 'created_at'   => $now,
@@ -2141,7 +2262,7 @@ class PurchaseController extends Controller
             ->where('product_id', $productId)
             ->where('branch_id', $branchId)
             ->update([
-                'qty'        => DB::raw('qty + '.((int)$qtyDelta)),
+                'qty'        => DB::raw('qty + '.((float)$qtyDelta)),
                 'updated_at' => $now,
             ]);
 
@@ -2149,7 +2270,7 @@ class PurchaseController extends Controller
             DB::table('stocks')->insert([
                 'branch_id'    => $branchId,
                 'product_id'   => $productId,
-                'qty'          => (int)$qtyDelta,
+                'qty'          => (float)$qtyDelta,
                 'reserved_qty' => 0,
                 'created_at'   => $now,
                 'updated_at'   => $now,

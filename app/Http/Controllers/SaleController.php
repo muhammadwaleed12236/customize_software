@@ -361,8 +361,12 @@ class SaleController extends Controller
                         ]);
                     }
 
+                    $prod = Product::find($it->product_id);
+                    $multiplier = $prod ? (float)($prod->piece_per_pack > 1 ? $prod->piece_per_pack : 1) : 1;
+                    $deductPieces = $it->sales_qty * $multiplier;
+
                     $currentWhQty = $warehousestock->quantity ?? 0;
-                    $newWhQty = $currentWhQty - $it->sales_qty;
+                    $newWhQty = $currentWhQty - $deductPieces;
 
                     $warehousestock->quantity = $newWhQty;
                     $warehousestock->save();
@@ -373,6 +377,7 @@ class SaleController extends Controller
                         'warehouse_id' => $wid ?? 'NULL (branch stock)',
                         'qty_before' => $currentWhQty,
                         'qty_after' => $newWhQty,
+                        'deduct_pieces' => $deductPieces,
                     ]);
 
                     /* ================= DEDUCT FROM STOCK (BRANCH-LEVEL) ================= */
@@ -390,7 +395,7 @@ class SaleController extends Controller
                     }
 
                     $stockBefore = $stock->qty ?? 0;
-                    $stock->qty = $stockBefore - $it->sales_qty;
+                    $stock->qty = $stockBefore - $deductPieces;
                     $stock->save();
                     
                     Log::info('Deducted from stocks (branch-level)', [
@@ -398,6 +403,7 @@ class SaleController extends Controller
                         'branch_id' => $itemBranchId,
                         'qty_before' => $stockBefore,
                         'qty_after' => $stock->qty,
+                        'deduct_pieces' => $deductPieces,
                     ]);
 
                     // Sale Item
@@ -420,9 +426,10 @@ class SaleController extends Controller
                         'branch_id'     => $sale->branch_id ?? ($branchId ?? 1),
                         'product_id'    => $it->product_id,
                         'type'          => 'out',
-                        'qty'           => $it->sales_qty,
+                        'qty'           => $deductPieces,
                         'ref_type'      => 'SALE',
                         'ref_id'        => $sale->id,
+                        'note'          => $multiplier > 1 ? "Sale: {$it->sales_qty} Crtn ({$deductPieces} Pcs) - Invoice #{$sale->invoice_no}" : "Sale: {$sale->invoice_no}",
                         'ref_uuid'      => $booking ? $booking->invoice_no : $sale->invoice_no,
                         'is_auto_pluck' => 1,
                         'note'          => 'Sale Invoice ' . $sale->invoice_no . ($wid ? ' (Warehouse: ' . $wid . ')' : ' (Branch Stock)'),
@@ -2821,6 +2828,10 @@ public function finddc($invoice)
                 $saleQty = (float) ($request->sales_qty[$i] ?? $request->qty[$i] ?? $request->carton_qty[$i] ?? $request->input("sales-qty.$i", 0));
                 if ($saleQty <= 0) continue;
 
+                $prod = Product::find($productId);
+                $multiplier = $prod ? (float)($prod->piece_per_pack > 1 ? $prod->piece_per_pack : 1) : 1;
+                $deductPieces = $saleQty * $multiplier;
+
                 // Per-location warehouse stock (allow negative)
                 $wsQuery = WarehouseStock::where('product_id', $productId)
                     ->where('branch_id', $itemBranch);
@@ -2832,14 +2843,14 @@ public function finddc($invoice)
                 $ws = $wsQuery->first();
 
                 if ($ws) {
-                    $ws->quantity = ($ws->quantity ?? 0) - $saleQty;
+                    $ws->quantity = ($ws->quantity ?? 0) - $deductPieces;
                     $ws->save();
                 } else {
                     WarehouseStock::create([
                         'branch_id'    => $itemBranch,
                         'warehouse_id' => $cleanWhId,
                         'product_id'   => $productId,
-                        'quantity'     => -1 * $saleQty,
+                        'quantity'     => -1 * $deductPieces,
                     ]);
                 }
 
@@ -2849,16 +2860,29 @@ public function finddc($invoice)
                     ->first();
 
                 if ($stockRow) {
-                    $stockRow->qty = ($stockRow->qty ?? 0) - $saleQty;
+                    $stockRow->qty = ($stockRow->qty ?? 0) - $deductPieces;
                     $stockRow->save();
                 } else {
                     Stock::create([
                         'branch_id' => $itemBranch,
                         'product_id' => $productId,
-                        'qty' => -1 * $saleQty,
+                        'qty' => -1 * $deductPieces,
                         'reserved_qty' => 0,
                     ]);
                 }
+
+                // Record stock movement for the sale
+                DB::table('stock_movements')->insert([
+                    'product_id' => $productId,
+                    'branch_id'  => $itemBranch,
+                    'type'       => 'out',
+                    'qty'        => $deductPieces,
+                    'ref_type'   => 'SALE',
+                    'ref_id'     => $sale->id,
+                    'note'       => $multiplier > 1 ? "Sale #{$sale->invoice_no} ({$saleQty} Crtn = {$deductPieces} Pcs)" : "Sale #{$sale->invoice_no}",
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]);
 
                 $retailPrice = (float) ($request->retail_price[$i] ?? $request->input("retail-price.$i", 0));
                 $discPercent = (float) ($request->discount_percentage[$i] ?? $request->input("discount-percent.$i", 0));
@@ -2869,7 +2893,7 @@ public function finddc($invoice)
                     'invoice_no' => $sale->invoice_no,
                     'branch_id' => $sale->branch_id,
                     'sale_id' => $sale->id,
-                    'warehouse_id' => $warehouse_id,
+                    'warehouse_id' => $cleanWhId,
                     'product_id' => $productId,
                     'watt' => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
                     'stock' => (float) ($request->stock[$i] ?? $request->input("stock.$i", 0)),
@@ -3335,7 +3359,7 @@ public function finddc($invoice)
         }
 
         $affectedWarehouse = $query->update([
-            'quantity'   => DB::raw('quantity + '.((int)$qtyDelta)),
+            'quantity'   => DB::raw('quantity + '.((float)$qtyDelta)),
             'updated_at' => $now,
         ]);
 
@@ -3344,7 +3368,7 @@ public function finddc($invoice)
                 'branch_id'    => $branchId,
                 'warehouse_id' => $whId,
                 'product_id'   => $productId,
-                'quantity'     => (int)$qtyDelta,
+                'quantity'     => (float)$qtyDelta,
                 'price'        => null,
                 'remarks'      => 'Sale Return stock',
                 'created_at'   => $now,
@@ -3357,7 +3381,7 @@ public function finddc($invoice)
             ->where('product_id', $productId)
             ->where('branch_id', $branchId)
             ->update([
-                'qty'        => DB::raw('qty + '.((int)$qtyDelta)),
+                'qty'        => DB::raw('qty + '.((float)$qtyDelta)),
                 'updated_at' => $now,
             ]);
 
@@ -3365,7 +3389,7 @@ public function finddc($invoice)
             DB::table('stocks')->insert([
                 'product_id'   => $productId,
                 'branch_id'    => $branchId,
-                'qty'          => (int)$qtyDelta,
+                'qty'          => (float)$qtyDelta,
                 'reserved_qty' => 0,
                 'created_at'   => $now,
                 'updated_at'   => $now,
@@ -4149,16 +4173,20 @@ public function finddc($invoice)
                         $whStockQuery->whereNull('warehouse_id');
                     }
 
+                    $oldProd = Product::find($oldItem->product_id);
+                    $oldMultiplier = $oldProd ? (float)($oldProd->piece_per_pack > 1 ? $oldProd->piece_per_pack : 1) : 1;
+                    $restorePieces = $oldItem->sales_qty * $oldMultiplier;
+
                     $whStock = $whStockQuery->first();
                     if ($whStock) {
-                        $whStock->quantity += $oldItem->sales_qty;
+                        $whStock->quantity += $restorePieces;
                         $whStock->save();
                     } else {
                         WarehouseStock::create([
                             'branch_id'    => $itemBranchId,
                             'warehouse_id' => $oldWid,
                             'product_id'   => $oldItem->product_id,
-                            'quantity'     => $oldItem->sales_qty,
+                            'quantity'     => $restorePieces,
                         ]);
                     }
 
@@ -4168,13 +4196,13 @@ public function finddc($invoice)
                         ->where('branch_id', $itemBranchId)
                         ->first();
                     if ($mainStock) {
-                        $mainStock->qty += $oldItem->sales_qty;
+                        $mainStock->qty += $restorePieces;
                         $mainStock->save();
                     } else {
                         Stock::create([
                             'branch_id'    => $itemBranchId,
                             'product_id'   => $oldItem->product_id,
-                            'qty'          => $oldItem->sales_qty,
+                            'qty'          => $restorePieces,
                             'reserved_qty' => 0,
                         ]);
                     }
@@ -4346,16 +4374,20 @@ public function finddc($invoice)
                         $whStockQuery->whereNull('warehouse_id');
                     }
 
+                    $newProd = Product::find($productId);
+                    $newMultiplier = $newProd ? (float)($newProd->piece_per_pack > 1 ? $newProd->piece_per_pack : 1) : 1;
+                    $deductPieces = $qty * $newMultiplier;
+
                     $whStock = $whStockQuery->first();
                     if ($whStock) {
-                        $whStock->quantity -= $qty;
+                        $whStock->quantity -= $deductPieces;
                         $whStock->save();
                     } else {
                         WarehouseStock::create([
                             'branch_id'    => $itemBranchId,
                             'warehouse_id' => $cleanWarehouseId,
                             'product_id'   => $productId,
-                            'quantity'     => -$qty,
+                            'quantity'     => -$deductPieces,
                         ]);
                     }
 
@@ -4366,13 +4398,13 @@ public function finddc($invoice)
                         ->first();
 
                     if ($mainStock) {
-                        $mainStock->qty -= $qty;
+                        $mainStock->qty -= $deductPieces;
                         $mainStock->save();
                     } else {
                         Stock::create([
                             'branch_id'    => $itemBranchId,
                             'product_id'   => $productId,
-                            'qty'          => -$qty,
+                            'qty'          => -$deductPieces,
                             'reserved_qty' => 0,
                         ]);
                     }

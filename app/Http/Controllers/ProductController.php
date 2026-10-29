@@ -285,6 +285,8 @@ class ProductController extends Controller
                  'stock'        => $stockQty,
                  'price'        => $product->price ?? 0,
                  'is_primary'   => $isPrimary,
+                 'pack_type'    => $product->pack_type ?? 'Standard',
+                 'piece_per_pack' => (float)($product->piece_per_pack ?? 1),
              ];
          });
 
@@ -367,6 +369,8 @@ public function searchProductsForSalebypagination(Request $request)
             'unit_name' => $p->unit->name ?? '',
             'unit_id' => $p->unit_id,
             'is_primary' => $isPrimary,  // ✅ NEW - Primary/Secondary status
+            'pack_type' => $p->pack_type ?? 'Standard',
+            'piece_per_pack' => (float)($p->piece_per_pack ?? 1),
         ];
     });
 
@@ -1607,7 +1611,8 @@ public function searchProductsForSalebypagination(Request $request)
             ->orderBy('item_name')
             ->limit(50)
             ->get(['id', 'item_name', 'item_code', 'unit_id', 'branch_id',
-                   'wholesale_price', 'price', 'alert_quantity', 'initial_stock']);
+                   'wholesale_price', 'price', 'alert_quantity', 'initial_stock',
+                   'pack_type', 'piece_per_pack']);
 
         $branchId = (int) $request->get('branch_id', Auth::user()->branch_id ?? 0);
 
@@ -1620,6 +1625,8 @@ public function searchProductsForSalebypagination(Request $request)
             'wholesale_price' => $p->wholesale_price ?? 0,
             'retail_price'    => $p->price ?? 0,
             'alert_quantity'  => $p->alert_quantity ?? 0,
+            'pack_type'       => $p->pack_type ?? 'Standard',
+            'piece_per_pack'  => (float) ($p->piece_per_pack ?? 1),
             'current_stock'   => $branchId
                 ? (Stock::where('product_id', $p->id)->where('branch_id', $branchId)->value('qty') ?? 0)
                 : (Stock::where('product_id', $p->id)->where('branch_id', $p->branch_id)->value('qty') ?? 0),
@@ -1720,6 +1727,7 @@ public function searchProductsForSalebypagination(Request $request)
                 foreach ($rows as $row) {
                     $productId  = (int) ($row['product_id'] ?? 0);
                     $opening    = (float) ($row['opening_qty'] ?? 0);
+                    $cartonQty  = (float) ($row['carton_qty'] ?? 0);
                     $alertQty   = (float) ($row['alert_qty'] ?? 0);
                     $wholesale  = (float) ($row['wholesale_price'] ?? 0);
                     $retail     = (float) ($row['retail_price'] ?? 0);
@@ -1729,6 +1737,22 @@ public function searchProductsForSalebypagination(Request $request)
 
                     $product = Product::find($productId);
                     if (!$product) continue;
+
+                    $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+                    if ($multiplier > 1 && $cartonQty > 0 && abs($opening - $cartonQty) < 0.001) {
+                        $opening = $cartonQty * $multiplier;
+                    }
+
+                    // Scale allocation data to pieces if product has packing multiplier
+                    $scaledAllocData = [];
+                    foreach ($allocData as $alloc) {
+                        $aQty = (float)($alloc['quantity'] ?? 0);
+                        if ($multiplier > 1) {
+                            $aQty *= $multiplier;
+                        }
+                        $alloc['quantity'] = $aQty;
+                        $scaledAllocData[] = $alloc;
+                    }
 
                     // Update prices & alert
                     $product->update([
@@ -1747,7 +1771,7 @@ public function searchProductsForSalebypagination(Request $request)
                         'qty'         => $opening,
                         'ref_type'    => 'OPENING',
                         'ref_id'      => null,
-                        'note'        => 'Opening stock entry',
+                        'note'        => $multiplier > 1 ? "Opening stock ({$cartonQty} Crtn × {$multiplier} = {$opening} Pcs)" : 'Opening stock entry',
                         'created_at'  => now(),
                         'updated_at'  => now(),
                     ]);
@@ -1760,7 +1784,7 @@ public function searchProductsForSalebypagination(Request $request)
                     );
 
                     // Upsert warehouse_stocks
-                    $this->applyWarehouseAllocation($productId, $branchId, $retail, $allocData, $opening);
+                    $this->applyWarehouseAllocation($productId, $branchId, $retail, $scaledAllocData, $opening);
                 }
             });
         } catch (\Exception $e) {
@@ -1890,10 +1914,26 @@ public function searchProductsForSalebypagination(Request $request)
             : (int) ($userBranchId ?: $product->branch_id);
 
         $newQty    = (float) $request->input('opening_qty', 0);
+        $cartonQty = (float) $request->input('carton_qty', 0);
         $alertQty  = (float) $request->input('alert_qty', 0);
         $wholesale = (float) $request->input('wholesale_price', 0);
         $retail    = (float) $request->input('retail_price', 0);
         $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
+
+        $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+        if ($multiplier > 1 && $cartonQty > 0 && abs($newQty - $cartonQty) < 0.001) {
+            $newQty = $cartonQty * $multiplier;
+        }
+
+        if ($multiplier > 1 && !empty($allocData)) {
+            $scaledAlloc = [];
+            foreach ($allocData as $alloc) {
+                $aQty = (float)($alloc['quantity'] ?? 0);
+                $alloc['quantity'] = $aQty * $multiplier;
+                $scaledAlloc[] = $alloc;
+            }
+            $allocData = $scaledAlloc;
+        }
 
         // Compute delta between new opening stock and existing opening stock movements
         $oldOpeningQty = (float) DB::table('stock_movements')

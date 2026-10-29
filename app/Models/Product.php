@@ -60,6 +60,36 @@ class Product extends Model
     {
         return $this->belongsTo(Unit::class, 'unit_id');
     }
+
+    /**
+     * Get Packing Multiplier (Pcs per Carton/Pack)
+     */
+    public function getPackingMultiplier(): float
+    {
+        $ppp = (float) ($this->piece_per_pack ?? 0);
+        return $ppp > 1 ? $ppp : 1.0;
+    }
+
+    /**
+     * Check if product has custom carton packing
+     */
+    public function hasPacking(): bool
+    {
+        return (float) ($this->piece_per_pack ?? 0) > 1;
+    }
+
+    /**
+     * Format stock into Pieces and Cartons
+     */
+    public function formatStockWithPacking(float $qty): string
+    {
+        $multiplier = $this->getPackingMultiplier();
+        if ($multiplier > 1) {
+            $cartons = $qty / $multiplier;
+            return number_format($qty, 2) . " Pcs (" . number_format($cartons, 2) . " Crtn)";
+        }
+        return number_format($qty, 2);
+    }
     public function brand()
     {
         return $this->belongsTo(Brand::class, 'brand_id');

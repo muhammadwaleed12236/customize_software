@@ -185,6 +185,48 @@
                     </div>
                 </div>
 
+                {{-- CARD 2B: PURCHASE SCREEN PARTY CONFIGURATION --}}
+                <div class="card border-0 rounded-4 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3 px-4 border-bottom">
+                        <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                            <i class="fas fa-truck-loading text-primary"></i> Purchase Screen Party Configuration (وینڈرز اور کسٹمرز کی ترتیبات)
+                        </h5>
+                        <small class="text-muted">Configure whether only Vendors or both Vendors & Customers are fetched on the Purchase screen (<code class="text-primary">/add/LocalPurchase</code>).</small>
+                    </div>
+
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            {{-- OPTION 1: BOTH VENDORS & CUSTOMERS --}}
+                            <div class="col-md-6">
+                                <label class="mode-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 {{ ($settings->purchase_party_source ?? 'both') === 'both' ? 'active-mode' : '' }}" for="party_both">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <input class="form-check-input mt-0 mode-radio" type="radio" name="purchase_party_source" id="party_both" value="both" {{ ($settings->purchase_party_source ?? 'both') === 'both' ? 'checked' : '' }}>
+                                        <span class="fs-5 text-primary"><i class="fas fa-users"></i></span>
+                                        <h6 class="fw-bold mb-0 text-dark">Both Vendors & Customers (دونوں)</h6>
+                                    </div>
+                                    <p class="small text-muted mb-0 ps-4">
+                                        Purchase screen par <strong>Vendors aur Customers dono</strong> fetch hon ge. Is se aap un customers se bhi purchase kar saktay hain jo aap ke vendor bhi hain (Contra party).
+                                    </p>
+                                </label>
+                            </div>
+
+                            {{-- OPTION 2: VENDORS ONLY --}}
+                            <div class="col-md-6">
+                                <label class="mode-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 {{ ($settings->purchase_party_source ?? 'both') === 'vendors_only' ? 'active-mode' : '' }}" for="party_vendors_only">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <input class="form-check-input mt-0 mode-radio" type="radio" name="purchase_party_source" id="party_vendors_only" value="vendors_only" {{ ($settings->purchase_party_source ?? 'both') === 'vendors_only' ? 'checked' : '' }}>
+                                        <span class="fs-5 text-danger"><i class="fas fa-user-shield"></i></span>
+                                        <h6 class="fw-bold mb-0 text-dark">Vendors Only (صرف وینڈرز - کسٹمر بلاک)</h6>
+                                    </div>
+                                    <p class="small text-muted mb-0 ps-4">
+                                        Purchase screen par customers ko block kar diya jaye ga, <strong>sirf registered Vendors</strong> hi dropdown mein fetch hon ge.
+                                    </p>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- CARD 3: A4 INVOICE PRINT & DESIGN CUSTOMIZATION --}}
                 <div class="card border-0 rounded-4 shadow-sm mb-4">
                     <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -442,6 +484,19 @@
                 }
             });
         }
+
+            // Radio button active-mode toggle
+        document.querySelectorAll('input[name="purchase_party_source"], input[name="warehouse_mode"]').forEach(radio => {
+            radio.addEventListener('change', function() {
+                const name = this.getAttribute('name');
+                document.querySelectorAll('input[name="' + name + '"]').forEach(r => {
+                    r.closest('.mode-card')?.classList.remove('active-mode');
+                });
+                if (this.checked) {
+                    this.closest('.mode-card')?.classList.add('active-mode');
+                }
+            });
+        });
     });
 </script>
 @endsection

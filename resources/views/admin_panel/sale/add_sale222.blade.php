@@ -1691,8 +1691,13 @@
                         initialStock = (prod.stock !== undefined && prod.stock !== null) ? prod.stock : (prod.overall_stock || 0);
                     }
                     $row.find('.stock').val(initialStock);
+                    let ppp = parseFloat(prod.piece_per_pack) || 1;
+                    $row.data('piece-per-pack', ppp);
                     $row.find('.retail-price').val(prod.retail_price || prod.price || prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
-                    $row.find('.total-pieces').val($row.find('.sales-qty').val() || 1);
+                    let currentSalesQty = toNum($row.find('.sales-qty').val()) || 1;
+                    let initialPieces = ppp > 1 ? (currentSalesQty * ppp) : currentSalesQty;
+                    $row.find('.total-pieces').val(initialPieces);
+                    $row.find('.sales-qty-hidden').val(initialPieces);
 
                     // Auto-detect Watt if watt column is enabled
                     if (window.saleSettings && window.saleSettings.show_watt) {
@@ -1745,7 +1750,11 @@
 
                 let net = Math.max(0, gross - discAmt);
 
-                $row.find('.total-pieces').val(qty);
+                let ppp = parseFloat($row.data('piece-per-pack')) || 1;
+                let totalPieces = ppp > 1 ? (qty * ppp) : qty;
+
+                $row.find('.total-pieces').val(totalPieces);
+                $row.find('.sales-qty-hidden').val(totalPieces);
                 $row.find('.sales-qty-mirror').val(qty);
                 $row.find('.discount-amount').val(discAmt.toFixed(2));
                 $row.find('.sales-amount').val(net.toFixed(2));

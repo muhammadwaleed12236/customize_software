@@ -408,13 +408,21 @@
                     @endif
                 </div>
 
-                {{-- Box 2: Vendor / Supplier --}}
+                {{-- Box 2: Vendor / Supplier / Customer --}}
                 <div class="inv-info-box vendor-box">
-                    <div class="inv-info-label"><i class="fas fa-truck text-success"></i> Supplier / Vendor</div>
-                    <div class="inv-info-value text-uppercase" style="color: var(--inv-emerald);">
-                        {{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Market Supplier' }}
-                    </div>
-                    <div class="inv-info-sub"><i class="fas fa-phone-alt me-1 text-muted"></i> {{ $purchase->vendor->phone ?? 'Walk-In Market' }}</div>
+                    @if($purchase->party_type === 'customer' || $purchase->customer_id)
+                        <div class="inv-info-label"><i class="fas fa-user text-primary"></i> Customer / Contra Party</div>
+                        <div class="inv-info-value text-uppercase" style="color: #0284c7;">
+                            {{ $purchase->customer->customer_name ?? $purchase->vendor_name ?? 'Customer' }}
+                        </div>
+                        <div class="inv-info-sub"><i class="fas fa-phone-alt me-1 text-muted"></i> {{ $purchase->customer->mobile ?? 'N/A' }}</div>
+                    @else
+                        <div class="inv-info-label"><i class="fas fa-truck text-success"></i> Supplier / Vendor</div>
+                        <div class="inv-info-value text-uppercase" style="color: var(--inv-emerald);">
+                            {{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Market Supplier' }}
+                        </div>
+                        <div class="inv-info-sub"><i class="fas fa-phone-alt me-1 text-muted"></i> {{ $purchase->vendor->phone ?? 'Walk-In Market' }}</div>
+                    @endif
                 </div>
 
                 {{-- Box 3: Warehouse / Destination --}}
@@ -669,7 +677,7 @@
                     <div class="p-3 mb-3 rounded border bg-white d-flex justify-content-between align-items-center">
                         <div>
                             <div class="small text-muted text-uppercase" style="font-size: 10px; font-weight: 700;">Party / Supplier</div>
-                            <div class="font-weight-bold text-dark">{{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Supplier' }}</div>
+                            <div class="font-weight-bold text-dark">{{ $purchase->customer ? ('👤 ' . $purchase->customer->customer_name) : ($purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Supplier') }}</div>
                         </div>
                         <div class="text-end">
                             <div class="small text-muted text-uppercase" style="font-size: 10px; font-weight: 700;">Outstanding Due</div>

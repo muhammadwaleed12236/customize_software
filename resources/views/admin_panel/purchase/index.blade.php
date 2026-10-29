@@ -452,7 +452,12 @@
                                 {{-- Vendor / Warehouse --}}
                                 <td class="text-start">
                                     <div class="font-weight-bold text-dark text-uppercase" style="font-size: 13px;">
-                                        {{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Market Supplier' }}
+                                        @if($purchase->party_type === 'customer' || $purchase->customer_id)
+                                            <span class="badge bg-info-subtle text-info border border-info-subtle me-1" style="font-size: 10px;"><i class="fas fa-user"></i> Customer</span>
+                                            {{ $purchase->customer->customer_name ?? $purchase->vendor_name ?? 'Customer' }}
+                                        @else
+                                            {{ $purchase->vendor->name ?? $purchase->vendor_name ?? 'Local Market Supplier' }}
+                                        @endif
                                     </div>
                                     <div class="small text-muted" style="font-size: 11px;">
                                         <i class="fas fa-warehouse me-1 text-secondary"></i>

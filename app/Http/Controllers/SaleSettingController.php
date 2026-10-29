@@ -29,6 +29,9 @@ class SaleSettingController extends Controller
             'show_overall_discount' => $request->has('show_overall_discount'),
             'show_watt' => $request->has('show_watt'),
             'warehouse_mode' => $request->input('warehouse_mode', 'global') === 'product_wise' ? 'product_wise' : 'global',
+            'purchase_party_source' => in_array($request->input('purchase_party_source'), ['both', 'vendors_only', 'customers_only']) 
+                ? $request->input('purchase_party_source') 
+                : 'both',
         ];
 
         // Invoice customization settings
@@ -61,6 +64,6 @@ class SaleSettingController extends Controller
         $settings->update($data);
 
         return redirect()->route('sale.settings.index')
-            ->with('success', 'Sale Screen & Invoice Settings updated successfully!');
+            ->with('success', 'Screen & Procurement Settings updated successfully!');
     }
 }

@@ -626,7 +626,9 @@
             @csrf
             <input type="hidden" name="purchase_type" value="local">
             <input type="hidden" name="_vendor_mode" id="vendorModeInput" value="vendor">
+            <input type="hidden" name="party_type" id="partyTypeInput" value="vendor">
             <input type="hidden" name="vendor_id" id="vendorIdInput" value="">
+            <input type="hidden" name="customer_id" id="customerIdInput" value="">
             <input type="hidden" name="vendor_name" id="vendorNameInput" value="">
             <input type="hidden" name="invoice_no" id="inputInvoiceNo" value="{{ $nextInvoice }}">
 
@@ -757,29 +759,54 @@
                     </div>
                 </div>
 
-                <!-- Vendor Input Group -->
+                <!-- Vendor / Customer Selection Group -->
                 <div style="margin-top: 3px;">
                     <div class="d-flex justify-content-between align-items-center" style="margin-bottom: 2px !important;">
                         <label class="form-label fw-bold text-uppercase text-primary mb-0 d-flex align-items-center" style="font-size:0.67rem; letter-spacing:0.3px;">
-                            <i class="fas fa-truck text-primary me-1"></i>Vendor Selection
+                            <i class="fas fa-handshake text-primary me-1"></i>Party / Supplier Selection
+                            @if(($partySource ?? 'both') === 'both')
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle ms-1" style="font-size: 0.6rem;">Vendors + Customers</span>
+                            @else
+                                <span class="badge bg-secondary-subtle text-secondary border ms-1" style="font-size: 0.6rem;">Vendors Only</span>
+                            @endif
                         </label>
                         <div id="vendorPrevBalWrapper" class="d-flex align-items-center gap-1" style="font-size:0.75rem;">
-                            <span class="text-muted fw-semibold">Prev. Balance:</span>
+                            <span class="text-muted fw-semibold" id="lblPrevBal">Prev. Balance:</span>
                             <span id="badgeVendorPrevBal" class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold font-monospace px-2 py-0" style="font-size:0.78rem;">Rs 0.00</span>
                         </div>
                     </div>
                     <div id="vendorInputWrapper" class="input-group input-group-sm shadow-xs rounded">
                         <div id="vendorSelectBoxContainer" class="flex-grow-1" style="min-width: 0;">
                             <select class="form-select select2" id="vendorSelect" name="vendor_id_select" style="width:100%">
-                                <option value="">Select or search vendor...</option>
-                                @foreach($Vendor as $v)
-                                    <option value="{{ $v->id }}"
-                                        data-name="{{ $v->name }}"
-                                        data-balance="{{ $v->closing_balance ?? 0 }}"
-                                        data-phone="{{ $v->phone_number ?? '' }}">
-                                        {{ $v->name }} (Bal: Rs. {{ number_format($v->closing_balance ?? 0, 2) }})
-                                    </option>
-                                @endforeach
+                                <option value="">Select or search party (Vendor / Customer)...</option>
+                                @if(isset($Vendor) && count($Vendor) > 0)
+                                    <optgroup label="🏢 Registered Vendors (وینڈرز)">
+                                        @foreach($Vendor as $v)
+                                            <option value="vendor_{{ $v->id }}"
+                                                data-type="vendor"
+                                                data-id="{{ $v->id }}"
+                                                data-name="{{ $v->name }}"
+                                                data-balance="{{ $v->closing_balance ?? 0 }}"
+                                                data-phone="{{ $v->phone_number ?? '' }}">
+                                                🏢 {{ $v->name }} (Payable: Rs. {{ number_format($v->closing_balance ?? 0, 2) }})
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
+                                @if(($partySource ?? 'both') !== 'vendors_only' && isset($Customer) && count($Customer) > 0)
+                                    <optgroup label="👤 Customers / Contra Parties (کسٹمرز)">
+                                        @foreach($Customer as $c)
+                                            <option value="customer_{{ $c->id }}"
+                                                data-type="customer"
+                                                data-id="{{ $c->id }}"
+                                                data-name="{{ $c->customer_name }}"
+                                                data-balance="{{ $c->closing_balance ?? 0 }}"
+                                                data-phone="{{ $c->mobile ?? '' }}">
+                                                👤 {{ $c->customer_name }} (Receivable: Rs. {{ number_format($c->closing_balance ?? 0, 2) }})
+                                            </option>
+                                        @endforeach
+                                    </optgroup>
+                                @endif
                             </select>
                         </div>
                         <input type="text" class="form-control fw-bold d-none" name="local_vendor_name" id="walkinNameInput" placeholder="Enter Local Supplier / Market Shop Name...">
@@ -787,7 +814,7 @@
                             <i class="fas fa-store"></i> Local Market
                         </button>
                         <button type="button" class="btn btn-outline-success fw-bold px-3 d-flex align-items-center gap-1" id="btnAddNewVendorModal" data-bs-toggle="modal" data-bs-target="#addVendorModal">
-                            <i class="fas fa-user-plus"></i> New
+                            <i class="fas fa-user-plus"></i> New Vendor
                         </button>
                     </div>
                 </div>
@@ -839,7 +866,9 @@
                                                     <option value="{{ $p->id }}" 
                                                         data-price="{{ $p->last_purchase_price }}" 
                                                         data-unit="{{ $p->unit->name ?? 'unit' }}" 
-                                                        data-code="{{ $p->item_code }}">
+                                                        data-code="{{ $p->item_code }}"
+                                                        data-piece-per-pack="{{ (float)($p->piece_per_pack ?? 1) }}"
+                                                        data-pack-type="{{ $p->pack_type ?? 'Standard' }}">
                                                         {{ $p->item_name }} {{ $p->item_code ? '('.$p->item_code.')' : '' }}
                                                     </option>
                                                 @endforeach
@@ -850,6 +879,7 @@
                                             <input type="hidden" name="packing_qty[]" class="pack-qty-input" value="0">
                                             <input type="hidden" name="item_per_piece[]" class="ipp-input" value="0">
                                             <input type="hidden" name="loose_piece[]" class="loose-pcs-input" value="0">
+                                            <input type="hidden" name="total_pieces[]" class="total-pieces-input" value="1">
                                         </td>
 
                                         <td class="col-warehouse">
@@ -868,11 +898,12 @@
                                         </td>
 
                                         <td class="col-qty">
-                                            <input type="number" step="any" name="qty[]" class="form-control qty-input text-center fw-bold" value="1" min="1" required style="font-size: 0.85rem;">
+                                            <input type="number" step="any" name="qty[]" class="form-control qty-input text-center fw-bold" value="1" min="0.001" required style="font-size: 0.85rem;">
                                         </td>
 
                                         <td class="col-pieces text-center">
                                             <input type="text" class="form-control unit-display text-center input-readonly" readonly tabindex="-1" value="Piece" style="font-size: 0.75rem;">
+                                            <div class="packing-preview-badge small text-success fw-bold" style="display:none; font-size:10.5px; line-height:1.2; margin-top:3px;"></div>
                                         </td>
 
                                         <td class="col-price-p">
@@ -1239,16 +1270,43 @@ $(document).ready(function() {
         }, 80);
     });
 
-    // Vendor Selection Logic
+    // Party Selection Logic (Vendor vs Customer)
     $('#vendorSelect').on('change', function() {
         var opt = $(this).find(':selected');
         var val = $(this).val();
-        var name = opt.data('name') || opt.text().split('(Bal:')[0].trim();
+        var partyType = opt.data('type') || 'vendor';
+        var partyId = opt.data('id') || '';
+        var name = opt.data('name') || '';
         var bal = parseFloat(opt.data('balance')) || 0;
 
-        $('#vendorIdInput').val(val);
-        $('#vendorNameInput').val(name);
-        $('#badgeVendorPrevBal').text('Rs ' + bal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        if (partyType === 'customer') {
+            $('#partyTypeInput').val('customer');
+            $('#customerIdInput').val(partyId);
+            $('#vendorIdInput').val('');
+            $('#vendorNameInput').val(name);
+            $('#lblPrevBal').text('Receivable:');
+            $('#badgeVendorPrevBal').removeClass('bg-danger-subtle text-danger border-danger-subtle bg-success-subtle text-success border-success-subtle')
+                .addClass('bg-info-subtle text-info border-info-subtle')
+                .text('Rs ' + bal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        } else {
+            $('#partyTypeInput').val('vendor');
+            $('#customerIdInput').val('');
+            $('#vendorIdInput').val(partyId);
+            $('#vendorNameInput').val(name);
+            $('#lblPrevBal').text('Payable:');
+            $('#badgeVendorPrevBal').removeClass('bg-info-subtle text-info border-info-subtle bg-success-subtle text-success border-success-subtle')
+                .addClass('bg-danger-subtle text-danger border-danger-subtle')
+                .text('Rs ' + bal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+        }
+
+        if (!val) {
+            $('#vendorIdInput').val('');
+            $('#customerIdInput').val('');
+            $('#partyTypeInput').val('vendor');
+            $('#vendorNameInput').val('');
+            $('#badgeVendorPrevBal').text('Rs 0.00');
+        }
+
         $('#displayPrevBalance').text(bal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
         recalc();
     });
@@ -1269,7 +1327,9 @@ $(document).ready(function() {
             $('#vendorSelectBoxContainer').addClass('d-none');
             $('#walkinNameInput').removeClass('d-none').focus();
             $('#vendorModeInput').val('local');
+            $('#partyTypeInput').val('vendor');
             $('#vendorIdInput').val('');
+            $('#customerIdInput').val('');
             $('#vendorNameInput').val($('#walkinNameInput').val() || 'Local Market');
             $('#badgeVendorPrevBal').text('Rs 0.00');
             $('#displayPrevBalance').text('0.00');
@@ -1316,6 +1376,31 @@ $(document).ready(function() {
         $row.find('.stock').val(stock);
     }
 
+    // Packing info calculation helper
+    function updatePackingInfo($row) {
+        var opt = $row.find('.product-select option:selected');
+        var ppp = parseFloat(opt.data('piece-per-pack')) || 1;
+        var packType = opt.data('pack-type') || 'Standard';
+        var unit = opt.data('unit') || 'Piece';
+        var qty = parseFloat($row.find('.qty-input').val()) || 0;
+
+        $row.find('.ipp-input').val(ppp);
+        $row.find('.packing-type-input').val(packType);
+        $row.find('.pack-qty-input').val(qty);
+
+        var totalPieces = ppp > 1 ? (qty * ppp) : qty;
+        $row.find('.total-pieces-input').val(totalPieces);
+
+        var badge = $row.find('.packing-preview-badge');
+        if (ppp > 1 && qty > 0) {
+            $row.find('.unit-display').val(unit + ' (' + ppp + ' Pcs)');
+            badge.html('<i class="fas fa-boxes"></i> ' + qty + ' Crtn = ' + totalPieces + ' Pcs').show();
+        } else {
+            $row.find('.unit-display').val(unit);
+            badge.hide().empty();
+        }
+    }
+
     // Product Selection -> Auto Cost Price & Unit
     $(document).on('change', '.product-select', function() {
         var opt = $(this).find(':selected');
@@ -1327,7 +1412,13 @@ $(document).ready(function() {
         $row.find('.unit-input').val(unit);
         $row.find('.unit-display').val(unit);
         updateRowStock($row);
+        updatePackingInfo($row);
         recalc();
+    });
+
+    // Update packing on qty input change
+    $(document).on('input', '.qty-input', function() {
+        updatePackingInfo($(this).closest('tr'));
     });
 
     // Add New Row
@@ -1344,6 +1435,8 @@ $(document).ready(function() {
         newRow.find('.unit-display').val('Piece');
         newRow.find('.packing-type-input').val('Standard');
         newRow.find('.pack-qty-input, .ipp-input, .loose-pcs-input').val('0');
+        newRow.find('.total-pieces-input').val('1');
+        newRow.find('.packing-preview-badge').hide().empty();
 
         var toggleBtn = newRow.find('.disc-type-toggle');
         toggleBtn.attr('data-type', 'amount').text('Rs');
@@ -1576,6 +1669,8 @@ $(document).ready(function() {
                     $(newOption).data('price', res.wholesale_price || 0);
                     $(newOption).data('unit', res.unit ? res.unit.name : 'Piece');
                     $(newOption).data('code', res.item_code || '');
+                    $(newOption).data('piece-per-pack', res.piece_per_pack || 1);
+                    $(newOption).data('pack-type', res.pack_type || 'Standard');
                     $('.product-select:last').append(newOption).trigger('change');
                 }
                 Swal.fire({
@@ -1617,7 +1712,9 @@ $(document).ready(function() {
                 form[0].reset();
 
                 if (res && res.id) {
-                    var newOption = new Option(res.name + ' (Bal: Rs. ' + (parseFloat(res.opening_balance)||0).toFixed(2) + ')', res.id, true, true);
+                    var newOption = new Option('🏢 ' + res.name + ' (Payable: Rs. ' + (parseFloat(res.opening_balance)||0).toFixed(2) + ')', 'vendor_' + res.id, true, true);
+                    $(newOption).data('type', 'vendor');
+                    $(newOption).data('id', res.id);
                     $(newOption).data('name', res.name);
                     $(newOption).data('balance', res.opening_balance || 0);
                     $('#vendorSelect').append(newOption).trigger('change');

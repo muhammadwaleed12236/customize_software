@@ -2144,7 +2144,9 @@ class ReportingController extends Controller
 
             // ================= GET SOLD QTY & AMOUNT (DELIVERED) =================
             // Physically Delivered / Invoiced Sales (with Gatepass fallback)
-            $sold = floatval($salesMap[$product->id]->total_qty ?? ($gpDeliveredQty[$product->id] ?? 0));
+            $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+            $rawSold = floatval($salesMap[$product->id]->total_qty ?? ($gpDeliveredQty[$product->id] ?? 0));
+            $sold = $rawSold * $multiplier;
             $saleAmount = floatval($salesMap[$product->id]->total_amount ?? ($gpDeliveredAmount[$product->id] ?? 0));
 
             // ================= GET RESERVED QTY (PENDING DELIVERY) =================
@@ -2202,6 +2204,9 @@ class ReportingController extends Controller
                 'id' => $product->id,
                 'item_code' => $product->item_code,
                 'item_name' => $product->item_name,
+                'unit' => $product->unit?->name ?? 'Pcs',
+                'piece_per_pack' => (float)($product->piece_per_pack ?? 1),
+                'pack_type' => $product->pack_type ?? 'Standard',
                 'initial_stock' => $openingStock,
                 'purchased' => $purchased,
                 'purchase_amount' => $purchaseAmount,

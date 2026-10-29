@@ -573,13 +573,25 @@ $(document).ready(function() {
                 warehouseHtml = '<span class="text-muted">No breakdown</span>';
             }
 
+            // ============= PACKING DISPLAY LOGIC =============
+            let ppp = parseFloat(r.piece_per_pack) || 1;
+            let packBadge = (ppp > 1) ? ` <span class="badge bg-light text-primary border" style="font-size:10px;"><i class="fas fa-boxes"></i> ${ppp} Pcs/Crtn</span>` : '';
+
+            let formatQtyWithCarton = function(qtyVal) {
+                if (ppp > 1 && qtyVal != 0) {
+                    let crtn = (qtyVal / ppp).toFixed(1).replace(/\.0$/, '');
+                    return `${qtyVal.toFixed(2)} <span class="badge bg-light text-dark border" style="font-size:9.5px; font-weight:600;">(${crtn} Crtn)</span>`;
+                }
+                return qtyVal.toFixed(2);
+            };
+
             // ============= NEGATIVE STOCK VISUAL LOGIC =============
             let isNegative  = balance < 0;
             if (isNegative) hasNegativeStock = true;
 
             let balanceHtml = isNegative
-                ? `<strong class="text-danger">${balance.toFixed(2)} <span class="badge badge-danger" title="Negative Stock — sold more than available">⚠ Negative</span></strong>`
-                : `<strong>${balance.toFixed(2)}</strong>`;
+                ? `<strong class="text-danger">${formatQtyWithCarton(balance)} <span class="badge badge-danger" title="Negative Stock — sold more than available">⚠ Negative</span></strong>`
+                : `<strong>${formatQtyWithCarton(balance)}</strong>`;
 
             let stockValueHtml = isNegative
                 ? `<strong class="text-danger">Rs. ${stockValue.toFixed(2)}</strong>`
@@ -592,11 +604,11 @@ $(document).ready(function() {
                 <tr style="${rowStyle}">
                     <td>${idx + 1}${isNegative ? ' <span class="text-danger" title="Negative Stock">⚠</span>' : ''}</td>
                     <td><strong>${r.item_code}</strong></td>
-                    <td>${r.item_name}</td>
-                    <td class="text-end">${opening.toFixed(2)}</td>
-                    <td class="text-end">${purchased.toFixed(2)}</td>
+                    <td>${r.item_name}${packBadge}</td>
+                    <td class="text-end">${formatQtyWithCarton(opening)}</td>
+                    <td class="text-end">${formatQtyWithCarton(purchased)}</td>
                     <td class="text-end">Rs. ${purchAmt.toFixed(2)}</td>
-                    <td class="text-end fw-bold text-success" title="Physically Delivered Qty (دیے گئے)">${sold.toFixed(2)}</td>
+                    <td class="text-end fw-bold text-success" title="Physically Delivered Qty (دیے گئے)">${formatQtyWithCarton(sold)}</td>
                     <td class="text-end">Rs. ${saleAmt.toFixed(2)}</td>
                     <td class="text-end" title="Reserved Stock Pending Delivery (ریزرورڈ)"><span class="badge bg-warning text-dark font-weight-bold px-2 py-1" style="font-size: 11px;">${reserved.toFixed(2)} pending</span></td>
                     <td class="text-end">${balanceHtml}</td>

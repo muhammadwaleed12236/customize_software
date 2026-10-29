@@ -15,6 +15,7 @@ class SaleSetting extends Model
         'show_overall_discount',
         'show_watt',
         'warehouse_mode',
+        'purchase_party_source',
         'invoice_logo',
         'invoice_company_name',
         'invoice_tagline',
@@ -37,6 +38,7 @@ class SaleSetting extends Model
         'show_overall_discount' => 'boolean',
         'show_watt' => 'boolean',
         'warehouse_mode' => 'string',
+        'purchase_party_source' => 'string',
         'invoice_show_watermark' => 'boolean',
         'invoice_min_rows' => 'integer',
     ];
@@ -52,6 +54,7 @@ class SaleSetting extends Model
             'show_overall_discount' => true,
             'show_watt' => false,
             'warehouse_mode' => 'global',
+            'purchase_party_source' => 'both',
             'invoice_company_name' => 'GLC',
             'invoice_tagline' => 'Long Life Accessories',
             'invoice_sub_description' => "Power Bank, Battery, Data Cable, Charger, Head Phone\nHandsfree, Bluetooth & Multimedia",
