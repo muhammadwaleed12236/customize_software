@@ -939,9 +939,21 @@
                             <td>
                                 @if($product->all_warehouse_stocks && count($product->all_warehouse_stocks) > 0)
                                     @foreach($product->all_warehouse_stocks as $stock)
-                                        <div class="branch-stock-row">
+                                        @php
+                                            $ppp = (float)($product->piece_per_pack ?? 1);
+                                            $sQty = (float)$stock['quantity'];
+                                            $cartonQty = ($ppp > 1) ? ($sQty / $ppp) : $sQty;
+                                        @endphp
+                                        <div class="branch-stock-row mb-1">
                                             <span class="branch-stock-name">{{ $stock['branch_name'] }}:</span>
-                                            <span class="badge-qty">{{ $stock['quantity'] }}</span>
+                                            @if($ppp > 1)
+                                                <span class="badge-qty" title="{{ $sQty }} Pcs">
+                                                    {{ rtrim(rtrim(number_format($cartonQty, 2), '0'), '.') }} {{ $product->unit?->name ?? 'Crtn' }}
+                                                    <span style="font-size: 10px; color: #64748b; font-weight: 600;">({{ rtrim(rtrim(number_format($sQty, 2), '0'), '.') }} Pcs)</span>
+                                                </span>
+                                            @else
+                                                <span class="badge-qty">{{ $sQty }}</span>
+                                            @endif
                                         </div>
                                     @endforeach
                                 @else
@@ -957,8 +969,22 @@
                             </td>
                         @else
                             <td>
-                                @if($product->branch_stock_qty > 0)
-                                    <span class="badge-qty">{{ $product->branch_stock_qty }}</span>
+                                @php
+                                    $ppp = (float)($product->piece_per_pack ?? 1);
+                                    $bQty = (float)$product->branch_stock_qty;
+                                    $cartonBQty = ($ppp > 1) ? ($bQty / $ppp) : $bQty;
+                                @endphp
+                                @if($bQty > 0)
+                                    @if($ppp > 1)
+                                        <div style="font-weight: 700; color: #1e3a5f;">
+                                            {{ rtrim(rtrim(number_format($cartonBQty, 2), '0'), '.') }} <small style="color:#64748b;">{{ $product->unit?->name ?? 'Crtn' }}</small>
+                                        </div>
+                                        <div style="font-size: 11px; color: #64748b; font-weight: 600;">
+                                            {{ rtrim(rtrim(number_format($bQty, 2), '0'), '.') }} Pcs
+                                        </div>
+                                    @else
+                                        <span class="badge-qty">{{ $bQty }}</span>
+                                    @endif
                                 @else
                                     <span class="badge-no-qty">Out</span>
                                 @endif
@@ -1153,6 +1179,9 @@
                                 <div class="d-flex align-items-baseline justify-content-end" style="gap: 4px; margin-top: 1px;">
                                     <span class="font-weight-bolder text-success" style="font-size: 20px; line-height: 1;" id="pvm_stock">0</span>
                                     <span class="text-muted font-weight-bold" style="font-size: 11px;" id="pvm_unit_label">pcs</span>
+                                </div>
+                                <div id="pvm_stock_pcs_wrap" style="display: none; font-size: 11px; color: #64748b; font-weight: 700; margin-top: 2px;">
+                                    <span id="pvm_stock_pcs">0</span> Pcs
                                 </div>
                             </div>
                             <div id="pvm_low_stock_alert" class="p-2 px-2.5 rounded font-weight-bold text-danger text-center" style="background: rgba(239,68,68,0.12); border: 1.5px solid rgba(239,68,68,0.25); display: none; font-size: 9.5px; border-radius: 8px; line-height: 1.2;">
@@ -1535,10 +1564,25 @@ $(document).on('click', '.viewProductBtn', function () {
             // Stock
             var stock    = parseFloat(p.stock ? p.stock.qty : 0);
             var alertQty = parseFloat(p.alert_quantity || 0);
-            $('#pvm_stock').text(stock);
+            var ppp      = parseFloat(p.piece_per_pack || 1);
+            var unitName = p.unit ? p.unit.name : 'pcs';
+
+            if (ppp > 1) {
+                var cartonStock = stock / ppp;
+                var formattedCarton = parseFloat(cartonStock.toFixed(2)).toString();
+                $('#pvm_stock').text(formattedCarton);
+                $('#pvm_unit_label').text(unitName);
+                $('#pvm_stock_pcs').text(parseFloat(stock.toFixed(2)).toString());
+                $('#pvm_stock_pcs_wrap').show();
+            } else {
+                $('#pvm_stock').text(stock);
+                $('#pvm_unit_label').text(unitName);
+                $('#pvm_stock_pcs_wrap').hide();
+            }
+
             $('#pvm_alert_qty').text(alertQty);
-            $('#pvm_unit_label').text(p.unit ? p.unit.name : 'pcs');
             if (alertQty > 0 && stock <= alertQty) { $('#pvm_low_stock_alert').show(); }
+            else { $('#pvm_low_stock_alert').hide(); }
 
             // Pricing
             $('#pvm_wholesale').text('PKR ' + parseFloat(p.wholesale_price || 0).toLocaleString());

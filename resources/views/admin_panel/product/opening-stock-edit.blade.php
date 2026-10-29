@@ -728,7 +728,11 @@
     </div>
 
     {{-- â”€â”€ 2. Top Info Row (Product + Branch + Live Stock) â”€â”€ --}}
-    <div class="ose-top-grid">
+    @php
+    $ppp = (float)($product->piece_per_pack ?? 1);
+    $displayCurrentStock = ($ppp > 1) ? ($currentStock / $ppp) : $currentStock;
+@endphp
+<div class="ose-top-grid">
 
         {{-- Card 1: Product Specs --}}
         <div class="ose-card ose-prod-card">
@@ -870,9 +874,18 @@
                                     </td>
                                     <td>
                                         <div class="tbl-input-group">
-                                            <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ (float)$alloc->quantity }}" oninput="calcTotal()">
+                                            @php
+                                                $val = (float)$alloc->quantity;
+                                                $displayQty = ($ppp > 1) ? ($val / $ppp) : $val;
+                                            @endphp
+                                            <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ $displayQty > 0 ? (float)$displayQty : '' }}" oninput="calcTotal()">
                                             <span class="tbl-addon">{{ $product->unit?->name ?? 'Carton' }}</span>
                                         </div>
+                                        @if($ppp > 1 && $val > 0)
+                                            <div class="small text-muted font-weight-bold mt-1" style="font-size: 11px;">
+                                                = {{ number_format($val, 2) }} Pcs
+                                            </div>
+                                        @endif
                                     </td>
                                     @if($index === 0)
                                         <td rowspan="1" class="shared-field-wholesale">
@@ -891,7 +904,11 @@
                                             <input type="number" step="0.01" min="0" id="alert_qty" name="alert_qty" class="tbl-input-clean text-center" value="{{ (float)($product->alert_quantity ?? 0) > 0 ? (float)$product->alert_quantity : '' }}" placeholder="0" oninput="updateSummaryCards()">
                                         </td>
                                         <td rowspan="1" class="shared-field-opening">
-                                            <input type="number" step="0.01" id="opening_qty" name="opening_qty" class="tbl-input-readonly text-end" value="{{ (float)$currentStock }}" readonly>
+                                            @php
+                                                $displayOpening = ($ppp > 1) ? ($currentStock / $ppp) : $currentStock;
+                                            @endphp
+                                            <input type="number" step="0.01" id="opening_qty" name="opening_qty" class="tbl-input-readonly text-end" value="{{ (float)$displayOpening }}" readonly>
+                                            <input type="hidden" id="carton_qty" name="carton_qty" value="{{ (float)$displayOpening }}">
                                         </td>
                                     @else
                                         <td></td>
@@ -931,7 +948,7 @@
                                 </td>
                                 <td>
                                     <div class="tbl-input-group">
-                                        <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ $currentStock > 0 ? (float)$currentStock : '' }}" oninput="calcTotal()">
+                                        <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ ((float)($product->piece_per_pack ?? 1) > 1 ? ($currentStock / (float)$product->piece_per_pack) : $currentStock) > 0 ? (float)((float)($product->piece_per_pack ?? 1) > 1 ? ($currentStock / (float)$product->piece_per_pack) : $currentStock) : '' }}" oninput="calcTotal()">
                                         <span class="tbl-addon">{{ $product->unit?->name ?? 'Carton' }}</span>
                                     </div>
                                 </td>
@@ -951,7 +968,8 @@
                                     <input type="number" step="0.01" min="0" id="alert_qty" name="alert_qty" class="tbl-input-clean text-center" value="{{ (float)($product->alert_quantity ?? 0) > 0 ? (float)$product->alert_quantity : '' }}" placeholder="0" oninput="updateSummaryCards()">
                                 </td>
                                 <td>
-                                    <input type="number" step="0.01" id="opening_qty" name="opening_qty" class="tbl-input-readonly text-end" value="{{ (float)$currentStock }}" readonly>
+                                    <input type="number" step="0.01" id="opening_qty" name="opening_qty" class="tbl-input-readonly text-end" value="{{ (float)$displayCurrentStock }}" readonly>
+                                    <input type="hidden" id="carton_qty" name="carton_qty" value="{{ (float)$displayCurrentStock }}">
                                 </td>
                                 <td style="text-align: center;">
                                     <span class="badge" style="background: #ecfdf5; color: #047857; font-weight: 800; padding: 4px 10px; border-radius: 6px;">Active</span>
@@ -990,8 +1008,11 @@
                     <div class="ose-stat-info">
                         <div class="ose-stat-label">Live Stock</div>
                         <div>
-                            <span class="ose-stat-value" id="card_live_stock">{{ number_format($currentStock, 2) }}</span>
+                            <span class="ose-stat-value" id="card_live_stock">{{ number_format($displayCurrentStock, 2) }}</span>
                             <span class="ose-stat-unit">{{ $product->unit?->name ?? 'Carton' }}</span>
+                            @if($ppp > 1)
+                                <div style="font-size: 11px; color: #64748b; font-weight: 600;">{{ number_format($currentStock, 2) }} Pcs</div>
+                            @endif
                         </div>
                     </div>
                 </div>

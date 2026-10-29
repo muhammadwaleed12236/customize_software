@@ -1533,6 +1533,8 @@ public function searchProductsForSalebypagination(Request $request)
                 'category_name'      => optional($product->category_relation)->name ?? 'General',
                 'brand_name'         => optional($product->brand)->name ?? '-',
                 'unit_name'          => optional($product->unit)->name ?? 'PCS',
+                'piece_per_pack'     => (float) ($product->piece_per_pack ?? 1),
+                'pack_type'          => $product->pack_type,
                 'branch_id'          => $targetBranchId,
                 'branch_name'        => optional($product->branch)->name ?? ('Branch ' . $targetBranchId),
                 'opening_qty'        => $openingQty,

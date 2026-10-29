@@ -754,6 +754,7 @@
                                     data-name="{{ $item->item_name }}"
                                     data-code="{{ $item->item_code ?? 'ITEM-' . $item->id }}"
                                     data-unit="{{ $item->unit_name }}"
+                                    data-ppp="{{ $item->piece_per_pack ?? 1 }}"
                                     data-category="{{ $item->category_name }}"
                                     data-brand="{{ $item->brand_name }}"
                                     data-branch="{{ $item->branch_name }}"
@@ -776,14 +777,32 @@
                             </button>
                         </td>
                         <td style="text-align: right;">
-                            <span class="qty-opening-badge">
-                                {{ number_format($item->opening_qty, 2) }}
-                            </span>
+                            @if(($item->piece_per_pack ?? 1) > 1)
+                                <div style="font-weight: 700; color: #1e40af; font-size: 13px;">
+                                    {{ number_format($item->opening_qty / $item->piece_per_pack, 2) }} <small style="color: #64748b;">{{ $item->unit_name }}</small>
+                                </div>
+                                <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 1px;">
+                                    {{ number_format($item->opening_qty, 2) }} Pcs
+                                </div>
+                            @else
+                                <span class="qty-opening-badge">
+                                    {{ number_format($item->opening_qty, 2) }}
+                                </span>
+                            @endif
                         </td>
                         <td style="text-align: right;">
-                            <span class="qty-current-badge {{ $item->current_stock > 0 ? 'qty-positive' : ($item->current_stock < 0 ? 'qty-negative' : 'text-muted') }}">
-                                {{ number_format($item->current_stock, 2) }}
-                            </span>
+                            @if(($item->piece_per_pack ?? 1) > 1)
+                                <div style="font-weight: 700; color: {{ $item->current_stock > 0 ? '#15803d' : ($item->current_stock < 0 ? '#b91c1c' : '#64748b') }}; font-size: 13px;">
+                                    {{ number_format($item->current_stock / $item->piece_per_pack, 2) }} <small style="color: #64748b;">{{ $item->unit_name }}</small>
+                                </div>
+                                <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 1px;">
+                                    {{ number_format($item->current_stock, 2) }} Pcs
+                                </div>
+                            @else
+                                <span class="qty-current-badge {{ $item->current_stock > 0 ? 'qty-positive' : ($item->current_stock < 0 ? 'qty-negative' : 'text-muted') }}">
+                                    {{ number_format($item->current_stock, 2) }}
+                                </span>
+                            @endif
                         </td>
                         <td style="text-align: right; font-weight: 600; color: #334155;">
                             ₨ {{ number_format($item->wholesale_price, 2) }}
@@ -805,6 +824,7 @@
                                         data-name="{{ $item->item_name }}"
                                         data-code="{{ $item->item_code ?? 'ITEM-' . $item->id }}"
                                         data-unit="{{ $item->unit_name }}"
+                                        data-ppp="{{ $item->piece_per_pack ?? 1 }}"
                                         data-category="{{ $item->category_name }}"
                                         data-brand="{{ $item->brand_name }}"
                                         data-branch="{{ $item->branch_name }}"
@@ -986,6 +1006,7 @@ $(document).ready(function() {
         var name = btn.data('name');
         var code = btn.data('code');
         var unit = btn.data('unit');
+        var ppp = parseFloat(btn.data('ppp') || 1);
         var category = btn.data('category');
         var brand = btn.data('brand');
         var branch = btn.data('branch');
@@ -1000,12 +1021,29 @@ $(document).ready(function() {
         $('#locModalSubtitle').html(`
             <span class="badge badge-light" style="background:rgba(255,255,255,0.18);color:#fff;font-weight:700;margin-right:6px;">${code}</span>
             <span>${category}</span> • <span>${branch}</span> • <strong>${unit}</strong>
+            ${ppp > 1 ? `• <span class="badge badge-warning" style="font-size:11px;font-weight:700;background:#fef3c7;color:#92400e;border:1px solid #fde68a;">1 ${unit} = ${ppp} Pcs</span>` : ''}
         `);
-        $('#locModalOpening').text(opening.toLocaleString('en-US', {minimumFractionDigits: 2}) + ' ' + unit);
-        
-        var currentFormatted = current.toLocaleString('en-US', {minimumFractionDigits: 2}) + ' ' + unit;
-        var currentClass = current > 0 ? '#15803d' : (current < 0 ? '#b91c1c' : '#64748b');
-        $('#locModalCurrent').text(currentFormatted).css('color', currentClass);
+
+        if (ppp > 1) {
+            var openingCarton = opening / ppp;
+            $('#locModalOpening').html(`
+                <div>${openingCarton.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${unit}</div>
+                <div style="font-size: 11.5px; color: #64748b; font-weight: 600; margin-top: 3px;">${opening.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Pcs</div>
+            `);
+
+            var currentCarton = current / ppp;
+            var currentClass = current > 0 ? '#15803d' : (current < 0 ? '#b91c1c' : '#64748b');
+            $('#locModalCurrent').html(`
+                <div style="color: ${currentClass};">${currentCarton.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${unit}</div>
+                <div style="font-size: 11.5px; color: #64748b; font-weight: 600; margin-top: 3px;">${current.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Pcs</div>
+            `);
+        } else {
+            $('#locModalOpening').html(`<div>${opening.toLocaleString('en-US', {minimumFractionDigits: 2})} ${unit}</div>`);
+            
+            var currentFormatted = current.toLocaleString('en-US', {minimumFractionDigits: 2}) + ' ' + unit;
+            var currentClass = current > 0 ? '#15803d' : (current < 0 ? '#b91c1c' : '#64748b');
+            $('#locModalCurrent').html(`<div style="color: ${currentClass};">${currentFormatted}</div>`);
+        }
 
         $('#locModalWholesale').text('₨ ' + wholesale.toLocaleString('en-US', {minimumFractionDigits: 2}));
         $('#locModalRetail').text('₨ ' + retail.toLocaleString('en-US', {minimumFractionDigits: 2}));
@@ -1022,9 +1060,22 @@ $(document).ready(function() {
                     : '<span class="badge" style="background:#e0f2fe;color:#0369a1;border:1px solid #bae6fd;font-weight:700;">Warehouse</span>';
                 
                 var qty = parseFloat(item.quantity || 0);
-                var qtyBadge = qty >= 0 
-                    ? `<span style="font-weight:800;color:#15803d;">${qty.toLocaleString('en-US', {minimumFractionDigits: 2})} <small style="color:#64748b;">${unit}</small></span>`
-                    : `<span style="font-weight:800;color:#b91c1c;">${qty.toLocaleString('en-US', {minimumFractionDigits: 2})} <small style="color:#64748b;">${unit}</small></span>`;
+                var colorClass = qty >= 0 ? '#15803d' : '#b91c1c';
+                var qtyBadge = '';
+
+                if (ppp > 1) {
+                    var itemCarton = qty / ppp;
+                    qtyBadge = `
+                        <div style="font-weight:800; color:${colorClass};">
+                            ${itemCarton.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <small style="color:#64748b;">${unit}</small>
+                        </div>
+                        <div style="font-size: 11px; color: #64748b; font-weight: 600;">
+                            ${qty.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Pcs
+                        </div>
+                    `;
+                } else {
+                    qtyBadge = `<span style="font-weight:800;color:${colorClass};">${qty.toLocaleString('en-US', {minimumFractionDigits: 2})} <small style="color:#64748b;">${unit}</small></span>`;
+                }
 
                 rowsHtml += `
                     <tr>
