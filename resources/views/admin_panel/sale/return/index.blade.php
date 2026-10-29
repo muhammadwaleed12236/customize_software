@@ -5,7 +5,10 @@
     <div class="card shadow-sm border-0 mt-3">
         <div class="card-header bg-light text-dark d-flex justify-content-between align-items-center">
             <h5 class="mb-0">Sale Returns</h5>
-            <a href="{{ route('sale.add') }}" class="btn btn-primary btn-sm">Add Sale</a>
+            <div>
+                <a href="{{ url('sale') }}" class="btn btn-secondary btn-sm me-1">Back to Sales</a>
+                <a href="{{ route('sale.add') }}" class="btn btn-primary btn-sm">Add Sale</a>
+            </div>
         </div>
 
         <div class="card-body">
@@ -26,17 +29,20 @@
                     @foreach($salesReturns as $return)
                     <tr>
                         <td>{{ $return->id }}</td>
-                        <td>{{ $return->sale->product_code ?? 'N/A' }}</td>
-                        <td>{{ $return->sale->customer ?? $return->customer }}</td>
+                        <td>
+                            <strong>{{ $return->sale->invoice_no ?? 'N/A' }}</strong>
+                            @if(!empty($return->reference))
+                                <br><small class="text-muted">{{ $return->reference }}</small>
+                            @endif
+                        </td>
+                        <td>{{ optional($return->sale->customer)->customer_name ?? $return->sale->sub_customer ?? $return->customer ?? 'Walk-in Customer' }}</td>
                         <td>{{ $return->total_items }}</td>
                         <td>{{ number_format($return->total_net, 2) }}</td>
                         <td>{{ $return->return_note }}</td>
                         <td>{{ $return->created_at->format('d-m-Y') }}</td>
-<td>
+                        <td>
                             <span class="badge bg-danger">Return</span>
                         </td>
-
-                        
                     </tr>
                     @endforeach
                 </tbody>

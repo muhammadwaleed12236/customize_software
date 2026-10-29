@@ -217,7 +217,8 @@
             <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
                 <input type="text" id="invoiceSearch" class="form-control form-control-sm" placeholder="🔍 Search Invoice No..." style="width: 250px; border-radius: 8px;">
                 <a href="{{ route('sale.add') }}" class="btn btn-primary btn-sm me-1">Add Sale</a>
-                <a href="{{ url('bookings') }}" class="btn btn-primary btn-sm">All Sale Orders</a>
+                <a href="{{ url('bookings') }}" class="btn btn-primary btn-sm me-1">All Sale Orders</a>
+                <a href="{{ route('sale.returns.index') }}" class="btn btn-primary btn-sm">Sale Returns</a>
             </div>
         </div>
 
