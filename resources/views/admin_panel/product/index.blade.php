@@ -88,6 +88,36 @@
         padding: 16px 24px 20px;
         font-family: 'Inter', sans-serif;
     }
+    /* Hide default DataTable search box since we have custom header search */
+    div.dataTables_wrapper div.dataTables_filter {
+        display: none !important;
+    }
+
+    /* --- Custom Header Product Search --- */
+    .product-search-box {
+        position: relative;
+        min-width: 260px;
+        max-width: 340px;
+    }
+    .product-search-box input#customProductSearch {
+        border: 1.5px solid #e2e8f0 !important;
+        background: #f8fafc !important;
+        font-family: 'Inter', sans-serif !important;
+        font-size: 13px !important;
+        height: 38px !important;
+        border-radius: 8px !important;
+        padding-left: 36px !important;
+        padding-right: 32px !important;
+        transition: all 0.2s ease !important;
+        color: #1e293b !important;
+    }
+    .product-search-box input#customProductSearch:focus {
+        background: #ffffff !important;
+        border-color: #1e3a5f !important;
+        box-shadow: 0 0 0 3px rgba(30,58,95,0.08) !important;
+        outline: none !important;
+    }
+
     div.dataTables_wrapper div.dataTables_length select {
         width: 70px !important;
         border: 1.5px solid #e2e8f0 !important;
@@ -541,6 +571,11 @@
 
     /* ─── Mobile Product Card Layout (No Horizontal Scroll) ─── */
     @media (max-width: 991px) {
+        .product-search-box {
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+        }
         .product-card-header {
             flex-direction: column !important;
             align-items: flex-start !important;
@@ -797,12 +832,23 @@
 <div class="product-page-wrap">
 <div class="product-card">
     <div class="product-card-header">
-        <div class="header-left">
-            <h5>
-                <span class="icon-box"><i class="fas fa-box"></i></span>
-                Product List
-            </h5>
-            <small>Manage all products &amp; inventory</small>
+        <div class="d-flex align-items-center flex-wrap" style="gap: 16px;">
+            <div class="header-left">
+                <h5>
+                    <span class="icon-box"><i class="fas fa-box"></i></span>
+                    Product List
+                </h5>
+                <small>Manage all products &amp; inventory</small>
+            </div>
+
+            <!-- Product Search Bar -->
+            <div class="product-search-box">
+                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none;"></i>
+                <input type="text" id="customProductSearch" class="form-control" placeholder="Search products..." autocomplete="off">
+                <button type="button" id="clearProductSearch" style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px 5px; font-size: 13px;" title="Clear search">
+                    <i class="fas fa-times-circle"></i>
+                </button>
+            </div>
         </div>
         <div class="d-flex align-items-center" style="gap: 10px; flex-wrap: wrap;">
             @if($isSuperAdmin)
@@ -900,6 +946,13 @@
                                     @endforeach
                                 @else
                                     <span class="badge-no-qty">No Stock</span>
+                                @endif
+                            </td>
+                            <td style="white-space: nowrap;">
+                                @if(($product->total_all_branches_stock ?? 0) > 0 || ($product->all_warehouse_stocks && count($product->all_warehouse_stocks) > 0))
+                                    <span class="badge-in-stock"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>In Stock</span>
+                                @else
+                                    <span class="badge-no-stock"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>No Stock</span>
                                 @endif
                             </td>
                         @else
@@ -1262,8 +1315,9 @@
 $(document).ready(function () {
 
     // ===== DataTable =====
+    var productDataTable = null;
     if ($.fn.DataTable) {
-        $('#productTable').DataTable({
+        productDataTable = $('#productTable').DataTable({
             responsive: false, // Disabled to prevent the green '+' icons and weird column collapsing
             scrollX: true,     // Enable native DataTables horizontal scrolling
             pageLength: 10,
@@ -1271,6 +1325,60 @@ $(document).ready(function () {
             language: { search: "_INPUT_", searchPlaceholder: "Search products..." }
         });
     }
+
+    // ===== Custom Product Search (Header) =====
+    function performProductSearch(query) {
+        query = (query || '').toLowerCase().trim();
+
+        var dt = null;
+        if (productDataTable) {
+            dt = productDataTable;
+        } else if ($.fn.DataTable && $.fn.dataTable.isDataTable('#productTable')) {
+            dt = $('#productTable').DataTable();
+        }
+
+        if (dt) {
+            dt.search(query).draw();
+        } else {
+            // Direct DOM fallback if DataTable is not active
+            $('#productTable tbody tr').each(function () {
+                var rowText = $(this).text().toLowerCase();
+                if (!query || rowText.indexOf(query) !== -1) {
+                    $(this).show();
+                } else {
+                    $(this).hide();
+                }
+            });
+        }
+    }
+
+    $(document).on('input keyup search paste change', '#customProductSearch', function () {
+        var query = $(this).val();
+        if (query && query.length > 0) {
+            $('#clearProductSearch').show();
+        } else {
+            $('#clearProductSearch').hide();
+        }
+        performProductSearch(query);
+    });
+
+    $(document).on('click', '#clearProductSearch', function () {
+        $('#customProductSearch').val('');
+        $('#clearProductSearch').hide();
+        performProductSearch('');
+        $('#customProductSearch').focus();
+    });
+
+    $(document).on('keydown', '#customProductSearch', function (e) {
+        if (e.key === 'Escape') {
+            $(this).val('');
+            $('#clearProductSearch').hide();
+            performProductSearch('');
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            performProductSearch($(this).val());
+        }
+    });
 
     // ===== Select All =====
     $('#selectAll').on('click', function () {
