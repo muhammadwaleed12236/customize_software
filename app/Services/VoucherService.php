@@ -443,38 +443,7 @@ class VoucherService
         $receiptDate = $data['receipt_date'] ?? $voucher->receipt_date ?? now()->toDateString();
         $remarks     = $data['remarks'] ?? $voucher->remarks ?? '';
 
-        // 1. ROW ACCOUNTS POSTING (CREDIT - Paid from Bank/Cash)
-        $rowAccountIds = is_array($data['row_account_id'] ?? null) 
-            ? $data['row_account_id'] 
-            : self::safeDecodeArray($voucher->row_account_id);
-        $amounts = is_array($data['amount'] ?? null) 
-            ? $data['amount'] 
-            : self::safeDecodeArray($voucher->amount);
-
-        $accountTotals = [];
-        foreach ($rowAccountIds as $index => $accId) {
-            $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
-            if ($rowAmount > 0 && $accId) {
-                $accountTotals[(int)$accId] = ($accountTotals[(int)$accId] ?? 0) + $rowAmount;
-            }
-        }
-
-        foreach ($accountTotals as $accId => $totalAccAmount) {
-            self::postLedgerEntry(
-                $accId,
-                'payment',
-                $pvid,
-                $voucher->id,
-                $receiptDate,
-                $remarks ?: "Payment Voucher #{$pvid}",
-                0,
-                $totalAccAmount,
-                $userId
-            );
-            AccountLedgerEntry::recalculateRunningBalance((int)$accId);
-        }
-
-        // 2. PARTY SIDE POSTING (DEBIT - Vendor payable reduced / Customer receivable increased)
+        // 1. EXTRACT & RESOLVE PARTIES INFORMATION
         $partyIds = is_array($data['party_id'] ?? null)
             ? $data['party_id']
             : (is_array($data['vendor_id'] ?? null) ? $data['vendor_id'] : self::safeDecodeArray($voucher->party_id));
@@ -495,6 +464,7 @@ class VoucherService
             $partyAmounts = [(float)$voucher->total_amount];
         }
 
+        $partiesInfo = [];
         foreach ($partyIds as $idx => $partyId) {
             if (!$partyId) continue;
             $partyType   = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'vendor');
@@ -503,6 +473,130 @@ class VoucherService
                 : (count($partyIds) === 1 ? $totalAmount : 0);
 
             if ($partyAmount <= 0) continue;
+
+            $partyName = '';
+            if ($partyType === 'vendor') {
+                $vendor = Vendor::find($partyId);
+                $partyName = $vendor ? $vendor->name : "Vendor #{$partyId}";
+            } elseif ($partyType === 'customer' || $partyType === 'walkin') {
+                $customer = Customer::find($partyId);
+                $partyName = $customer ? $customer->customer_name : "Customer #{$partyId}";
+            } else {
+                $acc = Account::find($partyId);
+                $partyName = $acc ? $acc->title : "Account #{$partyId}";
+            }
+
+            $partiesInfo[] = [
+                'type'   => $partyType,
+                'id'     => $partyId,
+                'name'   => $partyName,
+                'amount' => $partyAmount,
+            ];
+        }
+
+        // 2. ROW ACCOUNTS POSTING (CREDIT - Paid from Bank/Cash)
+        $rowAccountIds = is_array($data['row_account_id'] ?? null) 
+            ? $data['row_account_id'] 
+            : self::safeDecodeArray($voucher->row_account_id);
+        $amounts = is_array($data['amount'] ?? null) 
+            ? $data['amount'] 
+            : self::safeDecodeArray($voucher->amount);
+
+        $accountTotals = [];
+        foreach ($rowAccountIds as $index => $accId) {
+            $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
+            if ($rowAmount > 0 && $accId) {
+                $accountTotals[(int)$accId] = ($accountTotals[(int)$accId] ?? 0) + $rowAmount;
+            }
+        }
+
+        if (count($partiesInfo) > 1) {
+            // Multiple parties: distribute across parties so Account Ledger shows separate rows per party
+            $remainingParties = [];
+            foreach ($partiesInfo as $pItem) {
+                $remainingParties[] = $pItem;
+            }
+
+            foreach ($accountTotals as $accId => $totalAccAmount) {
+                $accRemaining = $totalAccAmount;
+
+                foreach ($remainingParties as &$pItem) {
+                    if ($accRemaining <= 0.00001) break;
+                    if ($pItem['amount'] <= 0.00001) continue;
+
+                    $take = min($accRemaining, $pItem['amount']);
+                    $accRemaining -= $take;
+                    $pItem['amount'] -= $take;
+
+                    $desc = "Payment Voucher #{$pvid}" . ($pItem['name'] ? " - {$pItem['name']}" : "");
+                    if ($remarks) {
+                        $desc .= " ({$remarks})";
+                    }
+
+                    self::postLedgerEntry(
+                        $accId,
+                        'payment',
+                        $pvid,
+                        $voucher->id,
+                        $receiptDate,
+                        $desc,
+                        0,
+                        $take,
+                        $userId,
+                        true
+                    );
+                }
+                unset($pItem);
+
+                // If any residual unallocated amount remains
+                if ($accRemaining > 0.00001) {
+                    $desc = "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : "");
+                    self::postLedgerEntry(
+                        $accId,
+                        'payment',
+                        $pvid,
+                        $voucher->id,
+                        $receiptDate,
+                        $desc,
+                        0,
+                        $accRemaining,
+                        $userId,
+                        true
+                    );
+                }
+
+                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
+            }
+        } else {
+            // Single party or no party: post single entry
+            $partyName = !empty($partiesInfo[0]['name']) ? $partiesInfo[0]['name'] : '';
+            $desc = "Payment Voucher #{$pvid}" . ($partyName ? " - {$partyName}" : "");
+            if ($remarks) {
+                $desc .= " ({$remarks})";
+            }
+
+            foreach ($accountTotals as $accId => $totalAccAmount) {
+                self::postLedgerEntry(
+                    $accId,
+                    'payment',
+                    $pvid,
+                    $voucher->id,
+                    $receiptDate,
+                    $desc,
+                    0,
+                    $totalAccAmount,
+                    $userId,
+                    false
+                );
+                AccountLedgerEntry::recalculateRunningBalance((int)$accId);
+            }
+        }
+
+        // 3. PARTY SIDE POSTING (DEBIT - Vendor payable reduced / Customer receivable increased)
+        foreach ($partiesInfo as $p) {
+            $partyId     = $p['id'];
+            $partyType   = $p['type'];
+            $partyAmount = $p['amount'];
 
             if ($partyType === 'vendor') {
                 $lastLedger = VendorLedger::where('vendor_id', $partyId)
@@ -1251,7 +1345,8 @@ class VoucherService
         ?string $description,
         float  $debit,
         float  $credit,
-        $userId = null
+        $userId = null,
+        bool   $allowMultiple = false
     ): void {
         $account = Account::find($accountId);
         if (!$account) return;
@@ -1300,10 +1395,15 @@ class VoucherService
 
         // ✅ IDEMPOTENCY CHECK: If entry for this voucher already exists on this account, update it!
         if ($voucherId) {
-            $existing = AccountLedgerEntry::where('account_id', $accountId)
+            $query = AccountLedgerEntry::where('account_id', $accountId)
                 ->where('voucher_type', $cleanVoucherType)
-                ->where('voucher_id', $voucherId)
-                ->first();
+                ->where('voucher_id', $voucherId);
+
+            if ($allowMultiple && !empty($description)) {
+                $query->where('description', $description);
+            }
+
+            $existing = $query->first();
 
             if ($existing) {
                 $existing->update([

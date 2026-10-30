@@ -2089,20 +2089,66 @@ class PurchaseController extends Controller
         // Mark as local so store() updates stock immediately
         $request->merge(['purchase_type' => 'local']);
 
-        $mode = $request->input('_vendor_mode', 'local');
-        if ($mode === 'vendor' || $request->filled('vendor_id_select') || $request->filled('vendor_id')) {
-            $vid = $request->input('vendor_id_select') ?: $request->input('vendor_id');
-            $vendor = Vendor::find($vid);
+        $mode = $request->input('_vendor_mode', 'vendor');
+
+        // ────────────────────────────────────────────────────────────────────────
+        // The hidden input #vendorIdInput holds the clean numeric ID set by JS.
+        // The visible <select> #vendorSelect holds composite values like "vendor_3"
+        // or "customer_5" — we strip the prefix here before doing a DB lookup.
+        // ────────────────────────────────────────────────────────────────────────
+
+        // 1. Try the already-clean hidden input first (set by JS onChange)
+        $plainVendorId  = $request->input('vendor_id');    // e.g. "3" or ""
+        $plainCustomerId = $request->input('customer_id'); // e.g. "5" or ""
+
+        // 2. Parse the composite select value as a fallback
+        $selectRaw = $request->input('vendor_id_select', ''); // e.g. "vendor_3"
+        $selectType = null;
+        $selectId   = null;
+        if ($selectRaw && str_contains($selectRaw, '_')) {
+            [$selectType, $selectId] = explode('_', $selectRaw, 2);
+            $selectId = is_numeric($selectId) ? (int)$selectId : null;
+        } elseif (is_numeric($selectRaw) && $selectRaw) {
+            $selectId = (int)$selectRaw;
+        }
+
+        $partyType = $request->input('party_type', 'vendor');
+
+        if ($mode === 'local') {
+            // Local Market / Cash Supplier — no registered vendor
+            $shopName = $request->input('local_vendor_name')
+                ?: $request->input('vendor_name')
+                ?: 'Local Market';
             $request->merge([
-                'vendor_id' => $vendor ? $vendor->id : null,
-                'vendor_name' => $vendor ? $vendor->name : $request->input('vendor_name')
+                'vendor_id'   => null,
+                'customer_id' => null,
+                'vendor_name' => trim($shopName),
+                'party_type'  => 'vendor',
+            ]);
+        } elseif ($partyType === 'customer' || $selectType === 'customer') {
+            // Contra-party (Customer)
+            $custId = is_numeric($plainCustomerId) && $plainCustomerId
+                ? (int)$plainCustomerId
+                : ($selectType === 'customer' ? $selectId : null);
+
+            $request->merge([
+                'vendor_id'   => null,
+                'customer_id' => $custId,
+                'party_type'  => 'customer',
             ]);
         } else {
-            // Local market shop name
-            $shopName = $request->input('local_vendor_name') ?: $request->input('vendor_name') ?: $request->input('vendor_name_text');
+            // Registered Vendor
+            $vendId = is_numeric($plainVendorId) && $plainVendorId
+                ? (int)$plainVendorId
+                : ($selectType === 'vendor' ? $selectId : $selectId);
+
+            $vendor = $vendId ? Vendor::find($vendId) : null;
+
             $request->merge([
-                'vendor_id' => null,
-                'vendor_name' => $shopName ? trim($shopName) : 'Local Market'
+                'vendor_id'   => $vendor ? $vendor->id : null,
+                'customer_id' => null,
+                'vendor_name' => $vendor ? $vendor->name : $request->input('vendor_name'),
+                'party_type'  => 'vendor',
             ]);
         }
 
