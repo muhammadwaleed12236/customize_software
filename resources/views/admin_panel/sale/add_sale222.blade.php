@@ -2828,10 +2828,15 @@
                 }
                 let btn = $(this);
                 btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving...');
+                let formData = form.serializeArray();
+                let currentBranchId = $('#branch_id').val() || $('[name="branch_id"]').val() || '';
+                if (currentBranchId) {
+                    formData.push({ name: 'branch_id', value: currentBranchId });
+                }
                 $.ajax({
                     url: '{{ route('customers.store', [], false) }}',
                     type: 'POST',
-                    data: form.serialize(),
+                    data: $.param(formData),
                     success: function(res) {
                         btn.prop('disabled', false).text('Save Customer');
                         if (res.success || res.customer) {

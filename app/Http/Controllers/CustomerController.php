@@ -256,12 +256,25 @@ class CustomerController extends Controller
 
     public function store(Request $request)
     {
-        if (!$request->filled('branch_id')) {
-            $branchId = Auth::check() ? (Auth::user()->branch_id ?? 1) : 1;
-            $request->merge(['branch_id' => $branchId]);
-        } else {
-            $branchId = $request->branch_id;
+        $branchId = $request->input('branch_id');
+        if (!$branchId && Auth::check()) {
+            $branchId = Auth::user()->branch_id;
         }
+
+        // If no branch_id provided or provided branch does not exist in branches table
+        if (!$branchId || !\App\Models\Branch::where('id', $branchId)->exists()) {
+            $branchId = \App\Models\Branch::value('id');
+            if (!$branchId) {
+                $defaultBranch = \App\Models\Branch::create([
+                    'name'    => 'Main Branch',
+                    'address' => 'Head Office',
+                    'status'  => 'active',
+                    'number'  => '0300-0000000',
+                ]);
+                $branchId = $defaultBranch->id;
+            }
+        }
+        $request->merge(['branch_id' => $branchId]);
 
         if (!$request->filled('customer_id')) {
             $prefix = 'CUST-' . str_pad($branchId, 2, '0', STR_PAD_LEFT) . '-';
@@ -280,8 +293,8 @@ class CustomerController extends Controller
         }
 
         $data = $request->validate([
-            'branch_id'        => 'required',
-            'customer_id'      => 'required|unique:customers',
+            'branch_id'        => 'required|exists:branches,id',
+            'customer_id'      => 'required|unique:customers,customer_id',
             'customer_name'      => 'nullable',
             'customer_name_ur'   => 'nullable',
             'cnic'               => 'nullable',
