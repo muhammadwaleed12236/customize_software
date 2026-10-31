@@ -49,7 +49,8 @@ class SyncStockBalances extends Command
         // Query Products
         $pQuery = Product::query();
         if ($productId) {
-            $pQuery->where('id', $productId);
+            $ids = array_filter(array_map('trim', explode(',', (string) $productId)));
+            $pQuery->whereIn('id', $ids);
         }
         $products = $pQuery->get();
 
