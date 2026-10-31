@@ -2112,6 +2112,51 @@ public function finddc($invoice)
         }
 
         $sales = $query->get();
+        // Cumulative ledger closing balance per customer (Matches Customer Ledger Report 100%)
+        $customerIds = $sales->pluck("customer_id")->filter()->unique()->toArray();
+        $customerCumulativeBalances = [];
+        if (!empty($customerIds)) {
+            $custOpenings = DB::table("customers")
+                ->whereIn("id", $customerIds)
+                ->pluck("opening_balance", "id")
+                ->toArray();
+
+            $custSales = DB::table("sales")
+                ->whereIn("customer_id", $customerIds)
+                ->where(function ($q) {
+                    $q->whereNull("status")->orWhere("status", "!=", "cancelled");
+                })
+                ->select("customer_id", DB::raw("SUM(COALESCE(total_net, sub_total1 - discount_amount, 0)) as total_sales"))
+                ->groupBy("customer_id")
+                ->pluck("total_sales", "customer_id")
+                ->toArray();
+
+            $custReceipts = DB::table("receipts_vouchers")
+                ->whereIn("party_id", array_map("strval", $customerIds))
+                ->where(function ($q) {
+                    $q->whereNull("status")->orWhere("status", "!=", "voided");
+                })
+                ->select("party_id", DB::raw("SUM(CAST(amount AS DECIMAL(15,2))) as total_receipts"))
+                ->groupBy("party_id")
+                ->pluck("total_receipts", "party_id")
+                ->toArray();
+
+            $custReturns = DB::table("sales_returns")
+                ->join("sales", "sales.id", "=", "sales_returns.sale_id")
+                ->whereIn("sales.customer_id", $customerIds)
+                ->select("sales.customer_id", DB::raw("SUM(sales_returns.total_net) as total_returns"))
+                ->groupBy("sales.customer_id")
+                ->pluck("total_returns", "sales.customer_id")
+                ->toArray();
+
+            foreach ($customerIds as $cid) {
+                $op = (float)($custOpenings[$cid] ?? 0);
+                $sl = (float)($custSales[$cid] ?? 0);
+                $rc = (float)($custReceipts[(string)$cid] ?? 0);
+                $rt = (float)($custReturns[$cid] ?? 0);
+                $customerCumulativeBalances[$cid] = round($op + $sl - $rc - $rt, 2);
+            }
+        }
 
         // ✅ Efficient bulk calculation for Delivered & Remaining Qty per sale
         $saleIds = $sales->pluck('id')->toArray();
@@ -2208,9 +2253,13 @@ public function finddc($invoice)
                     }
                 }
                 
-                $balDue = ($sale->party_type === 'walking' && $paid >= $totalAmt)
-                    ? 0.00
-                    : (float)($sale->total_balance ?: max(0, $totalAmt - $paid));
+                if ($sale->party_type === "walking") {
+                    $balDue = ($paid >= $totalAmt) ? 0.00 : max(0, $totalAmt - $paid);
+                } elseif ($sale->customer_id && isset($customerCumulativeBalances[$sale->customer_id])) {
+                    $balDue = (float)$customerCumulativeBalances[$sale->customer_id];
+                } else {
+                    $balDue = (float)($sale->total_balance ?: max(0, $totalAmt - $paid));
+                }
 
                 $sale->calc_total_amount = $totalAmt;
                 $sale->calc_advance_paid = $paid;
