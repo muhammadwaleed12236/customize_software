@@ -1974,24 +1974,13 @@ public function searchProductsForSalebypagination(Request $request)
                 ]);
             }
 
-            // Update or create the single primary OPENING stock movement
-            $existingOpening = StockMovement::where('product_id', $id)
+            // Clean up all existing opening movements and create single clean OPENING entry
+            StockMovement::where('product_id', $id)
                 ->where('branch_id', $branchId)
-                ->where('ref_type', 'OPENING')
-                ->first();
+                ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+                ->delete();
 
-            if ($existingOpening) {
-                if ($newQty > 0) {
-                    $existingOpening->update([
-                        'qty'        => $newQty,
-                        'type'       => 'in',
-                        'note'       => 'Opening stock entry',
-                        'updated_at' => now(),
-                    ]);
-                } else {
-                    $existingOpening->delete();
-                }
-            } elseif ($newQty > 0) {
+            if ($newQty > 0) {
                 StockMovement::create([
                     'product_id' => $id,
                     'branch_id'  => $branchId,
@@ -2004,12 +1993,6 @@ public function searchProductsForSalebypagination(Request $request)
                     'updated_at' => now(),
                 ]);
             }
-
-            // Remove any old OPENING_ADJ movements for this product and branch
-            StockMovement::where('product_id', $id)
-                ->where('branch_id', $branchId)
-                ->where('ref_type', 'OPENING_ADJ')
-                ->delete();
 
             // Adjust warehouse_stocks by delta to preserve sales/purchases
             if (empty($allocData)) {
@@ -2080,12 +2063,33 @@ public function searchProductsForSalebypagination(Request $request)
     {
         $now = now();
 
-        // If NO allocations provided → put everything in branch-level (warehouse_id = NULL)
+        // If NO allocations provided → increment branch-level counter (warehouse_id = NULL)
         if (empty($allocData)) {
-            DB::table('warehouse_stocks')->updateOrInsert(
-                ['branch_id' => $branchId, 'warehouse_id' => null, 'product_id' => $productId],
-                ['quantity' => $totalQty, 'price' => $price, 'updated_at' => $now, 'created_at' => $now]
-            );
+            $existing = DB::table('warehouse_stocks')
+                ->where('branch_id', $branchId)
+                ->whereNull('warehouse_id')
+                ->where('product_id', $productId)
+                ->first();
+
+            if ($existing) {
+                DB::table('warehouse_stocks')
+                    ->where('id', $existing->id)
+                    ->update([
+                        'quantity'   => DB::raw('quantity + ' . ($totalQty + 0)),
+                        'price'      => $price,
+                        'updated_at' => $now,
+                    ]);
+            } else {
+                DB::table('warehouse_stocks')->insert([
+                    'branch_id'    => $branchId,
+                    'warehouse_id' => null,
+                    'product_id'   => $productId,
+                    'quantity'     => $totalQty,
+                    'price'        => $price,
+                    'created_at'   => $now,
+                    'updated_at'   => $now,
+                ]);
+            }
             return;
         }
 
@@ -2107,10 +2111,36 @@ public function searchProductsForSalebypagination(Request $request)
         }
 
         foreach ($grouped as $group) {
-            DB::table('warehouse_stocks')->updateOrInsert(
-                ['branch_id' => $branchId, 'warehouse_id' => $group['warehouse_id'], 'product_id' => $productId],
-                ['quantity' => $group['quantity'], 'price' => $price, 'updated_at' => $now, 'created_at' => $now]
-            );
+            $q = DB::table('warehouse_stocks')
+                ->where('branch_id', $branchId)
+                ->where('product_id', $productId);
+
+            if ($group['warehouse_id'] === null) {
+                $q->whereNull('warehouse_id');
+            } else {
+                $q->where('warehouse_id', $group['warehouse_id']);
+            }
+
+            $existing = $q->first();
+            if ($existing) {
+                DB::table('warehouse_stocks')
+                    ->where('id', $existing->id)
+                    ->update([
+                        'quantity'   => DB::raw('quantity + ' . ($group['quantity'] + 0)),
+                        'price'      => $price,
+                        'updated_at' => $now,
+                    ]);
+            } else {
+                DB::table('warehouse_stocks')->insert([
+                    'branch_id'    => $branchId,
+                    'warehouse_id' => $group['warehouse_id'],
+                    'product_id'   => $productId,
+                    'quantity'     => $group['quantity'],
+                    'price'        => $price,
+                    'created_at'   => $now,
+                    'updated_at'   => $now,
+                ]);
+            }
         }
     }
 
