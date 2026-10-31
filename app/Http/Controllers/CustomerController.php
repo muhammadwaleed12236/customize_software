@@ -80,10 +80,18 @@ class CustomerController extends Controller
         $customer = Customer::findOrFail($id);
 
         // Get latest closing balance from ledger (accessor may not work over plain $.get without Accept header)
-        $latestLedger = CustomerLedger::where('customer_id', $id)->latest('id')->first();
-        $closingBalance = $latestLedger
-            ? (float) $latestLedger->closing_balance
-            : (float) ($customer->opening_balance ?? 0);
+        $latestLedger = CustomerLedger::where("customer_id", $id)->latest("id")->first();
+        if ($latestLedger) {
+            $closingBalance = (float) $latestLedger->closing_balance;
+        } else {
+            // Safety fallback: if no ledger row exists yet, check prior sales & receipts
+            $priorSales = (float) \Illuminate\Support\Facades\DB::table("sales")->where("customer_id", $id)->sum("total_net");
+            $priorReceipts = (float) \Illuminate\Support\Facades\DB::table("receipts_vouchers")->where("party_id", (string)$id)->where(function($q){
+                $q->whereNull("status")->orWhere("status", "!=", "voided");
+            })->sum("amount");
+            $calc = (float) ($customer->opening_balance ?? 0) + $priorSales - $priorReceipts;
+            $closingBalance = ($calc != 0) ? $calc : (float) ($customer->opening_balance ?? 0);
+        }
 
         return response()->json([
             'id'               => $customer->id,

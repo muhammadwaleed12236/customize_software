@@ -286,7 +286,16 @@ class SaleController extends Controller
 
                     $customer = Customer::find($customerId);
                     $customerOpeningBalance = $customer->opening_balance ?? 0;
-                    $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : (float)$customerOpeningBalance;
+                    if ($lastLedger) {
+                        $previousBalance = (float) $lastLedger->closing_balance;
+                    } else {
+                        $priorSales = (float) DB::table("sales")->where("customer_id", $customerId)->sum("total_net");
+                        $priorReceipts = (float) DB::table("receipts_vouchers")->where("party_id", (string)$customerId)->where(function($q){
+                            $q->whereNull("status")->orWhere("status", "!=", "voided");
+                        })->sum("amount");
+                        $calcPrior = (float)$customerOpeningBalance + $priorSales - $priorReceipts;
+                        $previousBalance = ($calcPrior != 0) ? $calcPrior : (float)$customerOpeningBalance;
+                    }
                     $saleAmount = $subTotal2 - $additionalDiscount + $extraCharges;
 
                     $totalReceipts = 0;
@@ -1947,10 +1956,17 @@ class SaleController extends Controller
         }
 
         // Retrieve the latest ledger entry for the customer
-        $latestLedger = CustomerLedger::where('customer_id', $id)->latest()->first();
-
-        // If a ledger entry exists, use its closing_balance; otherwise, use opening_balance
-        $previous_balance = $latestLedger ? (float)$latestLedger->closing_balance : (float)($c->opening_balance ?? 0);
+        $latestLedger = CustomerLedger::where("customer_id", $id)->latest("id")->first();
+        if ($latestLedger) {
+            $previous_balance = (float) $latestLedger->closing_balance;
+        } else {
+            $priorSales = (float) DB::table("sales")->where("customer_id", $id)->sum("total_net");
+            $priorReceipts = (float) DB::table("receipts_vouchers")->where("party_id", (string)$id)->where(function($q){
+                $q->whereNull("status")->orWhere("status", "!=", "voided");
+            })->sum("amount");
+            $calc = (float) ($c->opening_balance ?? 0) + $priorSales - $priorReceipts;
+            $previous_balance = ($calc != 0) ? $calc : (float) ($c->opening_balance ?? 0);
+        }
 
         return response()->json([
             'id' => $c->id,

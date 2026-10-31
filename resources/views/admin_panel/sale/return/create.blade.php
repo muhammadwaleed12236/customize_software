@@ -334,7 +334,7 @@ function addNewReturnRow(itemData = null) {
         <input type="text" class="form-control text-center input-readonly stock-return" readonly>
       </td>
       <td class="text-center">
-        <input type="number" class="form-control text-center return-qty" name="qty[]" min="0" placeholder="0">
+        <input type="number" class="form-control text-center return-qty" name="qty[]" min="0" step="any" placeholder="0">
       </td>
       <td class="text-end">
         <input type="text" class="form-control text-end input-readonly retail-price-return" value="0" readonly name="price[]">
