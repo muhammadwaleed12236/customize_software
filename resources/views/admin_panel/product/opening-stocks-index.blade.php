@@ -779,7 +779,7 @@
                         <td style="text-align: right;">
                             @if(($item->piece_per_pack ?? 1) > 1)
                                 <div style="font-weight: 700; color: #1e40af; font-size: 13px;">
-                                    {{ number_format($item->opening_qty / $item->piece_per_pack, 2) }} <small style="color: #64748b;">{{ $item->unit_name }}</small>
+                                    {{ \App\Models\Product::formatCartonPieces($item->opening_qty, $item->piece_per_pack, $item->unit_name) }}
                                 </div>
                                 <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 1px;">
                                     {{ number_format($item->opening_qty, 2) }} Pcs
@@ -793,7 +793,7 @@
                         <td style="text-align: right;">
                             @if(($item->piece_per_pack ?? 1) > 1)
                                 <div style="font-weight: 700; color: {{ $item->current_stock > 0 ? '#15803d' : ($item->current_stock < 0 ? '#b91c1c' : '#64748b') }}; font-size: 13px;">
-                                    {{ number_format($item->current_stock / $item->piece_per_pack, 2) }} <small style="color: #64748b;">{{ $item->unit_name }}</small>
+                                    {{ \App\Models\Product::formatCartonPieces($item->current_stock, $item->piece_per_pack, $item->unit_name) }}
                                 </div>
                                 <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 1px;">
                                     {{ number_format($item->current_stock, 2) }} Pcs
@@ -999,6 +999,23 @@ $(document).ready(function() {
         ]
     });
 
+    function formatCartonPiecesJs(qty, ppp, unit) {
+        if (ppp <= 1) return qty.toLocaleString('en-US', {minimumFractionDigits: 2}) + ' ' + (unit || 'Pcs');
+        var isNeg = qty < 0;
+        var absQ = Math.abs(qty);
+        var ctn = Math.floor(absQ / ppp);
+        var loose = Math.round((absQ - (ctn * ppp)) * 100) / 100;
+        var unitLabel = (unit && /carton/i.test(unit)) ? 'Ctn' : (unit || 'Ctn');
+        var parts = [];
+        if (ctn > 0) parts.push(ctn + ' ' + unitLabel);
+        if (loose > 0 || parts.length === 0) {
+            var looseStr = (loose % 1 === 0) ? loose : loose.toFixed(2);
+            parts.push(looseStr + ' Pcs');
+        }
+        var res = parts.join(' + ');
+        return isNeg ? ('-' + res) : res;
+    }
+
     // 2. View Locations Modal (Clean & Detailed)
     $(document).on('click', '.btn-view-allocations', function() {
         var btn = $(this);
@@ -1025,16 +1042,16 @@ $(document).ready(function() {
         `);
 
         if (ppp > 1) {
-            var openingCarton = opening / ppp;
+            var openingText = formatCartonPiecesJs(opening, ppp, unit);
             $('#locModalOpening').html(`
-                <div>${openingCarton.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${unit}</div>
+                <div>${openingText}</div>
                 <div style="font-size: 11.5px; color: #64748b; font-weight: 600; margin-top: 3px;">${opening.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Pcs</div>
             `);
 
-            var currentCarton = current / ppp;
+            var currentText = formatCartonPiecesJs(current, ppp, unit);
             var currentClass = current > 0 ? '#15803d' : (current < 0 ? '#b91c1c' : '#64748b');
             $('#locModalCurrent').html(`
-                <div style="color: ${currentClass};">${currentCarton.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} ${unit}</div>
+                <div style="color: ${currentClass};">${currentText}</div>
                 <div style="font-size: 11.5px; color: #64748b; font-weight: 600; margin-top: 3px;">${current.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Pcs</div>
             `);
         } else {
@@ -1064,10 +1081,10 @@ $(document).ready(function() {
                 var qtyBadge = '';
 
                 if (ppp > 1) {
-                    var itemCarton = qty / ppp;
+                    var itemText = formatCartonPiecesJs(qty, ppp, unit);
                     qtyBadge = `
                         <div style="font-weight:800; color:${colorClass};">
-                            ${itemCarton.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} <small style="color:#64748b;">${unit}</small>
+                            ${itemText}
                         </div>
                         <div style="font-size: 11px; color: #64748b; font-weight: 600;">
                             ${qty.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})} Pcs

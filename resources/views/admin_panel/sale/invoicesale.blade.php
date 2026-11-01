@@ -588,8 +588,8 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                     <th style="width: 13%;">رقم</th>
                     <th style="width: 11%;">قیمت</th>
                     <th style="width: 11%;">ریٹ</th>
-                    <th style="width: 52%;">تفصیل</th>
-                    <th style="width: 8%;">تعداد</th>
+                    <th style="width: 47%;">تفصیل</th>
+                    <th style="width: 13%;">تعداد</th>
                     <th style="width: 5%;">سیریل</th>
                 </tr>
             </thead>
@@ -603,6 +603,19 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                     
                     $productEng = strtoupper($item->product->item_name ?? $item->product->product_name ?? 'N/A');
                     $productUrdu = getUrduProductName($item);
+
+                    $ppp = (float)($item->product->piece_per_pack ?? 1);
+                    $isCartonProd = $ppp > 1;
+                    $isPcsUnit = (isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs');
+
+                    if ($isPcsUnit) {
+                        $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2)) . ' Pcs';
+                    } elseif ($isCartonProd) {
+                        $totalPieces = $qty * $ppp;
+                        $qtyDisplay = \App\Models\Product::formatCartonPieces($totalPieces, $ppp, $item->product->unit?->name ?? 'Ctn');
+                    } else {
+                        $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
+                    }
                 @endphp
                 <tr>
                     <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
@@ -617,8 +630,8 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                     <td style="direction: rtl; text-align: right; padding: 6px 10px;">
                         <span class="item-desc-urdu">{{ !empty($productUrdu) ? $productUrdu : $productEng }}</span>
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 16px; color: #000;">
-                        {{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}
+                    <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000; white-space: nowrap;">
+                        {{ $qtyDisplay }}
                     </td>
                     <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
                         {{ $index + 1 }}

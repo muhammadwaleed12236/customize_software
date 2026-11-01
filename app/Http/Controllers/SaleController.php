@@ -184,6 +184,7 @@ class SaleController extends Controller
                     $watts = $request->input('watt') ?? [];
                     $whInputs = $request->input('warehouse_id') ?? [];
                     $globalWh = $request->input('global_warehouse_id');
+                    $saleUnits = $request->input('sale_unit') ?? [];
 
                     foreach ($productIds as $i => $pId) {
                         $qty = (float) ($salesQtys[$i] ?? 0);
@@ -210,10 +211,13 @@ class SaleController extends Controller
                             }
                         }
 
+                        $sUnit = is_array($saleUnits) ? ($saleUnits[$i] ?? null) : null;
+
                         $items[] = (object) [
                             'product_id'       => (int) $pId,
                             'watt'             => (float) (is_array($watts) ? ($watts[$i] ?? 0) : 0),
                             'sales_qty'        => $qty,
+                            'sale_unit'        => $sUnit,
                             'retail_price'     => (float) ($retailPrices[$i] ?? 0),
                             'discount_percent' => (float) ($discPercents[$i] ?? 0),
                             'discount_amount'  => (float) ($discAmounts[$i] ?? 0),
@@ -371,7 +375,8 @@ class SaleController extends Controller
                     }
 
                     $prod = Product::find($it->product_id);
-                    $multiplier = $prod ? (float)($prod->piece_per_pack > 1 ? $prod->piece_per_pack : 1) : 1;
+                    $isPiece = isset($it->sale_unit) && strtolower($it->sale_unit) === 'pcs';
+                    $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
                     $deductPieces = $it->sales_qty * $multiplier;
 
                     $currentWhQty = $warehousestock->quantity ?? 0;
@@ -424,6 +429,7 @@ class SaleController extends Controller
                         'product_id'       => $it->product_id,
                         'watt'             => (float) ($it->watt ?? 0),
                         'sales_qty'        => $it->sales_qty,
+                        'sale_unit'        => $it->sale_unit ?? null,
                         'retail_price'     => $it->retail_price,
                         'discount_percent' => (float) ($it->discount_percent ?? 0),
                         'discount_amount'  => (float) ($it->discount_amount ?? 0),
@@ -438,7 +444,7 @@ class SaleController extends Controller
                         'qty'           => $deductPieces,
                         'ref_type'      => 'SALE',
                         'ref_id'        => $sale->id,
-                        'note'          => $multiplier > 1 ? "Sale: {$it->sales_qty} Crtn ({$deductPieces} Pcs) - Invoice #{$sale->invoice_no}" : "Sale: {$sale->invoice_no}",
+                        'note'          => $isPiece ? "Sale: {$it->sales_qty} Pcs - Invoice #{$sale->invoice_no}" : ($multiplier > 1 ? "Sale: {$it->sales_qty} Crtn ({$deductPieces} Pcs) - Invoice #{$sale->invoice_no}" : "Sale: {$sale->invoice_no}"),
                         'ref_uuid'      => $booking ? $booking->invoice_no : $sale->invoice_no,
                         'is_auto_pluck' => 1,
                         'note'          => 'Sale Invoice ' . $sale->invoice_no . ($wid ? ' (Warehouse: ' . $wid . ')' : ' (Branch Stock)'),
@@ -2552,12 +2558,17 @@ public function finddc($invoice)
             }
         }
 
+        $prod = Product::with('unit')->find($productId);
+
         return response()->json([
             'available'          => $overallStock,
             'overall_stock'      => $overallStock,
             'branch_stock'       => $branchTotalStock,
             'location_stock'     => $locationStock,
             'location_breakdown' => $locationBreakdown,
+            'piece_per_pack'     => (float)($prod->piece_per_pack ?? 1),
+            'unit_name'          => $prod->unit->name ?? 'Pcs',
+            'price'              => (float)($prod->retail_price ?? $prod->price ?? 0),
         ]);
     }
 
@@ -2893,8 +2904,10 @@ public function finddc($invoice)
                 $saleQty = (float) ($request->sales_qty[$i] ?? $request->qty[$i] ?? $request->carton_qty[$i] ?? $request->input("sales-qty.$i", 0));
                 if ($saleQty <= 0) continue;
 
+                $sUnit = is_array($request->sale_unit ?? null) ? ($request->sale_unit[$i] ?? null) : null;
                 $prod = Product::find($productId);
-                $multiplier = $prod ? (float)($prod->piece_per_pack > 1 ? $prod->piece_per_pack : 1) : 1;
+                $isPiece = $sUnit && strtolower($sUnit) === 'pcs';
+                $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
                 $deductPieces = $saleQty * $multiplier;
 
                 // Per-location warehouse stock (allow negative)
@@ -2944,7 +2957,7 @@ public function finddc($invoice)
                     'qty'        => $deductPieces,
                     'ref_type'   => 'SALE',
                     'ref_id'     => $sale->id,
-                    'note'       => $multiplier > 1 ? "Sale #{$sale->invoice_no} ({$saleQty} Crtn = {$deductPieces} Pcs)" : "Sale #{$sale->invoice_no}",
+                    'note'       => $isPiece ? "Sale #{$sale->invoice_no} ({$saleQty} Pcs)" : ($multiplier > 1 ? "Sale #{$sale->invoice_no} ({$saleQty} Crtn = {$deductPieces} Pcs)" : "Sale #{$sale->invoice_no}"),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
@@ -2965,6 +2978,7 @@ public function finddc($invoice)
                     'price_level' => (float) ($request->price[$i] ?? $request->input("price.$i", 0)),
                     'sales_price' => $retailPrice,
                     'sales_qty' => $saleQty,
+                    'sale_unit' => $sUnit,
                     'retail_price' => $retailPrice,
                     'discount_percent' => $discPercent,
                     'discount_amount' => $discAmount,
@@ -3545,11 +3559,15 @@ public function finddc($invoice)
             // ------------------------------------------------------------------
             if ($dc && ! $gatepass) {
                 foreach ($returnMap as $pid => $retQty) {
+                    $prod = Product::find($pid);
+                    $multiplier = $prod ? (float)($prod->piece_per_pack > 1 ? $prod->piece_per_pack : 1) : 1;
+                    $retPieces = $retQty * $multiplier;
+
                     // Release reserved stock (goods not yet dispatched)
                     DB::table('stocks')
                         ->where('product_id', $pid)
                         ->where('branch_id', $branchId)
-                        ->decrement('reserved_qty', $retQty);
+                        ->decrement('reserved_qty', $retPieces);
 
                     // Reduce DC line-item qty
                     $dcItem = DB::table('warehouse_order_items')
@@ -3583,11 +3601,16 @@ public function finddc($invoice)
 
             if ($isPhysicalReturn) {
                 foreach ($returnMap as $pid => $retQty) {
-                    // Determine which warehouse the product was originally sold from
+                    $prod = Product::find($pid);
+
+                    // Determine which warehouse and unit the product was originally sold with
                     $origSaleItem = DB::table('sale_items')
                         ->where('sale_id', $saleId)
                         ->where('product_id', $pid)
                         ->first();
+                    $isPiece = $origSaleItem && isset($origSaleItem->sale_unit) && strtolower($origSaleItem->sale_unit) === 'pcs';
+                    $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
+                    $retPieces = $retQty * $multiplier;
                     $targetWhId = $origSaleItem ? $origSaleItem->warehouse_id : ($warehouseId > 0 ? $warehouseId : null);
 
                     // Restore physical stock in stocks table (branch-level)
@@ -3595,7 +3618,7 @@ public function finddc($invoice)
                         ->where('product_id', $pid)
                         ->where('branch_id', $branchId)
                         ->update([
-                            'qty'        => DB::raw('qty + ' . (float)$retQty),
+                            'qty'        => DB::raw('qty + ' . (float)$retPieces),
                             'updated_at' => now(),
                         ]);
                     if ($affected === 0) {
@@ -3603,7 +3626,7 @@ public function finddc($invoice)
                             'product_id'   => $pid,
                             'branch_id'    => $branchId,
                             'warehouse_id' => $targetWhId,
-                            'qty'          => (float)$retQty,
+                            'qty'          => (float)$retPieces,
                             'reserved_qty' => 0,
                             'created_at'   => now(),
                             'updated_at'   => now(),
@@ -3620,12 +3643,12 @@ public function finddc($invoice)
                         $wsQry->whereNull('warehouse_id');
                     }
 
-                    if ($wsQry->update(['quantity' => DB::raw('quantity + ' . (float)$retQty), 'updated_at' => now()]) === 0) {
+                    if ($wsQry->update(['quantity' => DB::raw('quantity + ' . (float)$retPieces), 'updated_at' => now()]) === 0) {
                         DB::table('warehouse_stocks')->insert([
                             'product_id'   => $pid,
                             'branch_id'    => $branchId,
                             'warehouse_id' => $targetWhId,
-                            'quantity'     => (float)$retQty,
+                            'quantity'     => (float)$retPieces,
                             'price'        => null,
                             'remarks'      => 'Sale Return stock restore',
                             'created_at'   => now(),
@@ -3672,10 +3695,10 @@ public function finddc($invoice)
                         'product_id' => $pid,
                         'branch_id'  => $branchId,
                         'type'       => 'in',
-                        'qty'        => $retQty,
+                        'qty'        => $retPieces,
                         'ref_type'   => 'SALE_RETURN',
                         'ref_id'     => null, // will be updated after SalesReturn saved
-                        'note'       => 'Sale return ' . ($sale ? $sale->invoice_no : '') . ($targetWhId ? " (Warehouse: {$targetWhId})" : " (Shop Stock)"),
+                        'note'       => 'Sale return ' . ($sale ? $sale->invoice_no : '') . ($multiplier > 1 ? " ({$retQty} Ctn × {$multiplier} = {$retPieces} Pcs)" : "") . ($targetWhId ? " (Warehouse: {$targetWhId})" : " (Shop Stock)"),
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
@@ -4105,6 +4128,8 @@ public function finddc($invoice)
                     'discount_type'    => floatval($saleItem->discount_percent ?? 0) > 0 ? 'percent' : 'pkr',
                     'sales_qty'        => floatval($saleItem->sales_qty ?? 0),
                     'qty'              => floatval($saleItem->sales_qty ?? 0),
+                    'sale_unit'        => $saleItem->sale_unit ?? 'ctn',
+                    'piece_per_pack'   => floatval($product->piece_per_pack ?? 1),
                     'amount'           => floatval($saleItem->amount ?? 0),
                     'total'            => floatval($saleItem->amount ?? 0),
                     'onhand_qty'       => $onhand,
@@ -4239,7 +4264,8 @@ public function finddc($invoice)
                     }
 
                     $oldProd = Product::find($oldItem->product_id);
-                    $oldMultiplier = $oldProd ? (float)($oldProd->piece_per_pack > 1 ? $oldProd->piece_per_pack : 1) : 1;
+                    $isOldPiece = isset($oldItem->sale_unit) && strtolower($oldItem->sale_unit) === 'pcs';
+                    $oldMultiplier = (!$isOldPiece && $oldProd && $oldProd->piece_per_pack > 1) ? (float)$oldProd->piece_per_pack : 1;
                     $restorePieces = $oldItem->sales_qty * $oldMultiplier;
 
                     $whStock = $whStockQuery->first();
@@ -4404,6 +4430,8 @@ public function finddc($invoice)
 
                     $watt = floatval(is_array($watts) ? ($watts[$i] ?? 0) : ($request->input("watt.$i", 0)));
 
+                    $sUnit = is_array($request->sale_unit ?? null) ? ($request->sale_unit[$i] ?? null) : null;
+
                     // Create new sale item
                     $itemData = [
                         'invoice_no'       => $sale->invoice_no,
@@ -4413,6 +4441,7 @@ public function finddc($invoice)
                         'product_id'       => $productId,
                         'watt'             => $watt,
                         'sales_qty'        => $qty,
+                        'sale_unit'        => $sUnit,
                         'retail_price'     => $retailPrice,
                         'discount_percent' => $discPercent,
                         'discount_amount'  => $discAmount,
@@ -4440,7 +4469,8 @@ public function finddc($invoice)
                     }
 
                     $newProd = Product::find($productId);
-                    $newMultiplier = $newProd ? (float)($newProd->piece_per_pack > 1 ? $newProd->piece_per_pack : 1) : 1;
+                    $isPiece = $sUnit && strtolower($sUnit) === 'pcs';
+                    $newMultiplier = (!$isPiece && $newProd && $newProd->piece_per_pack > 1) ? (float)$newProd->piece_per_pack : 1;
                     $deductPieces = $qty * $newMultiplier;
 
                     $whStock = $whStockQuery->first();
@@ -5631,7 +5661,10 @@ public function finddc($invoice)
                 if ($sale->saleItems && $sale->saleItems->count() > 0) {
                     foreach ($sale->saleItems as $item) {
                         if (!$item->product_id || !$item->sales_qty) continue;
-                        $qty = floatval($item->sales_qty);
+                        $prod = Product::find($item->product_id);
+                        $isPiece = isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs';
+                        $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
+                        $qty = floatval($item->sales_qty) * $multiplier;
 
                         // WarehouseStock
                         $itemBranch = $item->branch_id ?? $sale->branch_id ?? 1;

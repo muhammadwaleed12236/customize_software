@@ -1003,7 +1003,16 @@ $(document).ready(function() {
 
         var badge = $('#packing_badge_' + idx);
         if (ppp > 1 && total > 0) {
-            badge.html('<i class="fas fa-boxes"></i> ' + total + ' Crtn × ' + ppp + ' = ' + pieceQty + ' Pcs').show();
+            var ctnCount = Math.floor(total);
+            var looseCount = Math.round((pieceQty - (ctnCount * ppp)) * 100) / 100;
+            var parts = [];
+            if (ctnCount > 0) parts.push(ctnCount + ' Ctn');
+            if (looseCount > 0 || parts.length === 0) {
+                var lStr = (looseCount % 1 === 0) ? looseCount : looseCount.toFixed(2);
+                parts.push(lStr + ' Pcs');
+            }
+            var breakdownStr = parts.join(' + ');
+            badge.html('<i class="fas fa-boxes"></i> <strong>' + breakdownStr + '</strong> (' + pieceQty.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + ' Pcs)').show();
         } else {
             badge.hide().empty();
         }

@@ -514,6 +514,20 @@
                             $totalQty += $qty;
                             $pName = optional($item->product)->item_name ?? 'Item';
                             $unit = optional(optional($item->product)->unit)->name ?? 'Pcs';
+                            $ppp = (float)($item->product->piece_per_pack ?? 1);
+                            $isCartonProd = $ppp > 1;
+                            $isPcsUnit = (isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs');
+                            if ($isPcsUnit) {
+                                $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
+                                $unitDisplay = 'Pcs';
+                            } elseif ($isCartonProd) {
+                                $totalPieces = $qty * $ppp;
+                                $qtyDisplay = \App\Models\Product::formatCartonPieces($totalPieces, $ppp, $unit);
+                                $unitDisplay = '';
+                            } else {
+                                $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
+                                $unitDisplay = $unit;
+                            }
                         @endphp
                         <tr>
                             <td class="col-sr">{{ $sr++ }}</td>
@@ -521,8 +535,10 @@
                                 <div style="font-weight: 800; line-height: 1.15;">{{ $pName }}</div>
                             </td>
                             <td class="col-qty">
-                                <div style="font-weight: 800;">{{ (int)$qty == $qty ? (int)$qty : number_format($qty, 2) }}</div>
-                                <div style="font-size: 8.5px; font-weight: 600;">{{ $unit }}</div>
+                                <div style="font-weight: 800; white-space: nowrap;">{{ $qtyDisplay }}</div>
+                                @if(!empty($unitDisplay))
+                                    <div style="font-size: 8.5px; font-weight: 600;">{{ $unitDisplay }}</div>
+                                @endif
                             </td>
                             <td class="col-rate">{{ number_format($rate, 0) }}</td>
                             <td class="col-amt">{{ number_format($amt, 0) }}</td>

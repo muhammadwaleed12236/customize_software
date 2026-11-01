@@ -565,8 +565,17 @@
                                         </td>
                                         <td style="padding: 11px 14px; vertical-align: middle; text-align: right;">
                                             <span style="background: #ecfdf5; color: #047857; padding: 3px 10px; border-radius: 4px; font-weight: 800; font-family: monospace; font-size: 13px; border: 1px solid #a7f3d0;">
-                                                {{ number_format($p['quantity']) }}
+                                                @if(($p['piece_per_pack'] ?? 1) > 1)
+                                                    {{ \App\Models\Product::formatCartonPieces((float)$p['quantity'], (float)$p['piece_per_pack'], $p['unit'] ?? '') }}
+                                                @else
+                                                    {{ (float)$p['quantity'] == (int)$p['quantity'] ? number_format($p['quantity'], 0) : number_format($p['quantity'], 2) }}
+                                                @endif
                                             </span>
+                                            @if(($p['piece_per_pack'] ?? 1) > 1)
+                                                <div style="font-size: 10.5px; color: #64748b; font-weight: 600; margin-top: 2px;">
+                                                    {{ number_format($p['quantity'], 2) }} Pcs
+                                                </div>
+                                            @endif
                                         </td>
                                         <td style="padding: 11px 18px; vertical-align: middle; text-align: center;">
                                             <a href="{{ route('warehouse_stocks.show', $p['product_id']) }}" class="btn btn-sm btn-primary" style="background: var(--coa-navy); border-color: var(--coa-navy); padding: 3px 10px; font-size: 11px; font-weight: 700; border-radius: 4px;">

@@ -241,11 +241,13 @@ class WarehouseStockController extends Controller
                     'product_count'  => $stocks->count(),
                     'products'       => $stocks->map(function ($s) {
                         return [
-                            'product_id'   => $s->product_id,
-                            'product_name' => optional($s->product)->item_name ?? 'N/A',
-                            'product_code' => optional($s->product)->item_code ?? 'N/A',
-                            'quantity'     => $s->quantity,
-                            'image'        => optional($s->product)->image,
+                            'product_id'     => $s->product_id,
+                            'product_name'   => optional($s->product)->item_name ?? 'N/A',
+                            'product_code'   => optional($s->product)->item_code ?? 'N/A',
+                            'quantity'       => $s->quantity,
+                            'piece_per_pack' => (float)(optional($s->product)->piece_per_pack ?? 1),
+                            'unit'           => optional(optional($s->product)->unit)->name ?? 'Pcs',
+                            'image'          => optional($s->product)->image,
                         ];
                     })->sortByDesc('quantity')->values()->toArray(),
                 ];

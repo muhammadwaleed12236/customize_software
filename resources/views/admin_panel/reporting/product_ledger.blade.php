@@ -806,23 +806,33 @@
         $('#meta_category').text(p.category || '-');
         $('#meta_subcategory').text(p.subcategory || '-');
         $('#meta_brand').text(p.brand || '-');
-        $('#meta_unit').text(p.unit || 'Pcs');
-        $('#meta_cost_price').text(currFmt(p.wholesale_price));
-        $('#meta_retail_price').text(currFmt(p.retail_price));
+        if (p.is_carton) {
+            $('#meta_unit').text((p.unit || 'Ctn') + ' (' + numFmt(p.piece_per_pack, 0) + ' Pcs/' + (p.unit || 'Ctn') + ')');
+            $('#meta_cost_price').text(currFmt(p.wholesale_price) + ' / ' + (p.unit || 'Ctn') + ' (' + currFmt(p.cost_per_piece) + ' / Pc)');
+            $('#meta_retail_price').text(currFmt(p.retail_price) + ' / ' + (p.unit || 'Ctn') + ' (' + currFmt(p.retail_per_piece) + ' / Pc)');
+        } else {
+            $('#meta_unit').text(p.unit || 'Pcs');
+            $('#meta_cost_price').text(currFmt(p.wholesale_price));
+            $('#meta_retail_price').text(currFmt(p.retail_price));
+        }
         $('#meta_branch_warehouse').text(f.branch_name + ' | ' + f.warehouse_name);
         $('#productMetaCard').fadeIn(200);
 
         // 2. Populate KPI Cards
-        $('#kpi_opening_qty').text(numFmt(s.opening_qty, 2) + ' ' + p.unit);
+        if (p.is_carton) {
+            $('#kpi_opening_qty').html('<span style="font-size:18px;">' + s.opening_qty_display + '</span><div style="font-size:11.5px; font-weight:600; opacity:0.85;">' + numFmt(s.opening_qty, 2) + ' Pcs</div>');
+            $('#kpi_inward_qty').html('<span style="font-size:18px;">' + s.total_in_qty_display + '</span><div style="font-size:11.5px; font-weight:600; opacity:0.85;">' + numFmt(s.total_in_qty, 2) + ' Pcs</div>');
+            $('#kpi_outward_qty').html('<span style="font-size:18px;">' + s.total_out_qty_display + '</span><div style="font-size:11.5px; font-weight:600; opacity:0.85;">' + numFmt(s.total_out_qty, 2) + ' Pcs</div>');
+            $('#kpi_closing_qty').html('<span style="font-size:18px;">' + s.closing_qty_display + '</span><div style="font-size:11.5px; font-weight:600; opacity:0.85;">' + numFmt(s.closing_qty, 2) + ' Pcs</div>');
+        } else {
+            $('#kpi_opening_qty').text(numFmt(s.opening_qty, 2) + ' ' + p.unit);
+            $('#kpi_inward_qty').text(numFmt(s.total_in_qty, 2) + ' ' + p.unit);
+            $('#kpi_outward_qty').text(numFmt(s.total_out_qty, 2) + ' ' + p.unit);
+            $('#kpi_closing_qty').text(numFmt(s.closing_qty, 2) + ' ' + p.unit);
+        }
         $('#kpi_opening_val').text(currFmt(s.opening_value));
-
-        $('#kpi_inward_qty').text(numFmt(s.total_in_qty, 2) + ' ' + p.unit);
         $('#kpi_inward_val').text(currFmt(s.total_in_value));
-
-        $('#kpi_outward_qty').text(numFmt(s.total_out_qty, 2) + ' ' + p.unit);
         $('#kpi_outward_val').text(currFmt(s.total_out_value));
-
-        $('#kpi_closing_qty').text(numFmt(s.closing_qty, 2) + ' ' + p.unit);
         $('#kpi_closing_val').text(currFmt(s.closing_value));
         $('#kpiCardsWrap').fadeIn(200);
 
@@ -834,6 +844,9 @@
         var tbodyHtml = '';
 
         // Initial Opening Balance Row
+        var openBalHtml = p.is_carton ? `<b>${s.opening_qty_display}</b><small class="text-muted d-block font-weight-normal">${numFmt(s.opening_qty, 2)} Pcs</small>` : numFmt(s.opening_qty, 2);
+        var openValRateHtml = p.is_carton ? numFmt(p.cost_per_piece, 2) : numFmt(p.wholesale_price, 2);
+
         tbodyHtml += `
             <tr class="row-opening">
                 <td>0</td>
@@ -848,8 +861,8 @@
                 <td class="text-muted">-</td>
                 <td class="text-muted">-</td>
                 <td class="text-muted">-</td>
-                <td class="qty-bal" style="font-size:13px; color:#0369a1;">${numFmt(s.opening_qty, 2)}</td>
-                <td>${numFmt(p.wholesale_price, 2)}</td>
+                <td class="qty-bal" style="font-size:12.5px; color:#0369a1;">${openBalHtml}</td>
+                <td>${openValRateHtml}</td>
                 <td style="font-weight:700;">${numFmt(s.opening_value, 2)}</td>
                 <td><small class="text-muted">Balance prior to ${f.start_date}</small></td>
             </tr>
@@ -874,15 +887,35 @@
                 else if (ev.type.indexOf('Opening') !== -1) badgeClass = 'l-badge-primary';
                 else if (ev.type.indexOf('Damaged') !== -1) badgeClass = 'l-badge-dark';
 
-                var inQtyHtml = ev.in_qty > 0 ? `<span class="qty-in">+${numFmt(ev.in_qty, 2)}</span>` : '<span class="text-muted">-</span>';
+                var inQtyHtml = '<span class="text-muted">-</span>';
+                if (ev.in_qty > 0) {
+                    if (p.is_carton) {
+                        inQtyHtml = `<span class="qty-in">+${ev.in_qty_display}</span><small class="text-muted d-block font-weight-normal">${numFmt(ev.in_qty, 2)} Pcs</small>`;
+                    } else {
+                        inQtyHtml = `<span class="qty-in">+${numFmt(ev.in_qty, 2)}</span>`;
+                    }
+                }
                 var inPriceHtml = ev.in_qty > 0 ? numFmt(ev.in_price, 2) : '<span class="text-muted">-</span>';
                 var inTotalHtml = ev.in_qty > 0 ? numFmt(ev.in_total, 2) : '<span class="text-muted">-</span>';
 
-                var outQtyHtml = ev.out_qty > 0 ? `<span class="qty-out">-${numFmt(ev.out_qty, 2)}</span>` : '<span class="text-muted">-</span>';
+                var outQtyHtml = '<span class="text-muted">-</span>';
+                if (ev.out_qty > 0) {
+                    if (p.is_carton) {
+                        outQtyHtml = `<span class="qty-out">-${ev.out_qty_display}</span><small class="text-muted d-block font-weight-normal">${numFmt(ev.out_qty, 2)} Pcs</small>`;
+                    } else {
+                        outQtyHtml = `<span class="qty-out">-${numFmt(ev.out_qty, 2)}</span>`;
+                    }
+                }
                 var outPriceHtml = ev.out_qty > 0 ? numFmt(ev.out_price, 2) : '<span class="text-muted">-</span>';
                 var outTotalHtml = ev.out_qty > 0 ? numFmt(ev.out_total, 2) : '<span class="text-muted">-</span>';
 
                 var balColor = ev.balance_qty < 0 ? 'color:#dc2626;' : 'color:#0f172a;';
+                var balQtyHtml = '';
+                if (p.is_carton) {
+                    balQtyHtml = `<span class="qty-bal" style="${balColor}">${ev.balance_qty_display}</span><small class="text-muted d-block font-weight-normal">${numFmt(ev.balance_qty, 2)} Pcs</small>`;
+                } else {
+                    balQtyHtml = `<span class="qty-bal" style="${balColor}">${numFmt(ev.balance_qty, 2)}</span>`;
+                }
 
                 tbodyHtml += `
                     <tr>
@@ -898,7 +931,7 @@
                         <td>${outQtyHtml}</td>
                         <td>${outPriceHtml}</td>
                         <td style="font-weight:600;">${outTotalHtml}</td>
-                        <td class="qty-bal" style="${balColor} font-size:12.5px;">${numFmt(ev.balance_qty, 2)}</td>
+                        <td>${balQtyHtml}</td>
                         <td style="font-size:11.5px;">${numFmt(ev.valuation_rate, 2)}</td>
                         <td style="font-weight:700;">${numFmt(ev.balance_value, 2)}</td>
                         <td style="text-align:left; font-size:11px;" class="text-muted">${ev.remarks || ''}</td>
@@ -910,16 +943,20 @@
         $('#ledgerTableBody').html(tbodyHtml);
 
         // 5. Build Footer Totals Row
+        var footInQtyHtml = p.is_carton ? `<span class="qty-in">+${s.total_in_qty_display}</span><small class="text-muted d-block font-weight-normal">${numFmt(s.total_in_qty, 2)} Pcs</small>` : `+${numFmt(s.total_in_qty, 2)}`;
+        var footOutQtyHtml = p.is_carton ? `<span class="qty-out">-${s.total_out_qty_display}</span><small class="text-muted d-block font-weight-normal">${numFmt(s.total_out_qty, 2)} Pcs</small>` : `-${numFmt(s.total_out_qty, 2)}`;
+        var footClosingQtyHtml = p.is_carton ? `<span class="qty-bal" style="font-size:13.5px; background:#fef3c7; color:#92400e;">${s.closing_qty_display}</span><small class="text-muted d-block font-weight-normal">${numFmt(s.closing_qty, 2)} Pcs</small>` : `<span class="qty-bal" style="font-size:13.5px; background:#fef3c7; color:#92400e;">${numFmt(s.closing_qty, 2)}</span>`;
+
         var tfootHtml = `
             <tr class="table-footer-total">
                 <td colspan="6" class="text-right pr-3 font-weight-bold">TOTAL PERIOD MOVEMENTS & CLOSING BALANCE:</td>
-                <td class="qty-in">+${numFmt(s.total_in_qty, 2)}</td>
+                <td>${footInQtyHtml}</td>
                 <td class="text-muted">-</td>
                 <td class="font-weight-bold" style="color:#15803d;">${numFmt(s.total_in_value, 2)}</td>
-                <td class="qty-out">-${numFmt(s.total_out_qty, 2)}</td>
+                <td>${footOutQtyHtml}</td>
                 <td class="text-muted">-</td>
                 <td class="font-weight-bold" style="color:#b91c1c;">${numFmt(s.total_out_value, 2)}</td>
-                <td class="qty-bal" style="font-size:13.5px; background:#fef3c7; color:#92400e;">${numFmt(s.closing_qty, 2)}</td>
+                <td>${footClosingQtyHtml}</td>
                 <td class="text-muted">-</td>
                 <td class="font-weight-bold" style="font-size:13.5px; background:#fef3c7; color:#92400e;">${numFmt(s.closing_value, 2)}</td>
                 <td></td>

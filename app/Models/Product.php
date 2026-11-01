@@ -90,6 +90,42 @@ class Product extends Model
         }
         return number_format($qty, 2);
     }
+    /**
+     * Format piece quantity into Cartons + Loose Pieces string
+     * e.g. 55 pcs with 10 ppp -> "5 Ctn + 5 Pcs"
+     * e.g. 50 pcs with 10 ppp -> "5 Ctn"
+     * e.g. 5 pcs with 10 ppp  -> "5 Pcs"
+     */
+    public static function formatCartonPieces(float $qty, float $ppp = 1, string $unitName = 'Ctn'): string
+    {
+        if ($ppp <= 1) {
+            return number_format($qty, 2);
+        }
+
+        $isNegative = $qty < 0;
+        $absQty     = abs($qty);
+        $cartons    = (int) floor($absQty / $ppp);
+        $loose      = round($absQty - ($cartons * $ppp), 2);
+
+        $unitClean = trim($unitName ?: 'Ctn');
+        if (preg_match('/carton/i', $unitClean)) {
+            $unitClean = 'Ctn';
+        }
+
+        $parts = [];
+        if ($cartons > 0) {
+            $parts[] = $cartons . ' ' . $unitClean;
+        }
+
+        if ($loose > 0 || empty($parts)) {
+            $looseFormatted = ($loose == (int)$loose) ? (int)$loose : number_format($loose, 2);
+            $parts[] = $looseFormatted . ' Pcs';
+        }
+
+        $res = implode(' + ', $parts);
+        return $isNegative ? ('-' . $res) : $res;
+    }
+
     public function brand()
     {
         return $this->belongsTo(Brand::class, 'brand_id');

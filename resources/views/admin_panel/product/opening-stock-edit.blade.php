@@ -794,7 +794,12 @@
                 <div class="ose-stock-row">
                     <span class="ose-stock-branch-name">{{ $selectedBranch?->name ?? 'Main Branch' }}</span>
                     <div>
-                        <span class="ose-stock-qty-val" id="top_live_stock_display">{{ number_format($currentStock, 2) }}</span>
+                        @if(($ppp ?? 1) > 1)
+                            <span class="ose-stock-qty-val" id="top_live_stock_display">{{ \App\Models\Product::formatCartonPieces($currentStock, $ppp, $product->unit?->name) }}</span>
+                            <small class="text-muted font-weight-bold">({{ number_format($currentStock, 2) }} Pcs)</small>
+                        @else
+                            <span class="ose-stock-qty-val" id="top_live_stock_display">{{ number_format($currentStock, 2) }}</span>
+                        @endif
                         <span class="badge-stock-active">Active</span>
                     </div>
                 </div>
@@ -881,9 +886,11 @@
                                             <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ $displayQty > 0 ? (float)$displayQty : '' }}" oninput="calcTotal()">
                                             <span class="tbl-addon">{{ $product->unit?->name ?? 'Carton' }}</span>
                                         </div>
-                                        @if($ppp > 1 && $val > 0)
-                                            <div class="small text-muted font-weight-bold mt-1" style="font-size: 11px;">
-                                                = {{ number_format($val, 2) }} Pcs
+                                        @if($ppp > 1)
+                                            <div class="small text-muted font-weight-bold mt-1 alloc-pcs-preview" style="font-size: 11px;">
+                                                @if($val > 0)
+                                                    = {{ \App\Models\Product::formatCartonPieces($val, $ppp, $product->unit?->name) }} ({{ number_format($val, 2) }} Pcs)
+                                                @endif
                                             </div>
                                         @endif
                                     </td>
@@ -1129,6 +1136,7 @@ $(document).ready(function() {
                         <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="0.00" oninput="calcTotal()">
                         <span class="tbl-addon">${unitName}</span>
                     </div>
+                    ${ppp > 1 ? '<div class="small text-muted font-weight-bold mt-1 alloc-pcs-preview" style="font-size: 11px;"></div>' : ''}
                 </td>
                 <td class="text-muted small text-center">â€”</td>
                 <td class="text-muted small text-center">â€”</td>
@@ -1191,6 +1199,7 @@ $(document).ready(function() {
                 `);
                 $nextRow.find('td').eq(6).html(`
                     <input type="number" step="0.01" id="opening_qty" name="opening_qty" class="tbl-input-readonly text-end" value="${openingVal}" readonly>
+                    <input type="hidden" id="carton_qty" name="carton_qty" value="${openingVal}">
                 `);
             }
         }
@@ -1210,11 +1219,29 @@ $(document).ready(function() {
     window.calcTotal = function() {
         var total = 0;
         var data = [];
+        var ppp = {{ (float)($product->piece_per_pack ?? 1) }};
 
         $('#alloc_rows_body tr').each(function() {
             var type = $(this).find('.alloc-type-select').val();
             var qty  = parseFloat($(this).find('.alloc-qty-input').val()) || 0;
             total += qty;
+
+            if (ppp > 1) {
+                var pieceCount = qty * ppp;
+                var previewText = '';
+                if (qty > 0) {
+                    var ctn = Math.floor(qty);
+                    var loose = Math.round((pieceCount - (ctn * ppp)) * 100) / 100;
+                    var parts = [];
+                    if (ctn > 0) parts.push(ctn + ' Ctn');
+                    if (loose > 0 || parts.length === 0) {
+                        var lStr = (loose % 1 === 0) ? loose : loose.toFixed(2);
+                        parts.push(lStr + ' Pcs');
+                    }
+                    previewText = '= ' + parts.join(' + ') + ' (' + pieceCount.toFixed(2) + ' Pcs)';
+                }
+                $(this).find('.alloc-pcs-preview').text(previewText);
+            }
 
             if (type === 'shop') {
                 data.push({ location_type: 'shop', quantity: qty });
@@ -1229,6 +1256,7 @@ $(document).ready(function() {
 
         var formattedTotal = total.toFixed(2);
         $('#opening_qty').val(formattedTotal);
+        $('#carton_qty').val(formattedTotal);
         $('#header_total_allocated').text(formattedTotal);
         $('#card_total_allocated').text(formattedTotal);
         $('#card_total_opening').text(formattedTotal);

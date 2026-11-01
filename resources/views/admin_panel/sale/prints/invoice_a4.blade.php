@@ -590,6 +590,18 @@
                                     $computedTotal += $lineAmt;
                                     $productName = optional($item->product)->item_name ?? 'Item';
                                     $productCode = optional($item->product)->item_code;
+                                    $unit = optional(optional($item->product)->unit)->name ?? 'Pcs';
+                                    $ppp = (float)($item->product->piece_per_pack ?? 1);
+                                    $isCartonProd = $ppp > 1;
+                                    $isPcsUnit = (isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs');
+                                    if ($isPcsUnit) {
+                                        $qtyDisplay = ((int)$itemQty == $itemQty ? (int)$itemQty : number_format($itemQty, 2)) . ' Pcs';
+                                    } elseif ($isCartonProd) {
+                                        $totalPieces = $itemQty * $ppp;
+                                        $qtyDisplay = \App\Models\Product::formatCartonPieces($totalPieces, $ppp, $unit);
+                                    } else {
+                                        $qtyDisplay = ((int)$itemQty == $itemQty ? (int)$itemQty : number_format($itemQty, 2));
+                                    }
                                 @endphp
                                 <tr>
                                     <td class="col-sr">{{ $sr++ }}</td>
@@ -599,8 +611,8 @@
                                             <span style="font-weight: 600; font-size: 9.5px; opacity: 0.85;">({{ $productCode }})</span>
                                         @endif
                                     </td>
-                                    <td class="col-qty">
-                                        {{ $itemQty == (int)$itemQty ? (int)$itemQty : number_format($itemQty, 2) }}
+                                    <td class="col-qty" style="white-space: nowrap;">
+                                        {{ $qtyDisplay }}
                                     </td>
                                     <td class="col-rate">{{ number_format($itemRate, 2) }}</td>
                                     <td class="col-amt">{{ number_format($lineAmt, 2) }}</td>

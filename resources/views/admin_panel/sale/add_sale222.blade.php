@@ -253,7 +253,7 @@
         .col-product { width: auto !important; }
         .col-warehouse { width: 140px !important; min-width: 140px !important; }
         .col-stock { width: 55px !important; min-width: 55px !important; }
-        .col-qty { width: 85px !important; min-width: 85px !important; }
+        .col-qty { width: 110px !important; min-width: 110px !important; }
         .col-pieces { width: 50px !important; min-width: 50px !important; }
         .col-watt { width: 75px !important; min-width: 75px !important; }
         .col-price-p { width: 75px !important; min-width: 75px !important; }
@@ -763,7 +763,7 @@
                                                 <th class="col-warehouse" style="width: 140px;">WAREHOUSE</th>
                                             @endif
                                             <th class="col-stock" style="width: 55px;">STOCK</th>
-                                            <th class="col-qty" style="width: 85px;">QTY</th>
+                                            <th class="col-qty" style="width: 110px;">QTY</th>
                                             <th class="col-pieces" style="width: 50px;">PCS</th>
                                             @if(isset($saleSettings) && $saleSettings->show_watt)
                                                 <th class="col-watt" style="width: 75px;">WATT</th>
@@ -779,7 +779,21 @@
                                     <tbody id="salesTableBody">
                                         @if(isset($isEditMode) && $isEditMode && !empty($saleItems))
                                             @foreach($saleItems as $index => $item)
-                                                <tr>
+                                                @php
+                                                    $itemUnit = strtolower($item['sale_unit'] ?? 'ctn');
+                                                    $itemPpp = (float)($item['piece_per_pack'] ?? 1);
+                                                    $pObj = (isset($products) && isset($item['product_id'])) ? $products->firstWhere('id', $item['product_id']) : null;
+                                                    if ($itemPpp <= 1 && $pObj) {
+                                                        $itemPpp = (float)($pObj->piece_per_pack ?? 1);
+                                                    }
+                                                    $isCartonProd = $itemPpp > 1;
+                                                    $isPcs = ($itemUnit === 'pcs');
+                                                    $cartonPrice = $pObj ? (float)($pObj->retail_price ?? $pObj->price ?? 0) : (float)($item['retail_price'] ?? 0);
+                                                    if ($isPcs && $cartonPrice <= 0 && $itemPpp > 1) {
+                                                        $cartonPrice = (float)($item['retail_price'] ?? 0) * $itemPpp;
+                                                    }
+                                                @endphp
+                                                <tr data-piece-per-pack="{{ $itemPpp }}" data-carton-price="{{ $cartonPrice }}">
                                                     <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;">{{ $index + 1 }}</td>
                                                     <td class="col-product">
                                                         <select class="form-select product product-select" name="product_id[]" style="width:100%">
@@ -835,13 +849,18 @@
                                                         </td>
                                                     @endif
 
-                                                    <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
-                                                        <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="{{ $item['sales_qty'] ?? 1 }}" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                                                    <td style="width:110px;min-width:110px;" class="col-qty-wrapper">
+                                                        <div class="d-flex align-items-center gap-1">
+                                                            <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="{{ $item['sales_qty'] ?? 1 }}" style="flex:1 1 auto; min-width:40px; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                                                            <button type="button" class="btn btn-sm {{ $isPcs ? 'btn-success' : 'btn-primary' }} py-0 px-1 unit-toggle-btn fw-bold {{ $isCartonProd ? '' : 'd-none' }}" style="font-size: 0.68rem; height: 26px; line-height: 24px; min-width: 34px; border-radius: 3px;" title="Click to switch unit (Ctn / Pcs)">{{ $isPcs ? 'Pcs' : 'Ctn' }}</button>
+                                                            <span class="badge bg-light text-muted border default-unit-label py-1 px-1 fw-semibold {{ $isCartonProd ? 'd-none' : '' }}" style="font-size: 0.68rem; height: 26px; display: inline-flex; align-items: center;">Pcs</span>
+                                                        </div>
                                                         <input type="hidden" name="sales_qty[]" class="sales-qty-mirror" value="{{ $item['sales_qty'] ?? 1 }}">
+                                                        <input type="hidden" name="sale_unit[]" class="sale-unit-input" value="{{ $isPcs ? 'pcs' : 'ctn' }}">
                                                     </td>
                                                     <td class="col-pieces">
-                                                        <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="{{ $item['sales_qty'] ?? 1 }}">
-                                                        <input type="hidden" class="sales-qty-hidden" name="qty[]" value="{{ $item['sales_qty'] ?? 1 }}">
+                                                        <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="{{ $isPcs ? ($item['sales_qty'] ?? 1) : (($item['sales_qty'] ?? 1) * ($isCartonProd ? $itemPpp : 1)) }}">
+                                                        <input type="hidden" class="sales-qty-hidden" name="qty[]" value="{{ $isPcs ? ($item['sales_qty'] ?? 1) : (($item['sales_qty'] ?? 1) * ($isCartonProd ? $itemPpp : 1)) }}">
                                                     </td>
 
                                                     @if(isset($saleSettings) && $saleSettings->show_watt)
@@ -1486,9 +1505,14 @@
                         </td>
                         ${whCellHtml}
                         ${stockCellHtml}
-                        <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
-                            <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="1" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                        <td style="width:110px;min-width:110px;" class="col-qty-wrapper">
+                            <div class="d-flex align-items-center gap-1">
+                                <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="1" style="flex:1 1 auto; min-width:40px; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                                <button type="button" class="btn btn-sm btn-primary py-0 px-1 unit-toggle-btn fw-bold d-none" style="font-size: 0.68rem; height: 26px; line-height: 24px; min-width: 34px; border-radius: 3px;" title="Click to switch unit (Ctn / Pcs)">Ctn</button>
+                                <span class="badge bg-light text-muted border default-unit-label py-1 px-1 fw-semibold d-none" style="font-size: 0.68rem; height: 26px; display: inline-flex; align-items: center;">Pcs</span>
+                            </div>
                             <input type="hidden" name="sales_qty[]" class="sales-qty-mirror" value="1">
+                            <input type="hidden" name="sale_unit[]" class="sale-unit-input" value="ctn">
                         </td>
                         <td class="col-pieces">
                             <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="1">
@@ -1560,6 +1584,34 @@
                                 ? res.branch_stock 
                                 : ((res.overall_stock !== undefined) ? res.overall_stock : (res.stock || res.available || 0)));
                         $row.find('.stock').val(displayStock);
+
+                        if (res.piece_per_pack !== undefined) {
+                            let ppp = parseFloat(res.piece_per_pack) || 1;
+                            $row.data('piece-per-pack', ppp);
+                            let cPrice = parseFloat(res.price) || 0;
+                            if (cPrice > 0 && !$row.data('carton-price')) {
+                                $row.data('carton-price', cPrice);
+                            }
+                            const $toggleBtn = $row.find('.unit-toggle-btn');
+                            const $unitLabel = $row.find('.default-unit-label');
+                            const $unitInput = $row.find('.sale-unit-input');
+                            const curUnit = $unitInput.val() || 'ctn';
+
+                            if (ppp > 1) {
+                                $toggleBtn.removeClass('d-none').show();
+                                if (curUnit === 'pcs') {
+                                    $toggleBtn.text('Pcs').removeClass('btn-primary').addClass('btn-success');
+                                } else {
+                                    $toggleBtn.text('Ctn').removeClass('btn-success').addClass('btn-primary');
+                                    $unitInput.val('ctn');
+                                }
+                                $unitLabel.addClass('d-none').hide();
+                            } else {
+                                $toggleBtn.addClass('d-none').hide();
+                                $unitLabel.text(res.unit_name || 'Pcs').removeClass('d-none').show();
+                                $unitInput.val('pcs');
+                            }
+                        }
 
                         // Also update Select2 product text to reflect correct stock if it showed [Stock: 0]
                         const $pSelect = $row.find('.product-select');
@@ -1693,7 +1745,28 @@
                     $row.find('.stock').val(initialStock);
                     let ppp = parseFloat(prod.piece_per_pack) || 1;
                     $row.data('piece-per-pack', ppp);
-                    $row.find('.retail-price').val(prod.retail_price || prod.price || prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
+                    let origCartonPrice = parseFloat(prod.retail_price || prod.price || prod.sale_price_per_box || prod.purchase_price_per_piece || 0);
+                    $row.data('carton-price', origCartonPrice);
+
+                    const $toggleBtn = $row.find('.unit-toggle-btn');
+                    const $unitLabel = $row.find('.default-unit-label');
+                    const $unitInput = $row.find('.sale-unit-input');
+
+                    if (ppp > 1) {
+                        // Carton product: show toggle button, default to Ctn
+                        $toggleBtn.removeClass('d-none').show().text('Ctn').removeClass('btn-success').addClass('btn-primary');
+                        $unitInput.val('ctn');
+                        $unitLabel.addClass('d-none').hide();
+                        $row.find('.retail-price').val(origCartonPrice);
+                    } else {
+                        // Standard product: hide toggle button, show normal unit label
+                        $toggleBtn.addClass('d-none').hide();
+                        let uName = (prod.unit && prod.unit.name) ? prod.unit.name : (prod.unit_name || 'Pcs');
+                        $unitLabel.text(uName).removeClass('d-none').show();
+                        $unitInput.val('pcs');
+                        $row.find('.retail-price').val(origCartonPrice);
+                    }
+
                     let currentSalesQty = toNum($row.find('.sales-qty').val()) || 1;
                     let initialPieces = ppp > 1 ? (currentSalesQty * ppp) : currentSalesQty;
                     $row.find('.total-pieces').val(initialPieces);
@@ -1751,9 +1824,20 @@
                 let net = Math.max(0, gross - discAmt);
 
                 let ppp = parseFloat($row.data('piece-per-pack')) || 1;
-                let totalPieces = ppp > 1 ? (qty * ppp) : qty;
+                let currentUnit = $row.find('.sale-unit-input').val() || 'ctn';
 
-                $row.find('.total-pieces').val(totalPieces);
+                let totalPieces = 0;
+                if (ppp > 1) {
+                    if (currentUnit === 'pcs') {
+                        totalPieces = qty; // User entered pieces directly
+                    } else {
+                        totalPieces = qty * ppp; // User entered cartons
+                    }
+                } else {
+                    totalPieces = qty;
+                }
+
+                $row.find('.total-pieces').val(totalPieces % 1 === 0 ? totalPieces : totalPieces.toFixed(2));
                 $row.find('.sales-qty-hidden').val(totalPieces);
                 $row.find('.sales-qty-mirror').val(qty);
                 $row.find('.discount-amount').val(discAmt.toFixed(2));
@@ -1868,6 +1952,43 @@
                     $btn.closest('.discount-wrapper').find('.discount-type-field').val('percent');
                 }
                 computeRow($btn.closest('tr'));
+                updateGrandTotals();
+            });
+
+            // Unit toggle button handler (Ctn vs Pcs) - Only for carton products
+            $(document).on('click', '.unit-toggle-btn', function(e) {
+                e.preventDefault();
+                const $btn = $(this);
+                const $row = $btn.closest('tr');
+                const ppp = parseFloat($row.data('piece-per-pack')) || 1;
+                if (ppp <= 1) return;
+
+                const currentUnit = $row.find('.sale-unit-input').val() || 'ctn';
+                let cartonPrice = parseFloat($row.data('carton-price'));
+                if (!cartonPrice || isNaN(cartonPrice)) {
+                    cartonPrice = toNum($row.find('.retail-price').val()) || 0;
+                    $row.data('carton-price', cartonPrice);
+                }
+                const piecePrice = ppp > 0 ? (cartonPrice / ppp) : cartonPrice;
+                let currentQty = toNum($row.find('.sales-qty').val());
+
+                if (currentUnit === 'ctn') {
+                    // Switch to PCS
+                    $btn.text('Pcs').removeClass('btn-primary').addClass('btn-success');
+                    $row.find('.sale-unit-input').val('pcs');
+                    let pcsQty = currentQty > 0 ? (currentQty * ppp) : 1;
+                    $row.find('.sales-qty').val(pcsQty % 1 === 0 ? pcsQty : pcsQty.toFixed(2));
+                    $row.find('.retail-price').val(piecePrice % 1 === 0 ? piecePrice : piecePrice.toFixed(2));
+                } else {
+                    // Switch to CTN
+                    $btn.text('Ctn').removeClass('btn-success').addClass('btn-primary');
+                    $row.find('.sale-unit-input').val('ctn');
+                    let ctnQty = currentQty > 0 ? (currentQty / ppp) : 1;
+                    $row.find('.sales-qty').val(ctnQty % 1 === 0 ? ctnQty : ctnQty.toFixed(2));
+                    $row.find('.retail-price').val(cartonPrice % 1 === 0 ? cartonPrice : cartonPrice.toFixed(2));
+                }
+
+                computeRow($row);
                 updateGrandTotals();
             });
 
@@ -2995,9 +3116,14 @@
                             </td>
                             ${whCellHtml}
                             ${stockCellHtml}
-                            <td style="width:95px;min-width:95px;" class="col-qty-wrapper">
-                                <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="${qty}" style="width: 100%; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                            <td style="width:110px;min-width:110px;" class="col-qty-wrapper">
+                                <div class="d-flex align-items-center gap-1">
+                                    <input type="number" step="any" class="form-control carton-qty sales-qty text-start" name="carton_qty[]" placeholder="0" min="0" value="${qty}" style="flex:1 1 auto; min-width:40px; height: 26px; font-size: 0.85rem; padding-left: 6px;">
+                                    <button type="button" class="btn btn-sm btn-primary py-0 px-1 unit-toggle-btn fw-bold d-none" style="font-size: 0.68rem; height: 26px; line-height: 24px; min-width: 34px; border-radius: 3px;" title="Click to switch unit (Ctn / Pcs)">Ctn</button>
+                                    <span class="badge bg-light text-muted border default-unit-label py-1 px-1 fw-semibold d-none" style="font-size: 0.68rem; height: 26px; display: inline-flex; align-items: center;">Pcs</span>
+                                </div>
                                 <input type="hidden" name="sales_qty[]" class="sales-qty-mirror" value="${qty}">
+                                <input type="hidden" name="sale_unit[]" class="sale-unit-input" value="ctn">
                             </td>
                             <td class="col-pieces">
                                 <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="${qty}">

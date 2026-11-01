@@ -284,6 +284,7 @@ class ProductController extends Controller
                  'unit_id'      => $product->unit_id,
                  'stock'        => $stockQty,
                  'price'        => $product->price ?? 0,
+                 'retail_price' => $product->retail_price ?? $product->price ?? 0,
                  'is_primary'   => $isPrimary,
                  'pack_type'    => $product->pack_type ?? 'Standard',
                  'piece_per_pack' => (float)($product->piece_per_pack ?? 1),
@@ -1923,8 +1924,9 @@ public function searchProductsForSalebypagination(Request $request)
         $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
 
         $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
-        if ($multiplier > 1 && $cartonQty > 0 && abs($newQty - $cartonQty) < 0.001) {
-            $newQty = $cartonQty * $multiplier;
+        if ($multiplier > 1) {
+            $inputCarton = $cartonQty > 0 ? $cartonQty : $newQty;
+            $newQty = $inputCarton * $multiplier;
         }
 
         if ($multiplier > 1 && !empty($allocData)) {

@@ -23,6 +23,7 @@ class SaleItem extends Model
         'price_level',
         'sales_price',
         'sales_qty',
+        'sale_unit',
         'retail_price',
         'discount_percent',
         'discount_amount',
