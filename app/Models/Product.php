@@ -60,6 +60,72 @@ class Product extends Model
     {
         return $this->belongsTo(Unit::class, 'unit_id');
     }
+
+    /**
+     * Get Packing Multiplier (Pcs per Carton/Pack)
+     */
+    public function getPackingMultiplier(): float
+    {
+        $ppp = (float) ($this->piece_per_pack ?? 0);
+        return $ppp > 1 ? $ppp : 1.0;
+    }
+
+    /**
+     * Check if product has custom carton packing
+     */
+    public function hasPacking(): bool
+    {
+        return (float) ($this->piece_per_pack ?? 0) > 1;
+    }
+
+    /**
+     * Format stock into Pieces and Cartons
+     */
+    public function formatStockWithPacking(float $qty): string
+    {
+        $multiplier = $this->getPackingMultiplier();
+        if ($multiplier > 1) {
+            $cartons = $qty / $multiplier;
+            return number_format($qty, 2) . " Pcs (" . number_format($cartons, 2) . " Crtn)";
+        }
+        return number_format($qty, 2);
+    }
+
+    /**
+     * Format piece quantity into Cartons + Loose Pieces string
+     * e.g. 55 pcs with 10 ppp -> "5 Ctn + 5 Pcs"
+     * e.g. 50 pcs with 10 ppp -> "5 Ctn"
+     * e.g. 5 pcs with 10 ppp  -> "5 Pcs"
+     */
+    public static function formatCartonPieces(float $qty, float $ppp = 1, string $unitName = 'Ctn'): string
+    {
+        if ($ppp <= 1) {
+            return number_format($qty, 2);
+        }
+
+        $isNegative = $qty < 0;
+        $absQty     = abs($qty);
+        $cartons    = (int) floor($absQty / $ppp);
+        $loose      = round($absQty - ($cartons * $ppp), 2);
+
+        $unitClean = trim($unitName ?: 'Ctn');
+        if (preg_match('/carton/i', $unitClean)) {
+            $unitClean = 'Ctn';
+        }
+
+        $parts = [];
+        if ($cartons > 0) {
+            $parts[] = $cartons . ' ' . $unitClean;
+        }
+
+        if ($loose > 0 || empty($parts)) {
+            $looseFormatted = ($loose == (int)$loose) ? (int)$loose : number_format($loose, 2);
+            $parts[] = $looseFormatted . ' Pcs';
+        }
+
+        $res = implode(' + ', $parts);
+        return $isNegative ? ('-' . $res) : $res;
+    }
     public function brand()
     {
         return $this->belongsTo(Brand::class, 'brand_id');

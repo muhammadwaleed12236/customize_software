@@ -327,13 +327,21 @@ class ReportingController extends Controller
             ->where(DB::raw('DATE(voucher_date)'), '<', $startDate)
             ->sum('amount');
 
+        // 6. Prior Customer Purchases (Credit - contra purchases from customer reduce receivable)
+        $priorCustPurchases = (float) DB::table('purchases')
+            ->where('customer_id', $customerId)
+            ->whereNull('deleted_at')
+            ->where(DB::raw('DATE(created_at)'), '<', $startDate)
+            ->sum(DB::raw('COALESCE(net_amount, 0)'));
+
         return (float)$initialOpening 
             + (float)$priorSales 
             + (float)$priorJvDebits 
             - (float)$priorReturns 
             - (float)$priorReceipts 
             - (float)$priorPayments 
-            - (float)$priorJvCredits;
+            - (float)$priorJvCredits
+            - (float)$priorCustPurchases;
     }
 
     /**
@@ -662,6 +670,16 @@ class ReportingController extends Controller
             ->get();
 
         // ══════════════════════════════════════════════════════════════════
+        // PART 6 – PURCHASES FROM CUSTOMER (Contra / Buyback - Credit)
+        // ══════════════════════════════════════════════════════════════════
+        $custPurchasesRaw = DB::table('purchases')
+            ->where('customer_id', $customerId)
+            ->whereNull('deleted_at')
+            ->whereBetween(DB::raw('DATE(created_at)'), [$start, $end])
+            ->select('id', 'invoice_no', 'net_amount', 'created_at', 'note')
+            ->get();
+
+        // ══════════════════════════════════════════════════════════════════
         // BUILD UNIFIED EVENT LIST  (sorted by date → then type priority)
         // ══════════════════════════════════════════════════════════════════
         $events = [];
@@ -872,6 +890,24 @@ class ReportingController extends Controller
             ];
         }
 
+        // Add Purchases from Customer (Contra Credit)
+        foreach ($custPurchasesRaw as $cp) {
+            $events[] = [
+                'sort_date' => $cp->created_at,
+                'type'      => 'contra_purchase',
+                'priority'  => 3,
+                'data'      => [
+                    'voucher_id'   => $cp->id,
+                    'voucher_type' => 'contra_purchase',
+                    'vno'          => $cp->invoice_no,
+                    'reference_no' => '-',
+                    'description'  => $cp->note ?: 'PURCHASE FROM CUSTOMER (CONTRA)',
+                    'txn_date'     => $cp->created_at,
+                    'credit'       => floatval($cp->net_amount ?? 0),
+                ],
+            ];
+        }
+
         // Sort all events in strict chronological order
         usort($events, function ($a, $b) {
             $dateA = substr((string)$a['sort_date'], 0, 10);
@@ -1025,6 +1061,29 @@ class ReportingController extends Controller
                     'gp_no'        => '-',
                     'description'  => $d['description'],
                     'item_name'    => $d['account'],
+                    'qty'          => null,
+                    'rate'         => null,
+                    'debit'        => 0,
+                    'credit'       => $credit,
+                    'balance'      => $runningBalance,
+                ];
+
+            } elseif ($type === 'contra_purchase') {
+                $credit          = $d['credit'];
+                $runningBalance -= $credit;
+                $totalCredit    += $credit;
+
+                $transactions[] = [
+                    'row_type'     => 'receipt',
+                    'voucher_id'   => $d['voucher_id'] ?? null,
+                    'voucher_type' => 'contra_purchase',
+                    'date'         => date('d-m-y', strtotime($d['txn_date'])),
+                    'vno'          => $d['vno'],
+                    'bill'         => $d['reference_no'] ?? '-',
+                    'dc_no'        => '-',
+                    'gp_no'        => '-',
+                    'description'  => $d['description'],
+                    'item_name'    => 'CONTRA PURCHASE',
                     'qty'          => null,
                     'rate'         => null,
                     'debit'        => 0,
@@ -1760,6 +1819,24 @@ class ReportingController extends Controller
             ];
         }
 
+        // Add Purchases from Customer (Contra Credit)
+        foreach ($custPurchasesRaw as $cp) {
+            $events[] = [
+                'sort_date' => $cp->created_at,
+                'type'      => 'contra_purchase',
+                'priority'  => 3,
+                'data'      => [
+                    'voucher_id'   => $cp->id,
+                    'voucher_type' => 'contra_purchase',
+                    'vno'          => $cp->invoice_no,
+                    'reference_no' => '-',
+                    'description'  => $cp->note ?: 'PURCHASE FROM CUSTOMER (CONTRA)',
+                    'txn_date'     => $cp->created_at,
+                    'credit'       => floatval($cp->net_amount ?? 0),
+                ],
+            ];
+        }
+
         // Sort all events in strict chronological order
         usort($events, function ($a, $b) {
             $dateA = substr((string)$a['sort_date'], 0, 10);
@@ -2068,6 +2145,19 @@ class ReportingController extends Controller
             ->get()
             ->keyBy('product_id');
 
+        // Pre-calculate SALE RETURNS from stock_movements (in base units / pieces)
+        $returnQuery = DB::table('stock_movements')
+            ->where('ref_type', 'SALE_RETURN')
+            ->where('type', 'in');
+        if ($allowedBranchId && $allowedBranchId !== 'all') {
+            $returnQuery->where('branch_id', $allowedBranchId);
+        }
+        $returnQtyMap = $returnQuery
+            ->select('product_id', DB::raw('COALESCE(SUM(qty), 0) as total_qty'))
+            ->groupBy('product_id')
+            ->pluck('total_qty', 'product_id')
+            ->toArray();
+
         // Check if there are any gatepasses with items
         $gpQuery = DB::table('outward_gatepasses')->whereNotNull('items');
         if ($allowedBranchId && $allowedBranchId !== 'all') {
@@ -2139,8 +2229,12 @@ class ReportingController extends Controller
             $purchaseAmount = floatval($purchaseMap[$product->id]->total_amount ?? 0);
 
             // ================= GET SOLD QTY & AMOUNT (DELIVERED) =================
-            // Physically Delivered / Invoiced Sales (with Gatepass fallback)
-            $sold = floatval($salesMap[$product->id]->total_qty ?? ($gpDeliveredQty[$product->id] ?? 0));
+            // Physically Delivered / Invoiced Sales (with Gatepass fallback & Sale Returns netted)
+            $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+            $rawSold = floatval($salesMap[$product->id]->total_qty ?? ($gpDeliveredQty[$product->id] ?? 0));
+            $grossSold = $rawSold * $multiplier;
+            $retQtyPieces = floatval($returnQtyMap[$product->id] ?? 0);
+            $sold = max(0, $grossSold - $retQtyPieces);
             $saleAmount = floatval($salesMap[$product->id]->total_amount ?? ($gpDeliveredAmount[$product->id] ?? 0));
 
             // ================= GET RESERVED QTY (PENDING DELIVERY) =================
@@ -2198,6 +2292,9 @@ class ReportingController extends Controller
                 'id' => $product->id,
                 'item_code' => $product->item_code,
                 'item_name' => $product->item_name,
+                'unit' => $product->unit?->name ?? 'Pcs',
+                'piece_per_pack' => (float)($product->piece_per_pack ?? 1),
+                'pack_type' => $product->pack_type ?? 'Standard',
                 'initial_stock' => $openingStock,
                 'purchased' => $purchased,
                 'purchase_amount' => $purchaseAmount,
@@ -3551,6 +3648,10 @@ class ReportingController extends Controller
 
         $costRate = (float) ($product->wholesale_price ?? 0);
         $retailRate = (float) ($product->price ?? 0);
+        $ppp = (float) ($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+        $isCartonProd = ($ppp > 1);
+        $costPerPiece = $isCartonProd ? ($costRate / $ppp) : $costRate;
+        $retailPerPiece = $isCartonProd ? ($retailRate / $ppp) : $retailRate;
         $startDt = $startDate . ' 00:00:00';
         $endDt = $endDate . ' 23:59:59';
 
@@ -3607,7 +3708,13 @@ class ReportingController extends Controller
                     ->where('sales.branch_id', $branchId);
             });
         }
-        $saleReturnsBefore = (float) $saleReturnBeforeQuery->sum('qty');
+        $saleReturnsBefore = 0;
+        foreach ($saleReturnBeforeQuery->select('sales_returns.qty', 'sales_returns.sale_id')->get() as $srb) {
+            $origSaleItem = DB::table('sale_items')->where('sale_id', $srb->sale_id)->where('product_id', $productId)->first();
+            $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
+            $m = (!$isPcsReturn && $isCartonProd) ? $ppp : 1;
+            $saleReturnsBefore += (float) $srb->qty * $m;
+        }
 
         // D. Stock Transfers In before start_date
         $transInBefore = 0;
@@ -3651,7 +3758,12 @@ class ReportingController extends Controller
         if ($warehouseId !== 'all' && !empty($warehouseId)) {
             $saleBeforeQuery->where('sale_items.warehouse_id', $warehouseId);
         }
-        $salesBefore = (float) $saleBeforeQuery->sum('sale_items.sales_qty');
+        $salesBefore = 0;
+        foreach ($saleBeforeQuery->select('sale_items.sales_qty', 'sale_items.sale_unit')->get() as $sb) {
+            $isPcsSale = strtolower($sb->sale_unit ?? '') === 'pcs';
+            $m = (!$isPcsSale && $isCartonProd) ? $ppp : 1;
+            $salesBefore += (float) $sb->sales_qty * $m;
+        }
 
         // Add Outward Gatepasses issued BEFORE start_date
         $gpBeforeQuery = DB::table('outward_gatepasses')
@@ -3679,7 +3791,10 @@ class ReportingController extends Controller
             if (is_array($items)) {
                 foreach ($items as $it) {
                     if ((int)($it['product_id'] ?? 0) === $productId) {
-                        $gpOutBefore += (float) ($it['qty'] ?? 0);
+                        $rawGQty = (float) ($it['qty'] ?? 0);
+                        $isPcsGp = strtolower($it['sale_unit'] ?? ($it['unit'] ?? '')) === 'pcs';
+                        $m = (!$isPcsGp && $isCartonProd) ? $ppp : 1;
+                        $gpOutBefore += $rawGQty * $m;
                     }
                 }
             }
@@ -3726,10 +3841,10 @@ class ReportingController extends Controller
         }
         $damagedBefore = (float) $damagedBeforeQuery->sum('quantity');
 
-        // Total Net Opening Stock Qty
+        // Total Net Opening Stock Qty (In base pieces)
         $openingQty = ($openingInitial + $purchasesBefore + $saleReturnsBefore + $transInBefore)
                     - ($salesBefore + $purReturnsBefore + $transOutBefore + $damagedBefore);
-        $openingValue = $openingQty * $costRate;
+        $openingValue = $openingQty * $costPerPiece;
 
         // ══════════════════════════════════════════════════════════════════
         // 2. TRANSACTIONS WITHIN DATE RANGE [startDate, endDate]
@@ -3758,11 +3873,11 @@ class ReportingController extends Controller
                 'party'         => 'Opening Stock Allotment',
                 'warehouse'     => 'Main Store',
                 'in_qty'        => $inQty,
-                'in_price'      => $costRate,
-                'in_total'      => $inQty * $costRate,
+                'in_price'      => $costPerPiece,
+                'in_total'      => $inQty * $costPerPiece,
                 'out_qty'       => $outQty,
-                'out_price'     => $costRate,
-                'out_total'     => $outQty * $costRate,
+                'out_price'     => $costPerPiece,
+                'out_total'     => $outQty * $costPerPiece,
                 'remarks'       => $op->note ?? 'Initial stock recorded',
             ];
         }
@@ -3799,8 +3914,8 @@ class ReportingController extends Controller
             $vName = !empty($pur->vendor_name) ? $pur->vendor_name : (!empty($pur->vendor_db_name) ? $pur->vendor_db_name : 'Supplier');
             $whName = !empty($pur->warehouse_name) ? $pur->warehouse_name : 'Main Store';
             $pQty = (float) $pur->qty;
-            $pPrice = (float) $pur->price;
-            $pTotal = (float) ($pur->line_total > 0 ? $pur->line_total : ($pQty * $pPrice));
+            $pTotal = (float) ($pur->line_total > 0 ? $pur->line_total : ($pQty * $costPerPiece));
+            $pPrice = $pQty > 0 ? ($pTotal / $pQty) : $costPerPiece;
             $events[] = [
                 'datetime'      => $pur->created_at,
                 'date'          => date('d-M-Y H:i', strtotime($pur->created_at)),
@@ -3841,6 +3956,7 @@ class ReportingController extends Controller
             'customers.customer_name',
             'warehouses.warehouse_name',
             'sale_items.sales_qty',
+            'sale_items.sale_unit',
             'sale_items.sales_price',
             'sale_items.retail_price',
             'sale_items.amount',
@@ -3850,9 +3966,12 @@ class ReportingController extends Controller
             $isDcSale = in_array($sale->sale_id, $dcSaleIds);
             $cName = !empty($sale->customer_name) ? $sale->customer_name : 'Customer';
             $whName = !empty($sale->warehouse_name) ? $sale->warehouse_name : 'Main Store';
-            $sQty = (float) $sale->sales_qty;
-            $sPrice = (float) $sale->retail_price > 0 ? (float) $sale->retail_price : ((float) $sale->sales_price > 0 ? (float) $sale->sales_price : ((float) $sale->amount / max(1, $sQty)));
-            $sTotal = (float) $sale->amount > 0 ? (float) $sale->amount : ($sQty * $sPrice);
+            $rawQty = (float) $sale->sales_qty;
+            $isPcsSale = strtolower($sale->sale_unit ?? '') === 'pcs';
+            $sMultiplier = (!$isPcsSale && $isCartonProd) ? $ppp : 1;
+            $sPieces = $rawQty * $sMultiplier;
+            $sTotal = (float) $sale->amount > 0 ? (float) $sale->amount : ($rawQty * (float)$sale->retail_price);
+            $sPrice = $sPieces > 0 ? ($sTotal / $sPieces) : ((float)$sale->retail_price / $sMultiplier);
 
             if ($isDcSale) {
                 // Booking / Delivery Challan sale: Goods are physically dispatched via Outward Gatepasses
@@ -3871,7 +3990,7 @@ class ReportingController extends Controller
                     'out_qty'       => 0, // No immediate stock reduction
                     'out_price'     => $sPrice,
                     'out_total'     => 0,
-                    'remarks'       => "Booking Order ({$sQty} pcs booked - Dispatched via Gatepass)",
+                    'remarks'       => "Booking Order ({$sPieces} pcs booked - Dispatched via Gatepass)",
                 ];
             } else {
                 // Counter / Direct sale: Immediate stock reduction
@@ -3887,7 +4006,7 @@ class ReportingController extends Controller
                     'in_qty'        => 0,
                     'in_price'      => 0,
                     'in_total'      => 0,
-                    'out_qty'       => $sQty,
+                    'out_qty'       => $sPieces,
                     'out_price'     => $sPrice,
                     'out_total'     => $sTotal,
                     'remarks'       => $sale->remarks ?? 'Sold to Customer',
@@ -3930,11 +4049,14 @@ class ReportingController extends Controller
             foreach ($items as $it) {
                 if ((int)($it['product_id'] ?? 0) !== $productId) continue;
 
-                $gQty = (float)($it['qty'] ?? 0);
-                if ($gQty <= 0) continue;
+                $rawGQty = (float)($it['qty'] ?? 0);
+                if ($rawGQty <= 0) continue;
 
-                $gPrice = (float)($it['retail_price'] ?? $costRate);
-                $gTotal = (float)($it['amount'] ?? ($gQty * $gPrice));
+                $isPcsGp = strtolower($it['sale_unit'] ?? ($it['unit'] ?? '')) === 'pcs';
+                $gMultiplier = (!$isPcsGp && $isCartonProd) ? $ppp : 1;
+                $gPieces = $rawGQty * $gMultiplier;
+                $gTotal = (float)($it['amount'] ?? ($rawGQty * (float)($it['retail_price'] ?? $costRate)));
+                $gPrice = $gPieces > 0 ? ($gTotal / $gPieces) : $costPerPiece;
 
                 $locName = !empty($gp->warehouse_name) ? $gp->warehouse_name : (!empty($gp->branch_name) ? "{$gp->branch_name} (Branch)" : 'Main Store');
                 $dcNum = !empty($gp->dc_no) ? $gp->dc_no : ($gp->order_dc_no ?? '');
@@ -3956,7 +4078,7 @@ class ReportingController extends Controller
                     'in_qty'        => 0,
                     'in_price'      => 0,
                     'in_total'      => 0,
-                    'out_qty'       => $gQty,
+                    'out_qty'       => $gPieces,
                     'out_price'     => $gPrice,
                     'out_total'     => $gTotal,
                     'remarks'       => "Goods Dispatched{$refText}" . ($gp->remarks ? " - {$gp->remarks}" : ''),
@@ -3977,9 +4099,13 @@ class ReportingController extends Controller
             });
         }
         foreach ($saleReturnQuery->get() as $sr) {
-            $srQty = (float) $sr->qty;
-            $srPrice = (float) $sr->per_price;
-            $srTotal = (float) ($sr->per_total > 0 ? $sr->per_total : ($srQty * $srPrice));
+            $rawSrQty = (float) $sr->qty;
+            $origSaleItem = DB::table('sale_items')->where('sale_id', $sr->sale_id)->where('product_id', $productId)->first();
+            $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
+            $srMultiplier = (!$isPcsReturn && $isCartonProd) ? $ppp : 1;
+            $srPieces = $rawSrQty * $srMultiplier;
+            $srTotal = (float) ($sr->per_total > 0 ? $sr->per_total : ($rawSrQty * (float)$sr->per_price));
+            $srPrice = $srPieces > 0 ? ($srTotal / $srPieces) : $costPerPiece;
 
             // Resolve actual warehouse or shop name
             $srWhName = 'Shop';
@@ -4005,7 +4131,7 @@ class ReportingController extends Controller
                 'ref_no'        => $sr->reference ?? 'SR',
                 'party'         => $sr->customer ?? 'Customer Return',
                 'warehouse'     => $srWhName,
-                'in_qty'        => $srQty,
+                'in_qty'        => $srPieces,
                 'in_price'      => $srPrice,
                 'in_total'      => $srTotal,
                 'out_qty'       => 0,
@@ -4037,8 +4163,8 @@ class ReportingController extends Controller
         );
         foreach ($purReturnQuery->get() as $pr) {
             $prQty = (float) $pr->qty;
-            $prPrice = (float) $pr->price;
-            $prTotal = (float) ($pr->line_total > 0 ? $pr->line_total : ($prQty * $prPrice));
+            $prTotal = (float) ($pr->line_total > 0 ? $pr->line_total : ($prQty * $costPerPiece));
+            $prPrice = $prQty > 0 ? ($prTotal / $prQty) : $costPerPiece;
             $events[] = [
                 'datetime'      => $pr->created_at,
                 'date'          => date('d-M-Y H:i', strtotime($pr->created_at)),
@@ -4094,8 +4220,8 @@ class ReportingController extends Controller
                         'in_price'      => 0,
                         'in_total'      => 0,
                         'out_qty'       => $qty,
-                        'out_price'     => $costRate,
-                        'out_total'     => $qty * $costRate,
+                        'out_price'     => $costPerPiece,
+                        'out_total'     => $qty * $costPerPiece,
                         'remarks'       => $st->remarks ?? 'Transferred Out',
                     ];
                 } elseif ($st->to_branch_id == $branchId) {
@@ -4109,8 +4235,8 @@ class ReportingController extends Controller
                         'party'         => 'From: ' . $fromName,
                         'warehouse'     => $toName,
                         'in_qty'        => $qty,
-                        'in_price'      => $costRate,
-                        'in_total'      => $qty * $costRate,
+                        'in_price'      => $costPerPiece,
+                        'in_total'      => $qty * $costPerPiece,
                         'out_qty'       => 0,
                         'out_price'     => 0,
                         'out_total'     => 0,
@@ -4164,8 +4290,8 @@ class ReportingController extends Controller
                 'in_price'      => 0,
                 'in_total'      => 0,
                 'out_qty'       => $dQty,
-                'out_price'     => $costRate,
-                'out_total'     => $dQty * $costRate,
+                'out_price'     => $costPerPiece,
+                'out_total'     => $dQty * $costPerPiece,
                 'remarks'       => 'Damaged / Scrapped items',
             ];
         }
@@ -4189,8 +4315,12 @@ class ReportingController extends Controller
 
             $runningBalance += ($inQ - $outQ);
             $ev['balance_qty'] = $runningBalance;
-            $ev['valuation_rate'] = $costRate;
-            $ev['balance_value'] = $runningBalance * $costRate;
+            $ev['valuation_rate'] = $costPerPiece;
+            $ev['balance_value'] = $runningBalance * $costPerPiece;
+
+            $ev['in_qty_display'] = $inQ > 0 ? Product::formatCartonPieces($inQ, $ppp, $product->unit?->name) : '-';
+            $ev['out_qty_display'] = $outQ > 0 ? Product::formatCartonPieces($outQ, $ppp, $product->unit?->name) : '-';
+            $ev['balance_qty_display'] = Product::formatCartonPieces($runningBalance, $ppp, $product->unit?->name);
 
             $totalInQty += $inQ;
             $totalInValue += (float) $ev['in_total'];
@@ -4199,7 +4329,7 @@ class ReportingController extends Controller
         }
 
         $closingQty = $runningBalance;
-        $closingValue = $closingQty * $costRate;
+        $closingValue = $closingQty * $costPerPiece;
 
         // Current Branch & Warehouse info for display
         $branchName = 'All Branches (Consolidated)';
@@ -4224,6 +4354,10 @@ class ReportingController extends Controller
                 'subcategory'       => $product->sub_category_relation->name ?? '-',
                 'brand'             => $product->brand->name ?? '-',
                 'unit'              => $product->unit->name ?? 'Pcs',
+                'piece_per_pack'    => $ppp,
+                'is_carton'         => $isCartonProd,
+                'cost_per_piece'    => $costPerPiece,
+                'retail_per_piece'  => $retailPerPiece,
                 'wholesale_price'   => $costRate,
                 'retail_price'      => $retailRate,
                 'alert_quantity'    => $product->alert_quantity ?? 0,
@@ -4237,14 +4371,18 @@ class ReportingController extends Controller
                 'end_date'          => date('d-M-Y', strtotime($endDate)),
             ],
             'summary'   => [
-                'opening_qty'       => $openingQty,
-                'opening_value'     => $openingValue,
-                'total_in_qty'      => $totalInQty,
-                'total_in_value'    => $totalInValue,
-                'total_out_qty'     => $totalOutQty,
-                'total_out_value'   => $totalOutValue,
-                'closing_qty'       => $closingQty,
-                'closing_value'     => $closingValue,
+                'opening_qty'          => $openingQty,
+                'opening_qty_display'  => Product::formatCartonPieces($openingQty, $ppp, $product->unit?->name),
+                'opening_value'        => $openingValue,
+                'total_in_qty'         => $totalInQty,
+                'total_in_qty_display' => Product::formatCartonPieces($totalInQty, $ppp, $product->unit?->name),
+                'total_in_value'       => $totalInValue,
+                'total_out_qty'        => $totalOutQty,
+                'total_out_qty_display'=> Product::formatCartonPieces($totalOutQty, $ppp, $product->unit?->name),
+                'total_out_value'      => $totalOutValue,
+                'closing_qty'          => $closingQty,
+                'closing_qty_display'  => Product::formatCartonPieces($closingQty, $ppp, $product->unit?->name),
+                'closing_value'        => $closingValue,
             ],
             'events'    => $events,
         ]);

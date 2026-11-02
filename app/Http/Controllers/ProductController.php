@@ -279,7 +279,10 @@ class ProductController extends Controller
                  'unit_id'      => $product->unit_id,
                  'stock'        => $stockQty,
                  'price'        => $product->price ?? 0,
+                 'retail_price' => $product->retail_price ?? $product->price ?? 0,
                  'is_primary'   => $isPrimary,
+                 'pack_type'    => $product->pack_type ?? 'Standard',
+                 'piece_per_pack' => (float)($product->piece_per_pack ?? 1),
              ];
          });
 
@@ -360,6 +363,8 @@ public function searchProductsForSalebypagination(Request $request)
             'unit_name' => $p->unit->name ?? '',
             'unit_id' => $p->unit_id,
             'is_primary' => $isPrimary,  // ✅ NEW - Primary/Secondary status
+            'pack_type' => $p->pack_type ?? 'Standard',
+            'piece_per_pack' => (float)($p->piece_per_pack ?? 1),
         ];
     });
 
@@ -1497,6 +1502,8 @@ public function searchProductsForSalebypagination(Request $request)
                 'category_name'      => optional($product->category_relation)->name ?? 'General',
                 'brand_name'         => optional($product->brand)->name ?? '-',
                 'unit_name'          => optional($product->unit)->name ?? 'PCS',
+                'piece_per_pack'     => (float) ($product->piece_per_pack ?? 1),
+                'pack_type'          => $product->pack_type ?? 'Standard',
                 'branch_id'          => $targetBranchId,
                 'branch_name'        => optional($product->branch)->name ?? ('Branch ' . $targetBranchId),
                 'opening_qty'        => $openingQty,
