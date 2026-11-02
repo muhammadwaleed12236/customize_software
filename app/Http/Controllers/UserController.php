@@ -61,6 +61,24 @@ class UserController extends Controller
         return view('admin_panel.users.users', compact(['users', 'allRoles', 'allowedBranchIds', 'branches']));
     }
 
+    /**
+     * Dedicated Assigning Screen (Cross-branch permissions & Warehouse assignments)
+     */
+    public function assigningIndex()
+    {
+        abort_unless(Auth::user()->hasRole('super admin'), 403, 'Super Admin only.');
+
+        $users = User::with(['branch', 'roles', 'warehouses'])
+            ->where('email', '!=', 'admin@admin.com')
+            ->orderBy('name')
+            ->get();
+
+        $branches = Branch::orderBy('name')->get();
+        $allRoles = Role::all();
+
+        return view('admin_panel.users.assigning', compact(['users', 'branches', 'allRoles']));
+    }
+
     public function store(Request $request)
     {
         $editId = $request->edit_id ?? null;

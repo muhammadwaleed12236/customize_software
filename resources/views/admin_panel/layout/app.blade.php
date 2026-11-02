@@ -394,7 +394,6 @@
                                 <ul class="submenu-item">
                                     @can('product.view')
                                     <li><a href="{{route('product')}}"><i class="fas fa-box"></i> All Products</a></li>
-                                    <li><a href="{{route('products.bulk_assign')}}"><i class="fas fa-share-alt" style="color: #3b82f6;"></i> Branch Assigning</a></li>
                                     <li><a href="{{route('opening.stocks.index')}}"><i class="fas fa-hourglass-half" style="color: #ffc107;"></i> Opening Stocks</a></li>
                                     @endcan
                                     @can('category.view')
@@ -706,8 +705,21 @@
                                     @can('branch.view')
                                     <li><a href="{{ route('branch.index') }}"><i class="fa-solid fa-code-branch"></i> Branches</a></li>
                                     @endcan
+                                    @if(Auth::user()->hasRole('super admin'))
+                                    <li><a href="{{ route('users.assigning') }}"><i class="fa-solid fa-user-check"></i> Assigning</a></li>
+                                    @endif
                                 </ul>
                             </div>
+                        </li>
+                        @endif
+
+                        <!-- Dedicated Assigning Menu (Super Admin) -->
+                        @if(Auth::user()->hasRole('super admin'))
+                        <li class="nav-item {{ request()->routeIs('users.assigning') ? 'active' : '' }}">
+                            <a href="{{ route('users.assigning') }}" class="nav-link">
+                                <i class="menu_icon fas fa-user-check" style="color: #06b6d4;"></i>
+                                <span class="menu-title">Assigning</span>
+                            </a>
                         </li>
                         @endif
 

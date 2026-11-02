@@ -816,9 +816,6 @@ $(document).ready(function() {
             {{-- Total Opening Qty --}}
             <td>
                 <input type="number" step="0.01" class="tbl-readonly-total" id="oqty_${idx}" name="rows[${idx}][opening_qty]" placeholder="0.00" readonly>
-                <input type="hidden" id="carton_qty_${idx}" name="rows[${idx}][carton_qty]" value="0">
-                <input type="hidden" id="ppp_${idx}" name="rows[${idx}][piece_per_pack]" value="1">
-                <div id="packing_badge_${idx}" class="small font-weight-bold text-success mt-1" style="display:none; font-size:11px;"></div>
             </td>
 
             {{-- Action Trash --}}
@@ -923,8 +920,6 @@ $(document).ready(function() {
 
             // Update Unit
             var u = d.unit || d.unit_name || 'Pcs';
-            var ppp = parseFloat(d.piece_per_pack) || 1;
-            $('#ppp_' + idx).val(ppp);
             $('#unit_name_' + idx).text(u);
             row.find('.alloc-unit-lbl').text(u);
 
@@ -935,7 +930,6 @@ $(document).ready(function() {
             var metaArr = [];
             if (d.category_name) metaArr.push(d.category_name);
             if (u) metaArr.push(u);
-            if (ppp > 1) metaArr.push('📦 ' + ppp + ' Pcs/Crtn');
             if (d.brand_name) metaArr.push(d.brand_name);
             $('#meta_' + idx).text(metaArr.join(' | ') + (d.item_name_urdu ? ('\n' + d.item_name_urdu) : ''));
 
@@ -979,7 +973,6 @@ $(document).ready(function() {
     window.calcTotal = function(idx) {
         var total = 0;
         var data = [];
-        var ppp = parseFloat($('#ppp_' + idx).val()) || 1;
 
         $('#alloc_rows_' + idx + ' .alloc-single-row').each(function() {
             var type = $(this).find('.alloc-type').val();
@@ -997,26 +990,7 @@ $(document).ready(function() {
             }
         });
 
-        var pieceQty = ppp > 1 ? (total * ppp) : total;
-        $('#carton_qty_' + idx).val(total > 0 ? total : 0);
-        $('#oqty_' + idx).val(pieceQty > 0 ? pieceQty.toFixed(2) : '');
-
-        var badge = $('#packing_badge_' + idx);
-        if (ppp > 1 && total > 0) {
-            var ctnCount = Math.floor(total);
-            var looseCount = Math.round((pieceQty - (ctnCount * ppp)) * 100) / 100;
-            var parts = [];
-            if (ctnCount > 0) parts.push(ctnCount + ' Ctn');
-            if (looseCount > 0 || parts.length === 0) {
-                var lStr = (looseCount % 1 === 0) ? looseCount : looseCount.toFixed(2);
-                parts.push(lStr + ' Pcs');
-            }
-            var breakdownStr = parts.join(' + ');
-            badge.html('<i class="fas fa-boxes"></i> <strong>' + breakdownStr + '</strong> (' + pieceQty.toLocaleString('en-US', {minimumFractionDigits: 0, maximumFractionDigits: 2}) + ' Pcs)').show();
-        } else {
-            badge.hide().empty();
-        }
-
+        $('#oqty_' + idx).val(total > 0 ? total.toFixed(2) : '');
         $('#alloc_data_' + idx).val(JSON.stringify(data));
         calcGrandTotal();
     };

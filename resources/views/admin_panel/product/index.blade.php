@@ -88,36 +88,6 @@
         padding: 16px 24px 20px;
         font-family: 'Inter', sans-serif;
     }
-    /* Hide default DataTable search box since we have custom header search */
-    div.dataTables_wrapper div.dataTables_filter {
-        display: none !important;
-    }
-
-    /* --- Custom Header Product Search --- */
-    .product-search-box {
-        position: relative;
-        min-width: 260px;
-        max-width: 340px;
-    }
-    .product-search-box input#customProductSearch {
-        border: 1.5px solid #e2e8f0 !important;
-        background: #f8fafc !important;
-        font-family: 'Inter', sans-serif !important;
-        font-size: 13px !important;
-        height: 38px !important;
-        border-radius: 8px !important;
-        padding-left: 36px !important;
-        padding-right: 32px !important;
-        transition: all 0.2s ease !important;
-        color: #1e293b !important;
-    }
-    .product-search-box input#customProductSearch:focus {
-        background: #ffffff !important;
-        border-color: #1e3a5f !important;
-        box-shadow: 0 0 0 3px rgba(30,58,95,0.08) !important;
-        outline: none !important;
-    }
-
     div.dataTables_wrapper div.dataTables_length select {
         width: 70px !important;
         border: 1.5px solid #e2e8f0 !important;
@@ -571,11 +541,6 @@
 
     /* ─── Mobile Product Card Layout (No Horizontal Scroll) ─── */
     @media (max-width: 991px) {
-        .product-search-box {
-            width: 100% !important;
-            max-width: 100% !important;
-            min-width: 100% !important;
-        }
         .product-card-header {
             flex-direction: column !important;
             align-items: flex-start !important;
@@ -832,23 +797,12 @@
 <div class="product-page-wrap">
 <div class="product-card">
     <div class="product-card-header">
-        <div class="d-flex align-items-center flex-wrap" style="gap: 16px;">
-            <div class="header-left">
-                <h5>
-                    <span class="icon-box"><i class="fas fa-box"></i></span>
-                    Product List
-                </h5>
-                <small>Manage all products &amp; inventory</small>
-            </div>
-
-            <!-- Product Search Bar -->
-            <div class="product-search-box">
-                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #94a3b8; font-size: 13px; pointer-events: none;"></i>
-                <input type="text" id="customProductSearch" class="form-control" placeholder="Search products..." autocomplete="off">
-                <button type="button" id="clearProductSearch" style="display: none; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #94a3b8; cursor: pointer; padding: 2px 5px; font-size: 13px;" title="Clear search">
-                    <i class="fas fa-times-circle"></i>
-                </button>
-            </div>
+        <div class="header-left">
+            <h5>
+                <span class="icon-box"><i class="fas fa-box"></i></span>
+                Product List
+            </h5>
+            <small>Manage all products &amp; inventory</small>
         </div>
         <div class="d-flex align-items-center" style="gap: 10px; flex-wrap: wrap;">
             @if($isSuperAdmin)
@@ -872,10 +826,6 @@
                 @endif
             </div>
             @endif
-
-            <a href="{{ route('products.bulk_assign') }}" class="btn btn-outline-primary" style="font-weight: 600; font-size: 13px; padding: 8px 16px; border-radius: 8px; display: inline-flex; align-items: center; gap: 6px; border-color: #cbd5e1; background: #fff;">
-                <i class="fas fa-layer-group text-primary"></i> Branch Assigning
-            </a>
 
             <a href="{{ url('create_prodcut') }}" class="btn-add-product">
                 <i class="fas fa-plus"></i> Add Product
@@ -939,29 +889,29 @@
                             <td>
                                 @if($product->all_warehouse_stocks && count($product->all_warehouse_stocks) > 0)
                                     @foreach($product->all_warehouse_stocks as $stock)
-                                        @php
-                                            $ppp = (float)($product->piece_per_pack ?? 1);
-                                            $sQty = (float)$stock['quantity'];
-                                            $cartonQty = ($ppp > 1) ? ($sQty / $ppp) : $sQty;
-                                        @endphp
-                                        <div class="branch-stock-row mb-1">
+                                        <div class="branch-stock-row">
                                             <span class="branch-stock-name">{{ $stock['branch_name'] }}:</span>
-                                            @if($ppp > 1)
-                                                <span class="badge-qty" title="{{ $sQty }} Pcs">
-                                                    {{ rtrim(rtrim(number_format($cartonQty, 2), '0'), '.') }} {{ $product->unit?->name ?? 'Crtn' }}
-                                                    <span style="font-size: 10px; color: #64748b; font-weight: 600;">({{ rtrim(rtrim(number_format($sQty, 2), '0'), '.') }} Pcs)</span>
-                                                </span>
-                                            @else
-                                                <span class="badge-qty">{{ $sQty }}</span>
-                                            @endif
+                                            <span class="badge-qty">{{ $stock['quantity'] }}</span>
                                         </div>
                                     @endforeach
                                 @else
                                     <span class="badge-no-qty">No Stock</span>
                                 @endif
                             </td>
+                        @else
+                            <td>
+                                @if($product->branch_stock_qty > 0)
+                                    <span class="badge-qty">{{ $product->branch_stock_qty }}</span>
+                                @else
+                                    <span class="badge-no-qty">Out</span>
+                                @endif
+                            </td>
+                        @endif
+
+                        {{-- 2. Stock Status --}}
+                        @if($isSuperAdmin)
                             <td style="white-space: nowrap;">
-                                @if(($product->total_all_branches_stock ?? 0) > 0 || ($product->all_warehouse_stocks && count($product->all_warehouse_stocks) > 0))
+                                @if($product->all_warehouse_stocks && count($product->all_warehouse_stocks) > 0)
                                     <span class="badge-in-stock"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>In Stock</span>
                                 @else
                                     <span class="badge-no-stock"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>No Stock</span>
@@ -969,31 +919,10 @@
                             </td>
                         @else
                             <td>
-                                @php
-                                    $ppp = (float)($product->piece_per_pack ?? 1);
-                                    $bQty = (float)$product->branch_stock_qty;
-                                    $cartonBQty = ($ppp > 1) ? ($bQty / $ppp) : $bQty;
-                                @endphp
-                                @if($bQty > 0)
-                                    @if($ppp > 1)
-                                        <div style="font-weight: 700; color: #1e3a5f;">
-                                            {{ rtrim(rtrim(number_format($cartonBQty, 2), '0'), '.') }} <small style="color:#64748b;">{{ $product->unit?->name ?? 'Crtn' }}</small>
-                                        </div>
-                                        <div style="font-size: 11px; color: #64748b; font-weight: 600;">
-                                            {{ rtrim(rtrim(number_format($bQty, 2), '0'), '.') }} Pcs
-                                        </div>
-                                    @else
-                                        <span class="badge-qty">{{ $bQty }}</span>
-                                    @endif
+                                @if($product->is_primary)
+                                    <span class="badge-primary-role"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>Primary</span>
                                 @else
-                                    <span class="badge-no-qty">Out</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($product->branch_stock_qty > 0)
-                                    <span class="badge-primary-role"><i class="fas fa-check-circle" style="font-size:10px; margin-right:3px;"></i>In Stock</span>
-                                @else
-                                    <span class="badge-secondary-role"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>Out of Stock</span>
+                                    <span class="badge-secondary-role"><i class="fas fa-circle" style="font-size:8px; margin-right:3px;"></i>Secondary</span>
                                 @endif
                             </td>
                         @endif
@@ -1011,19 +940,7 @@
                         </td>
                         <td>
                             <div class="item-name-text">{{ $product->item_name }}</div>
-                            @if($product->is_shared)
-                                <div style="margin-top: 3px;">
-                                    <span class="badge" style="background:#f0fdf4; color:#166534; border:1px solid #bbf7d0; font-size:10px; padding:2px 6px; border-radius:4px;">
-                                        <i class="fas fa-handshake mr-1"></i> Shared by {{ $product->branch->name ?? 'Origin Branch' }}
-                                    </span>
-                                </div>
-                            @elseif($product->sharedBranches && $product->sharedBranches->count() > 0)
-                                <div style="margin-top: 3px;">
-                                    <span class="badge" style="background:#eff6ff; color:#1e40af; border:1px solid #bfdbfe; font-size:10px; padding:2px 6px; border-radius:4px;">
-                                        <i class="fas fa-share-alt mr-1"></i> Shared with {{ $product->sharedBranches->count() }} branch(es)
-                                    </span>
-                                </div>
-                            @elseif($product->branch)
+                            @if($product->branch)
                                 <div style="font-size: 11px; color: #64748b; opacity: 0.68; margin-top: 3px; font-weight: 500;">
                                     <i class="fas fa-store-alt mr-1" style="font-size: 9px;"></i>Origin: {{ $product->branch->name }}
                                 </div>
@@ -1047,11 +964,7 @@
                                             <li><a class="dropdown-item" href="{{ route('products.edit', $product->id) }}"><i class="fas fa-edit" style="color:#1e3a5f; width:16px;"></i> Edit Profile</a></li>
                                             <li><a class="dropdown-item" href="{{ route('opening.stocks.edit', $product->id) }}"><i class="fas fa-dollar-sign" style="color:#0d9f6e; width:16px;"></i> Edit Stock &amp; Pricing</a></li>
                                         @endif
-                                        @if($product->can_manage_shares)
-                                            <li><a class="dropdown-item btn-share-branch" href="javascript:void(0)" data-id="{{ $product->id }}" data-name="{{ $product->item_name }}"><i class="fas fa-share-alt" style="color:#0284c7; width:16px;"></i> Branch Permissions</a></li>
-                                        @endif
                                         <li><a class="dropdown-item" href="{{ route('generate-barcode-image', $product->id) }}"><i class="fas fa-barcode" style="color:#64748b; width:16px;"></i> Generate Barcode</a></li>
-                                        <li><a class="dropdown-item" href="{{ route('inter_branch_stock_requests.create') }}"><i class="fas fa-truck-moving" style="color:#0284c7; width:16px;"></i> Request Stock Transfer</a></li>
                                         @if($product->is_assembled)
                                             <li><div class="dropdown-divider"></div></li>
                                             <li><a class="dropdown-item" href="{{ route('assembly.report.show', $product->id) }}"><i class="fas fa-cogs" style="color:#7c3aed; width:16px;"></i> Assembly Report</a></li>
@@ -1066,53 +979,6 @@
             </table>
         </div>
 </div>
-</div>
-
-{{-- ==================== BRANCH PERMISSION / SHARE MODAL ==================== --}}
-<div class="modal fade" id="branchShareModal" tabindex="-1" role="dialog" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered" role="document">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 14px; overflow: hidden; background: #ffffff;">
-            <div class="modal-header text-white px-3 py-3" style="background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);">
-                <div class="d-flex align-items-center" style="gap: 10px;">
-                    <i class="fas fa-share-alt" style="font-size: 16px;"></i>
-                    <div>
-                        <h6 class="modal-title font-weight-bold mb-0 text-white" style="font-size: 15px;">Branch Permissions / Sharing</h6>
-                        <small class="opacity-75" id="bsm_product_title">Loading product...</small>
-                    </div>
-                </div>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="opacity: 0.9;">
-                    <span aria-hidden="true">&times;</span>
-                </button>
-            </div>
-            <div class="modal-body p-3" style="background: #f8fafc;">
-                <div class="alert alert-info border-0 py-2 px-3 mb-3 small" style="background:#e0f2fe; color:#0369a1; border-radius:8px;">
-                    <i class="fas fa-info-circle mr-1"></i> Select which branches are granted permission to view, purchase, and sell this product.
-                </div>
-
-                <div id="bsm_loading" class="text-center py-4">
-                    <div class="spinner-border spinner-border-sm text-primary"></div>
-                    <div class="small text-muted mt-2">Loading branch list...</div>
-                </div>
-
-                <div id="bsm_content" style="display:none;">
-                    <input type="hidden" id="bsm_product_id">
-                    <div class="mb-2 d-flex justify-content-between align-items-center">
-                        <span class="font-weight-bold text-dark small">Owner Branch:</span>
-                        <span class="badge" style="background:#e2e8f0; color:#334155; font-size:11px;" id="bsm_creator_branch">-</span>
-                    </div>
-                    <div class="border rounded p-2 bg-white" style="max-height: 260px; overflow-y: auto;" id="bsm_branches_list">
-                        <!-- Loaded dynamically -->
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer px-3 py-2 bg-white border-top">
-                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary btn-sm font-weight-bold" id="bsm_save_btn">
-                    <i class="fas fa-save mr-1"></i> Save Permissions
-                </button>
-            </div>
-        </div>
-    </div>
 </div>
 
 {{-- ==================== PRODUCT VIEW MODAL (Compact Ameen & Sons Premium Theme) ==================== --}}
@@ -1179,9 +1045,6 @@
                                 <div class="d-flex align-items-baseline justify-content-end" style="gap: 4px; margin-top: 1px;">
                                     <span class="font-weight-bolder text-success" style="font-size: 20px; line-height: 1;" id="pvm_stock">0</span>
                                     <span class="text-muted font-weight-bold" style="font-size: 11px;" id="pvm_unit_label">pcs</span>
-                                </div>
-                                <div id="pvm_stock_pcs_wrap" style="display: none; font-size: 11px; color: #64748b; font-weight: 700; margin-top: 2px;">
-                                    <span id="pvm_stock_pcs">0</span> Pcs
                                 </div>
                             </div>
                             <div id="pvm_low_stock_alert" class="p-2 px-2.5 rounded font-weight-bold text-danger text-center" style="background: rgba(239,68,68,0.12); border: 1.5px solid rgba(239,68,68,0.25); display: none; font-size: 9.5px; border-radius: 8px; line-height: 1.2;">
@@ -1344,9 +1207,8 @@
 $(document).ready(function () {
 
     // ===== DataTable =====
-    var productDataTable = null;
     if ($.fn.DataTable) {
-        productDataTable = $('#productTable').DataTable({
+        $('#productTable').DataTable({
             responsive: false, // Disabled to prevent the green '+' icons and weird column collapsing
             scrollX: true,     // Enable native DataTables horizontal scrolling
             pageLength: 10,
@@ -1354,60 +1216,6 @@ $(document).ready(function () {
             language: { search: "_INPUT_", searchPlaceholder: "Search products..." }
         });
     }
-
-    // ===== Custom Product Search (Header) =====
-    function performProductSearch(query) {
-        query = (query || '').toLowerCase().trim();
-
-        var dt = null;
-        if (productDataTable) {
-            dt = productDataTable;
-        } else if ($.fn.DataTable && $.fn.dataTable.isDataTable('#productTable')) {
-            dt = $('#productTable').DataTable();
-        }
-
-        if (dt) {
-            dt.search(query).draw();
-        } else {
-            // Direct DOM fallback if DataTable is not active
-            $('#productTable tbody tr').each(function () {
-                var rowText = $(this).text().toLowerCase();
-                if (!query || rowText.indexOf(query) !== -1) {
-                    $(this).show();
-                } else {
-                    $(this).hide();
-                }
-            });
-        }
-    }
-
-    $(document).on('input keyup search paste change', '#customProductSearch', function () {
-        var query = $(this).val();
-        if (query && query.length > 0) {
-            $('#clearProductSearch').show();
-        } else {
-            $('#clearProductSearch').hide();
-        }
-        performProductSearch(query);
-    });
-
-    $(document).on('click', '#clearProductSearch', function () {
-        $('#customProductSearch').val('');
-        $('#clearProductSearch').hide();
-        performProductSearch('');
-        $('#customProductSearch').focus();
-    });
-
-    $(document).on('keydown', '#customProductSearch', function (e) {
-        if (e.key === 'Escape') {
-            $(this).val('');
-            $('#clearProductSearch').hide();
-            performProductSearch('');
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            performProductSearch($(this).val());
-        }
-    });
 
     // ===== Select All =====
     $('#selectAll').on('click', function () {
@@ -1564,25 +1372,10 @@ $(document).on('click', '.viewProductBtn', function () {
             // Stock
             var stock    = parseFloat(p.stock ? p.stock.qty : 0);
             var alertQty = parseFloat(p.alert_quantity || 0);
-            var ppp      = parseFloat(p.piece_per_pack || 1);
-            var unitName = p.unit ? p.unit.name : 'pcs';
-
-            if (ppp > 1) {
-                var cartonStock = stock / ppp;
-                var formattedCarton = parseFloat(cartonStock.toFixed(2)).toString();
-                $('#pvm_stock').text(formattedCarton);
-                $('#pvm_unit_label').text(unitName);
-                $('#pvm_stock_pcs').text(parseFloat(stock.toFixed(2)).toString());
-                $('#pvm_stock_pcs_wrap').show();
-            } else {
-                $('#pvm_stock').text(stock);
-                $('#pvm_unit_label').text(unitName);
-                $('#pvm_stock_pcs_wrap').hide();
-            }
-
+            $('#pvm_stock').text(stock);
             $('#pvm_alert_qty').text(alertQty);
+            $('#pvm_unit_label').text(p.unit ? p.unit.name : 'pcs');
             if (alertQty > 0 && stock <= alertQty) { $('#pvm_low_stock_alert').show(); }
-            else { $('#pvm_low_stock_alert').hide(); }
 
             // Pricing
             $('#pvm_wholesale').text('PKR ' + parseFloat(p.wholesale_price || 0).toLocaleString());
@@ -1679,107 +1472,6 @@ $(document).on('click', '.viewProductBtn', function () {
         error: function (xhr) {
             $('#productViewModal').modal('hide');
             Swal.fire('Error', 'Could not load product. (Status: ' + xhr.status + ')', 'error');
-        }
-    });
-});
-
-// ==================== BRANCH PERMISSION / SHARE HANDLERS ====================
-$(document).on('click', '.btn-share-branch', function(e) {
-    e.preventDefault();
-    var pid = $(this).data('id');
-    var pname = $(this).data('name');
-    $('#bsm_product_id').val(pid);
-    $('#bsm_product_title').text(pname);
-    $('#bsm_branches_list').empty();
-    $('#bsm_loading').show();
-    $('#bsm_content').hide();
-    $('#branchShareModal').modal('show');
-
-    $.getJSON('{{ url("/products") }}/' + pid + '/branch-shares', function(res) {
-        $('#bsm_loading').hide();
-        $('#bsm_content').show();
-        $('#bsm_creator_branch').text(res.creator_branch_name);
-
-        var list = $('#bsm_branches_list');
-        list.empty();
-
-        if (!res.branches || res.branches.length === 0) {
-            list.html('<div class="text-muted text-center py-3 small"><i class="fas fa-info-circle mr-1"></i> No other branches available.</div>');
-            return;
-        }
-
-        res.branches.forEach(function(b) {
-            var checked = b.shared ? 'checked' : '';
-            var disabled = !res.can_manage ? 'disabled' : '';
-            var item = `
-                <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
-                    <label class="mb-0 font-weight-bold text-dark small" style="cursor:pointer;" for="share_b_${b.id}">
-                        <i class="fas fa-store-alt mr-2 text-info"></i> ${b.name}
-                    </label>
-                    <div class="custom-control custom-switch">
-                        <input type="checkbox" class="custom-control-input bsm-branch-cb" id="share_b_${b.id}" value="${b.id}" ${checked} ${disabled}>
-                        <label class="custom-control-label" for="share_b_${b.id}"></label>
-                    </div>
-                </div>
-            `;
-            list.append(item);
-        });
-
-        if (!res.can_manage) {
-            $('#bsm_save_btn').hide();
-        } else {
-            $('#bsm_save_btn').show();
-        }
-    }).fail(function() {
-        $('#bsm_loading').hide();
-        $('#bsm_branches_list').html('<div class="text-danger text-center py-3 small">Failed to load branches.</div>');
-    });
-});
-
-$('#bsm_save_btn').on('click', function() {
-    var pid = $('#bsm_product_id').val();
-    var btn = $(this);
-    btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Saving...');
-
-    var branchIds = [];
-    $('.bsm-branch-cb:checked').each(function() {
-        branchIds.push($(this).val());
-    });
-
-    $.ajax({
-        url: '{{ url("/products") }}/' + pid + '/branch-shares',
-        type: 'POST',
-        data: {
-            _token: '{{ csrf_token() }}',
-            branch_ids: branchIds
-        },
-        success: function(res) {
-            $('#branchShareModal').modal('hide');
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Permissions Saved!',
-                    text: res.message || 'Branch permissions updated.',
-                    timer: 1600,
-                    showConfirmButton: false
-                }).then(() => {
-                    location.reload();
-                });
-            } else {
-                alert(res.message || 'Permissions updated successfully.');
-                location.reload();
-            }
-        },
-        error: function(xhr) {
-            var err = xhr.responseJSON?.error || 'Failed to save branch permissions.';
-            if (typeof Swal !== 'undefined') {
-                Swal.fire({ icon: 'error', title: 'Error', text: err });
-            } else {
-                alert('Error: ' + err);
-            }
-        },
-        complete: function() {
-            btn.prop('disabled', false).html('<i class="fas fa-save mr-1"></i> Save Permissions');
         }
     });
 });

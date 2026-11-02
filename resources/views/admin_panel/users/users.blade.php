@@ -628,11 +628,18 @@
                         <h1 class="page-title"><i class="fa fa-users"></i> User Management</h1>
                         <p class="page-subtitle">Manage system users and their roles</p>
                     </div>
-                    {{-- @can('Users.create') --}}
+                    <div class="d-flex" style="gap:10px;">
+                        @if(Auth::user()->hasRole('super admin'))
+                        <a href="{{ route('users.assigning') }}" class="btn" style="background:linear-gradient(135deg,#06b6d4,#0284c7);color:white;border-radius:10px;padding:10px 18px;font-weight:600;display:inline-flex;align-items:center;gap:6px;box-shadow:0 4px 12px rgba(6,182,212,0.25);text-decoration:none;">
+                            <i class="fa fa-user-check"></i> Assigning
+                        </a>
+                        @endif
+                        {{-- @can('Users.create') --}}
                         <button type="button" class="btn btn-create" id="addUserBtn">
                             <i class="fa fa-user-plus"></i> Add User
                         </button>
-                    {{-- @endcan --}}
+                        {{-- @endcan --}}
+                    </div>
                 </div>
 
                 <!-- Stats Row -->

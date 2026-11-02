@@ -206,10 +206,6 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
 
     Route::put('/product/update/{id}', [ProductController::class, 'update'])->middleware('permission:product.edit')->name('product.update');
     Route::get('/products/{id}/edit', [ProductController::class, 'edit'])->middleware('permission:product.edit')->name('products.edit');
-    Route::get('/products/bulk-assign', [ProductController::class, 'bulkAssignView'])->name('products.bulk_assign');
-    Route::post('/products/bulk-assign', [ProductController::class, 'saveBulkAssign'])->name('products.bulk_assign.save');
-    Route::get('/products/{id}/branch-shares', [ProductController::class, 'getBranchShares'])->name('products.branch_shares.get');
-    Route::post('/products/{id}/branch-shares', [ProductController::class, 'saveBranchShares'])->name('products.branch_shares.save');
     Route::get('/generate-barcode-image', [ProductController::class, 'generateBarcode'])->middleware('permission:product.barcode')->name('generate-barcode-image');
     
     // ✅ Phase 2 Routes: Opening Stock Configuration (legacy)
@@ -366,6 +362,9 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
     // ✅ ERP: Cross-branch permissions (Super Admin only)
     Route::get('/users/{id}/crossbranch-permissions', [UserController::class, 'getCrossbranchPerms'])->name('users.crossbranch.get');
     Route::post('/users/crossbranch-permissions', [UserController::class, 'saveCrossbranchPerms'])->name('users.crossbranch.save');
+
+    // ✅ ERP: Dedicated Assigning page (Super Admin only)
+    Route::get('/assigning', [UserController::class, 'assigningIndex'])->name('users.assigning');
     });
     // Route::put('/users/{id}/roles', [UserController::class, 'updateRoles'])->name('users.update.roles');
 
