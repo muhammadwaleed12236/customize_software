@@ -536,11 +536,14 @@ $(document).ready(function() {
         let sumBalance = 0;
 
         rows.forEach(function(r, idx) {
+            let ppp = parseFloat(r.piece_per_pack) || 1;
+
             // ============= STORE WAREHOUSE DATA =============
             let dataKey = 'product_' + r.id;
             warehouseDataStore[dataKey] = {
                 itemCode: r.item_code,
                 itemName: r.item_name,
+                piece_per_pack: ppp,
                 warehouses: r.warehouse_breakdown || []
             };
 
@@ -574,13 +577,24 @@ $(document).ready(function() {
             }
 
             // ============= PACKING DISPLAY LOGIC =============
-            let ppp = parseFloat(r.piece_per_pack) || 1;
             let packBadge = (ppp > 1) ? ` <span class="badge bg-light text-primary border" style="font-size:10px;"><i class="fas fa-boxes"></i> ${ppp} Pcs/Crtn</span>` : '';
 
             let formatQtyWithCarton = function(qtyVal) {
                 if (ppp > 1 && qtyVal != 0) {
-                    let crtn = (qtyVal / ppp).toFixed(1).replace(/\.0$/, '');
-                    return `${qtyVal.toFixed(2)} <span class="badge bg-light text-dark border" style="font-size:9.5px; font-weight:600;">(${crtn} Crtn)</span>`;
+                    let isNeg = qtyVal < 0;
+                    let absQty = Math.abs(qtyVal);
+                    let ctns = Math.floor(absQty / ppp);
+                    let rem = Math.round((absQty % ppp) * 100) / 100;
+                    if (rem >= ppp) { ctns++; rem = 0; }
+
+                    let parts = [];
+                    if (ctns > 0) parts.push(`${ctns} Ctn`);
+                    if (rem > 0 || parts.length === 0) {
+                        let remStr = (rem % 1 === 0) ? rem : rem.toFixed(2);
+                        parts.push(`${remStr} Pcs`);
+                    }
+                    let ctnStr = (isNeg ? '-' : '') + parts.join(' + ');
+                    return `${qtyVal.toFixed(2)} <span class="badge bg-light text-dark border" style="font-size:9.5px; font-weight:600;">(${ctnStr})</span>`;
                 }
                 return qtyVal.toFixed(2);
             };
@@ -675,13 +689,13 @@ $(document).ready(function() {
             
             if (warehouseDataStore[dataKey]) {
                 let data = warehouseDataStore[dataKey];
-                showWarehouseBreakdown(data.itemCode, data.itemName, data.warehouses);
+                showWarehouseBreakdown(data.itemCode, data.itemName, data.warehouses, data.piece_per_pack || 1);
             }
         });
     }
 
     // ============= SHOW WAREHOUSE BREAKDOWN MODAL =============
-    function showWarehouseBreakdown(itemCode, itemName, warehouses) {
+    function showWarehouseBreakdown(itemCode, itemName, warehouses, ppp = 1) {
         $('#modalProductName').text(`${itemCode} - ${itemName}`);
         $('#warehouseTableBody').html('');
         
@@ -698,12 +712,28 @@ $(document).ready(function() {
             totalQty += qty;
             let qtyClass = qty < 0 ? 'text-danger fw-bold' : '';
             let qtyLabel = qty < 0 ? ` <span class="badge badge-danger">⚠ Negative</span>` : '';
+            let ctnInfo = '';
+            if (ppp > 1 && qty !== 0) {
+                let isNeg = qty < 0;
+                let absQty = Math.abs(qty);
+                let ctns = Math.floor(absQty / ppp);
+                let rem = Math.round((absQty % ppp) * 100) / 100;
+                if (rem >= ppp) { ctns++; rem = 0; }
+                let parts = [];
+                if (ctns > 0) parts.push(`${ctns} Ctn`);
+                if (rem > 0 || parts.length === 0) {
+                    let remStr = (rem % 1 === 0) ? rem : rem.toFixed(2);
+                    parts.push(`${remStr} Pcs`);
+                }
+                let ctnStr = (isNeg ? '-' : '') + parts.join(' + ');
+                ctnInfo = ` <span class="badge bg-light text-dark border" style="font-size:9.5px; font-weight:600;">(${ctnStr})</span>`;
+            }
 
             let row = `
                 <tr>
                     <td><strong>${w.warehouse_name || 'Unknown'}</strong></td>
                     <td>${w.location || '-'}</td>
-                    <td class="text-end ${qtyClass}">${qty.toFixed(2)}${qtyLabel}</td>
+                    <td class="text-end ${qtyClass}">${qty.toFixed(2)}${ctnInfo}${qtyLabel}</td>
                 </tr>
             `;
             $('#warehouseTableBody').append(row);

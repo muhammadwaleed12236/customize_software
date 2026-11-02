@@ -2109,24 +2109,26 @@ class ReportingController extends Controller
             ->pluck('total_qty', 'product_id')
             ->toArray();
 
-        // 2. Pre-calculate PURCHASED quantities & amounts (Branch-aware)
+        // 2. Pre-calculate PURCHASED quantities & amounts (Branch-aware, piece-accurate)
         $purchaseQuery = DB::table('purchase_items')
             ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
             ->whereNull('purchases.deleted_at');
         if ($allowedBranchId && $allowedBranchId !== 'all') {
             $purchaseQuery->where('purchases.branch_id', $allowedBranchId);
         }
-        $purchaseMap = $purchaseQuery
-            ->select(
-                'purchase_items.product_id',
-                DB::raw('COALESCE(SUM(purchase_items.qty), 0) as total_qty'),
-                DB::raw('COALESCE(SUM(purchase_items.line_total), 0) as total_amount')
-            )
-            ->groupBy('purchase_items.product_id')
-            ->get()
-            ->keyBy('product_id');
+        $productsPpp = $products->pluck('piece_per_pack', 'id')->toArray();
+        $purchasePiecesMap = [];
+        $purchaseAmountMap = [];
+        foreach ($purchaseQuery->select('purchase_items.product_id', 'purchase_items.qty', 'purchase_items.packing_qty', 'purchase_items.item_per_piece', 'purchase_items.line_total')->get() as $pItem) {
+            $pid = $pItem->product_id;
+            $pMult = (float)(($pItem->item_per_piece ?? 1) > 1 ? $pItem->item_per_piece : ($productsPpp[$pid] ?? 1));
+            $effectiveItemQty = (!empty($pItem->packing_qty) && (float)$pItem->packing_qty > 0) ? $pItem->packing_qty : $pItem->qty;
+            $pPieces = Product::parseCartonQtyToPieces($effectiveItemQty, $pMult, 'ctn');
+            $purchasePiecesMap[$pid] = ($purchasePiecesMap[$pid] ?? 0) + $pPieces;
+            $purchaseAmountMap[$pid] = ($purchaseAmountMap[$pid] ?? 0) + (float)$pItem->line_total;
+        }
 
-        // 3. Pre-calculate DELIVERED / SOLD quantities & amounts (Direct Sales & Dispatched Orders)
+        // 3. Pre-calculate DELIVERED / SOLD quantities & amounts (Direct Sales & Dispatched Orders, piece-accurate)
         $salesQuery = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where(function ($q) {
@@ -2135,15 +2137,15 @@ class ReportingController extends Controller
         if ($allowedBranchId && $allowedBranchId !== 'all') {
             $salesQuery->where('sales.branch_id', $allowedBranchId);
         }
-        $salesMap = $salesQuery
-            ->select(
-                'sale_items.product_id',
-                DB::raw('COALESCE(SUM(sale_items.sales_qty), 0) as total_qty'),
-                DB::raw('COALESCE(SUM(sale_items.amount), 0) as total_amount')
-            )
-            ->groupBy('sale_items.product_id')
-            ->get()
-            ->keyBy('product_id');
+        $salesPiecesMap = [];
+        $salesAmountMap = [];
+        foreach ($salesQuery->select('sale_items.product_id', 'sale_items.sales_qty', 'sale_items.sale_unit', 'sale_items.amount')->get() as $sItem) {
+            $pid = $sItem->product_id;
+            $sPpp = (float)($productsPpp[$pid] ?? 1);
+            $sPieces = Product::parseCartonQtyToPieces($sItem->sales_qty, $sPpp, $sItem->sale_unit);
+            $salesPiecesMap[$pid] = ($salesPiecesMap[$pid] ?? 0) + $sPieces;
+            $salesAmountMap[$pid] = ($salesAmountMap[$pid] ?? 0) + (float)$sItem->amount;
+        }
 
         // Pre-calculate SALE RETURNS from stock_movements (in base units / pieces)
         $returnQuery = DB::table('stock_movements')
@@ -2224,18 +2226,18 @@ class ReportingController extends Controller
             // ================= GET OPENING STOCK (Matching Product Ledger) =================
             $openingStock = floatval($openingQtyMap[$product->id] ?? (($allowedBranchId === 'all' || $product->branch_id == $allowedBranchId) ? ($product->initial_stock ?? 0) : 0));
 
+            $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+
             // ================= GET PURCHASED QTY & AMOUNT =================
-            $purchased = floatval($purchaseMap[$product->id]->total_qty ?? 0);
-            $purchaseAmount = floatval($purchaseMap[$product->id]->total_amount ?? 0);
+            $purchased = floatval($purchasePiecesMap[$product->id] ?? 0);
+            $purchaseAmount = floatval($purchaseAmountMap[$product->id] ?? 0);
 
             // ================= GET SOLD QTY & AMOUNT (DELIVERED) =================
             // Physically Delivered / Invoiced Sales (with Gatepass fallback & Sale Returns netted)
-            $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
-            $rawSold = floatval($salesMap[$product->id]->total_qty ?? ($gpDeliveredQty[$product->id] ?? 0));
-            $grossSold = $rawSold * $multiplier;
+            $rawSoldPieces = floatval($salesPiecesMap[$product->id] ?? ($gpDeliveredQty[$product->id] ?? 0));
             $retQtyPieces = floatval($returnQtyMap[$product->id] ?? 0);
-            $sold = max(0, $grossSold - $retQtyPieces);
-            $saleAmount = floatval($salesMap[$product->id]->total_amount ?? ($gpDeliveredAmount[$product->id] ?? 0));
+            $sold = max(0, $rawSoldPieces - $retQtyPieces);
+            $saleAmount = floatval($salesAmountMap[$product->id] ?? ($gpDeliveredAmount[$product->id] ?? 0));
 
             // ================= GET RESERVED QTY (PENDING DELIVERY) =================
             // Bookings pending delivery
@@ -3694,7 +3696,12 @@ class ReportingController extends Controller
                   ->orWhere('purchases.warehouse_id', $warehouseId);
             });
         }
-        $purchasesBefore = (float) $purBeforeQuery->sum('purchase_items.qty');
+        $purchasesBefore = 0;
+        foreach ($purBeforeQuery->select('purchase_items.qty', 'purchase_items.packing_qty', 'purchase_items.item_per_piece')->get() as $pb) {
+            $m = (float)($pb->item_per_piece > 1 ? $pb->item_per_piece : ($isCartonProd ? $ppp : 1));
+            $effectivePbQty = (!empty($pb->packing_qty) && (float)$pb->packing_qty > 0) ? $pb->packing_qty : $pb->qty;
+            $purchasesBefore += $isCartonProd ? Product::parseCartonQtyToPieces($effectivePbQty, $m, 'ctn') : ((float)$effectivePbQty * $m);
+        }
 
         // C. Sales Returns before start_date
         $saleReturnBeforeQuery = DB::table('sales_returns')
@@ -3712,8 +3719,7 @@ class ReportingController extends Controller
         foreach ($saleReturnBeforeQuery->select('sales_returns.qty', 'sales_returns.sale_id')->get() as $srb) {
             $origSaleItem = DB::table('sale_items')->where('sale_id', $srb->sale_id)->where('product_id', $productId)->first();
             $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
-            $m = (!$isPcsReturn && $isCartonProd) ? $ppp : 1;
-            $saleReturnsBefore += (float) $srb->qty * $m;
+            $saleReturnsBefore += Product::parseCartonQtyToPieces($srb->qty, $ppp, $isPcsReturn ? 'pcs' : 'ctn');
         }
 
         // D. Stock Transfers In before start_date
@@ -3761,8 +3767,7 @@ class ReportingController extends Controller
         $salesBefore = 0;
         foreach ($saleBeforeQuery->select('sale_items.sales_qty', 'sale_items.sale_unit')->get() as $sb) {
             $isPcsSale = strtolower($sb->sale_unit ?? '') === 'pcs';
-            $m = (!$isPcsSale && $isCartonProd) ? $ppp : 1;
-            $salesBefore += (float) $sb->sales_qty * $m;
+            $salesBefore += Product::parseCartonQtyToPieces($sb->sales_qty, $ppp, $isPcsSale ? 'pcs' : 'ctn');
         }
 
         // Add Outward Gatepasses issued BEFORE start_date
@@ -3794,7 +3799,7 @@ class ReportingController extends Controller
                         $rawGQty = (float) ($it['qty'] ?? 0);
                         $isPcsGp = strtolower($it['sale_unit'] ?? ($it['unit'] ?? '')) === 'pcs';
                         $m = (!$isPcsGp && $isCartonProd) ? $ppp : 1;
-                        $gpOutBefore += $rawGQty * $m;
+                        $gpOutBefore += $isCartonProd ? Product::parseCartonQtyToPieces($rawGQty, $m, $isPcsGp ? 'pcs' : 'ctn') : ($rawGQty * $m);
                     }
                 }
             }
@@ -3906,6 +3911,8 @@ class ReportingController extends Controller
             'vendors.name as vendor_db_name',
             'warehouses.warehouse_name',
             'purchase_items.qty',
+            'purchase_items.packing_qty',
+            'purchase_items.item_per_piece',
             'purchase_items.price',
             'purchase_items.line_total',
             'purchases.note'
@@ -3913,7 +3920,9 @@ class ReportingController extends Controller
         foreach ($purRangeQuery->get() as $pur) {
             $vName = !empty($pur->vendor_name) ? $pur->vendor_name : (!empty($pur->vendor_db_name) ? $pur->vendor_db_name : 'Supplier');
             $whName = !empty($pur->warehouse_name) ? $pur->warehouse_name : 'Main Store';
-            $pQty = (float) $pur->qty;
+            $pMult = (float)(($pur->item_per_piece ?? 1) > 1 ? $pur->item_per_piece : ($isCartonProd ? $ppp : 1));
+            $effectivePurQty = (!empty($pur->packing_qty) && (float)$pur->packing_qty > 0) ? $pur->packing_qty : $pur->qty;
+            $pQty = $isCartonProd ? Product::parseCartonQtyToPieces($effectivePurQty, $pMult, 'ctn') : ((float) $effectivePurQty * $pMult);
             $pTotal = (float) ($pur->line_total > 0 ? $pur->line_total : ($pQty * $costPerPiece));
             $pPrice = $pQty > 0 ? ($pTotal / $pQty) : $costPerPiece;
             $events[] = [
@@ -3968,10 +3977,9 @@ class ReportingController extends Controller
             $whName = !empty($sale->warehouse_name) ? $sale->warehouse_name : 'Main Store';
             $rawQty = (float) $sale->sales_qty;
             $isPcsSale = strtolower($sale->sale_unit ?? '') === 'pcs';
-            $sMultiplier = (!$isPcsSale && $isCartonProd) ? $ppp : 1;
-            $sPieces = $rawQty * $sMultiplier;
+            $sPieces = Product::parseCartonQtyToPieces($sale->sales_qty, $ppp, $isPcsSale ? 'pcs' : 'ctn');
             $sTotal = (float) $sale->amount > 0 ? (float) $sale->amount : ($rawQty * (float)$sale->retail_price);
-            $sPrice = $sPieces > 0 ? ($sTotal / $sPieces) : ((float)$sale->retail_price / $sMultiplier);
+            $sPrice = $sPieces > 0 ? ($sTotal / $sPieces) : ($ppp > 0 ? ((float)$sale->retail_price / $ppp) : (float)$sale->retail_price);
 
             if ($isDcSale) {
                 // Booking / Delivery Challan sale: Goods are physically dispatched via Outward Gatepasses
@@ -4053,8 +4061,7 @@ class ReportingController extends Controller
                 if ($rawGQty <= 0) continue;
 
                 $isPcsGp = strtolower($it['sale_unit'] ?? ($it['unit'] ?? '')) === 'pcs';
-                $gMultiplier = (!$isPcsGp && $isCartonProd) ? $ppp : 1;
-                $gPieces = $rawGQty * $gMultiplier;
+                $gPieces = $isCartonProd ? Product::parseCartonQtyToPieces($rawGQty, $ppp, $isPcsGp ? 'pcs' : 'ctn') : ($rawGQty * 1);
                 $gTotal = (float)($it['amount'] ?? ($rawGQty * (float)($it['retail_price'] ?? $costRate)));
                 $gPrice = $gPieces > 0 ? ($gTotal / $gPieces) : $costPerPiece;
 
@@ -4102,8 +4109,7 @@ class ReportingController extends Controller
             $rawSrQty = (float) $sr->qty;
             $origSaleItem = DB::table('sale_items')->where('sale_id', $sr->sale_id)->where('product_id', $productId)->first();
             $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
-            $srMultiplier = (!$isPcsReturn && $isCartonProd) ? $ppp : 1;
-            $srPieces = $rawSrQty * $srMultiplier;
+            $srPieces = Product::parseCartonQtyToPieces($rawSrQty, $ppp, $isPcsReturn ? 'pcs' : 'ctn');
             $srTotal = (float) ($sr->per_total > 0 ? $sr->per_total : ($rawSrQty * (float)$sr->per_price));
             $srPrice = $srPieces > 0 ? ($srTotal / $srPieces) : $costPerPiece;
 

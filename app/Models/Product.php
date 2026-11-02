@@ -126,6 +126,65 @@ class Product extends Model
         $res = implode(' + ', $parts);
         return $isNegative ? ('-' . $res) : $res;
     }
+
+    /**
+     * Parse Carton.Pieces wholesale shorthand notation into total base pieces.
+     * e.g. With piece_per_pack = 5:
+     *   "1"   => 1 Carton (5 Pcs)
+     *   "1.1" => 1 Carton + 1 Loose Pc = 6 Pcs
+     *   "1.2" => 1 Carton + 2 Loose Pcs = 7 Pcs
+     *   "0.1" => 0 Cartons + 1 Loose Pc = 1 Pc
+     */
+    public static function parseCartonQtyToPieces($qty, float $ppp = 1, ?string $unit = 'ctn'): float
+    {
+        $isPiece = $unit && strtolower($unit) === 'pcs';
+        if ($isPiece || $ppp <= 1) {
+            return (float) $qty;
+        }
+
+        $qtyStr = trim((string) $qty);
+        if (strpos($qtyStr, '.') !== false) {
+            $parts = explode('.', $qtyStr, 2);
+            $cartons = (int) ($parts[0] ?? 0);
+            $looseStr = $parts[1] ?? '0';
+            $loose = (int) $looseStr;
+
+            // If loose pieces is >= ppp, check if stripping trailing zeros (from DB DECIMAL e.g. "1.20") brings it < ppp
+            if ($loose >= $ppp && substr($looseStr, -1) === '0') {
+                $trimmedLoose = (int) rtrim($looseStr, '0');
+                if ($trimmedLoose < $ppp) {
+                    $loose = $trimmedLoose;
+                }
+            }
+
+            // If still >= ppp, it's either an invalid shorthand or a standard decimal fraction (e.g. 7.6 ctn = 38 pcs)
+            if ($loose >= $ppp) {
+                return ((float) $qty) * $ppp;
+            }
+
+            return (float) (($cartons * $ppp) + $loose);
+        }
+
+        return ((float) $qty) * $ppp;
+    }
+
+    /**
+     * Calculate line total for carton products supporting Carton.Pieces shorthand.
+     * e.g. With ppp = 5, Carton Price = 100 (Piece Price = 20):
+     *   "1"   => 5 Pcs * 20 = 100.00
+     *   "1.1" => 6 Pcs * 20 = 120.00
+     */
+    public static function calculateCartonLineTotal($qty, float $price, float $ppp = 1, ?string $unit = 'ctn'): float
+    {
+        $isPiece = $unit && strtolower($unit) === 'pcs';
+        if ($isPiece || $ppp <= 1) {
+            return ((float) $qty) * $price;
+        }
+
+        $totalPieces = self::parseCartonQtyToPieces($qty, $ppp, $unit);
+        $piecePrice = $ppp > 0 ? ($price / $ppp) : $price;
+        return $totalPieces * $piecePrice;
+    }
     public function brand()
     {
         return $this->belongsTo(Brand::class, 'brand_id');

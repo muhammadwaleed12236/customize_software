@@ -389,7 +389,7 @@ class SaleController extends Controller
                     $prod = Product::find($it->product_id);
                     $isPiece = isset($it->sale_unit) && strtolower($it->sale_unit) === 'pcs';
                     $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
-                    $deductPieces = $it->sales_qty * $multiplier;
+                    $deductPieces = \App\Models\Product::parseCartonQtyToPieces($it->sales_qty, (float)($prod->piece_per_pack ?? 1), $it->sale_unit ?? null);
 
                     $currentWhQty = $warehousestock->quantity ?? 0;
                     $newWhQty = $currentWhQty - $deductPieces;
@@ -2920,7 +2920,7 @@ public function finddc($invoice)
                 $prod = Product::find($productId);
                 $isPiece = $sUnit && strtolower($sUnit) === 'pcs';
                 $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
-                $deductPieces = $saleQty * $multiplier;
+                $deductPieces = \App\Models\Product::parseCartonQtyToPieces($saleQty, (float)($prod->piece_per_pack ?? 1), $sUnit);
 
                 // Per-location warehouse stock (allow negative)
                 $wsQuery = WarehouseStock::where('product_id', $productId)
@@ -4278,7 +4278,7 @@ public function finddc($invoice)
                     $oldProd = Product::find($oldItem->product_id);
                     $isOldPiece = isset($oldItem->sale_unit) && strtolower($oldItem->sale_unit) === 'pcs';
                     $oldMultiplier = (!$isOldPiece && $oldProd && $oldProd->piece_per_pack > 1) ? (float)$oldProd->piece_per_pack : 1;
-                    $restorePieces = $oldItem->sales_qty * $oldMultiplier;
+                    $restorePieces = \App\Models\Product::parseCartonQtyToPieces($oldItem->sales_qty, (float)($oldProd->piece_per_pack ?? 1), $oldItem->sale_unit ?? null);
 
                     $whStock = $whStockQuery->first();
                     if ($whStock) {
@@ -4483,7 +4483,7 @@ public function finddc($invoice)
                     $newProd = Product::find($productId);
                     $isPiece = $sUnit && strtolower($sUnit) === 'pcs';
                     $newMultiplier = (!$isPiece && $newProd && $newProd->piece_per_pack > 1) ? (float)$newProd->piece_per_pack : 1;
-                    $deductPieces = $qty * $newMultiplier;
+                    $deductPieces = \App\Models\Product::parseCartonQtyToPieces($qty, (float)($newProd->piece_per_pack ?? 1), $sUnit);
 
                     $whStock = $whStockQuery->first();
                     if ($whStock) {
@@ -5676,7 +5676,7 @@ public function finddc($invoice)
                         $prod = Product::find($item->product_id);
                         $isPiece = isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs';
                         $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
-                        $qty = floatval($item->sales_qty) * $multiplier;
+                        $qty = \App\Models\Product::parseCartonQtyToPieces($item->sales_qty, (float)($prod->piece_per_pack ?? 1), $item->sale_unit ?? null);
 
                         // WarehouseStock
                         $itemBranch = $item->branch_id ?? $sale->branch_id ?? 1;

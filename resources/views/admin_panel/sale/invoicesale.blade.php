@@ -599,7 +599,6 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                     $qty = (float)($item->sales_qty ?? 0);
                     $rate = (float)($item->retail_price ?? $item->sales_price ?? 0);
                     $amt = (float)($item->amount ?? ($qty * $rate));
-                    $unitPrice = $qty > 0 ? ($amt / $qty) : $rate;
                     
                     $productEng = strtoupper($item->product->item_name ?? $item->product->product_name ?? 'N/A');
                     $productUrdu = getUrduProductName($item);
@@ -610,11 +609,21 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
 
                     if ($isPcsUnit) {
                         $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2)) . ' Pcs';
+                        $unitPrice = $qty > 0 ? ($amt / $qty) : $rate;
                     } elseif ($isCartonProd) {
-                        $totalPieces = $qty * $ppp;
+                        $totalPieces = \App\Models\Product::parseCartonQtyToPieces($qty, $ppp, $item->sale_unit ?? null);
                         $qtyDisplay = \App\Models\Product::formatCartonPieces($totalPieces, $ppp, $item->product->unit?->name ?? 'Ctn');
+                        
+                        $grossAmt = \App\Models\Product::calculateCartonLineTotal($qty, $rate, $ppp, $item->sale_unit ?? null);
+                        $discAmt = (float)($item->discount_amount ?? 0);
+                        if ($grossAmt > 0 && $discAmt > 0) {
+                            $unitPrice = $rate * (($grossAmt - $discAmt) / $grossAmt);
+                        } else {
+                            $unitPrice = $rate;
+                        }
                     } else {
                         $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
+                        $unitPrice = $qty > 0 ? ($amt / $qty) : $rate;
                     }
                 @endphp
                 <tr>

@@ -859,8 +859,8 @@
                                                         <input type="hidden" name="sale_unit[]" class="sale-unit-input" value="{{ $isPcs ? 'pcs' : 'ctn' }}">
                                                     </td>
                                                     <td class="col-pieces">
-                                                        <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="{{ $isPcs ? ($item['sales_qty'] ?? 1) : (($item['sales_qty'] ?? 1) * ($isCartonProd ? $itemPpp : 1)) }}">
-                                                        <input type="hidden" class="sales-qty-hidden" name="qty[]" value="{{ $isPcs ? ($item['sales_qty'] ?? 1) : (($item['sales_qty'] ?? 1) * ($isCartonProd ? $itemPpp : 1)) }}">
+                                                        <input type="text" class="form-control total-pieces text-end input-readonly" name="total_pieces[]" readonly placeholder="0" tabindex="-1" value="{{ $isPcs ? ($item['sales_qty'] ?? 1) : \App\Models\Product::parseCartonQtyToPieces($item['sales_qty'] ?? 1, (float)($isCartonProd ? $itemPpp : 1), $isPcs ? 'pcs' : 'ctn') }}">
+                                                        <input type="hidden" class="sales-qty-hidden" name="qty[]" value="{{ $isPcs ? ($item['sales_qty'] ?? 1) : \App\Models\Product::parseCartonQtyToPieces($item['sales_qty'] ?? 1, (float)($isCartonProd ? $itemPpp : 1), $isPcs ? 'pcs' : 'ctn') }}">
                                                     </td>
 
                                                     @if(isset($saleSettings) && $saleSettings->show_watt)
@@ -1767,8 +1767,10 @@
                         $row.find('.retail-price').val(origCartonPrice);
                     }
 
-                    let currentSalesQty = toNum($row.find('.sales-qty').val()) || 1;
-                    let initialPieces = ppp > 1 ? (currentSalesQty * ppp) : currentSalesQty;
+                    let currentSalesQty = $row.find('.sales-qty').val() || '1';
+                    let initialPieces = (ppp > 1 && $unitInput.val() !== 'pcs')
+                        ? parseCartonQtyToPiecesJs(currentSalesQty, ppp, 'ctn')
+                        : (toNum(currentSalesQty) || 1);
                     $row.find('.total-pieces').val(initialPieces);
                     $row.find('.sales-qty-hidden').val(initialPieces);
 
@@ -1801,17 +1803,49 @@
                 }
             });
 
+            function parseCartonQtyToPiecesJs(qtyVal, ppp, unit) {
+                if (unit === 'pcs' || ppp <= 1) {
+                    return parseFloat(qtyVal) || 0;
+                }
+                var qtyStr = String(qtyVal || '').trim();
+                if (qtyStr.indexOf('.') !== -1) {
+                    var parts = qtyStr.split('.');
+                    var ctn = parseInt(parts[0], 10) || 0;
+                    var loose = parseInt(parts[1], 10) || 0;
+                    return (ctn * ppp) + loose;
+                }
+                return (parseFloat(qtyVal) || 0) * ppp;
+            }
+
             // --- Row Calculation Logic ---
             function computeRow($row) {
                 const price = toNum($row.find('.retail-price').val());
-                const qty = toNum($row.find('.sales-qty').val());
+                const rawQty = $row.find('.sales-qty').val();
+                const qty = toNum(rawQty);
                 const watt = (window.saleSettings && window.saleSettings.show_watt) ? toNum($row.find('.item-watt').val()) : 0;
                 let discVal = toNum($row.find('.discount-value').val());
                 const discType = $row.find('.discount-toggle').data('type') || $row.find('.discount-type-field').val() || 'percent';
 
-                let gross = (watt > 0) ? (price * watt * qty) : (price * qty);
-                let discAmt = 0;
+                let ppp = parseFloat($row.data('piece-per-pack')) || 1;
+                let currentUnit = $row.find('.sale-unit-input').val() || 'ctn';
 
+                let totalPieces = 0;
+                let gross = 0;
+
+                if (ppp > 1 && currentUnit !== 'pcs') {
+                    // Wholesale Carton.Pieces parsing (e.g. 1.1 with ppp=5 => 6 pcs)
+                    totalPieces = parseCartonQtyToPiecesJs(rawQty, ppp, currentUnit);
+                    let piecePrice = ppp > 0 ? (price / ppp) : price;
+                    gross = (watt > 0) ? (piecePrice * watt * totalPieces) : (piecePrice * totalPieces);
+                } else if (ppp > 1 && currentUnit === 'pcs') {
+                    totalPieces = qty;
+                    gross = (watt > 0) ? (price * watt * qty) : (price * qty);
+                } else {
+                    totalPieces = qty;
+                    gross = (watt > 0) ? (price * watt * qty) : (price * qty);
+                }
+
+                let discAmt = 0;
                 if (discVal > 0) {
                     if (discType === 'percent') {
                         discVal = Math.min(discVal, 100);
@@ -1823,23 +1857,9 @@
 
                 let net = Math.max(0, gross - discAmt);
 
-                let ppp = parseFloat($row.data('piece-per-pack')) || 1;
-                let currentUnit = $row.find('.sale-unit-input').val() || 'ctn';
-
-                let totalPieces = 0;
-                if (ppp > 1) {
-                    if (currentUnit === 'pcs') {
-                        totalPieces = qty; // User entered pieces directly
-                    } else {
-                        totalPieces = qty * ppp; // User entered cartons
-                    }
-                } else {
-                    totalPieces = qty;
-                }
-
                 $row.find('.total-pieces').val(totalPieces % 1 === 0 ? totalPieces : totalPieces.toFixed(2));
                 $row.find('.sales-qty-hidden').val(totalPieces);
-                $row.find('.sales-qty-mirror').val(qty);
+                $row.find('.sales-qty-mirror').val(rawQty);
                 $row.find('.discount-amount').val(discAmt.toFixed(2));
                 $row.find('.sales-amount').val(net.toFixed(2));
             }
@@ -1852,12 +1872,9 @@
 
                 $('#salesTableBody tr').each(function() {
                     const $r = $(this);
-                    const price = toNum($r.find('.retail-price').val());
-                    const qty = toNum($r.find('.sales-qty').val());
-                    const watt = (window.saleSettings && window.saleSettings.show_watt) ? toNum($r.find('.item-watt').val()) : 0;
                     const discAmt = toNum($r.find('.discount-amount').val());
-                    const gross = (watt > 0) ? (price * watt * qty) : (price * qty);
-                    const net = Math.max(0, gross - discAmt);
+                    const net = toNum($r.find('.sales-amount').val());
+                    const gross = net + discAmt;
 
                     tGross += gross;
                     tLineDisc += discAmt;
@@ -1974,17 +1991,20 @@
 
                 if (currentUnit === 'ctn') {
                     // Switch to PCS
+                    let rawVal = $row.find('.sales-qty').val();
+                    let pcsQty = parseCartonQtyToPiecesJs(rawVal, ppp, 'ctn');
                     $btn.text('Pcs').removeClass('btn-primary').addClass('btn-success');
                     $row.find('.sale-unit-input').val('pcs');
-                    let pcsQty = currentQty > 0 ? (currentQty * ppp) : 1;
                     $row.find('.sales-qty').val(pcsQty % 1 === 0 ? pcsQty : pcsQty.toFixed(2));
                     $row.find('.retail-price').val(piecePrice % 1 === 0 ? piecePrice : piecePrice.toFixed(2));
                 } else {
                     // Switch to CTN
                     $btn.text('Ctn').removeClass('btn-success').addClass('btn-primary');
                     $row.find('.sale-unit-input').val('ctn');
-                    let ctnQty = currentQty > 0 ? (currentQty / ppp) : 1;
-                    $row.find('.sales-qty').val(ctnQty % 1 === 0 ? ctnQty : ctnQty.toFixed(2));
+                    let ctn = Math.floor(currentQty / ppp);
+                    let loose = Math.round((currentQty - (ctn * ppp)) * 100) / 100;
+                    let ctnQtyStr = loose > 0 ? (ctn + '.' + loose) : String(ctn);
+                    $row.find('.sales-qty').val(ctnQtyStr);
                     $row.find('.retail-price').val(cartonPrice % 1 === 0 ? cartonPrice : cartonPrice.toFixed(2));
                 }
 

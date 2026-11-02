@@ -891,7 +891,14 @@
                                     @foreach($product->all_warehouse_stocks as $stock)
                                         <div class="branch-stock-row">
                                             <span class="branch-stock-name">{{ $stock['branch_name'] }}:</span>
-                                            <span class="badge-qty">{{ $stock['quantity'] }}</span>
+                                            <span class="badge-qty">
+                                                @if(($product->piece_per_pack ?? 1) > 1)
+                                                    {{ \App\Models\Product::formatCartonPieces((float)$stock['quantity'], (float)$product->piece_per_pack, $product->unit?->name) }}
+                                                    <small style="color:#64748b; font-size:10px;">({{ number_format($stock['quantity'], 0) }} Pcs)</small>
+                                                @else
+                                                    {{ $stock['quantity'] }}
+                                                @endif
+                                            </span>
                                         </div>
                                     @endforeach
                                 @else
@@ -901,7 +908,14 @@
                         @else
                             <td>
                                 @if($product->branch_stock_qty > 0)
-                                    <span class="badge-qty">{{ $product->branch_stock_qty }}</span>
+                                    <span class="badge-qty">
+                                        @if(($product->piece_per_pack ?? 1) > 1)
+                                            {{ \App\Models\Product::formatCartonPieces((float)$product->branch_stock_qty, (float)$product->piece_per_pack, $product->unit?->name) }}
+                                            <small style="color:#64748b; font-size:10px;">({{ number_format($product->branch_stock_qty, 0) }} Pcs)</small>
+                                        @else
+                                            {{ $product->branch_stock_qty }}
+                                        @endif
+                                    </span>
                                 @else
                                     <span class="badge-no-qty">Out</span>
                                 @endif
@@ -1372,9 +1386,39 @@ $(document).on('click', '.viewProductBtn', function () {
             // Stock
             var stock    = parseFloat(p.stock ? p.stock.qty : 0);
             var alertQty = parseFloat(p.alert_quantity || 0);
-            $('#pvm_stock').text(stock);
-            $('#pvm_alert_qty').text(alertQty);
-            $('#pvm_unit_label').text(p.unit ? p.unit.name : 'pcs');
+            var ppp = parseFloat(p.piece_per_pack || 1);
+            if (ppp > 1) {
+                var ctn = Math.floor(Math.abs(stock) / ppp);
+                var loose = Math.round((Math.abs(stock) - (ctn * ppp)) * 100) / 100;
+                var parts = [];
+                var unitLabel = (p.unit && /carton/i.test(p.unit.name)) ? 'Ctn' : (p.unit ? p.unit.name : 'Ctn');
+                if (ctn > 0) parts.push(ctn + ' ' + unitLabel);
+                if (loose > 0 || parts.length === 0) {
+                    var lStr = (loose % 1 === 0) ? loose : loose.toFixed(2);
+                    parts.push(lStr + ' Pcs');
+                }
+                var formattedStock = (stock < 0 ? '-' : '') + parts.join(' + ');
+                $('#pvm_stock').text(formattedStock);
+                $('#pvm_unit_label').html('<small style="font-size:11px; color:#64748b; font-weight:600;">(' + stock.toLocaleString() + ' Pcs)</small>');
+            } else {
+                $('#pvm_stock').text(stock.toLocaleString());
+                $('#pvm_unit_label').text(p.unit ? p.unit.name : 'pcs');
+            }
+            if (ppp > 1 && alertQty > 0) {
+                var actn = Math.floor(alertQty / ppp);
+                var aloose = Math.round((alertQty - (actn * ppp)) * 100) / 100;
+                var aParts = [];
+                var unitLabel = (p.unit && /carton/i.test(p.unit.name)) ? 'Ctn' : (p.unit ? p.unit.name : 'Ctn');
+                if (actn > 0) aParts.push(actn + ' ' + unitLabel);
+                if (aloose > 0 || aParts.length === 0) {
+                    var alStr = (aloose % 1 === 0) ? aloose : aloose.toFixed(2);
+                    aParts.push(alStr + ' Pcs');
+                }
+                $('#pvm_alert_qty').text(aParts.join(' + '));
+            } else {
+                $('#pvm_alert_qty').text(alertQty);
+            }
+
             if (alertQty > 0 && stock <= alertQty) { $('#pvm_low_stock_alert').show(); }
 
             // Pricing

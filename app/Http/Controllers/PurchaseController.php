@@ -453,7 +453,13 @@ class PurchaseController extends Controller
                 $disc = (float)($itemDiscs[$i] ?? 0);
                 $unit = $units[$i] ?? null;
                 $color = $colors[$i] ?? null; // ✅ Get color for this line
-                $lineTotal = ($price * $qty) - $disc;
+
+                $ipp = (float)($itemsPerPieces[$i] ?? 0);
+                if ($ipp <= 0) {
+                    $prod = Product::find($pid);
+                    $ipp = (float)($prod?->piece_per_pack ?? 1);
+                }
+                $lineTotal = \App\Models\Product::calculateCartonLineTotal($qtys[$i] ?? $qty, $price, $ipp) - $disc;
                 
                 // ✅ ERP STANDARD: Per-line warehouse assignment
                 // Use line warehouse if specified, otherwise use purchase header warehouse
@@ -526,7 +532,27 @@ class PurchaseController extends Controller
                 // Stock is updated later via InwardGatepass.store()
                 // BUT for Local Purchases, we update it IMMEDIATELY.
                 if ($isLocal) {
-                    $this->upsertStocks($pid, +$qty, $branchId, $itemWarehouse);
+                    $ipp = (float)($itemsPerPieces[$i] ?? 0);
+                    if ($ipp <= 0) {
+                        $prod = Product::find($pid);
+                        $ipp = (float)($prod?->piece_per_pack ?? 1);
+                    }
+                    $multiplier = $ipp > 1 ? $ipp : 1;
+                    $stockDelta = \App\Models\Product::parseCartonQtyToPieces($qtys[$i] ?? $qty, $ipp);
+
+                    $this->upsertStocks($pid, +$stockDelta, $branchId, $itemWarehouse);
+
+                    DB::table('stock_movements')->insert([
+                        'product_id' => $pid,
+                        'branch_id'  => $branchId,
+                        'type'       => 'in',
+                        'qty'        => $stockDelta,
+                        'ref_type'   => 'PURCHASE',
+                        'ref_id'     => $purchase->id,
+                        'note'       => 'Local purchase inward',
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
                 }
             }
 
@@ -1205,12 +1231,21 @@ class PurchaseController extends Controller
                     $oldBranchId = $purchase->branch_id;
                     foreach ($purchase->items as $oldItem) {
                         $oldItemWarehouse = (int)($oldItem->warehouse_id ?: $purchase->warehouse_id);
-                        $this->upsertStocks((int)$oldItem->product_id, -$oldItem->qty, $oldBranchId, $oldItemWarehouse);
+                        $oldIpp = (float)($oldItem->item_per_piece ?? 0);
+                        if ($oldIpp <= 0) {
+                            $oldProd = Product::find($oldItem->product_id);
+                            $oldIpp = (float)($oldProd?->piece_per_pack ?? 1);
+                        }
+                        $oldMult = $oldIpp > 1 ? $oldIpp : 1;
+                        $oldStockDelta = \App\Models\Product::parseCartonQtyToPieces($oldItem->qty, $oldIpp);
+
+                        $this->upsertStocks((int)$oldItem->product_id, -$oldStockDelta, $oldBranchId, $oldItemWarehouse);
                         
                         DB::table('stock_movements')->insert([
                             'product_id' => (int)$oldItem->product_id,
+                            'branch_id'  => $oldBranchId,
                             'type'       => 'out',
-                            'qty'        => $oldItem->qty,
+                            'qty'        => $oldStockDelta,
                             'ref_type'   => 'PURCHASE_EDIT_REMOVE',
                             'ref_id'     => $purchase->id,
                             'note'       => 'Rollback old stock during purchase edit',
@@ -1257,7 +1292,13 @@ class PurchaseController extends Controller
                     $disc = (float)($itemDiscs[$i] ?? 0);
                     $unit = $units[$i] ?? null;
                     $color = $colors[$i] ?? null;
-                    $lineTotal = ($price * $qty) - $disc;
+
+                    $newIpp = (float)($itemsPerPieces[$i] ?? 0);
+                    if ($newIpp <= 0) {
+                        $newProd = Product::find($pid);
+                        $newIpp = (float)($newProd?->piece_per_pack ?? 1);
+                    }
+                    $lineTotal = \App\Models\Product::calculateCartonLineTotal($qtys[$i] ?? $qty, $price, $newIpp) - $disc;
                     
                     // ✅ ERP STANDARD: Per-line warehouse assignment
                     $lineWarehouse = (int)($lineWarehouseIds[$i] ?? 0);
@@ -1282,12 +1323,21 @@ class PurchaseController extends Controller
 
                     // --- 2. APPLY NEW STOCKS (for local purchases) ---
                     if ($shouldUpdateStock) {
-                        $this->upsertStocks((int)$pid, +$qty, $branchId, (int)$itemWarehouse);
+                        $newIpp = (float)($itemsPerPieces[$i] ?? 0);
+                        if ($newIpp <= 0) {
+                            $newProd = Product::find($pid);
+                            $newIpp = (float)($newProd?->piece_per_pack ?? 1);
+                        }
+                        $newMult = $newIpp > 1 ? $newIpp : 1;
+                        $newStockDelta = \App\Models\Product::parseCartonQtyToPieces($qtys[$i] ?? $qty, $newIpp);
+
+                        $this->upsertStocks((int)$pid, +$newStockDelta, $branchId, (int)$itemWarehouse);
                         
                         DB::table('stock_movements')->insert([
                             'product_id' => (int)$pid,
+                            'branch_id'  => $branchId,
                             'type'       => 'in',
-                            'qty'        => $qty,
+                            'qty'        => $newStockDelta,
                             'ref_type'   => 'PURCHASE_EDIT_ADD',
                             'ref_id'     => $purchase->id,
                             'note'       => 'Reapply new stock during purchase edit',
@@ -1554,10 +1604,19 @@ class PurchaseController extends Controller
                     $qty = (float)$it->qty;
                     $itemWarehouse = $it->warehouse_id ?: $warehouseId;
 
+                    $itIpp = (float)($it->item_per_piece ?? 0);
+                    if ($itIpp <= 0) {
+                        $itProd = Product::find($pid);
+                        $itIpp = (float)($itProd?->piece_per_pack ?? 1);
+                    }
+                    $itMult = $itIpp > 1 ? $itIpp : 1;
+                    $itStockDelta = \App\Models\Product::parseCartonQtyToPieces($it->qty, $itIpp);
+
                     $movs[] = [
                         'product_id' => $pid,
+                        'branch_id'  => $branchId,
                         'type'       => 'out',
-                        'qty'        => $qty,
+                        'qty'        => $itStockDelta,
                         'ref_type'   => 'PURCHASE_DELETE',
                         'ref_id'     => $purchase->id,
                         'note'       => 'Delete purchase (reverse)',
@@ -1566,7 +1625,7 @@ class PurchaseController extends Controller
                     ];
 
                     // stocks rollback
-                    $this->upsertStocks($pid, -$qty, $branchId, (int)$itemWarehouse);
+                    $this->upsertStocks($pid, -$itStockDelta, $branchId, (int)$itemWarehouse);
                 }
 
                 if (!empty($movs)) {
@@ -1786,15 +1845,20 @@ class PurchaseController extends Controller
                     'line_total'         => $lineTotal,
                 ]);
 
+                $retProd = Product::find($productId);
+                $retIpp = (float)($retProd?->piece_per_pack ?? 1);
+                $retMult = $retIpp > 1 ? $retIpp : 1;
+                $retStockDelta = \App\Models\Product::parseCartonQtyToPieces($qty, $retIpp);
+
                 // Update stock (deduct)
-                $this->upsertStocks((int)$productId, -$qty, $branchId, $warehouseId);
+                $this->upsertStocks((int)$productId, -$retStockDelta, $branchId, $warehouseId);
 
                 // Add Stock Movement
                 \DB::table('stock_movements')->insert([
                     'product_id' => (int)$productId,
                     'branch_id'  => $branchId,
                     'type'       => 'out',
-                    'qty'        => $qty,
+                    'qty'        => $retStockDelta,
                     'ref_type'   => 'PURCHASE_RETURN',
                     'ref_id'     => $return->id,
                     'note'       => "Purchase Return Invoice #{$nextInvoice} against Purchase Invoice #{$purchase->invoice_no}",

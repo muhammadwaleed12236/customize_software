@@ -813,7 +813,7 @@
                         <button type="button" class="btn btn-outline-primary fw-bold px-3 d-flex align-items-center gap-1" id="btnWalkinToggle">
                             <i class="fas fa-store"></i> Local Market
                         </button>
-                        <button type="button" class="btn btn-outline-success fw-bold px-3 d-flex align-items-center gap-1" id="btnAddNewVendorModal" data-bs-toggle="modal" data-bs-target="#addVendorModal">
+                        <button type="button" class="btn btn-outline-success fw-bold px-3 d-flex align-items-center gap-1" id="btnAddNewVendorModal" data-toggle="modal" data-target="#addVendorModal" data-bs-toggle="modal" data-bs-target="#addVendorModal">
                             <i class="fas fa-user-plus"></i> New Vendor
                         </button>
                     </div>
@@ -831,7 +831,7 @@
                             </div>
 
                             <div class="d-flex gap-1 ms-auto">
-                                <button type="button" class="btn btn-outline-success btn-sm py-1 px-3 rounded-pill fw-bold" data-bs-toggle="modal" data-bs-target="#quickAddProductModal" style="font-size:0.75rem;">
+                                <button type="button" class="btn btn-outline-success btn-sm py-1 px-3 rounded-pill fw-bold" id="btnQuickAddProductModal" data-toggle="modal" data-target="#quickAddProductModal" data-bs-toggle="modal" data-bs-target="#quickAddProductModal" style="font-size:0.75rem;">
                                     <i class="fas fa-bolt text-warning me-1"></i>Create Product
                                 </button>
                                 <button type="button" class="btn btn-primary btn-sm py-1 px-3 rounded-pill fw-bold" id="btnAdd" style="font-size:0.75rem;">
@@ -1063,7 +1063,7 @@
                 <h5 class="modal-title fw-bold" id="quickAddProductModalLabel">
                     <i class="fa fa-plus-circle text-primary me-2"></i>Quick Add Product
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="close btn-close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" style="font-size: 1.25rem; border: none; background: transparent; line-height: 1;"><span aria-hidden="true">&times;</span></button>
             </div>
             <form id="quickAddProductForm">
                 @csrf
@@ -1110,7 +1110,7 @@
                     </div>
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary px-4 fw-bold" id="btnQuickSaveProduct">
                         <i class="fa fa-save me-1"></i>Save Product
                     </button>
@@ -1128,7 +1128,7 @@
                 <h5 class="modal-title fw-bold" id="addVendorModalLabel">
                     <i class="fas fa-truck text-primary me-2"></i>New Vendor / Supplier
                 </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                <button type="button" class="close btn-close" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" style="font-size: 1.25rem; border: none; background: transparent; line-height: 1;"><span aria-hidden="true">&times;</span></button>
             </div>
             <form id="ajaxAddVendorForm">
                 @csrf
@@ -1140,7 +1140,7 @@
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">Phone Number</label>
-                            <input type="text" class="form-control" name="phone_number" placeholder="0300-1234567">
+                            <input type="text" class="form-control" name="phone" placeholder="0300-1234567">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label fw-bold small text-muted">Opening Balance</label>
@@ -1154,7 +1154,7 @@
                     </div>
                 </div>
                 <div class="modal-footer border-top-0 pt-0">
-                    <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-primary px-4 fw-bold" id="btnSaveAjaxVendor">
                         <i class="fa fa-save me-1"></i>Save Vendor
                     </button>
@@ -1166,12 +1166,44 @@
 @endsection
 
 @section('js')
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
 $(document).ready(function() {
+    function showModal(selector) {
+        var el = document.querySelector(selector);
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            var inst = bootstrap.Modal.getOrCreateInstance(el);
+            inst.show();
+        } else if ($(selector).modal) {
+            $(selector).modal('show');
+        }
+    }
+
+    function hideModal(selector) {
+        var el = document.querySelector(selector);
+        if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+            var inst = bootstrap.Modal.getInstance(el);
+            if (inst) inst.hide();
+        }
+        if ($(selector).modal) {
+            $(selector).modal('hide');
+        }
+        $('.modal-backdrop').remove();
+        $('body').removeClass('modal-open').css('padding-right', '');
+    }
+
+    $(document).on('click', '#btnAddNewVendorModal', function(e) {
+        e.preventDefault();
+        showModal('#addVendorModal');
+    });
+
+    $(document).on('click', '#btnQuickAddProductModal', function(e) {
+        e.preventDefault();
+        showModal('#quickAddProductModal');
+    });
     window.WAREHOUSE_STOCKS = @json($warehouseStocks ?? []);
     window.BANK_ACCOUNTS = @json($bankAccounts ?? []);
 
@@ -1376,25 +1408,47 @@ $(document).ready(function() {
         $row.find('.stock').val(stock);
     }
 
+    function parseCartonQtyToPiecesJs(qtyVal, ppp, unit) {
+        if (unit === 'pcs' || ppp <= 1) {
+            return parseFloat(qtyVal) || 0;
+        }
+        var qtyStr = String(qtyVal || '').trim();
+        if (qtyStr.indexOf('.') !== -1) {
+            var parts = qtyStr.split('.');
+            var ctn = parseInt(parts[0], 10) || 0;
+            var loose = parseInt(parts[1], 10) || 0;
+            return (ctn * ppp) + loose;
+        }
+        return (parseFloat(qtyVal) || 0) * ppp;
+    }
+
     // Packing info calculation helper
     function updatePackingInfo($row) {
         var opt = $row.find('.product-select option:selected');
         var ppp = parseFloat(opt.data('piece-per-pack')) || 1;
         var packType = opt.data('pack-type') || 'Standard';
         var unit = opt.data('unit') || 'Piece';
-        var qty = parseFloat($row.find('.qty-input').val()) || 0;
+        var rawQty = $row.find('.qty-input').val();
+        var qty = parseFloat(rawQty) || 0;
 
         $row.find('.ipp-input').val(ppp);
         $row.find('.packing-type-input').val(packType);
         $row.find('.pack-qty-input').val(qty);
 
-        var totalPieces = ppp > 1 ? (qty * ppp) : qty;
+        var totalPieces = ppp > 1 ? parseCartonQtyToPiecesJs(rawQty, ppp, 'ctn') : qty;
         $row.find('.total-pieces-input').val(totalPieces);
 
         var badge = $row.find('.packing-preview-badge');
-        if (ppp > 1 && qty > 0) {
+        if (ppp > 1 && totalPieces > 0) {
             $row.find('.unit-display').val(unit + ' (' + ppp + ' Pcs)');
-            badge.html('<i class="fas fa-boxes"></i> ' + qty + ' Crtn = ' + totalPieces + ' Pcs').show();
+            var parts = String(rawQty || '').split('.');
+            var ctnPart = parseInt(parts[0], 10) || 0;
+            var loosePart = parts.length > 1 ? (parseInt(parts[1], 10) || 0) : 0;
+            var textDesc = [];
+            if (ctnPart > 0) textDesc.push(ctnPart + ' Ctn');
+            if (loosePart > 0) textDesc.push(loosePart + ' Pcs');
+            var label = textDesc.length > 0 ? textDesc.join(' + ') : (totalPieces + ' Pcs');
+            badge.html('<i class="fas fa-boxes"></i> ' + label + ' = ' + totalPieces + ' Pcs').show();
         } else {
             $row.find('.unit-display').val(unit);
             badge.hide().empty();
@@ -1541,14 +1595,27 @@ $(document).ready(function() {
         var totalLineDisc = 0;
 
         $('.item-row').each(function() {
-            var qty = parseFloat($(this).find('.qty-input').val()) || 0;
+            var rawQty = $(this).find('.qty-input').val();
+            var qty = parseFloat(rawQty) || 0;
             var price = parseFloat($(this).find('.price-input').val()) || 0;
             var discVal = parseFloat($(this).find('.disc-input-visual').val()) || 0;
             var discType = $(this).find('.disc-type-input').val() || 'amount';
 
+            var opt = $(this).find('.product-select option:selected');
+            var ppp = parseFloat(opt.data('piece-per-pack')) || 1;
+
+            var grossLine = 0;
+            if (ppp > 1) {
+                var totalPieces = parseCartonQtyToPiecesJs(rawQty, ppp, 'ctn');
+                var piecePrice = ppp > 0 ? (price / ppp) : price;
+                grossLine = totalPieces * piecePrice;
+            } else {
+                grossLine = qty * price;
+            }
+
             var discAmt = 0;
             if (discType === 'percent') {
-                discAmt = (qty * price) * (discVal / 100);
+                discAmt = grossLine * (discVal / 100);
             } else {
                 discAmt = discVal;
             }
@@ -1556,7 +1623,7 @@ $(document).ready(function() {
             $(this).find('.disc-input-hidden').val(discAmt.toFixed(2));
             totalLineDisc += discAmt;
 
-            var lineTotal = (qty * price) - discAmt;
+            var lineTotal = grossLine - discAmt;
             $(this).find('.line-total').val(lineTotal.toFixed(2));
             subtotal += lineTotal;
         });
@@ -1660,7 +1727,7 @@ $(document).ready(function() {
             data: form.serialize(),
             success: function(res) {
                 btn.prop('disabled', false).html('<i class="fa fa-save me-1"></i>Save Product');
-                $('#quickAddProductModal').modal('hide');
+                hideModal('#quickAddProductModal');
                 form[0].reset();
 
                 // Append new product to all product selects
@@ -1706,19 +1773,50 @@ $(document).ready(function() {
             url: "{{ route('vendors.store.ajax') }}",
             type: "POST",
             data: form.serialize(),
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            },
             success: function(res) {
                 btn.prop('disabled', false).html('<i class="fa fa-save me-1"></i>Save Vendor');
-                $('#addVendorModal').modal('hide');
+                hideModal('#addVendorModal');
                 form[0].reset();
 
-                if (res && res.id) {
-                    var newOption = new Option('🏢 ' + res.name + ' (Payable: Rs. ' + (parseFloat(res.opening_balance)||0).toFixed(2) + ')', 'vendor_' + res.id, true, true);
-                    $(newOption).data('type', 'vendor');
-                    $(newOption).data('id', res.id);
-                    $(newOption).data('name', res.name);
-                    $(newOption).data('balance', res.opening_balance || 0);
-                    $('#vendorSelect').append(newOption).trigger('change');
+                var v = (res && res.vendor) ? res.vendor : (res && res.id ? res : null);
+                if (v && v.id) {
+                    var opBal = parseFloat(v.opening_balance !== undefined ? v.opening_balance : form.find('[name="opening_balance"]').val()) || 0;
+                    var optionText = '🏢 ' + v.name + ' (Payable: Rs. ' + opBal.toFixed(2) + ')';
+                    var newOption = new Option(optionText, 'vendor_' + v.id, true, true);
+                    $(newOption)
+                        .attr('data-type', 'vendor')
+                        .attr('data-id', v.id)
+                        .attr('data-name', v.name)
+                        .attr('data-balance', opBal)
+                        .attr('data-phone', v.phone || '')
+                        .data('type', 'vendor')
+                        .data('id', v.id)
+                        .data('name', v.name)
+                        .data('balance', opBal)
+                        .data('phone', v.phone || '');
+
+                    // If in walk-in mode, switch back to vendor select mode
+                    if ($('#btnWalkinToggle').hasClass('active')) {
+                        $('#btnWalkinToggle').removeClass('active btn-primary').addClass('btn-outline-primary');
+                        $('#walkinNameInput').addClass('d-none');
+                        $('#vendorSelectBoxContainer').removeClass('d-none');
+                        $('#vendorModeInput').val('vendor');
+                    }
+
+                    var $optgroup = $('#vendorSelect optgroup[label*="Registered Vendors"]');
+                    if ($optgroup.length) {
+                        $optgroup.append(newOption);
+                    } else {
+                        $('#vendorSelect').append(newOption);
+                    }
+
+                    $('#vendorSelect').val('vendor_' + v.id).trigger('change');
                 }
+
                 Swal.fire({
                     icon: 'success',
                     title: 'Vendor Created!',
@@ -1729,10 +1827,14 @@ $(document).ready(function() {
             },
             error: function(err) {
                 btn.prop('disabled', false).html('<i class="fa fa-save me-1"></i>Save Vendor');
+                var msg = 'Vendor create nahi ho saka. Please check input.';
+                if (err && err.responseJSON && err.responseJSON.message) {
+                    msg = err.responseJSON.message;
+                }
                 Swal.fire({
                     icon: 'error',
                     title: 'Failed',
-                    text: 'Vendor create nahi ho saka. Please check input.'
+                    text: msg
                 });
             }
         });

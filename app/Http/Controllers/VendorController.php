@@ -121,6 +121,10 @@ class VendorController extends Controller
             } else {
                 $data['branch_id'] = $user->branch_id ?? 0;
             }
+
+            if ($request->filled('phone_number') && !$request->filled('phone')) {
+                $data['phone'] = $request->phone_number;
+            }
             
             // Handle Companies (Convert comma-separated string to array)
             if ($request->filled('company_names_raw')) {
@@ -159,8 +163,13 @@ class VendorController extends Controller
                     'phone'         => $vendor->phone,
                     'address'       => $vendor->address,
                     'company_names' => $vendor->company_names ?? [],
+                    'opening_balance' => (float)($vendor->opening_balance ?? 0),
                     'company_str'   => is_array($vendor->company_names) ? implode(', ', $vendor->company_names) : ($vendor->company_names ?? ''),
-                ]
+                ],
+                'id'              => $vendor->id,
+                'name'            => $vendor->name,
+                'phone'           => $vendor->phone,
+                'opening_balance' => (float)($vendor->opening_balance ?? 0),
             ]);
         }
 
