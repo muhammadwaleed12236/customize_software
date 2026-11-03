@@ -64,8 +64,33 @@ class CustomerController extends Controller
             });
         }
 
-        // Get customers
+        // Get customers and append closing_balance from latest ledger
         $customers = $query->get();
+
+        // Batch-fetch latest ledger closing_balance for all customers
+        $customerIds = $customers->pluck('id')->toArray();
+        $latestBalances = [];
+        if (!empty($customerIds)) {
+            $latestLedgers = \App\Models\CustomerLedger::whereIn('customer_id', $customerIds)
+                ->select('customer_id', 'closing_balance')
+                ->whereIn('id', function($sub) use ($customerIds) {
+                    $sub->selectRaw('MAX(id)')
+                        ->from('customer_ledgers')
+                        ->whereIn('customer_id', $customerIds)
+                        ->groupBy('customer_id');
+                })
+                ->get();
+            foreach ($latestLedgers as $ll) {
+                $latestBalances[$ll->customer_id] = (float) $ll->closing_balance;
+            }
+        }
+
+        // Append closing_balance & previous_balance to each customer
+        $customers->each(function($c) use ($latestBalances) {
+            $bal = $latestBalances[$c->id] ?? (float)($c->opening_balance ?? 0);
+            $c->closing_balance = $bal;
+            $c->previous_balance = $bal;
+        });
 
         return response()->json($customers);
     } catch (\Exception $e) {

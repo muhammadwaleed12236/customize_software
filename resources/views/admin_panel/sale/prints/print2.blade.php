@@ -597,9 +597,8 @@
                     $prevBalance = (float) (optional($sale->customer)->opening_balance ?? 0);
                 }
 
-                // 2. Total customer closing balance from ledger
-                $lastLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)->latest('id')->first();
-                $closingBalance = $lastLedger ? (float) ($lastLedger->closing_balance ?? 0) : ($totalPayable - $paidAmount + $prevBalance);
+                // 2. Per-invoice closing balance (not overall ledger balance)
+                $closingBalance = ($totalPayable + $prevBalance) - $paidAmount;
             } else {
                 $closingBalance = $totalPayable - $paidAmount;
             }

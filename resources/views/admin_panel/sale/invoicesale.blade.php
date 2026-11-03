@@ -506,19 +506,15 @@ if($isCreditCustomer && isset($sale->customer)){
         $displayPrevious = floatval($sale->customer->opening_balance ?? 0);
     }
 
-    // 2. Current overall balance from ledger
-    $lastLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
-        ->latest('id')
-        ->first();
-    $displayClosing = $lastLedger ? floatval($lastLedger->closing_balance ?? 0) : ($netTotal - $totalReceived + $displayPrevious);
+    // 2. Per-invoice closing balance for display
+    $displayClosing = ($netTotal + $displayPrevious) - $totalReceived;
 } else {
     $displayClosing = ($netTotal + $displayPrevious) - $totalReceived;
 }
 
 $grandTotal = $netTotal + $displayPrevious;
-$balanceDue = ($isCreditCustomer && isset($sale->customer))
-    ? $displayClosing
-    : ($grandTotal - $totalReceived);
+// Always per-invoice: Grand Total - Total Received (shows Cr when overpaid)
+$balanceDue = $grandTotal - $totalReceived;
 @endphp
 
 <div class="container-fluid mt-3">
