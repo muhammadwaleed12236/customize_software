@@ -3788,9 +3788,12 @@ public function finddc($invoice)
             if ($request->refund_type === 'cash') {
                 $refundAccountIds = $request->input('refund_account_id', []);
                 $refundAmounts    = $request->input('refund_amount', []);
+                $totalRefundPaid  = 0;
                 foreach ($refundAccountIds as $i => $accountId) {
                     $refAmt = (float)($refundAmounts[$i] ?? 0);
                     if (! $accountId || $refAmt <= 0) continue;
+
+                    $totalRefundPaid += $refAmt;
 
                     \App\Services\VoucherService::postLedgerEntry(
                         (int)$accountId,
@@ -3803,6 +3806,26 @@ public function finddc($invoice)
                         $refAmt,
                         auth()->id() ?? 1
                     );
+                }
+
+                // Customer Ledger: Record Cash Refund as DEBIT (customer received cash)
+                if ($customer_id && $totalRefundPaid > 0) {
+                    $latestLedger = CustomerLedger::where('customer_id', $customer_id)->latest('id')->first();
+                    $prevBal      = $latestLedger ? (float)$latestLedger->closing_balance : 0;
+                    $newClosing   = $prevBal + $totalRefundPaid;
+
+                    CustomerLedger::create([
+                        'customer_id'      => $customer_id,
+                        'transaction_type' => 'Sale Return Refund',
+                        'reference_id'     => $saleReturn->id,
+                        'description'      => 'Sale Return Cash Refund — ' . ($saleReturn->reference ?? ('#' . $saleReturn->id)),
+                        'admin_or_user_id' => auth()->id() ?? 1,
+                        'previous_balance' => $prevBal,
+                        'total_debit'      => $totalRefundPaid,
+                        'total_credit'     => 0,
+                        'closing_balance'  => $newClosing,
+                        'opening_balance'  => 0,
+                    ]);
                 }
             }
 

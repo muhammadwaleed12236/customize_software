@@ -337,6 +337,8 @@ class PurchaseController extends Controller
         $validated = $request->validate([
             'invoice_no'          => 'nullable|string',
             'vendor_id'           => 'nullable|exists:vendors,id',
+            'customer_id'         => 'nullable|exists:customers,id',
+            'party_type'          => 'nullable|string',
             'purchase_date'       => 'nullable|date',
             'branch_id'           => 'nullable|exists:branches,id',
             'warehouse_id'        => 'nullable',  // Temporarily relaxed for debugging
@@ -410,12 +412,16 @@ class PurchaseController extends Controller
             $warehouseId = (int)($validated['warehouse_id'] ?? 0);  // May be 0 if not selected
 
             $vendorId = $validated['vendor_id'] ?? null;
+            $customerId = $validated['customer_id'] ?? null;
+            $partyType = $validated['party_type'] ?? ($vendorId ? 'vendor' : ($customerId ? 'customer' : 'vendor'));
 
             // create header
             $purchase = Purchase::create([
                 'branch_id'     => $branchId,
                 'warehouse_id'  => $warehouseId > 0 ? $warehouseId : null,  // ✅ Nullable for Branch Shop
                 'vendor_id'     => $vendorId,
+                'customer_id'   => $customerId,
+                'party_type'    => $partyType,
                 'vendor_name'   => $request->vendor_name ?? null, // ✅ NEW: Store local market shop name
                 'purchase_date' => $validated['purchase_date'] ?? now(),
                 'invoice_no'    => $invoiceNo, // ✅ Always use the calculated ERP invoice number
@@ -1160,9 +1166,23 @@ class PurchaseController extends Controller
 
     public function update(Request $request, $id)
     {
+        // Resolve party if vendor_id_select was submitted with prefix
+        if ($request->filled('vendor_id_select')) {
+            $rawParty = $request->input('vendor_id_select');
+            if (is_string($rawParty) && str_starts_with($rawParty, 'customer_')) {
+                $cId = (int) str_replace('customer_', '', $rawParty);
+                $request->merge(['customer_id' => $cId, 'vendor_id' => null, 'party_type' => 'customer']);
+            } elseif (is_string($rawParty) && str_starts_with($rawParty, 'vendor_')) {
+                $vId = (int) str_replace('vendor_', '', $rawParty);
+                $request->merge(['vendor_id' => $vId, 'customer_id' => null, 'party_type' => 'vendor']);
+            }
+        }
+
         $validated = $request->validate([
             'invoice_no'      => 'nullable|string',
             'vendor_id'       => 'nullable|exists:vendors,id',
+            'customer_id'     => 'nullable|exists:customers,id',
+            'party_type'      => 'nullable|string',
             'purchase_date'   => 'nullable|date',
             'branch_id'       => 'nullable|exists:branches,id',
             'warehouse_id'    => 'nullable',  // ✅ Now optional (per-line)
@@ -1352,7 +1372,9 @@ class PurchaseController extends Controller
 
                 // header update
                 $purchase->update([
-                    'vendor_id'     => $validated['vendor_id'] ?? $purchase->vendor_id,
+                    'vendor_id'     => array_key_exists('vendor_id', $validated) ? $validated['vendor_id'] : $purchase->vendor_id,
+                    'customer_id'   => array_key_exists('customer_id', $validated) ? $validated['customer_id'] : $purchase->customer_id,
+                    'party_type'    => $validated['party_type'] ?? ($validated['vendor_id'] ?? null ? 'vendor' : ($validated['customer_id'] ?? null ? 'customer' : $purchase->party_type)),
                     'branch_id'     => $branchId,
                     'warehouse_id'  => $warehouseId,
                     'purchase_date' => $validated['purchase_date'] ?? $purchase->purchase_date,
@@ -2033,20 +2055,62 @@ class PurchaseController extends Controller
         $request->merge(['purchase_type' => 'local']);
 
         $mode = $request->input('_vendor_mode', 'local');
-        if ($mode === 'vendor' || $request->filled('vendor_id_select') || $request->filled('vendor_id')) {
-            $vid = $request->input('vendor_id_select') ?: $request->input('vendor_id');
-            $vendor = Vendor::find($vid);
-            $request->merge([
-                'vendor_id' => $vendor ? $vendor->id : null,
-                'vendor_name' => $vendor ? $vendor->name : $request->input('vendor_name')
-            ]);
-        } else {
-            // Local market shop name
+
+        // Explicit Local Market mode
+        if ($mode === 'local') {
             $shopName = $request->input('local_vendor_name') ?: $request->input('vendor_name') ?: $request->input('vendor_name_text');
             $request->merge([
-                'vendor_id' => null,
+                'party_type'  => 'vendor',
+                'vendor_id'   => null,
+                'customer_id' => null,
                 'vendor_name' => $shopName ? trim($shopName) : 'Local Market'
             ]);
+        } else {
+            // Mode is registered party (vendor or contra customer)
+            $rawParty = $request->input('vendor_id_select') ?: ($request->input('vendor_id') ?: $request->input('customer_id'));
+            
+            $isCustomer = false;
+            $partyId = null;
+
+            if (is_string($rawParty) && str_starts_with($rawParty, 'customer_')) {
+                $isCustomer = true;
+                $partyId = (int) str_replace('customer_', '', $rawParty);
+            } elseif (is_string($rawParty) && str_starts_with($rawParty, 'vendor_')) {
+                $isCustomer = false;
+                $partyId = (int) str_replace('vendor_', '', $rawParty);
+            } elseif ($request->input('party_type') === 'customer' || $request->filled('customer_id')) {
+                $isCustomer = true;
+                $partyId = (int) ($request->input('customer_id') ?: $rawParty);
+            } else {
+                $isCustomer = false;
+                $partyId = (int) ($request->input('vendor_id') ?: $rawParty);
+            }
+
+            if ($isCustomer && $partyId > 0) {
+                $customer = \App\Models\Customer::find($partyId);
+                $request->merge([
+                    'party_type'  => 'customer',
+                    'customer_id' => $customer ? $customer->id : null,
+                    'vendor_id'   => null,
+                    'vendor_name' => $customer ? $customer->customer_name : $request->input('vendor_name')
+                ]);
+            } elseif ($partyId > 0) {
+                $vendor = Vendor::find($partyId);
+                $request->merge([
+                    'party_type'  => 'vendor',
+                    'customer_id' => null,
+                    'vendor_id'   => $vendor ? $vendor->id : null,
+                    'vendor_name' => $vendor ? $vendor->name : $request->input('vendor_name')
+                ]);
+            } else {
+                $shopName = $request->input('local_vendor_name') ?: $request->input('vendor_name') ?: $request->input('vendor_name_text');
+                $request->merge([
+                    'party_type'  => 'vendor',
+                    'customer_id' => null,
+                    'vendor_id'   => null,
+                    'vendor_name' => $shopName ? trim($shopName) : 'Local Market'
+                ]);
+            }
         }
 
         return $this->store($request);

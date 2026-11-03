@@ -280,6 +280,16 @@ class ReportingController extends Controller
             ->where(DB::raw('DATE(sales_returns.created_at)'), '<', $startDate)
             ->sum('sales_returns.total_net');
 
+        // 2b. Prior Sale Return Cash Refunds (Debit)
+        $priorRefunds = (float) DB::table('account_ledger_entries')
+            ->join('sales_returns', 'sales_returns.id', '=', 'account_ledger_entries.voucher_id')
+            ->join('sales', 'sales.id', '=', 'sales_returns.sale_id')
+            ->where('sales.customer_id', $customerId)
+            ->where('account_ledger_entries.voucher_type', 'payment')
+            ->where('account_ledger_entries.voucher_no', 'like', 'RET-%')
+            ->where(DB::raw('DATE(account_ledger_entries.transaction_date)'), '<', $startDate)
+            ->sum('account_ledger_entries.credit');
+
         // 3. Prior Receipts (Credit)
         $priorReceiptsQ = DB::table('receipts_vouchers')
             ->where(function ($q) {
@@ -339,6 +349,7 @@ class ReportingController extends Controller
 
         return (float)$initialOpening 
             + (float)$priorSales 
+            + (float)$priorRefunds
             + (float)$priorJvDebits 
             - (float)$priorReturns 
             - (float)$priorReceipts 
@@ -628,6 +639,29 @@ class ReportingController extends Controller
             ->get();
 
         // ══════════════════════════════════════════════════════════════════
+        // PART 2b – SALE RETURN CASH REFUNDS (Debit entries)
+        // ══════════════════════════════════════════════════════════════════
+        $refundsRaw = DB::table('account_ledger_entries')
+            ->join('sales_returns', 'sales_returns.id', '=', 'account_ledger_entries.voucher_id')
+            ->join('sales', 'sales.id', '=', 'sales_returns.sale_id')
+            ->leftJoin('accounts', 'accounts.id', '=', 'account_ledger_entries.account_id')
+            ->where('sales.customer_id', $customerId)
+            ->where('account_ledger_entries.voucher_type', 'payment')
+            ->where('account_ledger_entries.voucher_no', 'like', 'RET-%')
+            ->whereBetween(DB::raw('DATE(account_ledger_entries.transaction_date)'), [$start, $end])
+            ->select(
+                'account_ledger_entries.id as entry_id',
+                'account_ledger_entries.entry_no as entry_no',
+                'account_ledger_entries.voucher_no as voucher_no',
+                'account_ledger_entries.credit as debit_amount',
+                'account_ledger_entries.transaction_date as txn_date',
+                'accounts.title as account_title',
+                'sales_returns.id as return_id',
+                'sales.invoice_no as sale_invoice_no'
+            )
+            ->get();
+
+        // ══════════════════════════════════════════════════════════════════
         // PART 3 – RECEIPT VOUCHERS  (Cash + Bank payments from customer)
         // ══════════════════════════════════════════════════════════════════
         $receiptsQ = DB::table('receipts_vouchers')
@@ -741,6 +775,33 @@ class ReportingController extends Controller
                     'item_name'   => $ret->item_name ?? '-',
                     'qty'         => floatval($ret->qty ?? 0),
                     'rate'        => floatval($ret->rate ?? 0),
+                ],
+            ];
+        }
+
+        // Add Sale Return Cash Refunds (Debit)
+        foreach ($refundsRaw as $rf) {
+            $isBank = false;
+            if ($rf->account_title && (
+                str_contains(strtolower($rf->account_title), 'bank') ||
+                in_array(strtoupper($rf->account_title), ['HBL', 'MCB', 'UBL', 'MEEZAN', 'ALLIED', 'ASKARI'])
+            )) {
+                $isBank = true;
+            }
+
+            $events[] = [
+                'sort_date' => $rf->txn_date,
+                'type'      => 'return_refund',
+                'priority'  => 2.5,
+                'data'      => [
+                    'entry_id'     => $rf->entry_id,
+                    'vno'          => $rf->entry_no ?: ('BP-' . $rf->entry_id),
+                    'reference_no' => $rf->voucher_no,
+                    'account'      => $rf->account_title ?? 'Cash/Bank',
+                    'description'  => 'RETURN CASH REFUND (' . ($rf->account_title ?? 'Cash/Bank') . ')',
+                    'txn_date'     => $rf->txn_date,
+                    'debit'        => floatval($rf->debit_amount ?? 0),
+                    'is_bank'      => $isBank,
                 ],
             ];
         }
@@ -923,11 +984,11 @@ class ReportingController extends Controller
                 return $dateCompare;
             }
 
-            // Same date: sort by logical business priority (Sale -> Return -> Receipt -> Payment -> JV)
-            $pA = (int)($a['priority'] ?? 99);
-            $pB = (int)($b['priority'] ?? 99);
-            if ($pA !== $pB) {
-                return $pA - $pB;
+            // Same date: sort by logical business priority (Sale -> Return -> Refund -> Receipt -> Payment -> JV)
+            $pA = (float)($a['priority'] ?? 99);
+            $pB = (float)($b['priority'] ?? 99);
+            if ($pA != $pB) {
+                return $pA < $pB ? -1 : 1;
             }
 
             // Same priority: compare full timestamp if available, else tiebreak
@@ -1044,6 +1105,29 @@ class ReportingController extends Controller
                     'debit'       => 0,
                     'credit'      => $credit,
                     'balance'     => $runningBalance,
+                ];
+
+            } elseif ($type === 'return_refund') {
+                $debit           = $d['debit'];
+                $runningBalance += $debit;
+                $totalDebit     += $debit;
+
+                $transactions[] = [
+                    'row_type'     => 'payment_voucher',
+                    'voucher_id'   => $d['entry_id'],
+                    'voucher_type' => 'payment_voucher',
+                    'date'         => date('d-m-y', strtotime($d['txn_date'])),
+                    'vno'          => $d['vno'],
+                    'bill'         => $d['reference_no'] ?? '-',
+                    'dc_no'        => '-',
+                    'gp_no'        => '-',
+                    'description'  => $d['description'],
+                    'item_name'    => $d['account'],
+                    'qty'          => null,
+                    'rate'         => null,
+                    'debit'        => $debit,
+                    'credit'       => 0,
+                    'balance'      => $runningBalance,
                 ];
 
             } elseif ($type === 'receipt') {
