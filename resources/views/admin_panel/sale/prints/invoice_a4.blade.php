@@ -675,7 +675,7 @@
                                 if ($paidA4 <= 0) {
                                     $paidA4 = (float)(($sale->receipt1 ?? 0) + ($sale->receipt2 ?? 0));
                                 }
-                                $balanceA4 = max(0, $finalTotal - $paidA4);
+                                $balanceA4 = $finalTotal - $paidA4;
                             @endphp
                             {{ number_format($finalTotal, 2) }}
                         </span>

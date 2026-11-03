@@ -392,7 +392,7 @@
                         </a>
                     </div>
                 </div>
-                <iframe id="txModalIframe" src="" style="width: 100%; height: 100%; border: none; display: block;" onload="onTxIframeLoaded()"></iframe>
+                <iframe id="txModalIframe" src="" style="width: 100%; height: 100%; border: none; display: block;" onload="if (typeof onTxIframeLoaded === 'function') onTxIframeLoaded();"></iframe>
             </div>
         </div>
     </div>

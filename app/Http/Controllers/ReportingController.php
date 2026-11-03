@@ -328,11 +328,14 @@ class ReportingController extends Controller
             ->sum('amount');
 
         // 6. Prior Customer Purchases (Credit - contra purchases from customer reduce receivable)
-        $priorCustPurchases = (float) DB::table('purchases')
-            ->where('customer_id', $customerId)
-            ->whereNull('deleted_at')
-            ->where(DB::raw('DATE(created_at)'), '<', $startDate)
-            ->sum(DB::raw('COALESCE(net_amount, 0)'));
+        $priorCustPurchases = 0;
+        if (\Illuminate\Support\Facades\Schema::hasColumn('purchases', 'customer_id')) {
+            $priorCustPurchases = (float) DB::table('purchases')
+                ->where('customer_id', $customerId)
+                ->whereNull('deleted_at')
+                ->where(DB::raw('DATE(created_at)'), '<', $startDate)
+                ->sum(DB::raw('COALESCE(net_amount, 0)'));
+        }
 
         return (float)$initialOpening 
             + (float)$priorSales 
@@ -672,12 +675,15 @@ class ReportingController extends Controller
         // ══════════════════════════════════════════════════════════════════
         // PART 6 – PURCHASES FROM CUSTOMER (Contra / Buyback - Credit)
         // ══════════════════════════════════════════════════════════════════
-        $custPurchasesRaw = DB::table('purchases')
-            ->where('customer_id', $customerId)
-            ->whereNull('deleted_at')
-            ->whereBetween(DB::raw('DATE(created_at)'), [$start, $end])
-            ->select('id', 'invoice_no', 'net_amount', 'created_at', 'note')
-            ->get();
+        $custPurchasesRaw = collect();
+        if (\Illuminate\Support\Facades\Schema::hasColumn('purchases', 'customer_id')) {
+            $custPurchasesRaw = DB::table('purchases')
+                ->where('customer_id', $customerId)
+                ->whereNull('deleted_at')
+                ->whereBetween(DB::raw('DATE(created_at)'), [$start, $end])
+                ->select('id', 'invoice_no', 'net_amount', 'created_at', 'note')
+                ->get();
+        }
 
         // ══════════════════════════════════════════════════════════════════
         // BUILD UNIFIED EVENT LIST  (sorted by date → then type priority)
@@ -1815,24 +1821,6 @@ class ReportingController extends Controller
                     'txn_date'     => $jv->voucher_date,
                     'debit'        => 0,
                     'credit'       => floatval($jv->amount ?? 0),
-                ],
-            ];
-        }
-
-        // Add Purchases from Customer (Contra Credit)
-        foreach ($custPurchasesRaw as $cp) {
-            $events[] = [
-                'sort_date' => $cp->created_at,
-                'type'      => 'contra_purchase',
-                'priority'  => 3,
-                'data'      => [
-                    'voucher_id'   => $cp->id,
-                    'voucher_type' => 'contra_purchase',
-                    'vno'          => $cp->invoice_no,
-                    'reference_no' => '-',
-                    'description'  => $cp->note ?: 'PURCHASE FROM CUSTOMER (CONTRA)',
-                    'txn_date'     => $cp->created_at,
-                    'credit'       => floatval($cp->net_amount ?? 0),
                 ],
             ];
         }

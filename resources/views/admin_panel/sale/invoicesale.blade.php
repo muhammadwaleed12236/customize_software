@@ -512,11 +512,13 @@ if($isCreditCustomer && isset($sale->customer)){
         ->first();
     $displayClosing = $lastLedger ? floatval($lastLedger->closing_balance ?? 0) : ($netTotal - $totalReceived + $displayPrevious);
 } else {
-    $displayClosing = max(0, $netTotal - $totalReceived);
+    $displayClosing = ($netTotal + $displayPrevious) - $totalReceived;
 }
 
 $grandTotal = $netTotal + $displayPrevious;
-$balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
+$balanceDue = ($isCreditCustomer && isset($sale->customer))
+    ? $displayClosing
+    : ($grandTotal - $totalReceived);
 @endphp
 
 <div class="container-fluid mt-3">
@@ -686,9 +688,9 @@ $balanceDue = max(0, ($netTotal + $displayPrevious) - $totalReceived);
                         <td style="color: #166534; font-weight: 800;">Paid / Received</td>
                         <td style="text-align: right; font-weight: 800; color: #166534;">Rs. {{ number_format($totalReceived, 2) }}</td>
                     </tr>
-                    <tr style="background: {{ $balanceDue > 0 ? '#fef2f2' : '#ffffff' }};">
-                        <td style="font-weight: 800; color: {{ $balanceDue > 0 ? '#b91c1c' : '#000' }};">Balance Due</td>
-                        <td style="text-align: right; font-weight: 800; color: {{ $balanceDue > 0 ? '#b91c1c' : '#000' }};">Rs. {{ number_format($balanceDue, 2) }}</td>
+                    <tr style="background: {{ $balanceDue > 0 ? '#fef2f2' : ($balanceDue < 0 ? '#f0fdf4' : '#ffffff') }};">
+                        <td style="font-weight: 800; color: {{ $balanceDue > 0 ? '#b91c1c' : ($balanceDue < 0 ? '#166534' : '#000') }};">Balance Due</td>
+                        <td style="text-align: right; font-weight: 800; color: {{ $balanceDue > 0 ? '#b91c1c' : ($balanceDue < 0 ? '#166534' : '#000') }};">Rs. {{ number_format($balanceDue, 2) }}{{ $isCreditCustomer ? ' Dr' : '' }}</td>
                     </tr>
                 </table>
             </div>
