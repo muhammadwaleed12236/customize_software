@@ -260,7 +260,10 @@
                     $productUrdu = !empty(trim($rawUrdu ?? '')) ? trim($rawUrdu) : null;
                     $itemName = !empty($productUrdu) ? $productUrdu : ($item->product->item_name ?? $item->product_name ?? 'N/A');
                     $qty = (float)($item->sales_qty ?? 0);
-                    $rate = (float)($item->retail_price ?? 0);
+                    $rate = (float)($item->retail_price ?? $item->sales_price ?? 0);
+                    if ($rate <= 0 && $qty > 0 && !empty($item->amount)) {
+                        $rate = (float)$item->amount / $qty;
+                    }
                     $amount = (float)($item->amount ?? $qty * $rate);
                     $totalQty += $qty;
                     $totalAmount += $amount;

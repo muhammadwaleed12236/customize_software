@@ -508,7 +508,7 @@
                     @foreach($sale->saleItems as $item)
                         @php
                             $qty = (float) $item->sales_qty;
-                            $rate = (float) $item->sales_price;
+                            $rate = (float) ($item->sales_price > 0 ? $item->sales_price : ($item->retail_price > 0 ? $item->retail_price : ($qty > 0 ? ($item->amount / $qty) : 0)));
                             $amt = (float) ($item->amount > 0 ? $item->amount : ($qty * $rate));
                             $calcSubtotal += $amt;
                             $totalQty += $qty;

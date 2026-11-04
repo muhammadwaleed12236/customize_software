@@ -585,7 +585,7 @@
                             @foreach($sale->saleItems as $item)
                                 @php
                                     $itemQty = (float) $item->sales_qty;
-                                    $itemRate = (float) $item->sales_price;
+                                    $itemRate = (float) ($item->sales_price > 0 ? $item->sales_price : ($item->retail_price > 0 ? $item->retail_price : ($itemQty > 0 ? ($item->amount / $itemQty) : 0)));
                                     $lineAmt = (float) ($item->amount > 0 ? $item->amount : ($itemQty * $itemRate));
                                     $computedTotal += $lineAmt;
                                     $productName = optional($item->product)->item_name ?? 'Item';
