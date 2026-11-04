@@ -456,7 +456,11 @@ $orderLevelDiscount = (float)($booking->discount_amount ?? 0);
 $additionalDiscount = (float)($booking->additional_discount ?? 0);
 $extraCharges = (float)($booking->extra_charges ?? 0);
 
-$netTotal = $grossTotal - $orderLevelDiscount - $additionalDiscount + $extraCharges;
+$effectiveDiscount = ($orderLevelDiscount > 0 && $additionalDiscount > 0 && abs($orderLevelDiscount - $additionalDiscount) < 0.01) ? $additionalDiscount : ($orderLevelDiscount + $additionalDiscount);
+$netTotal = (float)($booking->total_net ?? 0);
+if ($netTotal <= 0) {
+    $netTotal = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
+}
 $netTotal = max(0, $netTotal);
 
 $totalReceived = 0;
@@ -632,7 +636,18 @@ $balanceDue = ($isCreditCustomer && isset($booking->customer)) ? $displayClosing
                 <table class="summary-table">
                     <tr>
                         <td style="background: #fafafa; width: 45%;">Subtotal</td>
-                        <td style="text-align: right; width: 55%; font-weight: 800; color: #000;">Rs. {{ number_format($netTotal, 2) }}</td>
+                        <td style="text-align: right; width: 55%; font-weight: 800; color: #000;">Rs. {{ number_format($grossTotal > 0 ? $grossTotal : $netTotal, 2) }}</td>
+                    </tr>
+                    @if(isset($effectiveDiscount) && $effectiveDiscount > 0)
+                    <tr>
+                        <td style="background: #fafafa; color: #b91c1c;">Discount</td>
+                        <td style="text-align: right; font-weight: 800; color: #b91c1c;">- Rs. {{ number_format($effectiveDiscount, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="background: #fafafa; font-weight: 700;">Net Bill</td>
+                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($netTotal, 2) }}</td>
+                    </tr>
+                    @endif
                     </tr>
                     @php
                         $custOpening = floatval(optional($booking->customer)->opening_balance ?? 0);

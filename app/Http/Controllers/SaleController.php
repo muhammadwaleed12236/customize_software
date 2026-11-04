@@ -312,7 +312,14 @@ class SaleController extends Controller
                         $calcPrior = (float)$customerOpeningBalance + $priorSales - $priorReceipts;
                         $previousBalance = ($calcPrior != 0) ? $calcPrior : (float)$customerOpeningBalance;
                     }
-                    $saleAmount = $subTotal2 - $additionalDiscount + $extraCharges;
+                    // Determine net sale amount accurately without double-deducting additional discount
+                    if ($additionalDiscount > 0 && abs(($subTotal1 - $subTotal2) - $additionalDiscount) < 0.01) {
+                        $saleAmount = $subTotal2 + $extraCharges;
+                    } elseif ($subTotal2 > 0 && $additionalDiscount > 0 && $subTotal2 <= ($subTotal1 - $additionalDiscount + 0.01)) {
+                        $saleAmount = $subTotal2 + $extraCharges;
+                    } else {
+                        $saleAmount = max(0, $subTotal2 - $additionalDiscount + $extraCharges);
+                    }
 
                     $totalReceipts = 0;
                     if (!empty($request->receipt_amount) && is_array($request->receipt_amount)) {
@@ -762,7 +769,17 @@ class SaleController extends Controller
 
                     $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : $customerOpeningBalance;
                     $closingBalance = (float)($booking->total_balance ?? 0);
-                    $saleAmount = ($booking->sub_total2 ?? 0) - ($booking->additional_discount ?? 0) + ($booking->extra_charges ?? 0);
+                    $bSub1 = (float)($booking->sub_total1 ?? 0);
+                    $bSub2 = (float)($booking->sub_total2 ?? 0);
+                    $bAddDisc = (float)($booking->additional_discount ?? 0);
+                    $bExtra = (float)($booking->extra_charges ?? 0);
+                    if ($bAddDisc > 0 && abs(($bSub1 - $bSub2) - $bAddDisc) < 0.01) {
+                        $saleAmount = $bSub2 + $bExtra;
+                    } elseif ($bSub2 > 0 && $bAddDisc > 0 && $bSub2 <= ($bSub1 - $bAddDisc + 0.01)) {
+                        $saleAmount = $bSub2 + $bExtra;
+                    } else {
+                        $saleAmount = max(0, $bSub2 - $bAddDisc + $bExtra);
+                    }
                     
                     $totalReceipts = 0;
                     if (!empty($request->receipt_amount) && is_array($request->receipt_amount)) {
@@ -1420,7 +1437,17 @@ class SaleController extends Controller
                     $customerOpeningBalance = $customer->opening_balance ?? 0;
                     $previousBalance = $lastLedger ? (float)$lastLedger->closing_balance : $customerOpeningBalance;
                     $closingBalance = (float)($booking->total_balance ?? 0);
-                    $saleAmount = ($booking->sub_total2 ?? 0) - ($booking->additional_discount ?? 0) + ($booking->extra_charges ?? 0);
+                    $bSub1 = (float)($booking->sub_total1 ?? 0);
+                    $bSub2 = (float)($booking->sub_total2 ?? 0);
+                    $bAddDisc = (float)($booking->additional_discount ?? 0);
+                    $bExtra = (float)($booking->extra_charges ?? 0);
+                    if ($bAddDisc > 0 && abs(($bSub1 - $bSub2) - $bAddDisc) < 0.01) {
+                        $saleAmount = $bSub2 + $bExtra;
+                    } elseif ($bSub2 > 0 && $bAddDisc > 0 && $bSub2 <= ($bSub1 - $bAddDisc + 0.01)) {
+                        $saleAmount = $bSub2 + $bExtra;
+                    } else {
+                        $saleAmount = max(0, $bSub2 - $bAddDisc + $bExtra);
+                    }
 
                     $totalReceipts = 0;
                     if (!empty($request->receipt_amount) && is_array($request->receipt_amount)) {
@@ -4978,7 +5005,13 @@ public function finddc($invoice)
         $receipts = ReceiptsVoucher::with('Account')
             ->where(function($q) use ($sale) {
                 $q->where('sale_id', $sale->id)
-                  ->orWhere('reference_no', $sale->invoice_no);
+                  ->orWhere(function($q2) use ($sale) {
+                      $q2->whereNull('sale_id')
+                         ->where('reference_no', $sale->invoice_no);
+                      if ($sale->customer_id) {
+                          $q2->where('party_id', (string)$sale->customer_id);
+                      }
+                  });
             })
             ->where(function($q) {
                 $q->whereNull('status')->orWhere('status', '!=', 'voided');

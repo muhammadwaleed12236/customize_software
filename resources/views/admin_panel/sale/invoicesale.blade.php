@@ -456,7 +456,11 @@ $orderLevelDiscount = (float)($sale->discount_amount ?? 0);
 $additionalDiscount = (float)($sale->additional_discount ?? 0);
 $extraCharges = (float)($sale->extra_charges ?? 0);
 
-$netTotal = $grossTotal - $orderLevelDiscount - $additionalDiscount + $extraCharges;
+$effectiveDiscount = ($orderLevelDiscount > 0 && $additionalDiscount > 0 && abs($orderLevelDiscount - $additionalDiscount) < 0.01) ? $additionalDiscount : ($orderLevelDiscount + $additionalDiscount);
+$netTotal = (float)($sale->total_net ?? 0);
+if ($netTotal <= 0) {
+    $netTotal = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
+}
 $netTotal = max(0, $netTotal);
 
 $totalReceived = 0;
@@ -465,10 +469,11 @@ if (!isset($receipts) || $receipts->isEmpty()) {
     $receipts = \App\Models\ReceiptsVoucher::with('Account')->where(function($q) use ($sale, $invBranchId) {
             $q->where('sale_id', $sale->id)
               ->orWhere(function($q2) use ($sale, $invBranchId) {
-                  $q2->where('reference_no', $sale->invoice_no)
-                     ->where(function($q3) use ($sale) {
-                         $q3->whereNull('sale_id')->orWhere('sale_id', $sale->id);
-                     });
+                  $q2->whereNull('sale_id')
+                     ->where('reference_no', $sale->invoice_no);
+                  if ($sale->customer_id) {
+                      $q2->where('party_id', (string)$sale->customer_id);
+                  }
                   if ($invBranchId) {
                       $q2->where('branch_id', $invBranchId);
                   }
@@ -655,7 +660,18 @@ $balanceDue = $grandTotal - $totalReceived;
                 <table class="summary-table">
                     <tr>
                         <td style="background: #fafafa; width: 45%;">Subtotal</td>
-                        <td style="text-align: right; width: 55%; font-weight: 800; color: #000;">Rs. {{ number_format($netTotal, 2) }}</td>
+                        <td style="text-align: right; width: 55%; font-weight: 800; color: #000;">Rs. {{ number_format($grossTotal > 0 ? $grossTotal : $netTotal, 2) }}</td>
+                    </tr>
+                    @if(isset($effectiveDiscount) && $effectiveDiscount > 0)
+                    <tr>
+                        <td style="background: #fafafa; color: #b91c1c;">Discount</td>
+                        <td style="text-align: right; font-weight: 800; color: #b91c1c;">- Rs. {{ number_format($effectiveDiscount, 2) }}</td>
+                    </tr>
+                    <tr>
+                        <td style="background: #fafafa; font-weight: 700;">Net Bill</td>
+                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($netTotal, 2) }}</td>
+                    </tr>
+                    @endif
                     </tr>
                     @php
                         $custOpening = floatval(optional($sale->customer)->opening_balance ?? 0);

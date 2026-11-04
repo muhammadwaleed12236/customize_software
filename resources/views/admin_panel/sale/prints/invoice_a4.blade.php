@@ -662,7 +662,13 @@
                                 $receiptsA4 = \App\Models\ReceiptsVoucher::with('Account')
                                     ->where(function($q) use ($sale) {
                                         $q->where('sale_id', $sale->id)
-                                          ->orWhere('reference_no', $sale->invoice_no);
+                                          ->orWhere(function($q2) use ($sale) {
+                                              $q2->whereNull('sale_id')
+                                                 ->where('reference_no', $sale->invoice_no);
+                                              if ($sale->customer_id) {
+                                                  $q2->where('party_id', (string)$sale->customer_id);
+                                              }
+                                          });
                                     })
                                     ->where(function($q) {
                                         $q->whereNull('status')->orWhere('status', '!=', 'voided');

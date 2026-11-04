@@ -1,4 +1,4 @@
-@extends('admin_panel.layout.app')
+﻿@extends('admin_panel.layout.app')
 
 @section('content')
 
@@ -557,7 +557,20 @@
                 $subTotal = $calcSubtotal;
             }
 
-            $totalPayable = (float)($sale->party_type == 'credit' ? ($sale->total_balance ?? $sale->total_net) : $sale->total_net);
+            $orderLevelDiscount = (float)($sale->discount_amount ?? 0);
+            $additionalDiscount = (float)($sale->additional_discount ?? 0);
+            if ($orderLevelDiscount > 0 && $additionalDiscount > 0 && abs($orderLevelDiscount - $additionalDiscount) < 0.01) {
+                $thermalDiscount = $additionalDiscount;
+            } else {
+                $thermalDiscount = $orderLevelDiscount + $additionalDiscount;
+            }
+
+            $currentInvoiceNet = (float)($sale->total_net ?? 0);
+            if ($currentInvoiceNet <= 0) {
+                $currentInvoiceNet = max(0, $subTotal - $thermalDiscount + (float)($sale->extra_charges ?? 0));
+            }
+
+            $totalPayable = $currentInvoiceNet;
             if ($totalPayable <= 0) {
                 $totalPayable = $subTotal;
             }
@@ -568,7 +581,13 @@
             $receipts = \App\Models\ReceiptsVoucher::with('Account')
                 ->where(function($q) use ($sale) {
                     $q->where('sale_id', $sale->id)
-                      ->orWhere('reference_no', $sale->invoice_no);
+                      ->orWhere(function($q2) use ($sale) {
+                          $q2->whereNull('sale_id')
+                             ->where('reference_no', $sale->invoice_no);
+                          if ($sale->customer_id) {
+                              $q2->where('party_id', (string)$sale->customer_id);
+                          }
+                      });
                 })
                 ->where(function($q) {
                     $q->whereNull('status')->orWhere('status', '!=', 'voided');
@@ -598,9 +617,9 @@
                 }
 
                 // 2. Per-invoice closing balance (not overall ledger balance)
-                $closingBalance = ($totalPayable + $prevBalance) - $paidAmount;
+                $closingBalance = ($currentInvoiceNet + $prevBalance) - $paidAmount;
             } else {
-                $closingBalance = $totalPayable - $paidAmount;
+                $closingBalance = $currentInvoiceNet - $paidAmount;
             }
         @endphp
 
@@ -609,6 +628,12 @@
                 <td class="tot-lbl">Sub Total:</td>
                 <td class="tot-val">{{ number_format($subTotal, 0) }}</td>
             </tr>
+            @if(isset($thermalDiscount) && $thermalDiscount > 0)
+            <tr>
+                <td class="tot-lbl">Discount:</td>
+                <td class="tot-val">- {{ number_format($thermalDiscount, 0) }}</td>
+            </tr>
+            @endif
             <tr class="payable-box-row">
                 <td class="tot-lbl">TOTAL PAYABLE:</td>
                 <td class="tot-val">{{ number_format($totalPayable, 0) }}</td>
@@ -625,7 +650,7 @@
                 @foreach($receipts as $rc)
                     @php $acTitle = optional($rc->Account)->title ?? 'Cash / Bank'; @endphp
                     <tr>
-                        <td class="tot-lbl" style="font-size: 8px; padding-left: 6px; color: #555;">└ {{ $acTitle }}:</td>
+                        <td class="tot-lbl" style="font-size: 8px; padding-left: 6px; color: #555;">â”” {{ $acTitle }}:</td>
                         <td class="tot-val" style="font-size: 8px; color: #555;">{{ number_format($rc->total_amount ?? $rc->amount, 0) }}</td>
                     </tr>
                 @endforeach
