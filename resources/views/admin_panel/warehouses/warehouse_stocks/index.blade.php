@@ -549,7 +549,7 @@
                                 </thead>
                                 <tbody>
                                     @foreach($wh['products'] as $p)
-                                    <tr style="transition: background 0.15s; border-bottom: 1px solid #f1f5f9;">
+                                    <tr class="wh-product-row" data-product-name="{{ strtolower($p['product_name']) }}" data-product-code="{{ strtolower($p['product_code']) }}" style="transition: background 0.15s; border-bottom: 1px solid #f1f5f9;">
                                         <td style="padding: 11px 18px; vertical-align: middle;">
                                             <div class="d-flex align-items-center gap-2">
                                                 <div style="width: 28px; height: 28px; border-radius: 6px; background: #eff6ff; display: flex; align-items: center; justify-content: center; color: var(--coa-navy); font-size: 11px; font-weight: 800;">
@@ -765,6 +765,14 @@
                             branchName.includes(query) || 
                             whName.includes(query);
             row.style.display = matches ? '' : 'none';
+        });
+
+        // Filter Warehouse View Table Rows
+        const whRows = document.querySelectorAll('.wh-product-row');
+        whRows.forEach(row => {
+            const prodName = row.dataset.productName || '';
+            const prodCode = row.dataset.productCode || '';
+            row.style.display = (prodName.includes(query) || prodCode.includes(query)) ? '' : 'none';
         });
     });
 
