@@ -2730,6 +2730,7 @@ public function finddc($invoice)
                 'remarks' => $request->input('remarks', $request->input('reference')),
                 'sub_total1' => $request->subTotal1 ?? 0,
                 'sub_total2' => $request->subTotal2 ?? 0,
+                'total_net' => (float)($request->subTotal2 ?: ($request->subTotal1 ?: 0)),
                 'discount_percent' => $request->discountPercent ?? 0,
                 'discount_amount' => $request->discountAmount ?? 0,
                 'previous_balance' => $request->previousBalance ?? 0,
@@ -2870,6 +2871,7 @@ public function finddc($invoice)
                 'remarks' => $request->input('remarks', $request->input('reference')),
                 'sub_total1' => $request->subTotal1 ?? 0,
                 'sub_total2' => $request->subTotal2 ?? 0,
+                'total_net' => (float)($request->subTotal2 ?: ($request->subTotal1 ?: 0)),
                 'discount_percent' => $request->discountPercent ?? 0,
                 'discount_amount' => $request->discountAmount ?? 0,
                 'previous_balance' => $request->previousBalance ?? 0,
@@ -4370,6 +4372,7 @@ public function finddc($invoice)
                 $newAddDiscount = floatval($request->input('additional_discount', $request->input('discountAmount', 0)));
                 $newExtraCharges = floatval($request->input('extra_charges', 0));
                 $newTotal = floatval($request->input('totalBalance', 0));
+                $invoiceNet = (float)($newSubTotal2 > 0 ? $newSubTotal2 : max(0, $newSubTotal1 - $newAddDiscount + $newExtraCharges));
 
                 $partyType = $request->input('partyType', $sale->partyType ?? 'credit');
                 $customerName = null;
@@ -4420,7 +4423,7 @@ public function finddc($invoice)
                     'sub_total2'          => $newSubTotal2,
                     'additional_discount' => $newAddDiscount,
                     'extra_charges'       => $newExtraCharges,
-                    'total_net'           => $newTotal,
+                    'total_net'           => $invoiceNet,
                     'previous_balance'    => $prevBalanceToSave,
                     'total_balance'       => $newTotal,
                     'created_at'          => $saleDateTime,
@@ -4572,7 +4575,7 @@ public function finddc($invoice)
                 }
 
                 /* ================= STEP 5: UPDATE CUSTOMER LEDGER ================= */
-                $difference = $newTotal - $oldTotal;
+                $difference = $invoiceNet - $oldTotal;
                 if ($difference != 0 && $customerId) {
                     $latestLedger = CustomerLedger::lockForUpdate()
                         ->where('customer_id', $customerId)

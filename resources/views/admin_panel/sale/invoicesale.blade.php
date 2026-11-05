@@ -470,7 +470,7 @@ $extraCharges = (float)($sale->extra_charges ?? 0);
 $effectiveDiscount = ($orderLevelDiscount > 0 && $additionalDiscount > 0 && abs($orderLevelDiscount - $additionalDiscount) < 0.01) ? $additionalDiscount : ($orderLevelDiscount + $additionalDiscount);
 $calculatedNet = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
 $netTotal = (float)($sale->total_net ?? 0);
-if ($netTotal <= 0 || ($grossTotal > 0 && abs($netTotal - 999999.99) < 0.01) || ($grossTotal > $netTotal && $effectiveDiscount == 0 && $extraCharges == 0)) {
+if ($netTotal <= 0 || ($grossTotal > 0 && abs($netTotal - 999999.99) < 0.01) || ($grossTotal > 0 && $netTotal > $calculatedNet) || ($grossTotal > $netTotal && $effectiveDiscount == 0 && $extraCharges == 0)) {
     $netTotal = $calculatedNet;
 }
 $netTotal = max(0, $netTotal);

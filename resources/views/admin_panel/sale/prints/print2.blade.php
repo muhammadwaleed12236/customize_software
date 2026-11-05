@@ -1,4 +1,4 @@
-﻿@extends('admin_panel.layout.app')
+@extends('admin_panel.layout.app')
 
 @section('content')
 
@@ -565,9 +565,10 @@
                 $thermalDiscount = $orderLevelDiscount + $additionalDiscount;
             }
 
+            $calcThermalNet = max(0, $subTotal - $thermalDiscount + (float)($sale->extra_charges ?? 0));
             $currentInvoiceNet = (float)($sale->total_net ?? 0);
-            if ($currentInvoiceNet <= 0) {
-                $currentInvoiceNet = max(0, $subTotal - $thermalDiscount + (float)($sale->extra_charges ?? 0));
+            if ($currentInvoiceNet <= 0 || ($subTotal > 0 && $currentInvoiceNet > $calcThermalNet)) {
+                $currentInvoiceNet = $calcThermalNet;
             }
 
             $totalPayable = $currentInvoiceNet;
