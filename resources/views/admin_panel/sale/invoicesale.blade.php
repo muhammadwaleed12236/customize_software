@@ -86,7 +86,7 @@ body {
 .customer-info-line {
     border: 2px solid #000;
     border-radius: 5px;
-    padding: 5px 14px;
+    padding: 8px 14px;
     font-size: 16px;
     font-weight: 800;
     color: #000;
@@ -95,6 +95,7 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+    min-height: 48px;
 }
 
 .customer-info-label {
@@ -284,7 +285,17 @@ body {
     .customer-info-line {
         font-size: 17px !important;
         font-weight: 800 !important;
-        padding: 6px 12px !important;
+        padding: 8px 12px !important;
+        min-height: 50px !important;
+    }
+
+    .customer-info-line #customerNameDisplay {
+        font-size: 20px !important;
+        font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Noto Naskh Arabic', sans-serif !important;
+        font-weight: 800 !important;
+        line-height: 2 !important;
+        display: inline-block !important;
+        vertical-align: middle !important;
     }
 
     .customer-info-label {
@@ -535,6 +546,9 @@ $balanceDue = $grandTotal - $totalReceived;
 
     {{-- ACTION BUTTONS --}}
     <div class="text-end mb-3 no-print d-flex justify-content-end gap-2">
+        <button type="button" class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#nameFormatModal" data-toggle="modal" data-target="#nameFormatModal" style="background: #fff;" title="Customer Name Format Setting">
+            <i class="fas fa-cog me-1 text-primary"></i> Name Style
+        </button>
         <button type="button" onclick="shareWhatsApp()" class="btn btn-outline-success shadow-sm" style="border-color:#25D366; color:#25D366; background: #fff;">
             <i class="fab fa-whatsapp me-1"></i> WhatsApp
         </button>
@@ -568,9 +582,23 @@ $balanceDue = $grandTotal - $totalReceived;
 
         {{-- INFO SECTION (ADDA & CUSTOMER DETAILS IN A SINGLE COMPACT LINE) --}}
         @php
+            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
+            $nameFormat = $settings->invoice_customer_name_format ?? 'both';
+
             $custUrdu = $sale->customer->customer_name_ur ?? $sale->customer->name_urdu ?? $sale->customer_name_ur ?? '';
             $custEng = $sale->party_type === 'walking' ? ($sale->sub_customer ?? 'N/A') : ($sale->customer->customer_name ?? 'N/A');
-            $custDisplay = !empty($custUrdu) ? ($custUrdu . ($custEng !== 'N/A' && $custEng !== $custUrdu ? ' (' . $custEng . ')' : '')) : $custEng;
+
+            $formattedBoth = !empty($custUrdu) ? ($custUrdu . ($custEng !== 'N/A' && $custEng !== $custUrdu ? ' (' . $custEng . ')' : '')) : $custEng;
+            $formattedUrdu = !empty($custUrdu) ? $custUrdu : $custEng;
+            $formattedEng = ($custEng !== 'N/A' && !empty($custEng)) ? $custEng : (!empty($custUrdu) ? $custUrdu : 'N/A');
+
+            if ($nameFormat === 'urdu') {
+                $custDisplay = $formattedUrdu;
+            } elseif ($nameFormat === 'english') {
+                $custDisplay = $formattedEng;
+            } else {
+                $custDisplay = $formattedBoth;
+            }
         @endphp
         <div class="d-flex justify-content-between align-items-center my-1">
             <div class="pandi-box">
@@ -582,7 +610,19 @@ $balanceDue = $grandTotal - $totalReceived;
 
             <div class="customer-info-line">
                 <span class="customer-info-label">نام خریدار:</span>
-                <span style="font-weight: 800; color: #000; margin-left: 2px; margin-right: 6px; font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Inter', sans-serif;">
+                <span id="customerNameDisplay"
+                      data-both="{{ $formattedBoth }}"
+                      data-urdu="{{ $formattedUrdu }}"
+                      data-english="{{ $formattedEng }}"
+                      style="font-weight: 800;
+                             color: #000;
+                             margin-left: 2px;
+                             margin-right: 6px;
+                             font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Noto Naskh Arabic', 'Inter', sans-serif;
+                             font-size: 20px;
+                             line-height: 2;
+                             display: inline-block;
+                             vertical-align: middle;">
                     {{ $custDisplay }}
                 </span>
                 <span style="border-right: 1.5px solid #000; height: 12px; display: inline-block; margin: 0 4px;"></span>
@@ -772,6 +812,57 @@ $balanceDue = $grandTotal - $totalReceived;
     </div>
 </div>
 
+{{-- CUSTOMER NAME FORMAT MODAL --}}
+<div class="modal fade no-print" id="nameFormatModal" tabindex="-1" role="dialog" aria-labelledby="nameFormatModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <div class="modal-content shadow border-0" style="border-radius: 12px; overflow: hidden;">
+            <div class="modal-header bg-dark text-white py-3">
+                <h5 class="modal-title fs-6 fw-bold mb-0" id="nameFormatModalLabel">
+                    <i class="fas fa-user-cog me-2 text-warning"></i> Customer Name Display Style
+                </h5>
+                <button type="button" class="btn-close btn-close-white text-white" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="filter: invert(1); background: none; border: 0; font-size: 20px;">✕</button>
+            </div>
+            <div class="modal-body p-4" style="background: #f8fafc;">
+                <p class="text-muted small mb-3">
+                    Invoice par customer ka naam kis andaz mein show karwana chahte hain? Select karein:
+                </p>
+
+                <div class="d-flex flex-column gap-2">
+                    <label class="d-flex align-items-center gap-3 p-3 bg-white rounded border shadow-sm" style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="both" {{ ($nameFormat ?? 'both') === 'both' ? 'checked' : '' }} style="transform: scale(1.2);">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold text-dark">Both (Urdu + English)</div>
+                            <div class="text-muted small">Example: <span class="fw-semibold text-primary">{{ $formattedBoth }}</span></div>
+                        </div>
+                    </label>
+
+                    <label class="d-flex align-items-center gap-3 p-3 bg-white rounded border shadow-sm" style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="urdu" {{ ($nameFormat ?? '') === 'urdu' ? 'checked' : '' }} style="transform: scale(1.2);">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold text-dark">Urdu Only (صرف اردو)</div>
+                            <div class="text-muted small" style="font-family:'Noto Nastaliq Urdu',sans-serif;">Example: <span class="fw-semibold text-primary">{{ $formattedUrdu }}</span></div>
+                        </div>
+                    </label>
+
+                    <label class="d-flex align-items-center gap-3 p-3 bg-white rounded border shadow-sm" style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="english" {{ ($nameFormat ?? '') === 'english' ? 'checked' : '' }} style="transform: scale(1.2);">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold text-dark">English Only</div>
+                            <div class="text-muted small">Example: <span class="fw-semibold text-primary">{{ $formattedEng }}</span></div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between">
+                <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm px-4 fw-bold" id="btnSaveNameFormat">
+                    <i class="fas fa-check-circle me-1"></i> Save & Apply
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @endsection
 
 @section('js')
@@ -900,5 +991,74 @@ window.exportCSV = function () {
     a.download = 'Sale_Invoice_{{ $sale->invoice_no }}.csv';
     a.click();
 };
+
+$('#btnSaveNameFormat').on('click', function() {
+    var $btn = $(this);
+    var selectedFormat = $('input[name="name_format_choice"]:checked').val() || 'both';
+    var originalHtml = $btn.html();
+
+    $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
+
+    $.ajax({
+        url: "{{ route('sale.settings.update-name-format') }}",
+        type: 'POST',
+        data: {
+            format: selectedFormat,
+            _token: "{{ csrf_token() }}"
+        },
+        dataType: 'json',
+        success: function(res) {
+            $btn.prop('disabled', false).html(originalHtml);
+
+            // Update DOM immediately on invoice
+            var $target = $('#customerNameDisplay');
+            var newText = $target.attr('data-' + selectedFormat) || $target.data(selectedFormat);
+            if (newText) {
+                $target.text(newText);
+            }
+
+            // Close modal safely (supports BS4 & BS5)
+            if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+                var modalEl = document.getElementById('nameFormatModal');
+                var modalInstance = bootstrap.Modal.getInstance(modalEl);
+                if (modalInstance) {
+                    modalInstance.hide();
+                } else {
+                    $('#nameFormatModal').modal('hide');
+                }
+            } else {
+                $('#nameFormatModal').modal('hide');
+            }
+
+            // Friendly toast
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'success',
+                    title: 'Customer name style saved!',
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+            }
+        },
+        error: function(xhr) {
+            $btn.prop('disabled', false).html(originalHtml);
+            var errMsg = 'Unable to save setting. Please try again.';
+            if (xhr.responseJSON && xhr.responseJSON.message) {
+                errMsg = xhr.responseJSON.message;
+            }
+            if (typeof Swal !== 'undefined') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: errMsg
+                });
+            } else {
+                alert(errMsg);
+            }
+        }
+    });
+});
 </script>
 @endsection

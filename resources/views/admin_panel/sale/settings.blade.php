@@ -339,7 +339,19 @@
                                 <div class="form-text small">Table ko A4 page par full height rakhne ke liye khali lines</div>
                             </div>
 
-                            <div class="col-md-3">
+                                                        <div class="col-md-6">
+                                <label class="form-label fw-bold text-dark small mb-1">
+                                    <i class="fas fa-user-tag text-info me-1"></i> Customer Name Format on Invoice
+                                </label>
+                                <select name="invoice_customer_name_format" class="form-select">
+                                    <option value="both"    {{ ($settings->invoice_customer_name_format ?? 'both') === 'both'    ? 'selected' : '' }}>Both (Urdu + English) &mdash; e.g. &#x62A;&#x633;&#x62A;&#x646;&#x6AF; (testing)</option>
+                                    <option value="urdu"    {{ ($settings->invoice_customer_name_format ?? '') === 'urdu'    ? 'selected' : '' }}>Urdu Only &mdash; e.g. &#x62A;&#x633;&#x62A;&#x646;&#x6AF;</option>
+                                    <option value="english" {{ ($settings->invoice_customer_name_format ?? '') === 'english' ? 'selected' : '' }}>English Only &mdash; e.g. testing</option>
+                                </select>
+                                <div class="form-text small">Invoice par customer ka naam Urdu, English ya dono mein show karein.</div>
+                            </div>
+
+<div class="col-md-3">
                                 <label class="form-label fw-bold text-dark small mb-1">Watermark Logo in Table</label>
                                 <div class="form-check form-switch form-switch-md mt-2">
                                     <input class="form-check-input" type="checkbox" name="invoice_show_watermark" id="invoice_show_watermark" {{ ($settings->invoice_show_watermark ?? true) ? 'checked' : '' }}>

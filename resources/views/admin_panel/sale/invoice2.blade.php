@@ -566,9 +566,23 @@ $balanceDue = $grandTotal - $totalReceived;
 
         {{-- INFO SECTION (ADDA & CUSTOMER DETAILS IN A SINGLE COMPACT LINE) --}}
         @php
+            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
+            $nameFormat = $settings->invoice_customer_name_format ?? 'both';
+
             $custUrdu = $booking->customer->customer_name_ur ?? $booking->customer->name_urdu ?? $booking->customer_name_ur ?? '';
             $custEng = $booking->party_type === 'walking' ? ($booking->customer_name ?? 'N/A') : ($booking->customer->customer_name ?? 'N/A');
-            $custDisplay = !empty($custUrdu) ? ($custUrdu . ($custEng !== 'N/A' && $custEng !== $custUrdu ? ' (' . $custEng . ')' : '')) : $custEng;
+
+            $formattedBoth = !empty($custUrdu) ? ($custUrdu . ($custEng !== 'N/A' && $custEng !== $custUrdu ? ' (' . $custEng . ')' : '')) : $custEng;
+            $formattedUrdu = !empty($custUrdu) ? $custUrdu : $custEng;
+            $formattedEng = ($custEng !== 'N/A' && !empty($custEng)) ? $custEng : (!empty($custUrdu) ? $custUrdu : 'N/A');
+
+            if ($nameFormat === 'urdu') {
+                $custDisplay = $formattedUrdu;
+            } elseif ($nameFormat === 'english') {
+                $custDisplay = $formattedEng;
+            } else {
+                $custDisplay = $formattedBoth;
+            }
         @endphp
         <div class="d-flex justify-content-between align-items-center my-1">
             <div class="pandi-box">

@@ -29,6 +29,7 @@ class SaleSetting extends Model
         'invoice_footer_credit',
         'invoice_min_rows',
         'invoice_show_watermark',
+        'invoice_customer_name_format',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class SaleSetting extends Model
         'warehouse_mode' => 'string',
         'invoice_show_watermark' => 'boolean',
         'invoice_min_rows' => 'integer',
+        'invoice_customer_name_format' => 'string',
     ];
 
     /**
@@ -65,6 +67,7 @@ class SaleSetting extends Model
             'invoice_footer_credit' => 'Powered by Prowave Technologies 📞 +92 317 3836 223',
             'invoice_min_rows' => 16,
             'invoice_show_watermark' => true,
+            'invoice_customer_name_format' => 'both',
         ]);
     }
 }

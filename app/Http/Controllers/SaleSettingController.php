@@ -46,6 +46,9 @@ class SaleSettingController extends Controller
             $data['invoice_footer_credit'] = $request->input('invoice_footer_credit');
             $data['invoice_min_rows'] = (int) $request->input('invoice_min_rows', 16);
             $data['invoice_show_watermark'] = $request->has('invoice_show_watermark');
+            if ($request->has('invoice_customer_name_format')) {
+                $data['invoice_customer_name_format'] = $request->input('invoice_customer_name_format', 'both');
+            }
         }
 
         // Handle invoice logo upload
@@ -62,5 +65,26 @@ class SaleSettingController extends Controller
 
         return redirect()->route('sale.settings.index')
             ->with('success', 'Sale Screen & Invoice Settings updated successfully!');
+    }
+
+    /**
+     * Quick AJAX update for invoice customer name format.
+     */
+    public function updateCustomerNameFormat(Request $request)
+    {
+        $request->validate([
+            'format' => 'required|in:both,urdu,english',
+        ]);
+
+        $settings = SaleSetting::getSettings();
+        $settings->update([
+            'invoice_customer_name_format' => $request->input('format'),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Customer name display format updated successfully.',
+            'format'  => $settings->invoice_customer_name_format,
+        ]);
     }
 }

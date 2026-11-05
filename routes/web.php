@@ -507,6 +507,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('sale/create', [SaleController::class, 'addsale'])->middleware('permission:sale.create')->name('sale.add');
     Route::get('sale/settings', [App\Http\Controllers\SaleSettingController::class, 'index'])->name('sale.settings.index');
     Route::post('sale/settings', [App\Http\Controllers\SaleSettingController::class, 'update'])->name('sale.settings.update');
+    Route::post('sale/settings/update-customer-name-format', [App\Http\Controllers\SaleSettingController::class, 'updateCustomerNameFormat'])->name('sale.settings.update-name-format');
     Route::get('/products/search', [SaleController::class, 'searchProducts'])->middleware('permission:product.view')->name('products.search');
     Route::get('/search-product-name', [SaleController::class, 'searchpname'])->middleware('permission:product.view')->name('search-product-name');
     Route::get('/sale/check-stock', [SaleController::class, 'checkStock'])->middleware('permission:product.view')->name('sale.check.stock');
