@@ -457,9 +457,10 @@ $additionalDiscount = (float)($booking->additional_discount ?? 0);
 $extraCharges = (float)($booking->extra_charges ?? 0);
 
 $effectiveDiscount = ($orderLevelDiscount > 0 && $additionalDiscount > 0 && abs($orderLevelDiscount - $additionalDiscount) < 0.01) ? $additionalDiscount : ($orderLevelDiscount + $additionalDiscount);
+$calculatedNet = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
 $netTotal = (float)($booking->total_net ?? 0);
-if ($netTotal <= 0) {
-    $netTotal = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
+if ($netTotal <= 0 || ($grossTotal > 0 && abs($netTotal - 999999.99) < 0.01) || ($grossTotal > $netTotal && $effectiveDiscount == 0 && $extraCharges == 0)) {
+    $netTotal = $calculatedNet;
 }
 $netTotal = max(0, $netTotal);
 
@@ -507,6 +508,14 @@ if($isCreditCustomer && isset($booking->customer)){
         $displayPrevious = floatval($booking->customer->opening_balance ?? 0);
     }
 
+    // Safety check: if customer has 0 opening balance and no prior transactions before this invoice, previous balance must be 0
+    $hasPriorTransactions = \App\Models\CustomerLedger::where('customer_id', $booking->customer->id)
+        ->where('id', '<', optional($saleLedger)->id ?? PHP_INT_MAX)
+        ->exists();
+    if (!$hasPriorTransactions && floatval($booking->customer->opening_balance ?? 0) == 0) {
+        $displayPrevious = 0.0;
+    }
+
     // 2. Current overall balance from ledger
     $lastLedger = \App\Models\CustomerLedger::where('customer_id', $booking->customer->id)
         ->latest('id')
@@ -517,7 +526,7 @@ if($isCreditCustomer && isset($booking->customer)){
 }
 
 $grandTotal = $netTotal + $displayPrevious;
-$balanceDue = ($isCreditCustomer && isset($booking->customer)) ? $displayClosing : ($grandTotal - $totalReceived);
+$balanceDue = $grandTotal - $totalReceived;
 @endphp
 
 <div class="container-fluid mt-3">

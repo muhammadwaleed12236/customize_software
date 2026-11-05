@@ -457,9 +457,10 @@ $additionalDiscount = (float)($sale->additional_discount ?? 0);
 $extraCharges = (float)($sale->extra_charges ?? 0);
 
 $effectiveDiscount = ($orderLevelDiscount > 0 && $additionalDiscount > 0 && abs($orderLevelDiscount - $additionalDiscount) < 0.01) ? $additionalDiscount : ($orderLevelDiscount + $additionalDiscount);
+$calculatedNet = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
 $netTotal = (float)($sale->total_net ?? 0);
-if ($netTotal <= 0) {
-    $netTotal = max(0, $grossTotal - $effectiveDiscount + $extraCharges);
+if ($netTotal <= 0 || ($grossTotal > 0 && abs($netTotal - 999999.99) < 0.01) || ($grossTotal > $netTotal && $effectiveDiscount == 0 && $extraCharges == 0)) {
+    $netTotal = $calculatedNet;
 }
 $netTotal = max(0, $netTotal);
 
@@ -509,6 +510,14 @@ if($isCreditCustomer && isset($sale->customer)){
         $displayPrevious = floatval($sale->previous_balance ?? 0);
     } else {
         $displayPrevious = floatval($sale->customer->opening_balance ?? 0);
+    }
+
+    // Safety check: if customer has 0 opening balance and no prior transactions before this invoice, previous balance must be 0
+    $hasPriorTransactions = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
+        ->where('id', '<', optional($saleLedger)->id ?? PHP_INT_MAX)
+        ->exists();
+    if (!$hasPriorTransactions && floatval($sale->customer->opening_balance ?? 0) == 0) {
+        $displayPrevious = 0.0;
     }
 
     // 2. Per-invoice closing balance for display

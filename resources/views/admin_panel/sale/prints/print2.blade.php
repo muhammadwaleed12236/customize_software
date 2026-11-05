@@ -616,6 +616,14 @@
                     $prevBalance = (float) (optional($sale->customer)->opening_balance ?? 0);
                 }
 
+                // Safety check: if customer has 0 opening balance and no prior transactions before this invoice, previous balance must be 0
+                $hasPriorTransactions = \App\Models\CustomerLedger::where('customer_id', $sale->customer->id)
+                    ->where('id', '<', optional($saleLedger)->id ?? PHP_INT_MAX)
+                    ->exists();
+                if (!$hasPriorTransactions && floatval(optional($sale->customer)->opening_balance ?? 0) == 0) {
+                    $prevBalance = 0.0;
+                }
+
                 // 2. Per-invoice closing balance (not overall ledger balance)
                 $closingBalance = ($currentInvoiceNet + $prevBalance) - $paidAmount;
             } else {
