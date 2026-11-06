@@ -275,6 +275,59 @@
         border: 1px solid rgba(220,53,69,0.15);
     }
 
+    .stock-location-badge {
+        cursor: pointer !important;
+        transition: all 0.18s ease;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+    }
+    .stock-location-badge:hover {
+        background: #1e3a5f !important;
+        color: #ffffff !important;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(30, 58, 95, 0.25);
+    }
+    .stock-location-badge:hover small {
+        color: #cbd5e1 !important;
+    }
+    .slm-loc-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 9px 12px;
+        margin-bottom: 7px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        transition: all 0.15s ease;
+    }
+    .slm-loc-card:hover {
+        border-color: #cbd5e1;
+        background: #fdfefe;
+    }
+    .slm-loc-card:last-child {
+        margin-bottom: 0;
+    }
+    .slm-loc-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 13px;
+        flex-shrink: 0;
+    }
+    .slm-icon-shop {
+        background: rgba(37, 99, 235, 0.1);
+        color: #2563eb;
+    }
+    .slm-icon-wh {
+        background: rgba(217, 119, 6, 0.1);
+        color: #d97706;
+    }
+
     /* ─── Stock By Branch Column ─── */
     .branch-stock-row {
         display: flex;
@@ -891,7 +944,7 @@
                                     @foreach($product->all_warehouse_stocks as $stock)
                                         <div class="branch-stock-row">
                                             <span class="branch-stock-name">{{ $stock['branch_name'] }}:</span>
-                                            <span class="badge-qty">
+                                            <span class="badge-qty stock-location-badge" data-product-id="{{ $product->id }}" title="Click to view shop &amp; warehouse stock">
                                                 @if(($product->piece_per_pack ?? 1) > 1)
                                                     {{ \App\Models\Product::formatCartonPieces((float)$stock['quantity'], (float)$product->piece_per_pack, $product->unit?->name) }}
                                                     <small style="color:#64748b; font-size:10px;">({{ number_format($stock['quantity'], 0) }} Pcs)</small>
@@ -902,13 +955,13 @@
                                         </div>
                                     @endforeach
                                 @else
-                                    <span class="badge-no-qty">No Stock</span>
+                                    <span class="badge-no-qty stock-location-badge" data-product-id="{{ $product->id }}" title="Click to view shop &amp; warehouse stock">No Stock</span>
                                 @endif
                             </td>
                         @else
                             <td>
                                 @if($product->branch_stock_qty > 0)
-                                    <span class="badge-qty">
+                                    <span class="badge-qty stock-location-badge" data-product-id="{{ $product->id }}" title="Click to view shop &amp; warehouse stock">
                                         @if(($product->piece_per_pack ?? 1) > 1)
                                             {{ \App\Models\Product::formatCartonPieces((float)$product->branch_stock_qty, (float)$product->piece_per_pack, $product->unit?->name) }}
                                             <small style="color:#64748b; font-size:10px;">({{ number_format($product->branch_stock_qty, 0) }} Pcs)</small>
@@ -917,7 +970,7 @@
                                         @endif
                                     </span>
                                 @else
-                                    <span class="badge-no-qty">Out</span>
+                                    <span class="badge-no-qty stock-location-badge" data-product-id="{{ $product->id }}" title="Click to view shop &amp; warehouse stock">Out</span>
                                 @endif
                             </td>
                         @endif
@@ -993,6 +1046,69 @@
             </table>
         </div>
 </div>
+</div>
+
+{{-- ==================== STOCK LOCATION BREAKDOWN MODAL (Compact & Clean) ==================== --}}
+<div class="modal fade" id="stockLocationModal" tabindex="-1" role="dialog" aria-labelledby="slmLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 460px;" role="document">
+        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px; overflow: hidden; background: #ffffff;">
+
+            {{-- HEADER --}}
+            <div class="modal-header text-white border-0 px-3 py-2.5" style="background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);">
+                <div class="d-flex align-items-center" style="gap: 8px;">
+                    <div style="width: 28px; height: 28px; border-radius: 6px; background: rgba(200,151,58,0.2); display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-boxes-stacked" style="color: #c8973a; font-size: 13px;"></i>
+                    </div>
+                    <div>
+                        <h6 class="modal-title font-weight-bold mb-0 text-white" id="slmLabel" style="font-size: 13.5px; line-height: 1.2;">Stock by Location</h6>
+                        <small style="color: #cbd5e1; font-size: 10.5px;">Live shop &amp; warehouse breakdown</small>
+                    </div>
+                </div>
+                <button type="button" class="close text-white" data-dismiss="modal" data-bs-dismiss="modal" aria-label="Close" style="opacity: 0.9; outline: none;">
+                    <span aria-hidden="true" style="font-size: 22px;">&times;</span>
+                </button>
+            </div>
+
+            {{-- BODY --}}
+            <div class="modal-body p-3" style="background: #f8fafc;">
+                {{-- Product Title Card --}}
+                <div class="p-2.5 rounded-lg mb-2.5 bg-white border" style="border-color: #e2e8f0 !important; border-radius: 9px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                    <div class="d-flex justify-content-between align-items-center" style="gap: 12px;">
+                        <div style="min-width: 0; flex: 1;">
+                            <div class="font-weight-bold text-dark text-truncate mb-1" id="slm_product_name" style="font-size: 13.5px; line-height: 1.3;" title="">Loading...</div>
+                            <div class="d-flex align-items-center flex-wrap" style="gap: 6px;">
+                                <span class="badge" id="slm_item_code" style="background: #1e3a5f; color: #ffffff; font-size: 10px; font-weight: 700; padding: 2.5px 7px; border-radius: 4px; letter-spacing: 0.3px;">-</span>
+                                <span class="badge" id="slm_brand_cat" style="background: #f1f5f9; color: #475569; font-size: 10.5px; font-weight: 600; padding: 2.5px 7px; border-radius: 4px; border: 1px solid #e2e8f0;">-</span>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0 text-right px-2.5 py-1.5 rounded" style="background: #f0fdf4; border: 1.5px solid #86efac; border-radius: 8px; min-width: 95px;">
+                            <div style="font-size: 8.5px; text-transform: uppercase; font-weight: 700; color: #15803d; letter-spacing: 0.5px; line-height: 1;">
+                                <i class="fas fa-cubes mr-0.5"></i> TOTAL STOCK
+                            </div>
+                            <div class="font-weight-bolder text-success mt-1" id="slm_total_stock" style="font-size: 15.5px; line-height: 1.1; font-family: 'Inter', sans-serif;">0</div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Loading Spinner --}}
+                <div id="slm_loading" class="text-center py-4">
+                    <div class="spinner-border text-primary spinner-border-sm" role="status"></div>
+                    <div class="text-muted mt-2" style="font-size: 11.5px;">Fetching live stock locations...</div>
+                </div>
+
+                {{-- Locations Container --}}
+                <div id="slm_locations_list" style="display: none; max-height: 290px; overflow-y: auto;">
+                    {{-- Dynamically injected location cards --}}
+                </div>
+            </div>
+
+            {{-- FOOTER --}}
+            <div class="modal-footer bg-white py-1.5 px-3 border-top d-flex justify-content-between align-items-center">
+                <small class="text-muted" style="font-size: 10.5px;"><i class="fas fa-check-circle mr-1 text-success"></i>100% live inventory parity</small>
+                <button type="button" class="btn btn-sm btn-secondary" data-dismiss="modal" data-bs-dismiss="modal" style="font-size: 11.5px; padding: 3px 12px; border-radius: 6px;">Close</button>
+            </div>
+        </div>
+    </div>
 </div>
 
 {{-- ==================== PRODUCT VIEW MODAL (Compact Ameen & Sons Premium Theme) ==================== --}}
@@ -1516,6 +1632,85 @@ $(document).on('click', '.viewProductBtn', function () {
         error: function (xhr) {
             $('#productViewModal').modal('hide');
             Swal.fire('Error', 'Could not load product. (Status: ' + xhr.status + ')', 'error');
+        }
+    });
+});
+// ==================== CLICK HANDLER FOR STOCK LOCATION BREAKDOWN ====================
+$(document).on('click', '.stock-location-badge', function(e) {
+    e.stopPropagation();
+    var productId = $(this).data('product-id');
+    if (!productId) return;
+
+    // Reset modal state
+    $('#slm_product_name').text('Loading product...');
+    $('#slm_item_code').text('...');
+    $('#slm_brand_cat').text('...');
+    $('#slm_total_stock').text('...');
+    $('#slm_locations_list').empty().hide();
+    $('#slm_loading').show();
+
+    $('#stockLocationModal').modal('show');
+
+    $.ajax({
+        url: '{{ url("products") }}/' + productId + '/location-stock',
+        type: 'GET',
+        success: function(res) {
+            $('#slm_loading').hide();
+            $('#slm_product_name').text(res.product_name || '-').attr('title', res.product_name || '');
+            $('#slm_item_code').text(res.item_code || '-');
+            var meta = (res.category || '-') + (res.brand ? ' • ' + res.brand : '');
+            $('#slm_brand_cat').text(meta);
+            $('#slm_total_stock').text(res.total_formatted || '0');
+
+            var html = '';
+            if (res.locations && res.locations.length > 0) {
+                res.locations.forEach(function(loc) {
+                    var isShop = loc.type === 'Shop';
+                    var iconClass = isShop ? 'fa-store text-primary' : 'fa-warehouse text-warning';
+                    var bgClass = isShop ? 'slm-icon-shop' : 'slm-icon-wh';
+                    var typeBadge = isShop
+                        ? '<span class="badge" style="background:#eff6ff; color:#1d4ed8; font-size:9.5px; font-weight:600; padding:2px 6px; border-radius:4px;">Shop Counter</span>'
+                        : '<span class="badge" style="background:#fffbeb; color:#b45309; font-size:9.5px; font-weight:600; padding:2px 6px; border-radius:4px;">Godown / Warehouse</span>';
+
+                    var qtyBadge = '<span class="badge" style="background:#dcfce7; color:#15803d; font-size:12px; font-weight:700; padding:4px 9px; border-radius:6px; border:1px solid #bbf7d0;">' + loc.formatted + '</span>';
+
+                    var pcsSubtitle = (loc.quantity > 0 && res.piece_per_pack > 1)
+                        ? '<div style="font-size:10px; color:#64748b; margin-top:2px; font-weight:500;">' + loc.pieces + '</div>'
+                        : '';
+
+                    html += '<div class="slm-loc-card">' +
+                                '<div class="d-flex align-items-center" style="gap:10px; min-width:0;">' +
+                                    '<div class="slm-loc-icon ' + bgClass + '">' +
+                                        '<i class="fas ' + iconClass + '"></i>' +
+                                    '</div>' +
+                                    '<div style="min-width:0;">' +
+                                        '<div class="font-weight-bold text-dark text-truncate" style="font-size:12.5px;" title="' + loc.location_name + '">' + loc.location_name + '</div>' +
+                                        '<div class="d-flex align-items-center mt-0.5" style="gap:5px;">' +
+                                            typeBadge +
+                                        '</div>' +
+                                    '</div>' +
+                                '</div>' +
+                                '<div class="text-right flex-shrink-0 ms-2">' +
+                                    qtyBadge +
+                                    pcsSubtitle +
+                                '</div>' +
+                            '</div>';
+                });
+            } else {
+                html = '<div class="text-center py-4 px-3" style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px;">' +
+                           '<div style="width:36px; height:36px; border-radius:50%; background:#f1f5f9; display:inline-flex; align-items:center; justify-content:center; margin-bottom:8px;">' +
+                               '<i class="fas fa-box-open text-muted" style="font-size:16px;"></i>' +
+                           '</div>' +
+                           '<div class="font-weight-bold text-dark" style="font-size:12px;">No Available Stock</div>' +
+                           '<div class="text-muted" style="font-size:10.5px; margin-top:2px;">This product is currently not in stock at any warehouse or shop counter.</div>' +
+                       '</div>';
+            }
+
+            $('#slm_locations_list').html(html).show();
+        },
+        error: function(xhr) {
+            $('#slm_loading').hide();
+            $('#slm_locations_list').html('<div class="text-center text-danger py-3" style="font-size:12px;"><i class="fas fa-exclamation-triangle mr-1"></i> Could not load location stock details.</div>').show();
         }
     });
 });

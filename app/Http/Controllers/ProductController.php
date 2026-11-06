@@ -564,6 +564,130 @@ public function searchProductsForSalebypagination(Request $request)
     return response()->json($product);
 }
 
+    /**
+     * Get real-time stock breakdown across all shops and warehouses for a given product
+     */
+    public function getProductLocationStock($id)
+    {
+        $product = Product::with(['unit', 'brand', 'category_relation'])->findOrFail($id);
+
+        $user = auth()->user();
+        $isSuperAdmin = $user && $user->hasRole('super admin');
+        $userBranchId = $user ? $user->branch_id : null;
+
+        $branches = Branch::with('warehouses')->get();
+        if (!$isSuperAdmin && $userBranchId) {
+            $branches = $branches->where('id', $userBranchId);
+        }
+
+        $ppp = (float)($product->piece_per_pack ?? 1);
+        $unitName = $product->unit?->name ?? 'Pcs';
+
+        $locations = [];
+        $totalStock = 0;
+
+        foreach ($branches as $branch) {
+            // 1. Shop Floor Stock (Counter) - warehouse_id IS NULL
+            $shopWs = WarehouseStock::where('branch_id', $branch->id)
+                ->whereNull('warehouse_id')
+                ->where('product_id', $product->id)
+                ->first();
+
+            $shopQty = $shopWs ? (float)$shopWs->quantity : 0.0;
+            if ($shopQty == 0) {
+                $stk = Stock::where('branch_id', $branch->id)
+                    ->where('product_id', $product->id)
+                    ->first();
+                if ($stk && (float)$stk->qty > 0) {
+                    $shopQty = (float)$stk->qty;
+                }
+            }
+
+            $totalStock += $shopQty;
+
+            // Include shop counter only if stock is available
+            if ($shopQty > 0) {
+                $locations[] = [
+                    'type'           => 'Shop',
+                    'branch_id'      => $branch->id,
+                    'branch_name'    => $branch->name,
+                    'location_name'  => $branch->name . ' (Counter / Shop)',
+                    'quantity'       => $shopQty,
+                    'formatted'      => $ppp > 1 ? Product::formatCartonPieces($shopQty, $ppp, $unitName) : number_format($shopQty, 0) . ' ' . $unitName,
+                    'pieces'         => number_format($shopQty, 0) . ' Pcs',
+                    'in_stock'       => true,
+                ];
+            }
+
+            // 2. Warehouses linked to this branch (only where stock is available)
+            foreach ($branch->warehouses as $warehouse) {
+                $whWs = WarehouseStock::where('branch_id', $branch->id)
+                    ->where('warehouse_id', $warehouse->id)
+                    ->where('product_id', $product->id)
+                    ->first();
+
+                $whQty = $whWs ? (float)$whWs->quantity : 0.0;
+                $totalStock += $whQty;
+
+                if ($whQty > 0) {
+                    $locations[] = [
+                        'type'           => 'Warehouse',
+                        'branch_id'      => $branch->id,
+                        'branch_name'    => $branch->name,
+                        'warehouse_id'   => $warehouse->id,
+                        'location_name'  => $warehouse->warehouse_name ?? ('Warehouse #' . $warehouse->id),
+                        'quantity'       => $whQty,
+                        'formatted'      => $ppp > 1 ? Product::formatCartonPieces($whQty, $ppp, $unitName) : number_format($whQty, 0) . ' ' . $unitName,
+                        'pieces'         => number_format($whQty, 0) . ' Pcs',
+                        'in_stock'       => true,
+                    ];
+                }
+            }
+        }
+
+        // Also check any standalone warehouse_stocks rows not covered in branch_warehouse
+        $coveredWhIds = array_filter(array_column($locations, 'warehouse_id'));
+        $otherWhStocks = WarehouseStock::with(['branch', 'warehouse'])
+            ->where('product_id', $product->id)
+            ->whereNotNull('warehouse_id')
+            ->where('quantity', '>', 0)
+            ->when(!empty($coveredWhIds), function ($q) use ($coveredWhIds) {
+                $q->whereNotIn('warehouse_id', $coveredWhIds);
+            })
+            ->get();
+
+        foreach ($otherWhStocks as $ows) {
+            $whQty = (float)$ows->quantity;
+            $totalStock += $whQty;
+            $locations[] = [
+                'type'          => 'Warehouse',
+                'branch_id'     => $ows->branch_id,
+                'branch_name'   => $ows->branch?->name ?? 'Branch #' . $ows->branch_id,
+                'warehouse_id'  => $ows->warehouse_id,
+                'location_name' => $ows->warehouse?->warehouse_name ?? ('Warehouse #' . $ows->warehouse_id),
+                'quantity'      => $whQty,
+                'formatted'     => $ppp > 1 ? Product::formatCartonPieces($whQty, $ppp, $unitName) : number_format($whQty, 0) . ' ' . $unitName,
+                'pieces'        => number_format($whQty, 0) . ' Pcs',
+                'in_stock'      => true,
+            ];
+        }
+
+        return response()->json([
+            'status'          => 'success',
+            'product_id'      => $product->id,
+            'item_code'       => $product->item_code,
+            'product_name'    => $product->item_name,
+            'product_name_ur' => $product->item_name_urdu,
+            'brand'           => $product->brand?->name ?? 'N/A',
+            'category'        => $product->category_relation?->name ?? 'N/A',
+            'unit'            => $unitName,
+            'piece_per_pack'  => $ppp,
+            'total_stock'     => $totalStock,
+            'total_formatted' => $ppp > 1 ? Product::formatCartonPieces($totalStock, $ppp, $unitName) : number_format($totalStock, 0) . ' ' . $unitName,
+            'locations'       => $locations,
+        ]);
+    }
+
 ////////////////////////
 
 

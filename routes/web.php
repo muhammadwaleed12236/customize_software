@@ -181,6 +181,7 @@ use App\Http\Controllers\ComplaintController;
 
     Route::get('/Product', [ProductController::class, 'product'])->middleware('permission:product.view')->name('product');
     Route::get('/productview/{id}', [ProductController::class, 'productview'])->middleware('permission:product.view')->name('productview');
+    Route::get('/products/{id}/location-stock', [ProductController::class, 'getProductLocationStock'])->middleware('permission:product.view')->name('products.location-stock');
     ////////////
     Route::get('/products/price', [ProductController::class, 'getPrice'])
         ->name('products.price');
