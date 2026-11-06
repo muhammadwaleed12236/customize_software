@@ -31,7 +31,7 @@ class Customer extends Model
     // Get the latest ledger entry
     public function latestLedger()
     {
-        return $this->hasOne(CustomerLedger::class, 'customer_id')->latest();
+        return $this->hasOne(CustomerLedger::class, 'customer_id')->latest('id');
     }
 
     public function openingBalanceHistories()

@@ -4574,32 +4574,8 @@ public function finddc($invoice)
                     }
                 }
 
-                /* ================= STEP 5: UPDATE CUSTOMER LEDGER ================= */
-                $difference = $invoiceNet - $oldTotal;
-                if ($difference != 0 && $customerId) {
-                    $latestLedger = CustomerLedger::lockForUpdate()
-                        ->where('customer_id', $customerId)
-                        ->latest('id')
-                        ->first();
+                /* ================= STEP 5: CUSTOMER LEDGER (DEFERRED TO STEP 7 AFTER RECEIPTS) ================= */
 
-                    $previousBalance = $latestLedger ? $latestLedger->closing_balance : 0;
-                    $newClosing = $previousBalance + $difference;
-
-                    CustomerLedger::create([
-                        'customer_id'      => $customerId,
-                        'admin_or_user_id' => auth()->id(),
-                        'transaction_type' => 'Sale Update',
-                        'reference_id'     => (string) $sale->id,
-                        'description'      => 'Sale Update Invoice #' . $sale->invoice_no,
-                        'previous_balance' => $previousBalance,
-                        'opening_balance'  => 0,
-                        'total_debit'      => $difference > 0 ? $difference : 0,
-                        'total_credit'     => $difference < 0 ? abs($difference) : 0,
-                        'closing_balance'  => $newClosing,
-                        'created_at'       => $saleDateTime,
-                        'updated_at'       => $saleDateTime,
-                    ]);
-                }
 
                 /* ================= STEP 6: UPDATE RECEIPT VOUCHERS & ACCOUNT LEDGER ================= */
                 // 1. Find all old receipt vouchers for this sale (branch-aware and sale-specific)
@@ -4740,6 +4716,102 @@ public function finddc($invoice)
                 // 5. Recalculate running balance for all affected accounts to ensure balances are 100% accurate
                 foreach (array_unique($affectedAccountIds) as $affectedAccId) {
                     AccountLedgerEntry::recalculateRunningBalance($affectedAccId);
+                }
+
+                /* ================= STEP 7: SYNCHRONIZE CUSTOMER LEDGER & BALANCES ================= */
+                $totalNewReceipts = 0;
+                if (is_array($receiptAccounts)) {
+                    foreach ($receiptAccounts as $i => $accId) {
+                        $amt = floatval($receiptAmounts[$i] ?? 0);
+                        if ($amt > 0 && $accId) {
+                            $totalNewReceipts += $amt;
+                        }
+                    }
+                }
+
+                // If customer was changed, clean up previous customer's ledger entry
+                if ($sale->customer_id && (int)$sale->customer_id !== (int)$customerId) {
+                    CustomerLedger::where('customer_id', $sale->customer_id)
+                        ->where('reference_id', (string)$sale->id)
+                        ->delete();
+                    \App\Services\VoucherService::recalculateCustomerLedger((int)$sale->customer_id);
+                }
+
+                $partyType = strtolower($request->input('party_type', $sale->party_type ?? 'credit'));
+                if ($partyType === 'credit' && $customerId) {
+                    // 1. Remove any outdated 'Sale Update' ledger rows for this sale
+                    CustomerLedger::where('customer_id', $customerId)
+                        ->where('reference_id', (string)$sale->id)
+                        ->where('transaction_type', 'Sale Update')
+                        ->delete();
+
+                    // 2. Find or create the primary 'Sale' ledger entry
+                    $saleLedger = CustomerLedger::where('customer_id', $customerId)
+                        ->where('reference_id', (string)$sale->id)
+                        ->where('transaction_type', 'Sale')
+                        ->first();
+
+                    if ($saleLedger) {
+                        $saleLedger->total_debit  = $invoiceNet;
+                        $saleLedger->total_credit = $totalNewReceipts;
+                        $saleLedger->save();
+                    } else {
+                        CustomerLedger::create([
+                            'customer_id'      => $customerId,
+                            'admin_or_user_id' => auth()->id(),
+                            'transaction_type' => 'Sale',
+                            'reference_id'     => (string) $sale->id,
+                            'description'      => 'Sale Invoice #' . $sale->invoice_no,
+                            'previous_balance' => 0,
+                            'opening_balance'  => 0,
+                            'total_debit'      => $invoiceNet,
+                            'total_credit'     => $totalNewReceipts,
+                            'closing_balance'  => $invoiceNet - $totalNewReceipts,
+                            'created_at'       => $saleDateTime ?: $sale->created_at,
+                            'updated_at'       => now(),
+                        ]);
+                    }
+
+                    // 3. Recalculate customer running balance from start to end in strict order
+                    \App\Services\VoucherService::recalculateCustomerLedger((int)$customerId);
+
+                    // 4. Refresh sale's own balance fields from the recalculated ledger entry
+                    $freshLedger = CustomerLedger::where('customer_id', $customerId)
+                        ->where('reference_id', (string)$sale->id)
+                        ->where('transaction_type', 'Sale')
+                        ->first();
+
+                    if ($freshLedger) {
+                        $sale->previous_balance = (float)$freshLedger->previous_balance;
+                        $sale->total_balance    = (float)$freshLedger->closing_balance;
+                    }
+                    $sale->total_net = $invoiceNet;
+
+                    // 5. If this customer has subsequent sales, sync their previous_balance & total_balance
+                    $subsequentSales = Sale::where('customer_id', $customerId)
+                        ->where('id', '>', $sale->id)
+                        ->get();
+                    foreach ($subsequentSales as $subSale) {
+                        $subLedger = CustomerLedger::where('customer_id', $customerId)
+                            ->where('reference_id', (string)$subSale->id)
+                            ->where('transaction_type', 'Sale')
+                            ->first();
+                        if ($subLedger) {
+                            $subSale->previous_balance = (float)$subLedger->previous_balance;
+                            $subSale->total_balance    = (float)$subLedger->closing_balance;
+                            $subSale->save();
+                        }
+                    }
+                } elseif ($partyType !== 'credit') {
+                    if ($customerId) {
+                        CustomerLedger::where('customer_id', $customerId)
+                            ->where('reference_id', (string)$sale->id)
+                            ->delete();
+                        \App\Services\VoucherService::recalculateCustomerLedger((int)$customerId);
+                    }
+                    $sale->previous_balance = 0;
+                    $sale->total_balance    = max(0, $invoiceNet - $totalNewReceipts);
+                    $sale->total_net        = $invoiceNet;
                 }
 
                 // Mark sale as finalized / confirmed

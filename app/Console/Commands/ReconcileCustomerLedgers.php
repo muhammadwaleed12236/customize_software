@@ -94,24 +94,54 @@ class ReconcileCustomerLedgers extends Command
                 $this->line("   Difference:     Rs " . number_format($diff, 2));
 
                 if ($autoFix) {
-                    if ($latestLedger) {
-                        $latestLedger->closing_balance = $trueBalance;
-                        $latestLedger->save();
-                        $this->info("   -> Updated latest ledger row #{$latestLedger->id} closing_balance to " . number_format($trueBalance, 2));
-                    } else {
-                        CustomerLedger::create([
-                            'customer_id'      => $cid,
-                            'admin_or_user_id' => 1,
-                            'transaction_type' => 'Opening Balance',
-                            'description'      => 'Reconciled Initial Balance',
-                            'opening_balance'  => $opening,
-                            'previous_balance' => 0,
-                            'total_debit'      => $salesSum,
-                            'total_credit'     => $receiptsSum + $returnsSum,
-                            'closing_balance'  => $trueBalance,
-                        ]);
-                        $this->info("   -> Created initial ledger row with closing_balance " . number_format($trueBalance, 2));
+                    // 1. Sync all credit sales in CustomerLedger with actual sales & receipts
+                    $custSales = Sale::where('customer_id', $cid)->orderBy('id')->get();
+                    foreach ($custSales as $s) {
+                        $actualReceipts = (float) DB::table('receipts_vouchers')
+                            ->where(function ($q) use ($s) {
+                                $q->where('sale_id', $s->id)
+                                  ->orWhere('reference_no', $s->invoice_no);
+                            })
+                            ->where(function ($q) {
+                                $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                            })
+                            ->sum('amount');
+
+                        $sLedger = CustomerLedger::where('customer_id', $cid)
+                            ->where('reference_id', (string)$s->id)
+                            ->where('transaction_type', 'Sale')
+                            ->first();
+
+                        if ($sLedger) {
+                            $sLedger->total_debit  = (float)($s->total_net ?? 0);
+                            $sLedger->total_credit = $actualReceipts;
+                            $sLedger->save();
+                        }
+
+                        // Remove redundant delta update entries
+                        CustomerLedger::where('customer_id', $cid)
+                            ->where('reference_id', (string)$s->id)
+                            ->where('transaction_type', 'Sale Update')
+                            ->delete();
                     }
+
+                    // 2. Recalculate customer running balances end-to-end
+                    \App\Services\VoucherService::recalculateCustomerLedger($cid);
+
+                    // 3. Sync sales previous_balance and total_balance with the recalculated ledger
+                    foreach ($custSales as $s) {
+                        $sLedger = CustomerLedger::where('customer_id', $cid)
+                            ->where('reference_id', (string)$s->id)
+                            ->where('transaction_type', 'Sale')
+                            ->first();
+                        if ($sLedger) {
+                            $s->previous_balance = (float)$sLedger->previous_balance;
+                            $s->total_balance    = (float)$sLedger->closing_balance;
+                            $s->save();
+                        }
+                    }
+
+                    $this->info("   -> Fully reconciled all sales, receipts, and ledger rows for Customer #{$cid}");
                 }
             }
         }
