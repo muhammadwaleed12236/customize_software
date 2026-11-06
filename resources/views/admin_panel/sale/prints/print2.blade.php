@@ -467,7 +467,7 @@
             </tr>
             <tr>
                 <td class="meta-lbl">Date:</td>
-                <td class="meta-val">{{ $sale->created_at ? $sale->created_at->format('d/m/Y h:i A') : date('d/m/Y h:i A') }}</td>
+                <td class="meta-val">{{ $sale->created_at ? \Carbon\Carbon::parse($sale->created_at)->format('d/m/Y h:i A') : date('d/m/Y h:i A') }}</td>
             </tr>
             <tr>
                 <td class="meta-lbl">Customer:</td>
