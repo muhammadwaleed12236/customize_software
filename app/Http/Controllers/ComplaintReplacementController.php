@@ -8,6 +8,7 @@ use App\Models\ComplaintReplacement;
 use App\Models\DamagedStock;
 use App\Models\DamagedStockTransfer;
 use App\Models\Product;
+use App\Models\Stock;
 use App\Models\StockMovement;
 use App\Models\Warehouse;
 use App\Models\WarehouseStock;
@@ -122,6 +123,16 @@ class ComplaintReplacementController extends Controller
                 // 2. Decrement source stock
                 $sourceStock->quantity -= $qty;
                 $sourceStock->save();
+
+                // Also decrement branch-level overall Live Stock (Stock)
+                $branchStock = Stock::lockForUpdate()
+                    ->where('product_id', $productId)
+                    ->where('branch_id', $branchId)
+                    ->first();
+                if ($branchStock) {
+                    $branchStock->qty = max(0, (float) $branchStock->qty - $qty);
+                    $branchStock->save();
+                }
 
                 // 3. Create Complaint Replacement Log
                 $replacement = ComplaintReplacement::create([
@@ -338,6 +349,16 @@ class ComplaintReplacementController extends Controller
                 // 2. Decrement source stock
                 $sourceStock->quantity -= $qty;
                 $sourceStock->save();
+
+                // Also decrement branch-level overall Live Stock (Stock)
+                $branchStock = Stock::lockForUpdate()
+                    ->where('product_id', $productId)
+                    ->where('branch_id', $branchId)
+                    ->first();
+                if ($branchStock) {
+                    $branchStock->qty = max(0, (float) $branchStock->qty - $qty);
+                    $branchStock->save();
+                }
 
                 // 3. Update Replacement Slip record
                 $replacement->update([
