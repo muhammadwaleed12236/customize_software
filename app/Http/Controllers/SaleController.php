@@ -2329,10 +2329,8 @@ public function finddc($invoice)
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
         $branchId = Auth::check() ? Auth::user()->branch_id : null;
 
-        // Branch-aware products: only products owned by this branch OR shared with this branch
-        $products = Product::when(!$isSuper && $branchId, function ($q) use ($branchId) {
-            $q->forBranch($branchId);
-        })->get();
+        // Global products: all products available across all branches
+        $products = Product::all();
 
         $customer = Customer::when(!$isSuper && $branchId, function ($q) use ($branchId) {
             $q->where('branch_id', $branchId);
@@ -2475,16 +2473,13 @@ public function finddc($invoice)
         $branchId = Auth::check() ? (Auth::user()->branch_id ?? null) : null;
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
 
-        // Products for this branch: ONLY owned by this branch OR shared with this branch
-        $products = Product::with(['brand', 'sharedBranches'])
+        // Global products search (stock remains branch-specific below)
+        $products = Product::with(['brand'])
             ->where(function ($query) use ($q) {
                 $query->where('item_name', 'like', "%{$q}%")
                     ->orWhere('item_code', 'like', "%{$q}%")
                     ->orWhere('barcode_path', 'like', "%{$q}%")
                     ->orWhere('model', 'like', "%{$q}%");
-            })
-            ->when(!$isSuper && $branchId, function ($q2) use ($branchId) {
-                $q2->forBranch($branchId);
             })
             ->get();
 
@@ -3203,10 +3198,8 @@ public function finddc($invoice)
         $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
         $branchId = $booking->branch_id;
         
-        // Branch-aware products: only products owned by this branch OR shared with this branch
-        $products = Product::when(!$isSuper && $branchId, function ($q) use ($branchId) {
-            $q->forBranch($branchId);
-        })->get();
+        // Global products: all products available across all branches
+        $products = Product::all();
         
         $customer = Customer::when(!$isSuper && $branchId, function ($q) use ($branchId) {
             $q->where('branch_id', $branchId);
@@ -4020,10 +4013,8 @@ public function finddc($invoice)
         
         $accounts = self::getCashBankAccountsQuery($branchId)->get();
         
-        // Branch-aware products: only products owned by this branch OR shared with this branch
-        $products = Product::when(!$isSuper && $branchId, function ($q) use ($branchId) {
-            $q->forBranch($branchId);
-        })->get();
+        // Global products: all products available across all branches
+        $products = Product::all();
 
         $warehouse = Warehouse::when(!$isSuper && $branchId, function ($q) use ($products) {
             if ($products->isEmpty()) {

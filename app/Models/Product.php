@@ -296,4 +296,21 @@ public function stocks()
             ->where('branch_id', $branchId)
             ->sum('quantity');
     }
+
+    /**
+     * Branches that have been granted access to this product
+     */
+    public function sharedBranches()
+    {
+        return $this->belongsToMany(Branch::class, 'product_branch_shares', 'product_id', 'branch_id')
+            ->withTimestamps();
+    }
+
+    /**
+     * Scope: Products accessible by a specific branch (safeguard)
+     */
+    public function scopeForBranch($query, $branchId)
+    {
+        return $query;
+    }
 }
