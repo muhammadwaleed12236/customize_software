@@ -18,19 +18,37 @@ return new class extends Migration
     {
         DB::beginTransaction();
         try {
-            // 1. Locate Cash in Hand Account (code B11-CASH-001 or ID 3)
+            // 1. Locate the EXACT Cash in Hand Account for Branch 11
             $account = Account::where('account_code', 'B11-CASH-001')
-                ->orWhere('id', 3)
+                ->orWhere(function ($q) {
+                    $q->where('branch_id', 11)->where('title', 'like', '%Cash%');
+                })
                 ->first();
+
+            // Fallback: search any cash in hand if branch 11 not matched
+            if (!$account) {
+                $account = Account::where('title', 'like', '%Cash in Hand%')->first();
+            }
 
             if (!$account) {
                 DB::rollBack();
                 return;
             }
 
+            // Cleanup any entry accidentally posted to account id 3 if id 3 is different
+            if ($account->id !== 3) {
+                $wrongEntry = AccountLedgerEntry::where('account_id', 3)
+                    ->where('voucher_no', 'RET-20261020130908')
+                    ->first();
+                if ($wrongEntry) {
+                    $wrongEntry->delete();
+                    AccountLedgerEntry::recalculateRunningBalance(3);
+                }
+            }
+
             // 2. Locate the Sales Return record
-            $saleReturn = SalesReturn::where('id', 3)
-                ->orWhere('reference', 'RET-20261020130908')
+            $saleReturn = SalesReturn::where('reference', 'RET-20261020130908')
+                ->orWhere('id', 3)
                 ->first();
 
             $returnId   = $saleReturn ? $saleReturn->id : 3;
@@ -70,16 +88,15 @@ return new class extends Migration
         DB::beginTransaction();
         try {
             $account = Account::where('account_code', 'B11-CASH-001')
-                ->orWhere('id', 3)
+                ->orWhere(function ($q) {
+                    $q->where('branch_id', 11)->where('title', 'like', '%Cash%');
+                })
                 ->first();
 
             if ($account) {
                 AccountLedgerEntry::where('account_id', $account->id)
                     ->where('voucher_type', 'payment')
-                    ->where(function ($q) {
-                        $q->where('voucher_no', 'RET-20261020130908')
-                          ->orWhere('voucher_id', 3);
-                    })
+                    ->where('voucher_no', 'RET-20261020130908')
                     ->delete();
 
                 AccountLedgerEntry::recalculateRunningBalance($account->id);
