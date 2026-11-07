@@ -18,9 +18,9 @@ return new class extends Migration
     {
         DB::beginTransaction();
         try {
-            // 1. Locate Cash in Hand Account (ID 3 or code B11-CASH-001)
-            $account = Account::where('id', 3)
-                ->orWhere('code', 'B11-CASH-001')
+            // 1. Locate Cash in Hand Account (code B11-CASH-001 or ID 3)
+            $account = Account::where('account_code', 'B11-CASH-001')
+                ->orWhere('id', 3)
                 ->first();
 
             if (!$account) {
@@ -69,8 +69,8 @@ return new class extends Migration
     {
         DB::beginTransaction();
         try {
-            $account = Account::where('id', 3)
-                ->orWhere('code', 'B11-CASH-001')
+            $account = Account::where('account_code', 'B11-CASH-001')
+                ->orWhere('id', 3)
                 ->first();
 
             if ($account) {
