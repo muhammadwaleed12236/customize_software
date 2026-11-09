@@ -1032,6 +1032,17 @@
                                             <li><a class="dropdown-item" href="{{ route('opening.stocks.edit', $product->id) }}"><i class="fas fa-dollar-sign" style="color:#0d9f6e; width:16px;"></i> Edit Stock &amp; Pricing</a></li>
                                         @endif
                                         <li><a class="dropdown-item" href="{{ route('generate-barcode-image', $product->id) }}"><i class="fas fa-barcode" style="color:#64748b; width:16px;"></i> Generate Barcode</a></li>
+                                        @if(auth()->user()->can('product.edit') || auth()->user()->can('edit product') || auth()->user()->hasAnyRole(['super admin', 'admin']))
+                                            <li><div class="dropdown-divider"></div></li>
+                                            <li>
+                                                <a class="dropdown-item btn-delete-product" href="javascript:void(0)"
+                                                   data-id="{{ $product->id }}"
+                                                   data-name="{{ $product->item_name }}"
+                                                   style="color:#dc2626 !important;">
+                                                    <i class="fas fa-trash-alt" style="color:#dc2626; width:16px;"></i> Delete Product
+                                                </a>
+                                            </li>
+                                        @endif
                                         @if($product->is_assembled)
                                             <li><div class="dropdown-divider"></div></li>
                                             <li><a class="dropdown-item" href="{{ route('assembly.report.show', $product->id) }}"><i class="fas fa-cogs" style="color:#7c3aed; width:16px;"></i> Assembly Report</a></li>
@@ -1713,6 +1724,106 @@ $(document).on('click', '.stock-location-badge', function(e) {
             $('#slm_locations_list').html('<div class="text-center text-danger py-3" style="font-size:12px;"><i class="fas fa-exclamation-triangle mr-1"></i> Could not load location stock details.</div>').show();
         }
     });
+});
+// ==================== DELETE PRODUCT HANDLER ====================
+$(document).on('click', '.btn-delete-product', function(e) {
+    e.preventDefault();
+    var productId = $(this).data('id');
+    var productName = $(this).data('name') || 'this product';
+    var $row = $(this).closest('tr');
+
+    if (!productId) return;
+
+    var deleteUrl = '{{ url("products") }}/' + productId;
+
+    var doDelete = function() {
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                title: 'Checking & Deleting...',
+                text: 'Validating transactions and deleting product...',
+                allowOutsideClick: false,
+                didOpen: function() {
+                    Swal.showLoading();
+                }
+            });
+        }
+
+        $.ajax({
+            url: deleteUrl,
+            type: 'POST',
+            data: {
+                _token: '{{ csrf_token() }}',
+                _method: 'DELETE'
+            },
+            dataType: 'json',
+            success: function(res) {
+                if (res.success) {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Deleted!',
+                            text: res.message || 'Product deleted successfully.',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                    } else {
+                        alert(res.message || 'Product deleted successfully.');
+                    }
+                    $row.fadeOut(350, function() {
+                        $(this).remove();
+                    });
+                } else {
+                    if (typeof Swal !== 'undefined') {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Cannot Delete Product',
+                            text: res.message || 'Product cannot be deleted.'
+                        });
+                    } else {
+                        alert(res.message || 'Product cannot be deleted.');
+                    }
+                }
+            },
+            error: function(xhr) {
+                var errorMsg = 'Could not delete product.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMsg = xhr.responseJSON.message;
+                } else if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                }
+                if (typeof Swal !== 'undefined') {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Cannot Delete Product',
+                        text: errorMsg
+                    });
+                } else {
+                    alert(errorMsg);
+                }
+            }
+        });
+    };
+
+    if (typeof Swal !== 'undefined') {
+        Swal.fire({
+            title: 'Delete Product?',
+            text: 'Are you sure you want to delete "' + productName + '"? (Sirf wohi product delete hoga jiski koi sale, purchase ya opening stock na ho)',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'Yes, Delete It',
+            cancelButtonText: 'Cancel'
+        }).then(function(result) {
+            if (result.isConfirmed) {
+                doDelete();
+            }
+        });
+    } else {
+        if (confirm('Are you sure you want to delete "' + productName + '"?\n\nNote: Products with sales, purchases, or opening stock cannot be deleted.')) {
+            doDelete();
+        }
+    }
 });
 </script>
 @endsection

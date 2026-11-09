@@ -2419,4 +2419,156 @@ public function searchProductsForSalebypagination(Request $request)
         }
     }
 
+    /**
+     * Delete product only if it has NO sales, NO purchases, and NO opening stock/movement.
+     */
+    public function destroy(Request $request, $id)
+    {
+        $product = Product::findOrFail($id);
+
+        $user         = Auth::user();
+        $isSuperAdmin = $user ? $user->hasRole('super admin') : false;
+        $userBranchId = $user ? (int) $user->branch_id : 1;
+
+        // Permission / Branch ownership check
+        if (!$isSuperAdmin && $product->branch_id && $userBranchId !== (int) $product->branch_id) {
+            $msg = 'You do not have permission to delete a product belonging to another branch.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 403);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // Helper to check table existence before querying
+        $hasRecord = function ($table, $column = 'product_id', $extraCondition = null) use ($id) {
+            if (!\Illuminate\Support\Facades\Schema::hasTable($table)) {
+                return false;
+            }
+            $query = DB::table($table)->where($column, $id);
+            if ($extraCondition) {
+                $extraCondition($query);
+            }
+            return $query->exists();
+        };
+
+        // 1. Check Sales
+        $hasSales = $hasRecord('sale_items')
+            || $hasRecord('product_booking_items')
+            || $hasRecord('productbookings')
+            || $hasRecord('sale_postings')
+            || $hasRecord('customer_remaining');
+
+        if ($hasSales) {
+            $msg = 'Yeh product delete nahi ho sakta kyunke iski Sale ya Booking transaction history maujood hai.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // 2. Check Purchases
+        $hasPurchases = $hasRecord('purchase_items')
+            || $hasRecord('purchase_order_items')
+            || $hasRecord('purchase_return_items')
+            || $hasRecord('inward_gatepass_items')
+            || $hasRecord('vendor_remaining');
+
+        if ($hasPurchases) {
+            $msg = 'Yeh product delete nahi ho sakta kyunke iski Purchase ya Inward Gate Pass transaction history maujood hai.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // 3. Check Opening Stock & Movements
+        $hasInitialStock = (float) ($product->initial_stock ?? 0) > 0;
+        $hasMovements    = $hasRecord('stock_movements');
+        $hasBranchStock  = $hasRecord('stocks', 'product_id', fn($q) => $q->where('qty', '!=', 0));
+        $hasWhStock      = $hasRecord('warehouse_stocks', 'product_id', fn($q) => $q->where('quantity', '!=', 0));
+
+        if ($hasInitialStock || $hasMovements || $hasBranchStock || $hasWhStock) {
+            $msg = 'Yeh product delete nahi ho sakta kyunke iski Opening Stock ya Stock Movements record maujood hain.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // 4. Check Stock Transfers & Complaints
+        $hasOtherTrans = $hasRecord('stock_transfers')
+            || $hasRecord('stock_request_items')
+            || $hasRecord('stock_holds')
+            || $hasRecord('damaged_stocks')
+            || $hasRecord('damaged_stock_transfers')
+            || $hasRecord('complaints');
+
+        if ($hasOtherTrans) {
+            $msg = 'Yeh product delete nahi ho sakta kyunke iski Stock Transfer ya Warranty/Complaint history maujood hai.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // 5. Check if used as a BOM part for an assembled product
+        $isBomPart = $hasRecord('product_boms', 'part_id');
+        if ($isBomPart) {
+            $msg = 'Yeh product delete nahi ho sakta kyunke yeh kisi Assembled Product ke BOM me component/part ke tor par use ho raha hai.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => $msg], 422);
+            }
+            return back()->with('error', $msg);
+        }
+
+        // All checks passed! Proceed with safe cleanup in DB transaction
+        try {
+            DB::transaction(function () use ($product, $id) {
+                // Delete auxiliary configs / zero-stock rows
+                if (\Illuminate\Support\Facades\Schema::hasTable('branch_product_codes')) {
+                    DB::table('branch_product_codes')->where('product_id', $id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('product_branch_shares')) {
+                    DB::table('product_branch_shares')->where('product_id', $id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('product_discounts')) {
+                    DB::table('product_discounts')->where('product_id', $id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('product_boms')) {
+                    DB::table('product_boms')->where('product_id', $id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('notifications')) {
+                    DB::table('notifications')->where('product_id', $id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('stocks')) {
+                    DB::table('stocks')->where('product_id', $id)->delete();
+                }
+                if (\Illuminate\Support\Facades\Schema::hasTable('warehouse_stocks')) {
+                    DB::table('warehouse_stocks')->where('product_id', $id)->delete();
+                }
+
+                // Delete image file if exists
+                if (!empty($product->image)) {
+                    $imgPath = public_path('uploads/products/' . $product->image);
+                    if (file_exists($imgPath) && is_file($imgPath)) {
+                        @unlink($imgPath);
+                    }
+                }
+
+                $product->forceDelete();
+            });
+
+            $successMsg = 'Product "' . $product->item_name . '" has been deleted successfully.';
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => true, 'message' => $successMsg]);
+            }
+            return redirect()->route('product')->with('success', $successMsg);
+
+        } catch (\Exception $e) {
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json(['success' => false, 'message' => 'Delete failed: ' . $e->getMessage()], 500);
+            }
+            return back()->with('error', 'Delete failed: ' . $e->getMessage());
+        }
+    }
 }

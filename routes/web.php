@@ -207,6 +207,8 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
 
     Route::put('/product/update/{id}', [ProductController::class, 'update'])->middleware('permission:product.edit')->name('product.update');
     Route::get('/products/{id}/edit', [ProductController::class, 'edit'])->middleware('permission:product.edit')->name('products.edit');
+    Route::delete('/products/{id}', [ProductController::class, 'destroy'])->middleware('permission:product.edit')->name('products.destroy');
+    Route::post('/products/{id}/delete', [ProductController::class, 'destroy'])->middleware('permission:product.edit');
     Route::get('/generate-barcode-image', [ProductController::class, 'generateBarcode'])->middleware('permission:product.barcode')->name('generate-barcode-image');
     
     // ✅ Phase 2 Routes: Opening Stock Configuration (legacy)
