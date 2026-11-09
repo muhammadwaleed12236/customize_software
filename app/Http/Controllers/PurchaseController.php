@@ -1963,7 +1963,6 @@ class PurchaseController extends Controller
             $acc->closing_balance = round($closing, 2);
             $acc->current_balance = round($closing, 2);
             $acc->balance         = round($closing, 2);
-            $acc->opening_balance = round($closing, 2);
         });
 
         // Filter bank & cash accounts first
