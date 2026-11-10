@@ -247,11 +247,12 @@
                             <thead>
                                 <tr>
                                     <th style="width:3%">#</th>
-                                    <th style="width:20%">Type</th>
-                                    <th style="width:30%">Party / Account Name</th>
-                                    <th style="width:16%">Mobile / Code</th>
-                                    <th style="width:14%">Current Balance</th>
-                                    <th style="width:14%">Amount (Rs.)</th>
+                                    <th style="width:16%">Type</th>
+                                    <th style="width:23%">Party / Account Name</th>
+                                    <th style="width:13%">Mobile / Code</th>
+                                    <th style="width:12%">Current Balance</th>
+                                    <th style="width:18%">Description</th>
+                                    <th style="width:12%">Amount (Rs.)</th>
                                     <th style="width:3%"></th>
                                 </tr>
                             </thead>
@@ -280,6 +281,9 @@
                                         <input type="text" class="form-control partyBal text-end" readonly placeholder="0.00">
                                     </td>
                                     <td>
+                                        <input type="text" name="party_description[]" class="form-control partyDescription" placeholder="Description / Note">
+                                    </td>
+                                    <td>
                                         <input type="number" name="party_amount[]" step="0.01" min="0" class="form-control partyAmount" placeholder="0.00" required>
                                     </td>
                                     <td>
@@ -291,7 +295,7 @@
                             </tbody>
                             <tfoot>
                                 <tr style="background: #f8fafc; font-weight: 600;">
-                                    <td colspan="5" class="text-end" style="padding: 0.6rem 1rem;">Total Party Amount:</td>
+                                    <td colspan="6" class="text-end" style="padding: 0.6rem 1rem;">Total Party Amount:</td>
                                     <td style="padding: 0.6rem;">
                                         <span id="partyTotalDisplay" style="color: #15803d; font-size: 1rem; font-weight: 700;">Rs. 0.00</span>
                                     </td>
@@ -543,6 +547,9 @@ $(document).ready(function () {
                 </td>
                 <td>
                     <input type="text" class="form-control partyBal text-end" readonly placeholder="0.00">
+                </td>
+                <td>
+                    <input type="text" name="party_description[]" class="form-control partyDescription" placeholder="Description / Note">
                 </td>
                 <td>
                     <input type="number" name="party_amount[]" step="0.01" min="0" class="form-control partyAmount" placeholder="0.00" required>

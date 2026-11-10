@@ -458,10 +458,15 @@ class VoucherService
             ? $data['party_amount']
             : self::safeDecodeArray($voucher->party_amount);
 
+        $partyDescriptions = is_array($data['party_description'] ?? null)
+            ? $data['party_description']
+            : self::safeDecodeArray($voucher->party_description);
+
         if (empty($partyIds) && !empty($voucher->party_id)) {
-            $partyIds     = [$voucher->party_id];
-            $partyTypes   = [$voucher->type];
-            $partyAmounts = [(float)$voucher->total_amount];
+            $partyIds          = [$voucher->party_id];
+            $partyTypes        = [$voucher->type];
+            $partyAmounts      = [(float)$voucher->total_amount];
+            $partyDescriptions = [!empty($voucher->party_description) ? (is_array($voucher->party_description) ? ($voucher->party_description[0] ?? '') : $voucher->party_description) : ''];
         }
 
         $partiesInfo = [];
@@ -486,11 +491,14 @@ class VoucherService
                 $partyName = $acc ? $acc->title : "Account #{$partyId}";
             }
 
+            $partyDesc = trim((string)($partyDescriptions[$idx] ?? ''));
+
             $partiesInfo[] = [
-                'type'   => $partyType,
-                'id'     => $partyId,
-                'name'   => $partyName,
-                'amount' => $partyAmount,
+                'type'        => $partyType,
+                'id'          => $partyId,
+                'name'        => $partyName,
+                'amount'      => $partyAmount,
+                'description' => $partyDesc,
             ];
         }
 
@@ -528,7 +536,11 @@ class VoucherService
                     $accRemaining -= $take;
                     $pItem['amount'] -= $take;
 
+                    $pDesc = !empty($pItem['description']) ? $pItem['description'] : '';
                     $desc = "Payment Voucher #{$pvid}" . ($pItem['name'] ? " - {$pItem['name']}" : "");
+                    if ($pDesc) {
+                        $desc .= " - {$pDesc}";
+                    }
                     if ($remarks) {
                         $desc .= " ({$remarks})";
                     }
@@ -570,7 +582,11 @@ class VoucherService
         } else {
             // Single party or no party: post single entry
             $partyName = !empty($partiesInfo[0]['name']) ? $partiesInfo[0]['name'] : '';
+            $partyDesc = !empty($partiesInfo[0]['description']) ? $partiesInfo[0]['description'] : '';
             $desc = "Payment Voucher #{$pvid}" . ($partyName ? " - {$partyName}" : "");
+            if ($partyDesc) {
+                $desc .= " - {$partyDesc}";
+            }
             if ($remarks) {
                 $desc .= " ({$remarks})";
             }
@@ -698,6 +714,7 @@ class VoucherService
                 'type'             => json_encode($partyTypes),
                 'party_id'         => json_encode($partyIds),
                 'party_amount'     => json_encode($partyAmounts),
+                'party_description' => json_encode($data['party_description'] ?? self::safeDecodeArray($voucher->party_description)),
                 'tel'              => json_encode($partyTels),
                 'remarks'          => $data['remarks'] ?? $voucher->remarks,
                 'narration_id'     => json_encode($narrationIds),
@@ -850,6 +867,67 @@ class VoucherService
             ? $data['amount'] 
             : self::safeDecodeArray($voucher->amount);
 
+        // Pre-parse party info and descriptions for ledger entries
+        $partyIds = is_array($data['party_id'] ?? null)
+            ? $data['party_id']
+            : (is_array($data['vendor_id'] ?? null) ? $data['vendor_id'] : self::safeDecodeArray($voucher->party_id));
+
+        $partyTypes = is_array($data['party_type'] ?? null)
+            ? $data['party_type']
+            : (is_array($data['vendor_type'] ?? null)
+                ? $data['vendor_type']
+                : (is_array($data['type'] ?? null) ? $data['type'] : self::safeDecodeArray($voucher->type)));
+
+        $partyAmounts = is_array($data['party_amount'] ?? null)
+            ? $data['party_amount']
+            : self::safeDecodeArray($voucher->party_amount);
+
+        $partyDescriptions = is_array($data['party_description'] ?? null)
+            ? $data['party_description']
+            : self::safeDecodeArray($voucher->party_description);
+
+        if (empty($partyIds) && !empty($voucher->party_id)) {
+            $partyIds          = [$voucher->party_id];
+            $partyTypes        = [$voucher->type];
+            $partyAmounts      = [(float)$voucher->total_amount];
+            $partyDescriptions = [!empty($voucher->party_description) ? (is_array($voucher->party_description) ? ($voucher->party_description[0] ?? '') : $voucher->party_description) : ''];
+        }
+
+        // Build party / description summary for the expense account ledger entry
+        $partySummaryList = [];
+        foreach ($partyIds as $idx => $pId) {
+            if (!$pId) continue;
+            $pType = $partyTypes[$idx] ?? ($partyTypes[0] ?? 'vendor');
+            $pName = '';
+            if ($pType === 'vendor') {
+                $v = Vendor::find($pId);
+                $pName = $v?->name ?? "Vendor #{$pId}";
+            } elseif ($pType === 'customer' || $pType === 'walkin') {
+                $c = Customer::find($pId);
+                $pName = $c?->customer_name ?? "Customer #{$pId}";
+            } else {
+                $a = Account::find($pId);
+                $pName = $a?->title ?? "Account #{$pId}";
+            }
+            $pDesc = trim((string)($partyDescriptions[$idx] ?? ''));
+            $itemStr = $pName;
+            if ($pDesc !== '') {
+                $itemStr .= ($itemStr ? " - " : "") . $pDesc;
+            }
+            if ($itemStr) {
+                $partySummaryList[] = $itemStr;
+            }
+        }
+        $partySummaryStr = implode(', ', $partySummaryList);
+
+        $rowEntryDesc = "Expense Voucher #{$evid}";
+        if ($partySummaryStr !== '') {
+            $rowEntryDesc .= " - {$partySummaryStr}";
+        }
+        if ($remarks) {
+            $rowEntryDesc .= " ({$remarks})";
+        }
+
         $accountTotals = [];
         foreach ($rowAccountIds as $index => $accId) {
             $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
@@ -865,7 +943,7 @@ class VoucherService
                 $evid,
                 $voucher->id,
                 $entryDate,
-                $remarks ?: "Expense Voucher #{$evid}",
+                $rowEntryDesc,
                 $totalAccAmount,
                 0,
                 $userId
@@ -874,25 +952,6 @@ class VoucherService
         }
 
         // 2. PAYMENT SOURCE / PARTY SIDE POSTING (CREDIT - Funds decreased)
-        $partyIds = is_array($data['party_id'] ?? null)
-            ? $data['party_id']
-            : (is_array($data['vendor_id'] ?? null) ? $data['vendor_id'] : self::safeDecodeArray($voucher->party_id));
-
-        $partyTypes = is_array($data['party_type'] ?? null)
-            ? $data['party_type']
-            : (is_array($data['vendor_type'] ?? null)
-                ? $data['vendor_type']
-                : (is_array($data['type'] ?? null) ? $data['type'] : self::safeDecodeArray($voucher->type)));
-
-        $partyAmounts = is_array($data['party_amount'] ?? null)
-            ? $data['party_amount']
-            : self::safeDecodeArray($voucher->party_amount);
-
-        if (empty($partyIds) && !empty($voucher->party_id)) {
-            $partyIds     = [$voucher->party_id];
-            $partyTypes   = [$voucher->type];
-            $partyAmounts = [(float)$voucher->total_amount];
-        }
 
         foreach ($partyIds as $idx => $partyId) {
             if (!$partyId) continue;
@@ -902,6 +961,8 @@ class VoucherService
                 : (count($partyIds) === 1 ? $totalAmount : 0);
 
             if ($partyAmount <= 0) continue;
+
+            $pDesc = trim((string)($partyDescriptions[$idx] ?? ''));
 
             if ($partyType === 'vendor') {
                 $lastLedger = VendorLedger::where('vendor_id', $partyId)
@@ -917,7 +978,7 @@ class VoucherService
                     'branch_id'        => $branchId,
                     'admin_or_user_id' => $userId,
                     'transaction_date' => $entryDate,
-                    'description'      => "Expense Voucher #{$evid}" . ($remarks ? " - {$remarks}" : ""),
+                    'description'      => "Expense Voucher #{$evid}" . ($pDesc ? " - {$pDesc}" : "") . ($remarks ? " - {$remarks}" : ""),
                     'opening_balance'  => $previousBalance,
                     'previous_balance' => $previousBalance,
                     'debit_amount'     => 0,
@@ -946,7 +1007,7 @@ class VoucherService
                     'closing_balance'  => $previousBalance + $partyAmount,
                     'transaction_type' => 'expense',
                     'reference_id'     => $evid,
-                    'description'      => "Expense Voucher #{$evid}" . ($remarks ? " - {$remarks}" : ""),
+                    'description'      => "Expense Voucher #{$evid}" . ($pDesc ? " - {$pDesc}" : "") . ($remarks ? " - {$remarks}" : ""),
                 ]);
 
                 self::recalculateCustomerLedger((int)$partyId);
@@ -955,13 +1016,20 @@ class VoucherService
                 $accountId = is_numeric($partyId) ? $partyId : $partyType;
                 $account   = Account::find($accountId);
                 if ($account) {
+                    $sourceDesc = "Expense Voucher #{$evid}";
+                    if ($pDesc !== '') {
+                        $sourceDesc .= " - {$pDesc}";
+                    }
+                    if ($remarks) {
+                        $sourceDesc .= " ({$remarks})";
+                    }
                     self::postLedgerEntry(
                         $account->id,
                         'expense',
                         $evid,
                         $voucher->id,
                         $entryDate,
-                        "Expense Payment Source: " . ($remarks ?: 'N/A'),
+                        $sourceDesc,
                         0,
                         $partyAmount,
                         $userId
@@ -1005,6 +1073,7 @@ class VoucherService
                 'type'             => json_encode($partyTypes),
                 'party_id'         => json_encode($partyIds),
                 'party_amount'     => json_encode($partyAmounts),
+                'party_description' => json_encode($data['party_description'] ?? self::safeDecodeArray($voucher->party_description)),
                 'tel'              => json_encode($partyTels),
                 'remarks'          => $data['remarks'] ?? $voucher->remarks,
                 'narration_id'     => json_encode($narrationIds),

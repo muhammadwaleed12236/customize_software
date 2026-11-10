@@ -978,6 +978,7 @@ class VoucherController extends Controller
             $partyIds     = $request->party_id ?? (isset($request->vendor_id) ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
             $partyAmounts = $request->party_amount ?? [$request->total_amount];
             $partyTels    = $request->party_tel ?? (isset($request->tel) ? (is_array($request->tel) ? $request->tel : [$request->tel]) : []);
+            $partyDescriptions = $request->party_description ?? [];
 
             $voucherData = [
                 'branch_id'        => $branchId,
@@ -987,6 +988,7 @@ class VoucherController extends Controller
                 'type'             => json_encode($partyTypes),
                 'party_id'         => json_encode($partyIds),
                 'party_amount'     => json_encode($partyAmounts),
+                'party_description' => json_encode($partyDescriptions),
                 'tel'              => json_encode($partyTels),
                 'remarks'          => $request->remarks,
                 'narration_id'     => json_encode($narrationIds),
@@ -1003,10 +1005,11 @@ class VoucherController extends Controller
             $voucher = PaymentVoucher::create($voucherData);
 
             \App\Services\VoucherService::applyPaymentVoucher($voucher, array_merge($request->all(), [
-                'party_type'   => $partyTypes,
-                'party_id'     => $partyIds,
-                'party_amount' => $partyAmounts,
-                'party_tel'    => $partyTels,
+                'party_type'        => $partyTypes,
+                'party_id'          => $partyIds,
+                'party_amount'      => $partyAmounts,
+                'party_description' => $partyDescriptions,
+                'party_tel'         => $partyTels,
                 'branch_id'    => $branchId,
                 'narration_id' => $narrationIds,
             ]), auth()->id());
@@ -1096,10 +1099,11 @@ class VoucherController extends Controller
         }
 
         // Party info (supports multiple parties)
-        $partyTypeArray   = \App\Services\VoucherService::safeDecodeArray($voucher->type);
-        $partyIdArray     = \App\Services\VoucherService::safeDecodeArray($voucher->party_id);
-        $partyAmountArray = \App\Services\VoucherService::safeDecodeArray($voucher->party_amount);
-        $partyTelArray    = \App\Services\VoucherService::safeDecodeArray($voucher->tel);
+        $partyTypeArray        = \App\Services\VoucherService::safeDecodeArray($voucher->type);
+        $partyIdArray          = \App\Services\VoucherService::safeDecodeArray($voucher->party_id);
+        $partyAmountArray      = \App\Services\VoucherService::safeDecodeArray($voucher->party_amount);
+        $partyTelArray         = \App\Services\VoucherService::safeDecodeArray($voucher->tel);
+        $partyDescriptionArray = \App\Services\VoucherService::safeDecodeArray($voucher->party_description);
 
         $maxPartyRows = max(count($partyIdArray), count($partyTypeArray), 1);
         $partyRows = [];
@@ -1109,6 +1113,7 @@ class VoucherController extends Controller
             $pId   = $partyIdArray[$p] ?? ($partyIdArray[0] ?? null);
             $pAmt  = $partyAmountArray[$p] ?? ($voucher->total_amount ?? 0);
             $pTel  = $partyTelArray[$p] ?? '';
+            $pDesc = $partyDescriptionArray[$p] ?? '';
 
             $pName = '';
             $pBal  = 0;
@@ -1134,12 +1139,13 @@ class VoucherController extends Controller
             }
 
             $partyRows[] = [
-                'type'    => $pType,
-                'id'      => $pId,
-                'name'    => $pName,
-                'tel'     => $pTel,
-                'balance' => $pBal,
-                'amount'  => $pAmt,
+                'type'        => $pType,
+                'id'          => $pId,
+                'name'        => $pName,
+                'tel'         => $pTel,
+                'balance'     => $pBal,
+                'amount'      => $pAmt,
+                'description' => $pDesc,
             ];
         }
 
@@ -1207,18 +1213,20 @@ class VoucherController extends Controller
                 $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
 
-            $partyTypes   = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
-            $partyIds     = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
-            $partyAmounts = $request->party_amount ?? [];
-            $partyTels    = $request->party_tel ?? ($request->tel ? (is_array($request->tel) ? $request->tel : [$request->tel]) : []);
+            $partyTypes        = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
+            $partyIds          = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
+            $partyAmounts      = $request->party_amount ?? [];
+            $partyTels         = $request->party_tel ?? ($request->tel ? (is_array($request->tel) ? $request->tel : [$request->tel]) : []);
+            $partyDescriptions = $request->party_description ?? [];
 
             $updateData = array_merge($request->all(), [
-                'party_type'   => $partyTypes,
-                'party_id'     => $partyIds,
-                'party_amount' => $partyAmounts,
-                'party_tel'    => $partyTels,
-                'narration_id' => $narrationIds,
-                'branch_id'    => $branchId,
+                'party_type'        => $partyTypes,
+                'party_id'          => $partyIds,
+                'party_amount'      => $partyAmounts,
+                'party_description' => $partyDescriptions,
+                'party_tel'         => $partyTels,
+                'narration_id'      => $narrationIds,
+                'branch_id'         => $branchId,
             ]);
 
             \App\Services\VoucherService::updatePaymentVoucher($voucher, $updateData, auth()->id());
@@ -1432,6 +1440,7 @@ class VoucherController extends Controller
             $partyIds     = $request->party_id ?? (isset($request->vendor_id) ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
             $partyAmounts = $request->party_amount ?? [$request->total_amount];
             $partyTels    = $request->party_tel ?? (isset($request->tel) ? (is_array($request->tel) ? $request->tel : [$request->tel]) : []);
+            $partyDescriptions = $request->party_description ?? [];
 
             $voucherData = [
                 'evid'             => $evid,
@@ -1440,6 +1449,7 @@ class VoucherController extends Controller
                 'type'             => json_encode($partyTypes),
                 'party_id'         => json_encode($partyIds),
                 'party_amount'     => json_encode($partyAmounts),
+                'party_description' => json_encode($partyDescriptions),
                 'tel'              => json_encode($partyTels),
                 'remarks'          => $request->remarks,
                 'narration_id'     => json_encode($narrationIds),
@@ -1454,10 +1464,11 @@ class VoucherController extends Controller
             $voucher = ExpenseVoucher::create($voucherData);
 
             \App\Services\VoucherService::applyExpenseVoucher($voucher, array_merge($request->all(), [
-                'party_type'   => $partyTypes,
-                'party_id'     => $partyIds,
-                'party_amount' => $partyAmounts,
-                'party_tel'    => $partyTels,
+                'party_type'        => $partyTypes,
+                'party_id'          => $partyIds,
+                'party_amount'      => $partyAmounts,
+                'party_description' => $partyDescriptions,
+                'party_tel'         => $partyTels,
                 'branch_id'    => $branchId,
                 'narration_id' => $narrationIds,
             ]), auth()->id());
@@ -1573,10 +1584,11 @@ class VoucherController extends Controller
         }
 
         // Party / Source Info (supports multiple parties)
-        $partyTypeArray   = \App\Services\VoucherService::safeDecodeArray($voucher->type);
-        $partyIdArray     = \App\Services\VoucherService::safeDecodeArray($voucher->party_id);
-        $partyAmountArray = \App\Services\VoucherService::safeDecodeArray($voucher->party_amount);
-        $partyTelArray    = \App\Services\VoucherService::safeDecodeArray($voucher->tel);
+        $partyTypeArray        = \App\Services\VoucherService::safeDecodeArray($voucher->type);
+        $partyIdArray          = \App\Services\VoucherService::safeDecodeArray($voucher->party_id);
+        $partyAmountArray      = \App\Services\VoucherService::safeDecodeArray($voucher->party_amount);
+        $partyTelArray         = \App\Services\VoucherService::safeDecodeArray($voucher->tel);
+        $partyDescriptionArray = \App\Services\VoucherService::safeDecodeArray($voucher->party_description);
 
         $maxPartyRows = max(count($partyIdArray), count($partyTypeArray), 1);
         $partyRows = [];
@@ -1586,6 +1598,7 @@ class VoucherController extends Controller
             $pId   = $partyIdArray[$p] ?? ($partyIdArray[0] ?? null);
             $pAmt  = $partyAmountArray[$p] ?? ($voucher->total_amount ?? 0);
             $pTel  = $partyTelArray[$p] ?? '';
+            $pDesc = $partyDescriptionArray[$p] ?? '';
 
             $pName = '';
             $pBal  = 0;
@@ -1611,12 +1624,13 @@ class VoucherController extends Controller
             }
 
             $partyRows[] = [
-                'type'    => $pType,
-                'id'      => $pId,
-                'name'    => $pName,
-                'tel'     => $pTel,
-                'balance' => $pBal,
-                'amount'  => $pAmt,
+                'type'        => $pType,
+                'id'          => $pId,
+                'name'        => $pName,
+                'tel'         => $pTel,
+                'balance'     => $pBal,
+                'amount'      => $pAmt,
+                'description' => $pDesc,
             ];
         }
 
@@ -1684,18 +1698,20 @@ class VoucherController extends Controller
                 $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
 
-            $partyTypes   = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
-            $partyIds     = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
-            $partyAmounts = $request->party_amount ?? [];
-            $partyTels    = $request->party_tel ?? ($request->tel ? (is_array($request->tel) ? $request->tel : [$request->tel]) : []);
+            $partyTypes        = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
+            $partyIds          = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
+            $partyAmounts      = $request->party_amount ?? [];
+            $partyTels         = $request->party_tel ?? ($request->tel ? (is_array($request->tel) ? $request->tel : [$request->tel]) : []);
+            $partyDescriptions = $request->party_description ?? [];
 
             $updateData = array_merge($request->all(), [
-                'party_type'   => $partyTypes,
-                'party_id'     => $partyIds,
-                'party_amount' => $partyAmounts,
-                'party_tel'    => $partyTels,
-                'narration_id' => $narrationIds,
-                'branch_id'    => $branchId,
+                'party_type'        => $partyTypes,
+                'party_id'          => $partyIds,
+                'party_amount'      => $partyAmounts,
+                'party_description' => $partyDescriptions,
+                'party_tel'         => $partyTels,
+                'narration_id'      => $narrationIds,
+                'branch_id'         => $branchId,
             ]);
 
             \App\Services\VoucherService::updateExpenseVoucher($voucher, $updateData, auth()->id());
