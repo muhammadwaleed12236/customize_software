@@ -401,6 +401,11 @@
                         <p class="text-muted mt-2 small font-weight-bold">Fetching stock metrics...</p>
                     </div>
 
+                    {{-- Negative Stock Alert Banner --}}
+                    <div id="negativeStockAlert" class="alert alert-danger font-weight-bold mb-3 d-none" style="border-radius: 8px;">
+                        <i class="fas fa-exclamation-triangle me-1"></i> One or more products have <strong>Negative Stock</strong> due to force sales. Please review and restock.
+                    </div>
+
                     {{-- Swipe hint indicator for mobile touch users --}}
                     <div class="swipe-hint-bar">
                         <span><i class="fas fa-arrows-alt-h text-primary me-1"></i> <strong>Swipe left/right</strong> to view full 13 columns</span>
@@ -494,39 +499,46 @@
 <script>
 $(document).ready(function() {
     var warehouseDataStore = {}; // ✅ Global storage for warehouse data
-    
-    var stockTable = $('#stockTable').DataTable({
-        paging: true,
-        searching: true,
-        info: true,
-        ordering: true,
-        columnDefs: [
-            { orderable: false, targets: -1 } // Disable sorting on action column
-        ]
-    });
+    var stockTable = null;
 
     function renderRows(rows, grandTotal) {
-        // Destroy and recreate DataTable for clean rendering
+        // Destroy existing DataTable instance cleanly
         if ($.fn.DataTable.isDataTable('#stockTable')) {
-            stockTable.destroy();
+            $('#stockTable').DataTable().destroy();
         }
         
         // Clear the table body
-        $('#reportBody').html('');
+        $('#reportBody').empty();
         warehouseDataStore = {}; // Reset warehouse data
 
         if (!rows || rows.length === 0) {
-            $('#reportBody').html('<tr><td colspan="13" class="text-center py-4 text-muted font-weight-bold">No stock data found for selected criteria in this branch.</td></tr>');
+            $('#negativeStockAlert').addClass('d-none');
+            $('#footOpening').text('0.00');
+            $('#footPurchased').text('0.00');
+            $('#footPurchAmount').text('Rs. 0.00');
+            $('#footDelivered').text('0.00');
+            $('#footDeliveredAmount').text('Rs. 0.00');
+            $('#footReserved').text('0.00');
+            $('#footBalance').text('0.00');
+            $('#grandStockValue').text('0.00').removeClass('text-danger');
+
+            $('#kpiTotalBalance').text('0.00');
+            $('#kpiTotalDelivered').text('0.00');
+            $('#kpiTotalReserved').text('0.00');
+            $('#kpiTotalStockValue').text('Rs. 0.00');
+
             stockTable = $('#stockTable').DataTable({
                 paging: true,
                 searching: true,
                 info: true,
                 ordering: true,
+                language: {
+                    emptyTable: "No stock data found for selected criteria in this branch."
+                },
                 columnDefs: [
                     { orderable: false, targets: -1 }
                 ]
             });
-            $('#grandStockValue').text('0.00').removeClass('text-danger');
             return;
         }
 
@@ -635,15 +647,11 @@ $(document).ready(function() {
             $('#reportBody').append(row);
         });
 
-        // Negative stock summary row
+        // Negative stock alert banner outside the table (avoids DataTables colspan crash)
         if (hasNegativeStock) {
-            $('#reportBody').append(`
-                <tr class="bg-danger text-white">
-                    <td colspan="13" class="text-center fw-bold py-2">
-                        ⚠ One or more products have <strong>Negative Stock</strong> due to force sales. Please review and restock.
-                    </td>
-                </tr>
-            `);
+            $('#negativeStockAlert').removeClass('d-none');
+        } else {
+            $('#negativeStockAlert').addClass('d-none');
         }
 
         // ============= UPDATE FOOTER TOTALS =============
@@ -771,6 +779,12 @@ $(document).ready(function() {
                 // Extract product options from the new HTML
                 var newProductOptions = $(html).find('#product_id').html();
                 $('#product_id').html(newProductOptions);
+                if ($.fn.select2 && $('#product_id').hasClass('select2-hidden-accessible')) {
+                    $('#product_id').select2('destroy');
+                }
+                if ($.fn.select2) {
+                    $('#product_id').select2();
+                }
                 
                 // Auto-fetch report with new branch
                 fetchReport();
