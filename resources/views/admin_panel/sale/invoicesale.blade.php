@@ -74,7 +74,7 @@ body {
 }
 
 .pandi-line {
-    border-bottom: 1.5px solid #000;
+    border-bottom: 2px solid #000;
     display: inline-block;
     min-width: 160px;
     padding-right: 4px;
@@ -125,7 +125,7 @@ body {
 }
 
 .invoice-table td {
-    border: 1.5px solid #000;
+    border: 2px solid #000;
     padding: 6px 8px;
     font-size: 15px;
     color: #000;
@@ -151,7 +151,7 @@ body {
 .item-desc-urdu {
     font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', 'Tahoma', sans-serif !important;
     font-size: 21px !important;
-    font-weight: 700 !important;
+    font-weight: 800 !important;
     color: #000 !important;
     display: block !important;
     text-align: right !important;
@@ -169,7 +169,7 @@ body {
 
 .summary-table td {
     padding: 6px 10px;
-    border: 1.5px solid #000;
+    border: 2px solid #000;
     line-height: 1.3;
     font-size: 15px;
 }
@@ -214,7 +214,7 @@ body {
     background: #f8fafc;
     padding: 6px 12px;
     border-radius: 5px;
-    border: 1.5px solid #cbd5e1;
+    border: 2px solid #000;
 }
 
 @media print {
@@ -235,12 +235,19 @@ body {
         visibility: hidden !important;
     }
     
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        color-adjust: exact !important;
+    }
+
     body {
         background: #ffffff !important;
         margin: 0 !important;
         padding: 0 !important;
         -webkit-print-color-adjust: exact !important;
         print-color-adjust: exact !important;
+        color: #000000 !important;
     }
     
     .container-scroller,
@@ -260,6 +267,7 @@ body {
         margin: 0 auto !important;
         padding: 12px 16px !important;
         border: none !important;
+        color: #000000 !important;
     }
 
     @page {
@@ -267,19 +275,34 @@ body {
         margin: 8mm 8mm;
     }
 
+    .invoice-badge-box {
+        border: 2.5px solid #000000 !important;
+        background: #ffffff !important;
+    }
+
     .invoice-badge-title {
         font-size: 24px !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
+        color: #000000 !important;
+        -webkit-text-stroke: 0.3px #000000 !important;
     }
 
     .invoice-badge-inv {
         font-size: 17px !important;
         font-weight: 800 !important;
+        color: #000000 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
     }
 
     .invoice-badge-date {
         font-size: 16px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
+        color: #000000 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
+    }
+
+    .header-divider {
+        border-top: 2.5px dashed #000000 !important;
     }
 
     .customer-info-line {
@@ -287,6 +310,9 @@ body {
         font-weight: 800 !important;
         padding: 8px 12px !important;
         min-height: 50px !important;
+        border: 2.5px solid #000000 !important;
+        background: #ffffff !important;
+        color: #000000 !important;
     }
 
     .customer-info-line #customerNameDisplay {
@@ -296,31 +322,46 @@ body {
         line-height: 2 !important;
         display: inline-block !important;
         vertical-align: middle !important;
+        color: #000000 !important;
+        -webkit-text-stroke: 0.35px #000000 !important;
     }
 
     .customer-info-label {
         font-size: 18px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
+        color: #000000 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
     }
 
     .pandi-box, .pandi-line {
         font-size: 17px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
+        color: #000000 !important;
+    }
+
+    .pandi-line {
+        border-bottom: 2.5px solid #000000 !important;
     }
 
     .pandi-label {
         font-size: 18px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
+        color: #000000 !important;
+    }
+
+    .invoice-table {
+        border: 2.5px solid #000000 !important;
     }
 
     .invoice-table th {
         padding: 8px 10px !important;
         font-size: 20px !important;
         line-height: 1.3 !important;
-        background-color: #f8fafc !important;
+        background-color: #ededed !important;
         color: #000000 !important;
         border: 2px solid #000000 !important;
-        font-weight: 800 !important;
+        font-weight: 900 !important;
+        -webkit-text-stroke: 0.3px #000000 !important;
     }
 
     .invoice-table td {
@@ -328,42 +369,80 @@ body {
         font-size: 17px !important;
         line-height: 1.4 !important;
         color: #000000 !important;
-        border: 1.5px solid #000000 !important;
+        border: 2px solid #000000 !important;
         font-weight: 800 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
     }
 
     .item-desc-eng {
         font-size: 15px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
         color: #000000 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
     }
 
     .item-desc-urdu {
         font-family: 'Noto Naskh Arabic', 'Noto Sans Arabic', 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', sans-serif !important;
         font-size: 24px !important;
-        font-weight: 700 !important;
+        font-weight: 800 !important;
         color: #000000 !important;
         line-height: 1.5 !important;
+        -webkit-text-stroke: 0.35px #000000 !important;
     }
 
-    .summary-table td {
+    .summary-table {
+        border: 2.5px solid #000000 !important;
+    }
+
+    .summary-table td,
+    .summary-table tr td {
         padding: 8px 12px !important;
         font-size: 17px !important;
         line-height: 1.3 !important;
         color: #000000 !important;
-        border: 1.5px solid #000000 !important;
+        border: 2px solid #000000 !important;
         font-weight: 800 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
     }
 
     .payment-remarks-title {
         font-size: 17px !important;
         font-weight: 800 !important;
+        color: #000000 !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
+    }
+
+    .payment-remarks-line {
+        border-top: 2.5px solid #000000 !important;
+    }
+
+    .paid-badge {
+        border: 1.5px solid #000000 !important;
+        color: #000000 !important;
+        background: #ffffff !important;
+        font-weight: 800 !important;
+    }
+
+    .payment-item-row {
+        color: #000000 !important;
+        border-bottom: 1.5px dashed #000000 !important;
+    }
+
+    .payment-item-row span,
+    .payment-item-row strong {
+        color: #000000 !important;
+        font-weight: 800 !important;
+        -webkit-text-stroke: 0.2px #000000 !important;
     }
 
     .amount-in-words {
         font-size: 16px !important;
         font-weight: 800 !important;
         padding: 8px 12px !important;
+        color: #000000 !important;
+        border: 2px solid #000000 !important;
+        background: #ffffff !important;
+        -webkit-text-stroke: 0.25px #000000 !important;
     }
 
     tr { page-break-inside: avoid; }
