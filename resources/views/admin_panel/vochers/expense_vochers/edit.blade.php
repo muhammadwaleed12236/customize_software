@@ -326,10 +326,11 @@
                             <thead>
                                 <tr>
                                     <th style="width:3%">#</th>
-                                    <th style="width:29%">Narration</th>
-                                    <th style="width:25%">Account Head</th>
-                                    <th style="width:25%">Account Name</th>
-                                    <th style="width:15%">Amount (Rs.)</th>
+                                    <th style="width:20%">Narration</th>
+                                    <th style="width:18%">Account Head</th>
+                                    <th style="width:20%">Account Name</th>
+                                    <th style="width:24%">Description</th>
+                                    <th style="width:12%">Amount (Rs.)</th>
                                     <th style="width:3%"></th>
                                 </tr>
                             </thead>
@@ -368,6 +369,9 @@
                                             @endif
                                         </select>
                                     </td>
+                                    <td>
+                                        <input type="text" name="row_description[]" class="form-control rowDescription" value="{{ $row['description'] ?? '' }}" placeholder="Description / Note">
+                                    </td>
                                     <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" value="{{ $row['amount'] }}" placeholder="0.00" required></td>
                                     <td>
                                         <button type="button" class="btn-remove-row removeRow" title="Remove row">
@@ -403,6 +407,9 @@
                                         <select name="row_account_id[]" class="form-select rowAccountSub" required>
                                             <option value="">-- Select Account --</option>
                                         </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="row_description[]" class="form-control rowDescription" placeholder="Description / Note">
                                     </td>
                                     <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" placeholder="0.00" required></td>
                                     <td>

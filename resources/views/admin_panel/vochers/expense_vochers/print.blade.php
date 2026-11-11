@@ -546,6 +546,10 @@
                     @foreach($rows as $key => $row)
                     @php
                         $rowNarration = $row['narration'] ?? null;
+                        $rowDesc = $row['description'] ?? null;
+                        if (!empty($rowDesc)) {
+                            $rowNarration = $rowNarration ? "{$rowNarration} — {$rowDesc}" : $rowDesc;
+                        }
                         if (empty($rowNarration) || $rowNarration === 'N/A') {
                             $rowNarration = $voucher->remarks ?? null;
                         }

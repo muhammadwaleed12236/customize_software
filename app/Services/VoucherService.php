@@ -928,15 +928,44 @@ class VoucherService
             $rowEntryDesc .= " ({$remarks})";
         }
 
-        $accountTotals = [];
+        $rowDescriptions = is_array($data['row_description'] ?? null)
+            ? $data['row_description']
+            : (isset($voucher->row_description) ? self::safeDecodeArray($voucher->row_description) : []);
+
+        $groupedRows = [];
         foreach ($rowAccountIds as $index => $accId) {
             $rowAmount = isset($amounts[$index]) ? (float)$amounts[$index] : 0;
             if ($rowAmount > 0 && $accId) {
-                $accountTotals[(int)$accId] = ($accountTotals[(int)$accId] ?? 0) + $rowAmount;
+                $accId   = (int)$accId;
+                $rowDesc = trim((string)($rowDescriptions[$index] ?? ''));
+                $key     = $accId . '___' . $rowDesc;
+                if (!isset($groupedRows[$key])) {
+                    $groupedRows[$key] = [
+                        'account_id'  => $accId,
+                        'description' => $rowDesc,
+                        'amount'      => 0,
+                    ];
+                }
+                $groupedRows[$key]['amount'] += $rowAmount;
             }
         }
 
-        foreach ($accountTotals as $accId => $totalAccAmount) {
+        foreach ($groupedRows as $item) {
+            $accId          = $item['account_id'];
+            $totalAccAmount = $item['amount'];
+            $rDesc          = $item['description'];
+
+            $rowEntryDesc = "Expense Voucher #{$evid}";
+            if ($rDesc !== '') {
+                $rowEntryDesc .= " - {$rDesc}";
+            }
+            if ($partySummaryStr !== '') {
+                $rowEntryDesc .= " - {$partySummaryStr}";
+            }
+            if ($remarks) {
+                $rowEntryDesc .= " ({$remarks})";
+            }
+
             self::postLedgerEntry(
                 $accId,
                 'expense',
@@ -946,7 +975,8 @@ class VoucherService
                 $rowEntryDesc,
                 $totalAccAmount,
                 0,
-                $userId
+                $userId,
+                true
             );
             AccountLedgerEntry::recalculateRunningBalance((int)$accId);
         }
@@ -1079,6 +1109,7 @@ class VoucherService
                 'narration_id'     => json_encode($narrationIds),
                 'row_account_head' => json_encode($data['row_account_head'] ?? self::safeDecodeArray($voucher->row_account_head)),
                 'row_account_id'   => json_encode($data['row_account_id'] ?? self::safeDecodeArray($voucher->row_account_id)),
+                'row_description'  => json_encode($data['row_description'] ?? self::safeDecodeArray($voucher->row_description ?? [])),
                 'amount'           => json_encode($data['amount'] ?? self::safeDecodeArray($voucher->amount)),
                 'total_amount'     => (float)($data['total_amount'] ?? $voucher->total_amount),
                 'status'           => 'active',

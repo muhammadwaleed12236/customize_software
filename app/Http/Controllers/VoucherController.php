@@ -1455,6 +1455,7 @@ class VoucherController extends Controller
                 'narration_id'     => json_encode($narrationIds),
                 'row_account_head' => json_encode($request->row_account_head),
                 'row_account_id'   => json_encode($request->row_account_id),
+                'row_description'  => json_encode($request->row_description ?? []),
                 'amount'           => json_encode($request->amount),
                 'total_amount'     => $request->total_amount,
                 'status'           => 'active',
@@ -1469,6 +1470,7 @@ class VoucherController extends Controller
                 'party_amount'      => $partyAmounts,
                 'party_description' => $partyDescriptions,
                 'party_tel'         => $partyTels,
+                'row_description'   => $request->row_description ?? [],
                 'branch_id'    => $branchId,
                 'narration_id' => $narrationIds,
             ]), auth()->id());
@@ -1543,6 +1545,7 @@ class VoucherController extends Controller
         $narrationsArray  = \App\Services\VoucherService::safeDecodeArray($voucher->narration_id);
         $accountHeadArray = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_head);
         $accountIdArray   = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_id);
+        $rowDescArray     = \App\Services\VoucherService::safeDecodeArray($voucher->row_description ?? []);
         $amountArray      = \App\Services\VoucherService::safeDecodeArray($voucher->amount);
 
         $maxRows = max(
@@ -1550,6 +1553,7 @@ class VoucherController extends Controller
             count($accountHeadArray),
             count($amountArray),
             count($narrationsArray),
+            count($rowDescArray),
             1
         );
 
@@ -1578,6 +1582,7 @@ class VoucherController extends Controller
                 'narration_id'     => $narrationsArray[$index] ?? null,
                 'row_account_head' => $headId,
                 'row_account_id'   => $accId,
+                'description'      => $rowDescArray[$index] ?? '',
                 'amount'           => $amountArray[$index] ?? ($voucher->total_amount ?? 0),
                 'sub_accounts'     => $subAccounts,
             ];
@@ -1736,10 +1741,11 @@ class VoucherController extends Controller
         $references = \App\Services\VoucherService::safeDecodeArray($voucher->reference_no);
         $accountHeads = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_head);
         $accounts = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_id);
+        $rowDescriptions = \App\Services\VoucherService::safeDecodeArray($voucher->row_description ?? []);
         $amounts = \App\Services\VoucherService::safeDecodeArray($voucher->amount);
 
         // 🧾 Prepare detailed rows
-        $maxRows = max(count($accounts), count($amounts), count($accountHeads), count($references), count($narrations), 1);
+        $maxRows = max(count($accounts), count($amounts), count($accountHeads), count($references), count($narrations), count($rowDescriptions), 1);
         $rows = [];
         for ($index = 0; $index < $maxRows; $index++) {
             $accountId = $accounts[$index] ?? null;
@@ -1759,6 +1765,7 @@ class VoucherController extends Controller
             $rows[] = [
                 'narration' => $narration,
                 'reference' => $ref,
+                'description' => $rowDescriptions[$index] ?? null,
                 'account_head' => $accountHead ?? ($account ? DB::table('account_heads')->where('id', $account->head_id)->value('name') : null),
                 'account_name' => $account->title ?? null,
                 'account_code' => $account->account_code ?? null,

@@ -1105,12 +1105,15 @@ class AccountsHeadController extends Controller
             $date = $ev->entry_date ?: ($ev->created_at ? $ev->created_at->toDateString() : now()->toDateString());
             $date = is_string($date) ? explode(' ', $date)[0] : now()->toDateString();
 
+            $rowDescArr = \App\Services\VoucherService::safeDecodeArray($ev->row_description ?? []);
+            $rDescStr = !empty($rowDescArr) ? implode(', ', array_filter(array_map('trim', $rowDescArr))) : '';
+
             if ($side === 'party') {
                 $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($ev->remarks ? " — " . $ev->remarks : '');
                 $debit = 0;
                 $credit = $amt;
             } else {
-                $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($ev->remarks ? " — " . $ev->remarks : '');
+                $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($rDescStr ? " - " . $rDescStr : '') . ($ev->remarks ? " — " . $ev->remarks : '');
                 $debit = $amt;
                 $credit = 0;
             }

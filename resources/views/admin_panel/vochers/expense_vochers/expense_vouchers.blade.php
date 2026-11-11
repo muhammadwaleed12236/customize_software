@@ -310,11 +310,11 @@
                 </div>
             </div>
 
-            {{-- ─── FROM (Paid From Accounts) ─── --}}
+            {{-- ─── EXPENSE HEADS (Expense Rows) ─── --}}
             <div class="rv-card">
-                <div class="rv-card-header red">
-                    <i class="bi bi-bank"></i> FROM &mdash; Paid From Accounts
-                    <span style="font-weight: 400; font-size: 0.78rem; margin-left: auto; opacity: 0.8;">You can split the payment from multiple accounts</span>
+                <div class="rv-card-header green">
+                    <i class="bi bi-tag"></i> Expense Heads &mdash; Specific Expense Accounts
+                    <span style="font-weight: 400; font-size: 0.78rem; margin-left: auto; opacity: 0.8;">You can split the expense across multiple expense heads</span>
                 </div>
                 <div class="rv-card-body" style="padding: 1rem;">
                     <div class="table-responsive">
@@ -322,10 +322,11 @@
                             <thead>
                                 <tr>
                                     <th style="width:3%">#</th>
-                                    <th style="width:29%">Narration</th>
-                                    <th style="width:25%">Account Head</th>
-                                    <th style="width:25%">Account Name</th>
-                                    <th style="width:15%">Amount (Rs.)</th>
+                                    <th style="width:20%">Narration</th>
+                                    <th style="width:18%">Account Head</th>
+                                    <th style="width:20%">Account Name</th>
+                                    <th style="width:24%">Description</th>
+                                    <th style="width:12%">Amount (Rs.)</th>
                                     <th style="width:3%"></th>
                                 </tr>
                             </thead>
@@ -359,6 +360,9 @@
                                         <select name="row_account_id[]" class="form-select rowAccountSub" required>
                                             <option value="">— Select Account —</option>
                                         </select>
+                                    </td>
+                                    <td>
+                                        <input type="text" name="row_description[]" class="form-control rowDescription" placeholder="Description / Note">
                                     </td>
                                     <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" placeholder="0.00" required></td>
                                     <td>
@@ -681,6 +685,9 @@ $(document).ready(function () {
                     <select name="row_account_id[]" class="form-select rowAccountSub" required>
                         <option value="">— Select Account —</option>
                     </select>
+                </td>
+                <td>
+                    <input type="text" name="row_description[]" class="form-control rowDescription" placeholder="Description / Note">
                 </td>
                 <td><input name="amount[]" type="number" step="0.01" min="0" class="form-control amount" placeholder="0.00" required></td>
                 <td>
