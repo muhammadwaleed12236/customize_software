@@ -374,44 +374,64 @@
                 </div>
             </div>
 
-            {{-- 2. Super Admin Multi-Branch Filter Bar --}}
-            @if($isSuperAdmin)
-                <div class="branch-filter-card">
-                    <div class="d-flex align-items-center" style="gap: 10px;">
-                        <div style="width: 32px; height: 32px; background: rgba(30, 58, 95, 0.08); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #1e3a5f;">
-                            <i class="fas fa-filter"></i>
-                        </div>
-                        <div>
-                            <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">
-                                Super Admin Scope Filter
-                            </div>
-                            <div style="font-size: 13px; font-weight: 700; color: #1e293b;">
-                                Filter Vouchers by Branch
-                            </div>
-                        </div>
+            {{-- 2. Multi-Branch & Voucher Type Filter Bar --}}
+            <div class="branch-filter-card">
+                <div class="d-flex align-items-center" style="gap: 10px;">
+                    <div style="width: 32px; height: 32px; background: rgba(30, 58, 95, 0.08); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #1e3a5f;">
+                        <i class="fas fa-filter"></i>
                     </div>
-                    <div class="d-flex align-items-center" style="gap: 8px;">
-                        <label for="branchFilter" class="small font-weight-bold text-muted mb-0 d-none d-sm-inline">
-                            Branch:
-                        </label>
-                        <select id="branchFilter" class="form-select branch-filter-select">
-                            <option value="all" {{ ($selectedBranch == 'all' || empty($selectedBranch)) ? 'selected' : '' }}>
-                                🌐 All Branches (Consolidated View)
-                            </option>
-                            @foreach($branches as $b)
-                                <option value="{{ $b->id }}" {{ ($selectedBranch == $b->id) ? 'selected' : '' }}>
-                                    🏬 {{ $b->name }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @if($selectedBranch && $selectedBranch != 'all')
-                            <a href="{{ route('all-recepit-vochers') }}" class="btn btn-sm btn-outline-secondary" title="Clear Filter">
-                                <i class="fas fa-times"></i>
-                            </a>
-                        @endif
+                    <div>
+                        <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;">
+                            Voucher Scope Filter
+                        </div>
+                        <div style="font-size: 13px; font-weight: 700; color: #1e293b;">
+                            Filter Vouchers by Branch &amp; Creation Type
+                        </div>
                     </div>
                 </div>
-            @endif
+                <div class="d-flex align-items-center flex-wrap" style="gap: 10px;">
+                    @if($isSuperAdmin)
+                        <div class="d-flex align-items-center" style="gap: 6px;">
+                            <label for="branchFilter" class="small font-weight-bold text-muted mb-0 d-none d-sm-inline">
+                                Branch:
+                            </label>
+                            <select id="branchFilter" class="form-select branch-filter-select">
+                                <option value="all" {{ ($selectedBranch == 'all' || empty($selectedBranch)) ? 'selected' : '' }}>
+                                    🌐 All Branches (Consolidated View)
+                                </option>
+                                @foreach($branches as $b)
+                                    <option value="{{ $b->id }}" {{ ($selectedBranch == $b->id) ? 'selected' : '' }}>
+                                        🏬 {{ $b->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
+
+                    <div class="d-flex align-items-center" style="gap: 6px;">
+                        <label for="sourceFilter" class="small font-weight-bold text-muted mb-0 d-none d-sm-inline">
+                            Voucher Type:
+                        </label>
+                        <select id="sourceFilter" class="form-select branch-filter-select" style="min-width: 230px;">
+                            <option value="all" {{ ($selectedSource == 'all' || empty($selectedSource)) ? 'selected' : '' }}>
+                                📋 All Receipts (All Types)
+                            </option>
+                            <option value="manual" {{ ($selectedSource == 'manual') ? 'selected' : '' }}>
+                                ✍️ Manual Receipts Only
+                            </option>
+                            <option value="sale" {{ ($selectedSource == 'sale') ? 'selected' : '' }}>
+                                🛒 Sale / Auto Receipts Only
+                            </option>
+                        </select>
+                    </div>
+
+                    @if(($selectedBranch && $selectedBranch != 'all') || ($selectedSource && $selectedSource != 'all'))
+                        <a href="{{ route('all-recepit-vochers') }}" class="btn btn-sm btn-outline-secondary" title="Clear All Filters" style="border-radius: 6px; padding: 5px 10px;">
+                            <i class="fas fa-times me-1"></i> Clear
+                        </a>
+                    @endif
+                </div>
+            </div>
 
             {{-- 3. Mini KPI Summary Cards --}}
             <div class="row g-2 mb-3">
@@ -622,14 +642,26 @@
                 }
             });
 
-            // Super Admin Branch Filter Change Event
-            $('#branchFilter').on('change', function() {
-                const branchId = $(this).val();
-                let url = "{{ route('all-recepit-vochers') }}";
+            // Multi-Filter (Branch & Voucher Type) Change Event Handler
+            function applyReceiptFilters() {
+                const branchId = $('#branchFilter').length ? $('#branchFilter').val() : 'all';
+                const source = $('#sourceFilter').length ? $('#sourceFilter').val() : 'all';
+                let params = [];
                 if (branchId && branchId !== 'all') {
-                    url += "?branch_id=" + encodeURIComponent(branchId);
+                    params.push("branch_id=" + encodeURIComponent(branchId));
+                }
+                if (source && source !== 'all') {
+                    params.push("source=" + encodeURIComponent(source));
+                }
+                let url = "{{ route('all-recepit-vochers') }}";
+                if (params.length > 0) {
+                    url += "?" + params.join("&");
                 }
                 window.location.href = url;
+            }
+
+            $('#branchFilter, #sourceFilter').on('change', function() {
+                applyReceiptFilters();
             });
 
             // SweetAlert Confirm for Void Action

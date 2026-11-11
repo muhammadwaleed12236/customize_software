@@ -204,6 +204,7 @@ class VoucherController extends Controller
         $user = Auth::user();
         $isSuperAdmin = $user && $user->hasRole('super admin');
         $selectedBranch = $request->get('branch_id', 'all');
+        $selectedSource = $request->get('source', 'all');
 
         $query = \App\Models\ReceiptsVoucher::with('branch')->orderBy('id', 'DESC');
 
@@ -216,6 +217,28 @@ class VoucherController extends Controller
             if ($request->filled('branch_id') && $request->branch_id !== 'all') {
                 $query->where('branch_id', $request->branch_id);
             }
+        }
+
+        // Voucher Source Filter: All vs Manual Only vs Sale / Auto Only
+        if ($selectedSource === 'manual') {
+            $query->where(function ($q) {
+                $q->where('type', '!=', 'SALE_RECEIPT')
+                  ->orWhereNull('type');
+            })->where(function ($q) {
+                $q->whereNull('sale_id')->orWhere('sale_id', '')->orWhere('sale_id', 0);
+            })->where(function ($q) {
+                $q->whereNull('booking_id')->orWhere('booking_id', '')->orWhere('booking_id', 0);
+            });
+        } elseif ($selectedSource === 'sale') {
+            $query->where(function ($q) {
+                $q->where('type', 'SALE_RECEIPT')
+                  ->orWhere(function ($sub) {
+                      $sub->whereNotNull('sale_id')->where('sale_id', '!=', '')->where('sale_id', '!=', 0);
+                  })
+                  ->orWhere(function ($sub) {
+                      $sub->whereNotNull('booking_id')->where('booking_id', '!=', '')->where('booking_id', '!=', 0);
+                  });
+            });
         }
 
         $receipts = $query->get();
@@ -233,7 +256,8 @@ class VoucherController extends Controller
             'receipts',
             'branches',
             'isSuperAdmin',
-            'selectedBranch'
+            'selectedBranch',
+            'selectedSource'
         ));
     }
 
