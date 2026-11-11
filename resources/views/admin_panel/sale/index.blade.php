@@ -222,6 +222,12 @@
             </div>
         </div>
 
+        @php
+            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
+            $showRecvAcc = (bool)($settings->show_received_account ?? false);
+            $showDelivQty = (bool)($settings->show_delivery_remaining_qty ?? true);
+        @endphp
+
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered table-striped">
@@ -238,8 +244,13 @@
                         <th>Booking / Total Amount</th>
                         <th>Discount</th>
                         <th>Advance / Paid</th>
+                        @if($showRecvAcc)
+                        <th>Received In Account</th>
+                        @endif
                         <th>Balance Due</th>
+                        @if($showDelivQty)
                         <th>Delivery / Remaining Qty</th>
+                        @endif
                         {{-- <th>Receipt</th> --}}
                         <th>Date</th>
                         <th class="text-center" style="width: 90px;">Action</th>
@@ -251,6 +262,9 @@
     $totalAmt = $sale->calc_total_amount ?? (float)($sale->total_net ?: ($sale->sub_total1 ?: 0));
     $advPaid = $sale->calc_advance_paid ?? ((float)($sale->receipt1 ?? 0) + (float)($sale->receipt2 ?? 0));
     $balDue = $sale->calc_balance_due ?? (($sale->party_type == 'credit') ? (float)$sale->total_balance : (float)$sale->total_net);
+    $rem = $sale->total_remaining_qty ?? 0;
+    $del = $sale->total_delivered_qty ?? 0;
+    $ord = $sale->total_ordered_qty ?? 0;
 @endphp
 <tr>
     <td>{{ $sale->id }}</td>
@@ -327,6 +341,17 @@
             <span class="text-muted">—</span>
         @endif
     </td>
+    @if($showRecvAcc)
+    <td>
+        @if(!empty($sale->received_account_names))
+            <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.75rem; font-weight: 600;">
+                <i class="fas fa-university text-primary me-1"></i>{{ $sale->received_account_names }}
+            </span>
+        @else
+            <span class="text-muted">—</span>
+        @endif
+    </td>
+    @endif
     <td>
         @if($balDue > 0)
             <span class="fw-bold" style="color: #dc2626;">{{ number_format($balDue, 2) }}</span>
@@ -336,12 +361,8 @@
             </span>
         @endif
     </td>
+    @if($showDelivQty)
     <td>
-        @php
-            $rem = $sale->total_remaining_qty ?? 0;
-            $del = $sale->total_delivered_qty ?? 0;
-            $ord = $sale->total_ordered_qty ?? 0;
-        @endphp
         @if($isBooking)
             @if($rem <= 0 && $ord > 0)
                 <span class="badge bg-success text-white py-1 px-2" style="font-size: 0.72rem; font-weight: 500;">
@@ -381,6 +402,7 @@
             </button>
         </div>
     </td>
+    @endif
     {{-- <td>{{ number_format($sale->receipt1 + $sale->receipt2, 2) }}</td> --}}
     <td>{{ \Carbon\Carbon::parse($sale->created_at)->format('d-m-Y') }}</td>
     <td class="text-center" style="white-space: nowrap; width: 90px;">

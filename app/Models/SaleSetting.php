@@ -31,6 +31,8 @@ class SaleSetting extends Model
         'invoice_show_watermark',
         'invoice_customer_name_format',
         'invoice_pcs_format',
+        'show_received_account',
+        'show_delivery_remaining_qty',
     ];
 
     protected $casts = [
@@ -38,6 +40,8 @@ class SaleSetting extends Model
         'show_line_discount' => 'boolean',
         'show_overall_discount' => 'boolean',
         'show_watt' => 'boolean',
+        'show_received_account' => 'boolean',
+        'show_delivery_remaining_qty' => 'boolean',
         'warehouse_mode' => 'string',
         'invoice_show_watermark' => 'boolean',
         'invoice_min_rows' => 'integer',
@@ -70,6 +74,9 @@ class SaleSetting extends Model
             'invoice_min_rows' => 16,
             'invoice_show_watermark' => true,
             'invoice_customer_name_format' => 'both',
+            'invoice_pcs_format' => 'pcs',
+            'show_received_account' => false,
+            'show_delivery_remaining_qty' => true,
         ]);
     }
 }

@@ -2233,26 +2233,62 @@ public function finddc($invoice)
                 ->flip()
                 ->toArray();
 
-            // ✅ Bulk fetch receipts for all loaded sales (to calculate advance received and paid amounts)
+            // ✅ Bulk fetch receipts for all loaded sales (to calculate advance received, paid amounts, and account names)
             $bookingIds = $sales->pluck('booking_id')->filter()->toArray();
-            $receiptsBySale = DB::table('receipts_vouchers')
+            $receiptRows = DB::table('receipts_vouchers')
                 ->where(function($q) use ($saleIds, $bookingIds) {
                     $q->whereIn('sale_id', $saleIds);
                     if (!empty($bookingIds)) {
                         $q->orWhereIn('booking_id', $bookingIds);
                     }
                 })
-                ->select('sale_id', 'booking_id', DB::raw('SUM(amount) as total_receipt'))
-                ->groupBy('sale_id', 'booking_id')
+                ->where(function($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                })
+                ->select('sale_id', 'booking_id', 'amount', 'row_account_id', 'row_account_head')
                 ->get();
 
+            $allAccountTitles = DB::table('accounts')->pluck('title', 'id')->toArray();
+
             $receiptMap = [];
-            foreach ($receiptsBySale as $r) {
+            $receivedAccountsBySale = [];
+            $receivedAccountsByBooking = [];
+
+            foreach ($receiptRows as $r) {
+                $amt = (float)$r->amount;
                 if ($r->sale_id) {
-                    $receiptMap['sale_' . $r->sale_id] = ($receiptMap['sale_' . $r->sale_id] ?? 0) + (float)$r->total_receipt;
+                    $receiptMap['sale_' . $r->sale_id] = ($receiptMap['sale_' . $r->sale_id] ?? 0) + $amt;
                 }
                 if ($r->booking_id) {
-                    $receiptMap['booking_' . $r->booking_id] = ($receiptMap['booking_' . $r->booking_id] ?? 0) + (float)$r->total_receipt;
+                    $receiptMap['booking_' . $r->booking_id] = ($receiptMap['booking_' . $r->booking_id] ?? 0) + $amt;
+                }
+
+                // Resolve account names
+                $acctIds = [];
+                $decoded = json_decode($r->row_account_id, true);
+                if (is_array($decoded)) {
+                    $acctIds = $decoded;
+                } elseif (!empty($r->row_account_id)) {
+                    $acctIds = [$r->row_account_id];
+                }
+
+                $titles = [];
+                foreach ($acctIds as $aid) {
+                    if (isset($allAccountTitles[$aid])) {
+                        $titles[] = $allAccountTitles[$aid];
+                    }
+                }
+                if (empty($titles) && !empty($r->row_account_head)) {
+                    $titles[] = $r->row_account_head;
+                }
+
+                foreach ($titles as $t) {
+                    if ($r->sale_id) {
+                        $receivedAccountsBySale[$r->sale_id][$t] = true;
+                    }
+                    if ($r->booking_id) {
+                        $receivedAccountsByBooking[$r->booking_id][$t] = true;
+                    }
                 }
             }
 
@@ -2317,10 +2353,19 @@ public function finddc($invoice)
                     || ($sale->booking && $sale->booking->is_finalized) 
                     || ($totalRemaining <= 0 && $totalOrdered > 0)
                     || $saleGps->isNotEmpty();
+
+                $accList = [];
+                if (isset($receivedAccountsBySale[$sale->id])) {
+                    $accList = array_keys($receivedAccountsBySale[$sale->id]);
+                } elseif ($sale->booking_id && isset($receivedAccountsByBooking[$sale->booking_id])) {
+                    $accList = array_keys($receivedAccountsByBooking[$sale->booking_id]);
+                }
+                $sale->received_account_names = !empty($accList) ? implode(', ', $accList) : null;
             }
         }
         
-        return view('admin_panel.sale.index', compact('sales'));
+        $settings = \App\Models\SaleSetting::getSettings();
+        return view('admin_panel.sale.index', compact('sales', 'settings'));
     }            
 
     public function addsale()

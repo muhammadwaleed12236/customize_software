@@ -28,6 +28,8 @@ class SaleSettingController extends Controller
             'show_line_discount' => $request->has('show_line_discount'),
             'show_overall_discount' => $request->has('show_overall_discount'),
             'show_watt' => $request->has('show_watt'),
+            'show_received_account' => $request->has('show_received_account'),
+            'show_delivery_remaining_qty' => $request->has('show_delivery_remaining_qty'),
             'warehouse_mode' => $request->input('warehouse_mode', 'global') === 'product_wise' ? 'product_wise' : 'global',
         ];
 

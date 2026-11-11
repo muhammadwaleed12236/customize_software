@@ -143,6 +143,68 @@
                     </div>
                 </div>
 
+                {{-- CARD 1B: SALE LIST TABLE COLUMNS --}}
+                <div class="card border-0 rounded-4 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3 px-4 border-bottom">
+                        <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                            <i class="fas fa-table text-primary"></i> Sale List Table Columns (/sale)
+                        </h5>
+                        <small class="text-muted">Sales Records table (<code class="text-primary">/sale</code>) par kaunse columns show ya hide karne hain unki setting.</small>
+                    </div>
+
+                    <div class="card-body p-4">
+                        <div class="d-flex flex-column gap-3">
+
+                            {{-- TOGGLE 1: RECEIVED ACCOUNT --}}
+                            <div class="p-3 rounded-3 border bg-light-subtle d-flex align-items-center justify-content-between flex-wrap gap-3 hover-shadow transition-all">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="bg-success-subtle text-success p-3 rounded-3 fs-4">
+                                        <i class="fas fa-university"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-1 text-dark">1. Received In Account Column (رقم کس اکاؤنٹ میں موصول ہوئی)</h6>
+                                        <p class="text-muted small mb-0">
+                                            Sales records table par <strong>Received In Account</strong> ka column show karein (e.g. <em>Cash in hand, Bank Account</em> wagera).
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch form-switch-md">
+                                    <input class="form-check-input style-switch" type="checkbox" name="show_received_account" id="show_received_account" {{ ($settings->show_received_account ?? false) ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-bold" for="show_received_account">
+                                        <span class="badge {{ ($settings->show_received_account ?? false) ? 'bg-success' : 'bg-secondary' }}" id="badge_recv_account">
+                                            {{ ($settings->show_received_account ?? false) ? 'Show Account' : 'Hidden' }}
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {{-- TOGGLE 2: DELIVERY / REMAINING QTY --}}
+                            <div class="p-3 rounded-3 border bg-light-subtle d-flex align-items-center justify-content-between flex-wrap gap-3 hover-shadow transition-all">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="bg-primary-subtle text-primary p-3 rounded-3 fs-4">
+                                        <i class="fas fa-truck-loading"></i>
+                                    </div>
+                                    <div>
+                                        <h6 class="fw-bold mb-1 text-dark">2. Delivery / Remaining Qty Column</h6>
+                                        <p class="text-muted small mb-0">
+                                            Sales records table par <strong>Delivery / Remaining Qty</strong> aur status badge ka column show ya hide karein.
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="form-check form-switch form-switch-md">
+                                    <input class="form-check-input style-switch" type="checkbox" name="show_delivery_remaining_qty" id="show_delivery_remaining_qty" {{ ($settings->show_delivery_remaining_qty ?? true) ? 'checked' : '' }}>
+                                    <label class="form-check-label fw-bold" for="show_delivery_remaining_qty">
+                                        <span class="badge {{ ($settings->show_delivery_remaining_qty ?? true) ? 'bg-primary' : 'bg-secondary' }}" id="badge_delivery_qty">
+                                            {{ ($settings->show_delivery_remaining_qty ?? true) ? 'Show Delivery' : 'Hidden' }}
+                                        </span>
+                                    </label>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
                 {{-- CARD 2: WAREHOUSE SELECTION MODE --}}
                 <div class="card border-0 rounded-4 shadow-sm mb-4">
                     <div class="card-header bg-white py-3 px-4 border-bottom">
@@ -477,6 +539,24 @@
             badgeWatt.className = this.checked ? 'badge bg-info text-dark' : 'badge bg-secondary';
             badgeWatt.textContent = this.checked ? 'Show Watt' : 'Hidden';
         });
+
+        const recvAccSwitch = document.getElementById('show_received_account');
+        const badgeRecvAcc = document.getElementById('badge_recv_account');
+        if (recvAccSwitch && badgeRecvAcc) {
+            recvAccSwitch.addEventListener('change', function() {
+                badgeRecvAcc.className = this.checked ? 'badge bg-success' : 'badge bg-secondary';
+                badgeRecvAcc.textContent = this.checked ? 'Show Account' : 'Hidden';
+            });
+        }
+
+        const delivQtySwitch = document.getElementById('show_delivery_remaining_qty');
+        const badgeDelivQty = document.getElementById('badge_delivery_qty');
+        if (delivQtySwitch && badgeDelivQty) {
+            delivQtySwitch.addEventListener('change', function() {
+                badgeDelivQty.className = this.checked ? 'badge bg-primary' : 'badge bg-secondary';
+                badgeDelivQty.textContent = this.checked ? 'Show Delivery' : 'Hidden';
+            });
+        }
 
         // Logo image preview
         const logoInput = document.getElementById('invoice_logo_input');
