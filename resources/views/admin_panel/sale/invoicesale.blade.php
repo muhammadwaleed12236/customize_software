@@ -546,8 +546,8 @@ $balanceDue = $grandTotal - $totalReceived;
 
     {{-- ACTION BUTTONS --}}
     <div class="text-end mb-3 no-print d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#nameFormatModal" data-toggle="modal" data-target="#nameFormatModal" style="background: #fff;" title="Customer Name Format Setting">
-            <i class="fas fa-cog me-1 text-primary"></i> Name Style
+        <button type="button" class="btn btn-outline-secondary shadow-sm" data-bs-toggle="modal" data-bs-target="#nameFormatModal" data-toggle="modal" data-target="#nameFormatModal" style="background: #fff;" title="Customer Name & Pcs Display Setting">
+            <i class="fas fa-cog me-1 text-primary"></i> Display Style
         </button>
         <button type="button" onclick="shareWhatsApp()" class="btn btn-outline-success shadow-sm" style="border-color:#25D366; color:#25D366; background: #fff;">
             <i class="fab fa-whatsapp me-1"></i> WhatsApp
@@ -584,6 +584,7 @@ $balanceDue = $grandTotal - $totalReceived;
         @php
             $settings = $settings ?? \App\Models\SaleSetting::getSettings();
             $nameFormat = $settings->invoice_customer_name_format ?? 'both';
+            $pcsFormat = $settings->invoice_pcs_format ?? 'pcs';
 
             $custUrdu = $sale->customer->customer_name_ur ?? $sale->customer->name_urdu ?? $sale->customer_name_ur ?? '';
             $custEng = $sale->party_type === 'walking' ? ($sale->sub_customer ?? 'N/A') : ($sale->customer->customer_name ?? 'N/A');
@@ -658,9 +659,10 @@ $balanceDue = $grandTotal - $totalReceived;
                     $ppp = (float)($item->product->piece_per_pack ?? 1);
                     $isCartonProd = $ppp > 1;
                     $isPcsUnit = (isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs');
+                    $rawQtyFormatted = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
 
                     if ($isPcsUnit) {
-                        $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2)) . ' Pcs';
+                        $qtyDisplay = ($pcsFormat === 'number') ? $rawQtyFormatted : ($rawQtyFormatted . ' Pcs');
                         $unitPrice = $qty > 0 ? ($amt / $qty) : $rate;
                     } elseif ($isCartonProd) {
                         $totalPieces = \App\Models\Product::parseCartonQtyToPieces($qty, $ppp, $item->sale_unit ?? null);
@@ -691,7 +693,7 @@ $balanceDue = $grandTotal - $totalReceived;
                     <td style="direction: rtl; text-align: right; padding: 6px 10px;">
                         <span class="item-desc-urdu">{{ !empty($productUrdu) ? $productUrdu : $productEng }}</span>
                     </td>
-                    <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000; white-space: nowrap;">
+                    <td class="item-qty-col" data-is-pcs="{{ $isPcsUnit ? '1' : '0' }}" data-num="{{ $rawQtyFormatted }}" style="text-align: center; font-weight: 800; font-size: 15px; color: #000; white-space: nowrap;">
                         {{ $qtyDisplay }}
                     </td>
                     <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
@@ -818,7 +820,7 @@ $balanceDue = $grandTotal - $totalReceived;
         <div class="modal-content shadow border-0" style="border-radius: 12px; overflow: hidden;">
             <div class="modal-header bg-dark text-white py-3">
                 <h5 class="modal-title fs-6 fw-bold mb-0" id="nameFormatModalLabel">
-                    <i class="fas fa-user-cog me-2 text-warning"></i> Customer Name Display Style
+                    <i class="fas fa-sliders-h me-2 text-warning"></i> Customer Name & Pcs Display Style
                 </h5>
                 <button type="button" class="btn-close btn-close-white text-white" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="filter: invert(1); background: none; border: 0; font-size: 20px;">✕</button>
             </div>
@@ -851,6 +853,39 @@ $balanceDue = $grandTotal - $totalReceived;
                             <div class="text-muted small">Example: <span class="fw-semibold text-primary">{{ $formattedEng }}</span></div>
                         </div>
                     </label>
+                </div>
+
+                <hr class="my-2">
+
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h6 class="fw-bold text-dark mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-boxes me-1 text-primary"></i> Pcs Display Style
+                    </h6>
+                </div>
+                <p class="text-muted mb-2" style="font-size: 0.78rem;">
+                    Pcs والی items کے ساتھ "Pcs" لکھا آئے یا صرف Quantity نمبر:
+                </p>
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="pcs_format_choice" value="pcs" {{ ($pcsFormat ?? 'pcs') === 'pcs' ? 'checked' : '' }} style="transform: scale(1.1);">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark" style="font-size: 0.82rem;">With Unit (1 Pcs)</div>
+                                <div class="text-muted" style="font-size: 0.73rem;">Ex: <span class="fw-semibold text-primary">1 Pcs</span></div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="col-6">
+                        <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="pcs_format_choice" value="number" {{ ($pcsFormat ?? '') === 'number' ? 'checked' : '' }} style="transform: scale(1.1);">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark" style="font-size: 0.82rem;">Number Only (1)</div>
+                                <div class="text-muted" style="font-size: 0.73rem;">Ex: <span class="fw-semibold text-primary">1</span> (صرف نمبر)</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between">
@@ -995,6 +1030,7 @@ window.exportCSV = function () {
 $('#btnSaveNameFormat').on('click', function() {
     var $btn = $(this);
     var selectedFormat = $('input[name="name_format_choice"]:checked').val() || 'both';
+    var selectedPcsFormat = $('input[name="pcs_format_choice"]:checked').val() || 'pcs';
     var originalHtml = $btn.html();
 
     $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
@@ -1004,18 +1040,29 @@ $('#btnSaveNameFormat').on('click', function() {
         type: 'POST',
         data: {
             format: selectedFormat,
+            pcs_format: selectedPcsFormat,
             _token: "{{ csrf_token() }}"
         },
         dataType: 'json',
         success: function(res) {
             $btn.prop('disabled', false).html(originalHtml);
 
-            // Update DOM immediately on invoice
+            // Update DOM immediately on invoice for customer name
             var $target = $('#customerNameDisplay');
             var newText = $target.attr('data-' + selectedFormat) || $target.data(selectedFormat);
             if (newText) {
                 $target.text(newText);
             }
+
+            // Update DOM immediately on invoice for Pcs items
+            $('.item-qty-col[data-is-pcs="1"]').each(function() {
+                var baseNum = $(this).attr('data-num') || $(this).data('num');
+                if (selectedPcsFormat === 'number') {
+                    $(this).text(baseNum);
+                } else {
+                    $(this).text(baseNum + ' Pcs');
+                }
+            });
 
             // Close modal safely (supports BS4 & BS5)
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
@@ -1036,7 +1083,7 @@ $('#btnSaveNameFormat').on('click', function() {
                     toast: true,
                     position: 'top-end',
                     icon: 'success',
-                    title: 'Customer name style saved!',
+                    title: 'Display styles saved successfully!',
                     showConfirmButton: false,
                     timer: 2500
                 });

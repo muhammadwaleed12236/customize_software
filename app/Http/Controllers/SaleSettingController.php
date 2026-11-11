@@ -68,23 +68,33 @@ class SaleSettingController extends Controller
     }
 
     /**
-     * Quick AJAX update for invoice customer name format.
+     * Quick AJAX update for invoice customer name format & pcs display format.
      */
     public function updateCustomerNameFormat(Request $request)
     {
         $request->validate([
-            'format' => 'required|in:both,urdu,english',
+            'format'     => 'nullable|in:both,urdu,english',
+            'pcs_format' => 'nullable|in:pcs,number',
         ]);
 
         $settings = SaleSetting::getSettings();
-        $settings->update([
-            'invoice_customer_name_format' => $request->input('format'),
-        ]);
+        $updates = [];
+        if ($request->filled('format')) {
+            $updates['invoice_customer_name_format'] = $request->input('format');
+        }
+        if ($request->filled('pcs_format')) {
+            $updates['invoice_pcs_format'] = $request->input('pcs_format');
+        }
+
+        if (!empty($updates)) {
+            $settings->update($updates);
+        }
 
         return response()->json([
-            'success' => true,
-            'message' => 'Customer name display format updated successfully.',
-            'format'  => $settings->invoice_customer_name_format,
+            'success'    => true,
+            'message'    => 'Display format updated successfully.',
+            'format'     => $settings->invoice_customer_name_format,
+            'pcs_format' => $settings->invoice_pcs_format,
         ]);
     }
 }

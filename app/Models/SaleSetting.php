@@ -30,6 +30,7 @@ class SaleSetting extends Model
         'invoice_min_rows',
         'invoice_show_watermark',
         'invoice_customer_name_format',
+        'invoice_pcs_format',
     ];
 
     protected $casts = [
@@ -41,6 +42,7 @@ class SaleSetting extends Model
         'invoice_show_watermark' => 'boolean',
         'invoice_min_rows' => 'integer',
         'invoice_customer_name_format' => 'string',
+        'invoice_pcs_format' => 'string',
     ];
 
     /**
