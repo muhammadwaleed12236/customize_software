@@ -1427,10 +1427,28 @@
                 return html;
             }
 
+            // Track the most recently selected warehouse / shop for new rows
+            let lastSelectedWarehouse = '';
+
             // --- Add Row Logic (Model & Product Only - Size & Color Removed) ---
             function addNewRow() {
                 const rowCount = $('#salesTableBody tr').length + 1;
-                const currentLoc = $('#globalWarehouseSelect').val() || '';
+                
+                // Priority for new row warehouse:
+                // 1. Most recently selected warehouse (if user picked/changed one)
+                // 2. Or the warehouse of the previous/last row in the table
+                // 3. Fallback to global warehouse select
+                let currentLoc = lastSelectedWarehouse;
+                if (!currentLoc) {
+                    const $lastRowWh = $('#salesTableBody tr:last').find('.warehouse-select, .warehouse');
+                    if ($lastRowWh.length && $lastRowWh.val()) {
+                        currentLoc = $lastRowWh.val();
+                    }
+                }
+                if (!currentLoc) {
+                    currentLoc = $('#globalWarehouseSelect').val() || '';
+                }
+
                 const isProductWise = (window.saleSettings.warehouse_mode === 'product_wise');
                 const isShowWatt = !!window.saleSettings.show_watt;
                 const isShowLineDisc = !!window.saleSettings.show_line_discount;
@@ -1629,6 +1647,9 @@
             // --- Location Dropdown Change Event ---
             $('#globalWarehouseSelect').on('change', function() {
                 let loc = $(this).val();
+                if (loc) {
+                    lastSelectedWarehouse = loc;
+                }
                 if (window.saleSettings.warehouse_mode !== 'product_wise') {
                     $('.warehouse').val(loc);
                     $('#salesTableBody tr').each(function() {
@@ -1645,6 +1666,9 @@
                 const $row = $(this).closest('tr');
                 const pId = $row.find('.product-select').val();
                 const loc = $(this).val();
+                if (loc) {
+                    lastSelectedWarehouse = loc;
+                }
                 if (pId) {
                     let localStock = getProductLocationStock(pId, loc);
                     if (localStock !== null && localStock !== undefined) {
@@ -3028,7 +3052,7 @@
                 }
 
                 let rowsHtml = '';
-                const defaultWarehouse = $('#globalWarehouseSelect').val() || $('#branch_id').val() || '1';
+                const defaultWarehouse = lastSelectedWarehouse || $('#salesTableBody tr:last').find('.warehouse-select, .warehouse').val() || $('#globalWarehouseSelect').val() || $('#branch_id').val() || '1';
 
                 const isProductWise = (window.saleSettings.warehouse_mode === 'product_wise');
                 const isShowWatt = !!window.saleSettings.show_watt;
