@@ -1428,6 +1428,7 @@ $(document).ready(function() {
         var wid = $row.find('.line-warehouse-select').val();
         var stock = 0;
 
+        var found = false;
         if (pid && window.WAREHOUSE_STOCKS && window.WAREHOUSE_STOCKS.length > 0) {
             var item = window.WAREHOUSE_STOCKS.find(function(s) {
                 if (wid) {
@@ -1436,9 +1437,30 @@ $(document).ready(function() {
                     return String(s.product_id) === String(pid);
                 }
             });
-            if (item) stock = parseFloat(item.quantity) || 0;
+            if (item) {
+                stock = parseFloat(item.quantity) || 0;
+                found = true;
+            }
         }
         $row.find('.stock').val(stock);
+
+        // AJAX fallback if stock not preloaded in memory
+        if (pid && !found) {
+            $.get('/get-product-details/' + pid, { branch_id: '{{ $purchase->branch_id }}' }, function(res) {
+                if (res) {
+                    var sVal = 0;
+                    if (wid && res.whStocks && res.whStocks.length > 0) {
+                        var matchedWh = res.whStocks.find(function(w) { return String(w.warehouse_id) === String(wid); });
+                        sVal = matchedWh ? (parseFloat(matchedWh.quantity) || 0) : 0;
+                    } else {
+                        sVal = parseFloat(res.totalAvailableStock) || 0;
+                    }
+                    $row.find('.stock').val(sVal);
+                    if (!window.WAREHOUSE_STOCKS) window.WAREHOUSE_STOCKS = [];
+                    window.WAREHOUSE_STOCKS.push({ product_id: pid, warehouse_id: wid, quantity: sVal });
+                }
+            });
+        }
     }
 
     // Initialize stocks on load

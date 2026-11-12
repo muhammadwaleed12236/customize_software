@@ -1130,31 +1130,54 @@ class PurchaseController extends Controller
             ];
         }
 
-        $Products = \App\Models\Product::with('unit')->get();
-        foreach ($Products as $product) {
-            $lastPurchaseItem = \App\Models\PurchaseItem::where('product_id', $product->id)
-                ->orderBy('id', 'desc')
-                ->first();
+        // ✅ OPTIMIZED: Fetch products with only needed columns for view
+        $Products = \App\Models\Product::with('unit:id,name')
+            ->select('id', 'item_name', 'item_code', 'unit_id', 'piece_per_pack', 'pack_type', 'wholesale_price')
+            ->get();
 
-            $product->last_purchase_price = $lastPurchaseItem
-                ? (float)$lastPurchaseItem->price
+        // ✅ OPTIMIZED: Single query for last purchase prices (replaces N+1 loop)
+        $latestPurchasePrices = \App\Models\PurchaseItem::whereIn('id', function ($sub) {
+            $sub->selectRaw('MAX(id)')
+                ->from('purchase_items')
+                ->groupBy('product_id');
+        })->pluck('price', 'product_id');
+
+        foreach ($Products as $product) {
+            $product->last_purchase_price = isset($latestPurchasePrices[$product->id])
+                ? (float)$latestPurchasePrices[$product->id]
                 : (float)($product->wholesale_price ?? 0);
         }
 
-        $vendorIds = $Vendor->pluck('id')->toArray();
-        $lastVendorLedgers = VendorLedger::whereIn('vendor_id', $vendorIds)
-            ->orderBy('id', 'desc')
-            ->get()
-            ->groupBy('vendor_id');
+        // ✅ OPTIMIZED: Fetch only latest ledger closing_balance using single subquery (prevents loading entire ledger table)
+        $vendorIds = $Vendor->pluck('id')->filter()->toArray();
+        $latestBalances = [];
+        if (!empty($vendorIds)) {
+            $latestBalances = VendorLedger::whereIn('id', function ($sub) use ($vendorIds) {
+                $sub->selectRaw('MAX(id)')
+                    ->from('vendor_ledgers')
+                    ->whereIn('vendor_id', $vendorIds)
+                    ->whereNull('deleted_at')
+                    ->groupBy('vendor_id');
+            })->pluck('closing_balance', 'vendor_id');
+        }
 
-        $Vendor->each(function ($v) use ($lastVendorLedgers) {
-            $last = $lastVendorLedgers->get($v->id)?->first();
-            $v->closing_balance = $last ? (float)$last->closing_balance : (float)($v->opening_balance ?? 0);
+        $Vendor->each(function ($v) use ($latestBalances) {
+            $v->closing_balance = isset($latestBalances[$v->id])
+                ? (float)$latestBalances[$v->id]
+                : (float)($v->opening_balance ?? 0);
         });
 
         $branches = Branch::with('warehouses')->get();
         $allWarehouses = Warehouse::all();
-        $warehouseStocks = \App\Models\WarehouseStock::all()->toArray();
+
+        // ✅ OPTIMIZED: Fetch warehouse stocks only for items in this purchase and this branch (prevents memory exhaustion)
+        $purchaseProductIds = $purchase->items->pluck('product_id')->filter()->unique()->toArray();
+        $warehouseStocks = \App\Models\WarehouseStock::where('branch_id', $purchase->branch_id)
+            ->whereIn('product_id', $purchaseProductIds)
+            ->select('product_id', 'warehouse_id', 'quantity')
+            ->get()
+            ->toArray();
+
         $categories = \App\Models\Category::all();
         $brands = \App\Models\Brand::all();
 
@@ -1990,17 +2013,21 @@ class PurchaseController extends Controller
         // ✅ Super admin gets all vendors; regular user gets their branch vendors
         $Vendor = $isSuperAdmin ? Vendor::orderBy('name')->get() : Vendor::where('branch_id', $currentBranch)->orderBy('name')->get();
         $Branch = Branch::all();
-        $Products = Product::with('unit')->get();
+        // ✅ OPTIMIZED: Fetch products with only needed columns for view
+        $Products = Product::with('unit:id,name')
+            ->select('id', 'item_name', 'item_code', 'unit_id', 'piece_per_pack', 'pack_type', 'wholesale_price')
+            ->get();
 
-        // ✅ ERP STANDARD: Compute last purchase price for each product
-        // Priority: 1. Last Purchase Invoice Price  2. Wholesale Price  3. Zero
+        // ✅ OPTIMIZED: Single query for last purchase prices (replaces N+1 loop)
+        $latestPurchasePrices = \App\Models\PurchaseItem::whereIn('id', function ($sub) {
+            $sub->selectRaw('MAX(id)')
+                ->from('purchase_items')
+                ->groupBy('product_id');
+        })->pluck('price', 'product_id');
+
         foreach ($Products as $product) {
-            $lastPurchaseItem = \App\Models\PurchaseItem::where('product_id', $product->id)
-                ->orderBy('id', 'desc')
-                ->first();
-
-            $product->last_purchase_price = $lastPurchaseItem
-                ? (float)$lastPurchaseItem->price
+            $product->last_purchase_price = isset($latestPurchasePrices[$product->id])
+                ? (float)$latestPurchasePrices[$product->id]
                 : (float)($product->wholesale_price ?? 0);
         }
         
@@ -2020,21 +2047,33 @@ class PurchaseController extends Controller
 
         $bankAccounts = $this->getAccountsWithLiveBalances($currentBranch, $isSuperAdmin);
 
-        // Compute live vendor ledger balances
-        $vendorIds = $Vendor->pluck('id')->toArray();
-        $lastVendorLedgers = VendorLedger::whereIn('vendor_id', $vendorIds)
-            ->orderBy('id', 'desc')
-            ->get()
-            ->groupBy('vendor_id');
+        // ✅ OPTIMIZED: Fetch only latest ledger closing_balance using single subquery
+        $vendorIds = $Vendor->pluck('id')->filter()->toArray();
+        $latestBalances = [];
+        if (!empty($vendorIds)) {
+            $latestBalances = VendorLedger::whereIn('id', function ($sub) use ($vendorIds) {
+                $sub->selectRaw('MAX(id)')
+                    ->from('vendor_ledgers')
+                    ->whereIn('vendor_id', $vendorIds)
+                    ->whereNull('deleted_at')
+                    ->groupBy('vendor_id');
+            })->pluck('closing_balance', 'vendor_id');
+        }
 
-        $Vendor->each(function ($v) use ($lastVendorLedgers) {
-            $last = $lastVendorLedgers->get($v->id)?->first();
-            $v->closing_balance = $last ? (float)$last->closing_balance : (float)($v->opening_balance ?? 0);
+        $Vendor->each(function ($v) use ($latestBalances) {
+            $v->closing_balance = isset($latestBalances[$v->id])
+                ? (float)$latestBalances[$v->id]
+                : (float)($v->opening_balance ?? 0);
         });
 
         $branches = Branch::with('warehouses')->get();
         $allWarehouses = Warehouse::all();
-        $warehouseStocks = \App\Models\WarehouseStock::all()->toArray();
+
+        // ✅ OPTIMIZED: Filter by branch and select only needed columns
+        $warehouseStocks = \App\Models\WarehouseStock::where('branch_id', $currentBranch)
+            ->select('product_id', 'warehouse_id', 'quantity')
+            ->get()
+            ->toArray();
         $categories = \App\Models\Category::all();
         $brands = \App\Models\Brand::all();
 
