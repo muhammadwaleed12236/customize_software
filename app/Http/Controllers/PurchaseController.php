@@ -1080,6 +1080,7 @@ class PurchaseController extends Controller
 
     public function edit($id)
     {
+        @ini_set('memory_limit', '512M');
         $purchase = Purchase::with(['items.product', 'branch'])->findOrFail($id);
         $Vendor = Vendor::where('branch_id', $purchase->branch_id)->get();
         
@@ -2007,6 +2008,7 @@ class PurchaseController extends Controller
      */
     public function addLocalPurchase()
     {
+        @ini_set('memory_limit', '512M');
         $currentBranch = Auth::user()->branch_id ?? 1;
         $isSuperAdmin = Auth::user() && Auth::user()->hasRole('super admin');
 
