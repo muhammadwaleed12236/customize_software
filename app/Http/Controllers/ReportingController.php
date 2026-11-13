@@ -4893,4 +4893,298 @@ class ReportingController extends Controller
             'net_margin_percent'   => $netMarginPercent,
         ]);
     }
+
+    // =========================================================
+    // ✅ BALANCE SHEET REPORT
+    // READ-ONLY: Pure SELECT queries - no business logic altered.
+    // =========================================================
+
+    public function balanceSheet(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        $branches = $isSuper
+            ? Branch::orderBy('name')->get()
+            : ($user->branch_id ? Branch::where('id', $user->branch_id)->get() : collect());
+
+        return view('admin_panel.reporting.balance_sheet', compact('branches', 'isSuper'));
+    }
+
+    public function fetchBalanceSheet(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        $branchId = null;
+        if ($isSuper) {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $branchId = (int) $request->branch_id;
+            }
+        } else {
+            $branchId = $user->branch_id;
+        }
+
+        $asOfDate = $request->input('as_of_date', date('Y-m-d'));
+
+        // ── 1. ASSETS ──────────────────────────────────────────
+
+        // 1.1 Cash in Hand accounts
+        $cashAccounts = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->where(function ($q) {
+                $q->where('ah.name', 'Cash')
+                  ->orWhere('a.title', 'like', '%cash%');
+            })
+            ->where(function ($q) {
+                $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->when($branchId, fn($q) => $q->where('a.branch_id', $branchId))
+            ->select('a.id', 'a.title', 'a.account_code', 'a.opening_balance', 'a.type')
+            ->get();
+
+        $cashList = [];
+        $totalCash = 0;
+        foreach ($cashAccounts as $ca) {
+            $tx = DB::table('account_ledger_entries')
+                ->where('account_id', $ca->id)
+                ->where('voucher_type', '!=', 'opening_balance')
+                ->when($asOfDate, fn($q) => $q->whereDate('transaction_date', '<=', $asOfDate))
+                ->selectRaw('COALESCE(SUM(debit),0) as dr, COALESCE(SUM(credit),0) as cr')
+                ->first();
+            $bal = (float) $ca->opening_balance + (float) $tx->dr - (float) $tx->cr;
+            if ($bal != 0) {
+                $cashList[] = [
+                    'title'   => $ca->title,
+                    'code'    => $ca->account_code,
+                    'balance' => $bal,
+                ];
+                $totalCash += $bal;
+            }
+        }
+
+        // 1.2 Bank Balances
+        $bankAccounts = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->where(function ($q) {
+                $q->where('ah.name', 'Bank')
+                  ->orWhere('a.title', 'like', '%bank%');
+            })
+            ->where(function ($q) {
+                $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->when($branchId, fn($q) => $q->where('a.branch_id', $branchId))
+            ->select('a.id', 'a.title', 'a.account_code', 'a.opening_balance', 'a.type')
+            ->get();
+
+        $bankList = [];
+        $totalBank = 0;
+        foreach ($bankAccounts as $ba) {
+            $tx = DB::table('account_ledger_entries')
+                ->where('account_id', $ba->id)
+                ->where('voucher_type', '!=', 'opening_balance')
+                ->when($asOfDate, fn($q) => $q->whereDate('transaction_date', '<=', $asOfDate))
+                ->selectRaw('COALESCE(SUM(debit),0) as dr, COALESCE(SUM(credit),0) as cr')
+                ->first();
+            $bal = (float) $ba->opening_balance + (float) $tx->dr - (float) $tx->cr;
+            if ($bal != 0) {
+                $bankList[] = [
+                    'title'   => $ba->title,
+                    'code'    => $ba->account_code,
+                    'balance' => $bal,
+                ];
+                $totalBank += $bal;
+            }
+        }
+
+        // 1.3 Trade Receivables (Customers)
+        $custQ = DB::table('customer_ledgers as cl1')
+            ->join(DB::raw('(SELECT customer_id, MAX(id) as max_id FROM customer_ledgers' . ($asOfDate ? " WHERE DATE(created_at) <= '$asOfDate'" : '') . ' GROUP BY customer_id) as cl2'), 'cl1.id', '=', 'cl2.max_id')
+            ->join('customers as c', 'c.id', '=', 'cl1.customer_id');
+        if ($branchId) {
+            $custQ->where('c.branch_id', $branchId);
+        }
+        $totalReceivables = (float) $custQ->sum('cl1.closing_balance');
+
+        // 1.4 Stock on Hand Valuation (warehouse_stocks)
+        $stockQ = DB::table('warehouse_stocks as ws');
+        if ($branchId) {
+            $stockQ->where('ws.branch_id', $branchId);
+        }
+        $totalStock = (float) $stockQ->selectRaw('COALESCE(SUM(ws.quantity * ws.price), 0) as val')->value('val');
+
+        // 1.5 Loans & Advances
+        $loanAccounts = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->where('ah.name', 'like', '%loan%')
+            ->where(function ($q) {
+                $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->when($branchId, fn($q) => $q->where('a.branch_id', $branchId))
+            ->select('a.id', 'a.title', 'a.account_code', 'a.opening_balance', 'a.type')
+            ->get();
+
+        $loanList = [];
+        $totalLoans = 0;
+        foreach ($loanAccounts as $la) {
+            $tx = DB::table('account_ledger_entries')
+                ->where('account_id', $la->id)
+                ->where('voucher_type', '!=', 'opening_balance')
+                ->when($asOfDate, fn($q) => $q->whereDate('transaction_date', '<=', $asOfDate))
+                ->selectRaw('COALESCE(SUM(debit),0) as dr, COALESCE(SUM(credit),0) as cr')
+                ->first();
+            $bal = (float) $la->opening_balance + (float) $tx->dr - (float) $tx->cr;
+            if ($bal != 0) {
+                $loanList[] = [
+                    'title'   => $la->title,
+                    'code'    => $la->account_code,
+                    'balance' => $bal,
+                ];
+                $totalLoans += $bal;
+            }
+        }
+
+        // 1.6 Other Assets
+        $otherAssetAccounts = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->whereNotIn('ah.name', ['Cash', 'Bank', 'Expence'])
+            ->where('ah.name', 'not like', '%loan%')
+            ->where(function ($q) {
+                $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->when($branchId, fn($q) => $q->where('a.branch_id', $branchId))
+            ->select('a.id', 'a.title', 'a.account_code', 'a.opening_balance', 'a.type', 'ah.name as head_name')
+            ->get();
+
+        $otherAssetList = [];
+        $totalOtherAssets = 0;
+        foreach ($otherAssetAccounts as $oa) {
+            $tx = DB::table('account_ledger_entries')
+                ->where('account_id', $oa->id)
+                ->where('voucher_type', '!=', 'opening_balance')
+                ->when($asOfDate, fn($q) => $q->whereDate('transaction_date', '<=', $asOfDate))
+                ->selectRaw('COALESCE(SUM(debit),0) as dr, COALESCE(SUM(credit),0) as cr')
+                ->first();
+            $isCredit = trim(strtolower($oa->type ?? 'debit')) === 'credit';
+            $bal = $isCredit
+                ? ((float) $oa->opening_balance + (float) $tx->cr - (float) $tx->dr)
+                : ((float) $oa->opening_balance + (float) $tx->dr - (float) $tx->cr);
+            if ($bal != 0) {
+                $otherAssetList[] = [
+                    'title'   => $oa->title,
+                    'head'    => $oa->head_name,
+                    'code'    => $oa->account_code,
+                    'balance' => $bal,
+                ];
+                $totalOtherAssets += $bal;
+            }
+        }
+
+        $totalAssets = $totalCash + $totalBank + $totalReceivables + $totalStock + $totalLoans + $totalOtherAssets;
+
+        // ── 2. LIABILITIES ─────────────────────────────────────
+
+        // 2.1 Trade Payables (Vendors / Suppliers)
+        $vendQ = DB::table('vendor_ledgers as vl1')
+            ->join(DB::raw('(SELECT vendor_id, MAX(id) as max_id FROM vendor_ledgers' . ($asOfDate ? " WHERE DATE(created_at) <= '$asOfDate'" : '') . ' GROUP BY vendor_id) as vl2'), 'vl1.id', '=', 'vl2.max_id')
+            ->join('vendors as v', 'v.id', '=', 'vl1.vendor_id');
+        if ($branchId) {
+            $vendQ->where('v.branch_id', $branchId);
+        }
+        $totalPayables = (float) $vendQ->sum('vl1.closing_balance');
+
+        $totalLiabilities = $totalPayables;
+
+        // ── 3. EQUITY & RESERVES ───────────────────────────────
+
+        // 3.1 Current Period Net Profit (from start of year to asOfDate)
+        $startOfYear = date('Y-01-01', strtotime($asOfDate));
+
+        // Revenue in year up to asOfDate
+        $salesQ = DB::table('sales')->where(function ($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
+        });
+        if ($branchId) {
+            $salesQ->where('branch_id', $branchId);
+        }
+        $salesQ->whereDate('created_at', '>=', $startOfYear)->whereDate('created_at', '<=', $asOfDate);
+        $salesNet = (float) ($salesQ->sum('total_net') ?? 0);
+
+        $returnsQ = DB::table('sales_returns');
+        if ($branchId) {
+            $returnsQ->whereExists(function ($q) use ($branchId) {
+                $q->select(DB::raw(1))->from('sales')
+                  ->whereColumn('sales.id', 'sales_returns.sale_id')
+                  ->where('sales.branch_id', $branchId);
+            });
+        }
+        $returnsQ->whereDate('created_at', '>=', $startOfYear)->whereDate('created_at', '<=', $asOfDate);
+        $salesReturns = (float) ($returnsQ->sum('total_net') ?? 0);
+        $periodNetRevenue = $salesNet - $salesReturns;
+
+        // COGS (sold items cost)
+        $cogsQ = DB::table('sale_items as si')
+            ->join('sales as s', 's.id', '=', 'si.sale_id')
+            ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
+            ->where(function ($q) {
+                $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled');
+            });
+        if ($branchId) {
+            $cogsQ->where('s.branch_id', $branchId);
+        }
+        $cogsQ->whereDate('s.created_at', '>=', $startOfYear)->whereDate('s.created_at', '<=', $asOfDate);
+        $periodCogs = (float) ($cogsQ->sum(DB::raw('si.sales_qty * COALESCE(p.price, 0)')) ?? 0);
+
+        // Operating Expenses
+        $expQ = DB::table('account_ledger_entries as ale')
+            ->join('accounts as a', 'a.id', '=', 'ale.account_id')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->where(function ($q) {
+                $q->where('ah.name', 'like', '%exp%')->orWhere('ah.name', 'like', '%expense%');
+            })
+            ->where('ale.voucher_type', '!=', 'opening_balance');
+        if ($branchId) {
+            $expQ->where('ale.branch_id', $branchId);
+        }
+        $expQ->whereDate('ale.transaction_date', '>=', $startOfYear)->whereDate('ale.transaction_date', '<=', $asOfDate);
+        $periodExpenses = (float) ($expQ->selectRaw('COALESCE(SUM(ale.debit), 0) - COALESCE(SUM(ale.credit), 0) as total')->value('total') ?? 0);
+
+        $retainedEarnings = ($periodNetRevenue - $periodCogs) - $periodExpenses;
+
+        // Total Equity = Total Assets - Total Liabilities
+        $totalEquity = $totalAssets - $totalLiabilities;
+        $ownersCapital = $totalEquity - $retainedEarnings;
+
+        $totalLiabilitiesAndEquity = $totalLiabilities + $totalEquity;
+        $isBalanced = abs($totalAssets - $totalLiabilitiesAndEquity) < 0.01;
+        $workingCapital = ($totalCash + $totalBank + $totalReceivables + $totalStock) - $totalLiabilities;
+
+        return response()->json([
+            'as_of_date'                => $asOfDate,
+            'branch_label'              => $branchId ? (Branch::find($branchId)?->name ?? 'Branch') : 'All Branches',
+            // Assets
+            'cash_list'                 => $cashList,
+            'total_cash'                => $totalCash,
+            'bank_list'                 => $bankList,
+            'total_bank'                => $totalBank,
+            'total_receivables'         => $totalReceivables,
+            'total_stock'               => $totalStock,
+            'loan_list'                 => $loanList,
+            'total_loans'               => $totalLoans,
+            'other_assets_list'         => $otherAssetList,
+            'total_other_assets'        => $totalOtherAssets,
+            'total_assets'              => $totalAssets,
+            // Liabilities
+            'total_payables'            => $totalPayables,
+            'total_liabilities'         => $totalLiabilities,
+            // Equity
+            'owners_capital'            => $ownersCapital,
+            'retained_earnings'         => $retainedEarnings,
+            'total_equity'              => $totalEquity,
+            'total_liabilities_equity'  => $totalLiabilitiesAndEquity,
+            // Status
+            'is_balanced'               => $isBalanced,
+            'working_capital'           => $workingCapital,
+        ]);
+    }
 }

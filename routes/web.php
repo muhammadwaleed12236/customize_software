@@ -803,6 +803,10 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('report/income-statement', [ReportingController::class, 'incomeStatement'])->middleware('permission:report.income.statement.view')->name('report.income_statement');
     Route::get('report/income-statement/fetch', [ReportingController::class, 'fetchIncomeStatement'])->middleware('permission:report.income.statement.view')->name('report.income_statement.fetch');
 
+    // ✅ Balance Sheet Report (Read-Only, no logic affected)
+    Route::get('report/balance-sheet', [ReportingController::class, 'balanceSheet'])->middleware('permission:report.balance.sheet.view')->name('report.balance_sheet');
+    Route::get('report/balance-sheet/fetch', [ReportingController::class, 'fetchBalanceSheet'])->middleware('permission:report.balance.sheet.view')->name('report.balance_sheet.fetch');
+
     // reports
     Route::prefix('coa')->middleware('permission:chart.of.accounts.view')->group(function () {
         Route::get('/', [AccountsHeadController::class, 'index'])->name('coa.index');
