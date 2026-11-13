@@ -799,6 +799,10 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('report/trial-balance/fetch', [ReportingController::class, 'fetchTrialBalance'])->middleware('permission:report.trial.balance.view')->name('report.trial_balance.fetch');
     Route::get('report/trial-balance/accounts', [ReportingController::class, 'getAccountsByBranch'])->middleware('permission:report.trial.balance.view')->name('report.trial_balance.accounts');
 
+    // ✅ Income Statement Report (P&L - Read-Only, no logic affected)
+    Route::get('report/income-statement', [ReportingController::class, 'incomeStatement'])->middleware('permission:report.income.statement.view')->name('report.income_statement');
+    Route::get('report/income-statement/fetch', [ReportingController::class, 'fetchIncomeStatement'])->middleware('permission:report.income.statement.view')->name('report.income_statement.fetch');
+
     // reports
     Route::prefix('coa')->middleware('permission:chart.of.accounts.view')->group(function () {
         Route::get('/', [AccountsHeadController::class, 'index'])->name('coa.index');

@@ -4688,4 +4688,209 @@ class ReportingController extends Controller
                 : 'All Branches',
         ]);
     }
+
+    // =========================================================
+    // ✅ INCOME STATEMENT (PROFIT & LOSS) REPORT
+    // READ-ONLY: Pure SELECT queries - no business logic altered.
+    // =========================================================
+
+    public function incomeStatement(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        $branches = $isSuper
+            ? Branch::orderBy('name')->get()
+            : ($user->branch_id ? Branch::where('id', $user->branch_id)->get() : collect());
+
+        return view('admin_panel.reporting.income_statement', compact('branches', 'isSuper'));
+    }
+
+    public function fetchIncomeStatement(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        $branchId = null;
+        if ($isSuper) {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $branchId = (int) $request->branch_id;
+            }
+        } else {
+            $branchId = $user->branch_id;
+        }
+
+        $dateFrom   = $request->input('date_from');
+        $dateTo     = $request->input('date_to');
+        $cogsMethod = $request->input('cogs_method', 'item_cost'); // 'item_cost' or 'purchases'
+
+        // ── 1. REVENUE (Sales) ──────────────────────────────────
+        $salesQ = DB::table('sales')->where(function ($q) {
+            $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
+        });
+        if ($branchId) {
+            $salesQ->where('branch_id', $branchId);
+        }
+        if ($dateFrom) {
+            $salesQ->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $salesQ->whereDate('created_at', '<=', $dateTo);
+        }
+
+        $salesRow = $salesQ->selectRaw('
+            COALESCE(SUM(sub_total1), 0) as gross_sales,
+            COALESCE(SUM(discount_amount), 0) as discount_amount,
+            COALESCE(SUM(additional_discount), 0) as additional_discount,
+            COALESCE(SUM(total_net), 0) as total_net
+        ')->first();
+
+        $grossSales            = (float) ($salesRow->gross_sales ?? 0);
+        $totalDiscounts        = (float) ($salesRow->discount_amount ?? 0) + (float) ($salesRow->additional_discount ?? 0);
+        $netSalesBeforeReturns = (float) ($salesRow->total_net ?? 0);
+
+        // Sales Returns
+        $returnsQ = DB::table('sales_returns');
+        if ($branchId) {
+            $returnsQ->whereExists(function ($q) use ($branchId) {
+                $q->select(DB::raw(1))->from('sales')
+                  ->whereColumn('sales.id', 'sales_returns.sale_id')
+                  ->where('sales.branch_id', $branchId);
+            });
+        }
+        if ($dateFrom) {
+            $returnsQ->whereDate('created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $returnsQ->whereDate('created_at', '<=', $dateTo);
+        }
+        $salesReturns = (float) ($returnsQ->sum('total_net') ?? 0);
+
+        // Effective Net Revenue
+        $netRevenue = $netSalesBeforeReturns - $salesReturns;
+        if ($netRevenue < 0 && $grossSales == 0) {
+            $netRevenue = 0;
+        }
+
+        // ── 2. COST OF GOODS SOLD (COGS) ───────────────────────
+        // Option A: Direct Cost of Sold Items (Qty * Product Purchase Price)
+        $cogsItemsQ = DB::table('sale_items as si')
+            ->join('sales as s', 's.id', '=', 'si.sale_id')
+            ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
+            ->where(function ($q) {
+                $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled');
+            });
+        if ($branchId) {
+            $cogsItemsQ->where('s.branch_id', $branchId);
+        }
+        if ($dateFrom) {
+            $cogsItemsQ->whereDate('s.created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $cogsItemsQ->whereDate('s.created_at', '<=', $dateTo);
+        }
+        $itemCogsTotal = (float) ($cogsItemsQ->sum(DB::raw('si.sales_qty * COALESCE(p.price, 0)')) ?? 0);
+
+        // Option B: Net Purchases in Period
+        $purchQ = DB::table('purchases');
+        if ($branchId) {
+            $purchQ->where('branch_id', $branchId);
+        }
+        if ($dateFrom) {
+            $purchQ->whereDate('purchase_date', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $purchQ->whereDate('purchase_date', '<=', $dateTo);
+        }
+        $purchTotals = $purchQ->selectRaw('
+            COALESCE(SUM(subtotal), 0) as gross_purchases,
+            COALESCE(SUM(discount), 0) as purch_discount,
+            COALESCE(SUM(net_amount), 0) as net_purchases
+        ')->first();
+        $grossPurchases = (float) ($purchTotals->gross_purchases ?? 0);
+        $netPurchases   = (float) ($purchTotals->net_purchases ?? 0);
+
+        // Purchase Returns
+        $purchRetQ = DB::table('purchase_returns');
+        if ($branchId) {
+            $purchRetQ->whereExists(function ($q) use ($branchId) {
+                $q->select(DB::raw(1))->from('purchases')
+                  ->whereColumn('purchases.id', 'purchase_returns.purchase_id')
+                  ->where('purchases.branch_id', $branchId);
+            });
+        }
+        if ($dateFrom) {
+            $purchRetQ->whereDate('return_date', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $purchRetQ->whereDate('return_date', '<=', $dateTo);
+        }
+        $purchaseReturns    = (float) ($purchRetQ->sum('net_amount') ?? 0);
+        $effectivePurchases = $netPurchases - $purchaseReturns;
+
+        // Active COGS based on method selected:
+        $activeCogs         = ($cogsMethod === 'purchases') ? $effectivePurchases : $itemCogsTotal;
+        $grossProfit        = $netRevenue - $activeCogs;
+        $grossMarginPercent = $netRevenue > 0 ? round(($grossProfit / $netRevenue) * 100, 2) : 0;
+
+        // ── 3. OPERATING EXPENSES (Head-wise from account_ledger_entries) ──
+        $expQuery = DB::table('account_ledger_entries as ale')
+            ->join('accounts as a', 'a.id', '=', 'ale.account_id')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->where(function ($q) {
+                $q->where('ah.name', 'like', '%exp%')
+                  ->orWhere('ah.name', 'like', '%expense%');
+            })
+            ->where('ale.voucher_type', '!=', 'opening_balance');
+
+        if ($branchId) {
+            $expQuery->where('ale.branch_id', $branchId);
+        }
+        if ($dateFrom) {
+            $expQuery->whereDate('ale.transaction_date', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $expQuery->whereDate('ale.transaction_date', '<=', $dateTo);
+        }
+
+        $expensesBreakdown = (clone $expQuery)
+            ->groupBy('a.id', 'a.title', 'a.account_code', 'ah.name')
+            ->selectRaw('a.id, a.title, a.account_code, ah.name as head_name, COALESCE(SUM(ale.debit), 0) - COALESCE(SUM(ale.credit), 0) as amount')
+            ->havingRaw('amount != 0')
+            ->orderByDesc('amount')
+            ->get();
+
+        $totalOperatingExpenses = (float) ($expQuery->selectRaw('COALESCE(SUM(ale.debit), 0) - COALESCE(SUM(ale.credit), 0) as total')->value('total') ?? 0);
+
+        // ── 4. NET PROFIT / (LOSS) ──────────────────────────────
+        $netProfit        = $grossProfit - $totalOperatingExpenses;
+        $netMarginPercent = $netRevenue > 0 ? round(($netProfit / $netRevenue) * 100, 2) : 0;
+
+        return response()->json([
+            'date_from'            => $dateFrom,
+            'date_to'              => $dateTo,
+            'cogs_method'          => $cogsMethod,
+            'branch_label'         => $branchId ? (Branch::find($branchId)?->name ?? 'Branch') : 'All Branches',
+            // Revenue
+            'gross_sales'          => $grossSales,
+            'sales_discounts'      => $totalDiscounts,
+            'sales_returns'        => $salesReturns,
+            'net_revenue'          => $netRevenue,
+            // COGS
+            'item_cogs'            => $itemCogsTotal,
+            'gross_purchases'      => $grossPurchases,
+            'purchase_returns'     => $purchaseReturns,
+            'net_purchases'        => $effectivePurchases,
+            'active_cogs'          => $activeCogs,
+            // Gross Profit
+            'gross_profit'         => $grossProfit,
+            'gross_margin_percent' => $grossMarginPercent,
+            // Expenses
+            'expenses'             => $expensesBreakdown,
+            'total_expenses'       => $totalOperatingExpenses,
+            // Net Profit
+            'net_profit'           => $netProfit,
+            'net_margin_percent'   => $netMarginPercent,
+        ]);
+    }
 }

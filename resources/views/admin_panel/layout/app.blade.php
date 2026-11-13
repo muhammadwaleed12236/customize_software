@@ -629,7 +629,7 @@
                         @endif
 
                         <!-- Reports Menu -->
-                        @if(Auth::user()->canAny(['report.item.stock.view', 'report.product.ledger.view', 'report.customer.ledger.view', 'report.vendor.ledger.view', 'report.purchase.view', 'report.sale.view', 'branch.ledger.view', 'report.assembly.view', 'report.inventory.onhand.view', 'report.stock.hold.view', 'report.trial.balance.view']))
+                        @if(Auth::user()->canAny(['report.item.stock.view', 'report.product.ledger.view', 'report.customer.ledger.view', 'report.vendor.ledger.view', 'report.purchase.view', 'report.sale.view', 'branch.ledger.view', 'report.assembly.view', 'report.inventory.onhand.view', 'report.stock.hold.view', 'report.trial.balance.view', 'report.income.statement.view']))
                         <li class="nav-item">
                             <a href="#" class="nav-link">
                                 <i class="menu_icon feather ft-clipboard"></i>
@@ -680,6 +680,9 @@
                                     @endcan
                                     @can('report.trial.balance.view')
                                     <li><a href="{{ route('report.trial_balance') }}"><i class="fas fa-balance-scale"></i> Trial Balance</a></li>
+                                    @endcan
+                                    @can('report.income.statement.view')
+                                    <li><a href="{{ route('report.income_statement') }}"><i class="fas fa-file-invoice-dollar"></i> Income Statement</a></li>
                                     @endcan
                                 </ul>
                             </div>
