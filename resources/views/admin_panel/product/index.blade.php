@@ -927,7 +927,7 @@
                     <tr class="{{ (!$isSuperAdmin && $product->is_secondary) ? 'secondary-row' : '' }}">
                         <td style="text-align:center; padding: 10px 6px;"><input type="checkbox" class="selectProduct" value="{{ $product->id }}" style="cursor:pointer;"></td>
                         <td style="text-align:center; padding: 10px 6px; color:#94a3b8; font-weight:700; font-size:12px;">{{ $key + 1 }}</td>
-                        <td style="white-space: nowrap;">
+                        <td data-search="{{ $isSuperAdmin ? $product->item_code : ($product->branch_item_code ?? $product->item_code) }}" style="white-space: nowrap;">
                             <span class="item-code-pill">
                                 @if($isSuperAdmin)
                                     {{ $product->item_code }}
@@ -1001,11 +1001,11 @@
                                 <span class="prod-no-img"><i class="fas fa-image"></i></span>
                             @endif
                         </td>
-                        <td>
+                        <td data-search="{{ ($product->category_relation->name ?? '') . ' ' . ($product->sub_category_relation->name ?? '') }}">
                             <div class="cat-main">{{ $product->category_relation->name ?? '-' }}</div>
                             <div class="cat-sub">{{ $product->sub_category_relation->name ?? '-' }}</div>
                         </td>
-                        <td>
+                        <td data-search="{{ $product->item_name }}">
                             <div class="item-name-text">{{ $product->item_name }}</div>
                             @if($product->branch)
                                 <div style="font-size: 11px; color: #64748b; opacity: 0.68; margin-top: 3px; font-weight: 500;">
@@ -1013,10 +1013,10 @@
                                 </div>
                             @endif
                         </td>
-                        <td style="color:#64748b; font-size:12.5px;">{{ $product->model ?? '-' }}</td>
+                        <td data-search="{{ $product->model ?? '' }}" style="color:#64748b; font-size:12.5px;">{{ $product->model ?? '-' }}</td>
                         <td class="price-cell"><span class="currency-label">PKR</span>{{ number_format($product->price) }}</td>
                         <td style="color:#64748b; font-weight:600; font-size:13px; text-align:center;">{{ $product->alert_quantity }}</td>
-                        <td style="font-size:12.5px; font-weight:500; color:#475569;">{{ $product->brand->name ?? '-' }}</td>
+                        <td data-search="{{ $product->brand->name ?? '' }}" style="font-size:12.5px; font-weight:500; color:#475569;">{{ $product->brand->name ?? '-' }}</td>
                         <td class="action-cell" style="text-align:center; white-space:nowrap;">
                             <div style="display:inline-flex; align-items:center; gap:6px;">
                                 <button type="button" class="btn-view-product viewProductBtn" data-id="{{ $product->id }}">
@@ -1349,13 +1349,115 @@ $(document).ready(function () {
 
     // ===== DataTable =====
     if ($.fn.DataTable) {
-        $('#productTable').DataTable({
-            responsive: false, // Disabled to prevent the green '+' icons and weird column collapsing
-            scrollX: true,     // Enable native DataTables horizontal scrolling
+        var productSearchTerm = '';
+
+        function escapeRegex(str) {
+            return (str + '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
+        // Read clean search fields directly from a <tr> DOM element (via data-search attributes)
+        // This is RELIABLE — avoids reading raw HTML from DataTables .data() which includes markup
+        function getFieldsFromTr(tr) {
+            var $tds = $(tr).find('td');
+            return {
+                itemName: ($tds.eq(7).attr('data-search') || $tds.eq(7).text()).toLowerCase().trim(),
+                itemCode: ($tds.eq(2).attr('data-search') || $tds.eq(2).text()).toLowerCase().trim(),
+                category: ($tds.eq(6).attr('data-search') || $tds.eq(6).text()).toLowerCase().trim(),
+                model:    ($tds.eq(8).attr('data-search') || $tds.eq(8).text()).toLowerCase().trim(),
+                brand:    ($tds.eq(11).attr('data-search') || $tds.eq(11).text()).toLowerCase().trim()
+            };
+        }
+
+        // Priority score (lower = shown first)
+        // 0 = Item Name STARTS with term          e.g. search "super" => "Super Asia Fan"
+        // 1 = Word in Item Name starts with term  e.g. search "super" => "12V Super Fan"
+        // 2 = Item Name contains term anywhere    e.g. search "super" => "tamoor super pearl"
+        // 3 = Other field (code/brand/model) starts with term
+        // 4 = Other field contains term
+        function getMatchPriority(fields, term) {
+            var wordStartReg = new RegExp('(?:^|[\\s\\-/])' + escapeRegex(term));
+            if (fields.itemName.startsWith(term))          return 0;
+            if (wordStartReg.test(fields.itemName))        return 1;
+            if (fields.itemName.indexOf(term) !== -1)      return 2;
+            if (fields.itemCode.startsWith(term) || fields.brand.startsWith(term) || fields.model.startsWith(term)) return 3;
+            return 4;
+        }
+
+        // Custom search extension for #productTable
+        $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
+            if (settings.nTable.id !== 'productTable') return true;
+            if (!productSearchTerm) return true;
+
+            // data[] from DataTables may contain HTML; combine all searchable columns for filter check
+            var fullText = ((data[2] || '') + ' ' +
+                           (data[6] || '') + ' ' +
+                           (data[7] || '') + ' ' +
+                           (data[8] || '') + ' ' +
+                           (data[11] || '')).toLowerCase();
+
+            var terms = productSearchTerm.split(/\s+/).filter(Boolean);
+            if (!terms.length) return true;
+
+            for (var i = 0; i < terms.length; i++) {
+                var term = terms[i];
+                if (term.length === 1) {
+                    var reg = new RegExp('(?:^|[^a-z0-9])' + escapeRegex(term));
+                    if (!reg.test(fullText)) return false;
+                } else {
+                    if (fullText.indexOf(term) === -1) return false;
+                }
+            }
+            return true;
+        });
+
+        var productTable = $('#productTable').DataTable({
+            responsive: false,
+            scrollX: true,
             pageLength: 10,
             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
-            language: { search: "_INPUT_", searchPlaceholder: "Search products..." }
+            language: {
+                search: "_INPUT_",
+                searchPlaceholder: "Search products (e.g. sup, fan, cable)..."
+            },
+            columnDefs: [
+                { targets: [0, 1, 3, 4, 5, 9, 10, 12], searchable: false }
+            ]
         });
+
+        // Intercept search input — filter + re-sort rows by priority using clean DOM data
+        var $dtSearchInput = $('#productTable_filter input');
+        $dtSearchInput.off('keyup.DT search.DT input.DT paste.DT cut.DT')
+                      .on('input', function () {
+                          productSearchTerm = $(this).val().trim().toLowerCase();
+
+                          productTable.draw();
+
+                          if (!productSearchTerm) return;
+
+                          setTimeout(function () {
+                              var terms = productSearchTerm.split(/\s+/).filter(Boolean);
+                              if (!terms.length) return;
+                              var term = terms[0]; // Sort by first term priority
+
+                              var $tbody = $('#productTable tbody');
+                              var rows = $tbody.find('tr').get();
+
+                              rows.sort(function (a, b) {
+                                  // Read clean text from DOM data-search attrs (not DataTables HTML data)
+                                  var fieldsA = getFieldsFromTr(a);
+                                  var fieldsB = getFieldsFromTr(b);
+                                  var prioA = getMatchPriority(fieldsA, term);
+                                  var prioB = getMatchPriority(fieldsB, term);
+                                  if (prioA !== prioB) return prioA - prioB;
+                                  // Tie-break: alphabetical item name
+                                  return fieldsA.itemName.localeCompare(fieldsB.itemName);
+                              });
+
+                              $.each(rows, function (idx, row) {
+                                  $tbody.append(row);
+                              });
+                          }, 0);
+                      });
     }
 
     // ===== Select All =====
