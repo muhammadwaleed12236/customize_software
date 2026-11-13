@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 use App\Http\Controllers\AccountsHeadController;
 use App\Http\Controllers\AssemblyController;
@@ -794,6 +794,11 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('report/stock-hold-audit', [ReportingController::class, 'stockHoldAudit'])->middleware('permission:report.stock.hold.view')->name('report.stock.hold.audit');
     Route::get('report/stock-hold-audit/export', [ReportingController::class, 'stockHoldAuditExport'])->middleware('permission:report.stock.hold.view')->name('report.stock.hold.audit.export');
     
+    // ✅ Trial Balance Report (Read-Only - SELECT only, no logic affected)
+    Route::get('report/trial-balance', [ReportingController::class, 'trialBalance'])->middleware('permission:report.trial.balance.view')->name('report.trial_balance');
+    Route::get('report/trial-balance/fetch', [ReportingController::class, 'fetchTrialBalance'])->middleware('permission:report.trial.balance.view')->name('report.trial_balance.fetch');
+    Route::get('report/trial-balance/accounts', [ReportingController::class, 'getAccountsByBranch'])->middleware('permission:report.trial.balance.view')->name('report.trial_balance.accounts');
+
     // reports
     Route::prefix('coa')->middleware('permission:chart.of.accounts.view')->group(function () {
         Route::get('/', [AccountsHeadController::class, 'index'])->name('coa.index');

@@ -4465,4 +4465,227 @@ class ReportingController extends Controller
             'events'    => $events,
         ]);
     }
+
+    // =========================================================
+    // ✅ TRIAL BALANCE REPORT
+    // READ-ONLY: Sirf SELECT queries - koi bhi existing logic,
+    // voucher, ledger ya data affect nahi hota.
+    // =========================================================
+
+    public function trialBalance(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        $branches = $isSuper
+            ? Branch::orderBy('name')->get()
+            : ($user->branch_id ? Branch::where('id', $user->branch_id)->get() : collect());
+
+        $defaultBranchId = $isSuper ? null : $user->branch_id;
+        $accountsQuery = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->select('a.id', 'a.account_code', 'a.title', 'ah.name as head_name')
+            ->where(function ($q) {
+                $q->whereNull('a.status')
+                  ->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->orderBy('ah.name')
+            ->orderBy('a.title');
+
+        if ($defaultBranchId) {
+            $accountsQuery->where('a.branch_id', $defaultBranchId);
+        }
+        $accounts = $accountsQuery->get();
+
+        return view('admin_panel.reporting.trial_balance', compact('branches', 'isSuper', 'accounts'));
+    }
+
+    public function getAccountsByBranch(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        $branchId = null;
+        if ($isSuper) {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $branchId = (int) $request->branch_id;
+            }
+        } else {
+            $branchId = $user->branch_id;
+        }
+
+        $query = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->select('a.id', 'a.account_code', 'a.title', 'ah.name as head_name')
+            ->where(function ($q) {
+                $q->whereNull('a.status')
+                  ->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->orderBy('ah.name')
+            ->orderBy('a.title');
+
+        if ($branchId) {
+            $query->where('a.branch_id', $branchId);
+        }
+
+        return response()->json($query->get());
+    }
+
+    public function fetchTrialBalance(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        // ── Filters ────────────────────────────────────────────
+        $branchId  = null;
+        if ($isSuper) {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $branchId = (int) $request->branch_id;
+            }
+        } else {
+            $branchId = $user->branch_id;
+        }
+
+        $accountId = null;
+        if ($request->filled('account_id') && $request->account_id !== 'all') {
+            $accountId = (int) $request->account_id;
+        }
+
+        $dateFrom = $request->input('date_from');   // e.g. 2024-01-01
+        $dateTo   = $request->input('date_to');     // e.g. 2024-12-31
+        $hideZero = $request->input('hide_zero') == '1';
+
+        // ── Accounts Query (READ-ONLY SELECT) ─────────────────
+        $accountsQuery = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->leftJoin('branches as br', 'br.id', '=', 'a.branch_id')
+            ->select(
+                'a.id',
+                'a.account_code',
+                'a.title',
+                'a.type',
+                'a.opening_balance',
+                'a.opening_date',
+                'ah.name as head_name',
+                'br.name as branch_name'
+            )
+            ->where(function ($q) {
+                $q->whereNull('a.status')
+                  ->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->orderBy('ah.name')
+            ->orderBy('a.account_code');
+
+        if ($branchId) {
+            $accountsQuery->where('a.branch_id', $branchId);
+        }
+
+        if ($accountId) {
+            $accountsQuery->where('a.id', $accountId);
+        }
+
+        $accounts = $accountsQuery->get();
+
+        // ── Build Result ───────────────────────────────────────
+        $rows = [];
+        $grandDebit  = 0;
+        $grandCredit = 0;
+
+        foreach ($accounts as $acc) {
+            $isCredit = trim(strtolower($acc->type ?? 'debit')) === 'credit';
+            $ob = (float) ($acc->opening_balance ?? 0);
+
+            // Prior transactions before date_from
+            $priorDebit  = 0;
+            $priorCredit = 0;
+            if ($dateFrom) {
+                $prior = DB::table('account_ledger_entries')
+                    ->where('account_id', $acc->id)
+                    ->where('voucher_type', '!=', 'opening_balance')
+                    ->where('transaction_date', '<', $dateFrom)
+                    ->selectRaw('COALESCE(SUM(debit), 0) as dr, COALESCE(SUM(credit), 0) as cr')
+                    ->first();
+                $priorDebit  = (float) ($prior->dr ?? 0);
+                $priorCredit = (float) ($prior->cr ?? 0);
+            }
+
+            $openingAtDate = $isCredit 
+                ? ($ob + $priorCredit - $priorDebit) 
+                : ($ob + $priorDebit - $priorCredit);
+
+            // ── Transactions (ledger entries) in date range ───
+            $txQuery = DB::table('account_ledger_entries')
+                ->where('account_id', $acc->id)
+                ->where('voucher_type', '!=', 'opening_balance');
+
+            if ($dateFrom) {
+                $txQuery->where('transaction_date', '>=', $dateFrom);
+            }
+            if ($dateTo) {
+                $txQuery->where('transaction_date', '<=', $dateTo);
+            }
+
+            $tx = $txQuery->selectRaw('COALESCE(SUM(debit),0) as total_debit, COALESCE(SUM(credit),0) as total_credit')->first();
+            $txDebit  = (float) ($tx->total_debit  ?? 0);
+            $txCredit = (float) ($tx->total_credit ?? 0);
+
+            // ── Net Closing Balance ───────────────────────────
+            $closingBal = $isCredit
+                ? ($openingAtDate + $txCredit - $txDebit)
+                : ($openingAtDate + $txDebit - $txCredit);
+
+            // ── Debit / Credit column split ───────────────────
+            $debitBal  = 0;
+            $creditBal = 0;
+
+            if ($isCredit) {
+                if ($closingBal >= 0) {
+                    $creditBal = $closingBal;
+                } else {
+                    $debitBal  = abs($closingBal);
+                }
+            } else {
+                if ($closingBal >= 0) {
+                    $debitBal  = $closingBal;
+                } else {
+                    $creditBal = abs($closingBal);
+                }
+            }
+
+            // Hide zero balance accounts if requested
+            if ($hideZero && $debitBal == 0 && $creditBal == 0) {
+                continue;
+            }
+
+            $grandDebit  += $debitBal;
+            $grandCredit += $creditBal;
+
+            $rows[] = [
+                'account_code' => $acc->account_code,
+                'title'        => $acc->title,
+                'head_name'    => $acc->head_name,
+                'branch_name'  => $acc->branch_name ?? '—',
+                'type'         => $acc->type,
+                'ob'           => $openingAtDate,
+                'tx_debit'     => $txDebit,
+                'tx_credit'    => $txCredit,
+                'debit_bal'    => $debitBal,
+                'credit_bal'   => $creditBal,
+            ];
+        }
+
+        $isBalanced = abs($grandDebit - $grandCredit) < 0.01;
+
+        return response()->json([
+            'rows'          => $rows,
+            'grand_debit'   => $grandDebit,
+            'grand_credit'  => $grandCredit,
+            'is_balanced'   => $isBalanced,
+            'date_from'     => $dateFrom,
+            'date_to'       => $dateTo,
+            'branch_label'  => $branchId
+                ? (Branch::find($branchId)?->name ?? 'Branch')
+                : 'All Branches',
+        ]);
+    }
 }

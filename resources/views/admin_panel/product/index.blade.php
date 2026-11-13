@@ -1355,45 +1355,109 @@ $(document).ready(function () {
             return (str + '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         }
 
-        // Read clean search fields directly from a <tr> DOM element (via data-search attributes)
-        // This is RELIABLE — avoids reading raw HTML from DataTables .data() which includes markup
-        function getFieldsFromTr(tr) {
-            var $tds = $(tr).find('td');
-            return {
-                itemName: ($tds.eq(7).attr('data-search') || $tds.eq(7).text()).toLowerCase().trim(),
-                itemCode: ($tds.eq(2).attr('data-search') || $tds.eq(2).text()).toLowerCase().trim(),
-                category: ($tds.eq(6).attr('data-search') || $tds.eq(6).text()).toLowerCase().trim(),
-                model:    ($tds.eq(8).attr('data-search') || $tds.eq(8).text()).toLowerCase().trim(),
-                brand:    ($tds.eq(11).attr('data-search') || $tds.eq(11).text()).toLowerCase().trim()
+        // Read clean search fields for a row (from DOM data-search or internal array)
+        function getRowSearchFields(row) {
+            if (row._cleanSearchFields) {
+                return row._cleanSearchFields;
+            }
+            var tr = row.nTr;
+            var cells = row.anCells;
+            if (cells && cells.length > 11) {
+                var getVal = function(idx) {
+                    var el = cells[idx];
+                    return el ? ((el.getAttribute('data-search') || el.textContent || '') + '').toLowerCase().trim() : '';
+                };
+                row._cleanSearchFields = {
+                    itemName: getVal(7),
+                    itemCode: getVal(2),
+                    category: getVal(6),
+                    model:    getVal(8),
+                    brand:    getVal(11)
+                };
+                return row._cleanSearchFields;
+            }
+            if (tr) {
+                var $tds = $(tr).children('td');
+                row._cleanSearchFields = {
+                    itemName: ($tds.eq(7).attr('data-search') || $tds.eq(7).text()).toLowerCase().trim(),
+                    itemCode: ($tds.eq(2).attr('data-search') || $tds.eq(2).text()).toLowerCase().trim(),
+                    category: ($tds.eq(6).attr('data-search') || $tds.eq(6).text()).toLowerCase().trim(),
+                    model:    ($tds.eq(8).attr('data-search') || $tds.eq(8).text()).toLowerCase().trim(),
+                    brand:    ($tds.eq(11).attr('data-search') || $tds.eq(11).text()).toLowerCase().trim()
+                };
+                return row._cleanSearchFields;
+            }
+            var d = row._aData || [];
+            var strip = function (val) {
+                return ((val || '') + '').replace(/<[^>]+>/g, '').toLowerCase().trim();
             };
+            row._cleanSearchFields = {
+                itemName: strip(d[7]),
+                itemCode: strip(d[2]),
+                category: strip(d[6]),
+                model:    strip(d[8]),
+                brand:    strip(d[11])
+            };
+            return row._cleanSearchFields;
         }
 
-        // Priority score (lower = shown first)
-        // 0 = Item Name STARTS with term          e.g. search "super" => "Super Asia Fan"
-        // 1 = Word in Item Name starts with term  e.g. search "super" => "12V Super Fan"
-        // 2 = Item Name contains term anywhere    e.g. search "super" => "tamoor super pearl"
-        // 3 = Other field (code/brand/model) starts with term
-        // 4 = Other field contains term
-        function getMatchPriority(fields, term) {
-            var wordStartReg = new RegExp('(?:^|[\\s\\-/])' + escapeRegex(term));
-            if (fields.itemName.startsWith(term))          return 0;
-            if (wordStartReg.test(fields.itemName))        return 1;
-            if (fields.itemName.indexOf(term) !== -1)      return 2;
-            if (fields.itemCode.startsWith(term) || fields.brand.startsWith(term) || fields.model.startsWith(term)) return 3;
-            return 4;
-        }
+        // Register custom sorting extension in DataTables for priority sorting across all pages
+        $.fn.dataTable.ext.order['priority-product-search'] = function (settings, colIdx) {
+            var term = (productSearchTerm || '').trim().toLowerCase();
+            var terms = term.split(/\s+/).filter(Boolean);
+            var firstTerm = terms[0] || '';
+            var wordStartReg = firstTerm ? new RegExp('(?:^|[\\s\\-/])' + escapeRegex(firstTerm)) : null;
+
+            var orderData = [];
+            var totalRows = settings.aoData.length;
+
+            for (var i = 0; i < totalRows; i++) {
+                var rowObj = settings.aoData[i];
+                var fields = getRowSearchFields(rowObj);
+
+                if (!firstTerm) {
+                    orderData.push(fields ? fields.itemName : String(i).padStart(6, '0'));
+                    continue;
+                }
+
+                if (!fields) {
+                    orderData.push('9_' + String(i).padStart(6, '0'));
+                    continue;
+                }
+
+                var prio = 9;
+                if (fields.itemName.startsWith(firstTerm)) {
+                    prio = 0; // 0: Item Name STARTS with search term (e.g. "i" => "Intact...", "I.B.S...")
+                } else if (wordStartReg && wordStartReg.test(fields.itemName)) {
+                    prio = 1; // 1: Word in Item Name starts with search term (e.g. "inverter")
+                } else if (fields.itemName.indexOf(firstTerm) !== -1) {
+                    prio = 2; // 2: Item Name contains search term
+                } else if (fields.brand.startsWith(firstTerm) || fields.model.startsWith(firstTerm) || fields.category.startsWith(firstTerm)) {
+                    prio = 3; // 3: Brand/model/category starts with search term
+                } else {
+                    prio = 4; // 4: Other matches
+                }
+
+                orderData.push(prio + '_' + fields.itemName);
+            }
+
+            return orderData;
+        };
 
         // Custom search extension for #productTable
         $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
             if (settings.nTable.id !== 'productTable') return true;
             if (!productSearchTerm) return true;
 
-            // data[] from DataTables may contain HTML; combine all searchable columns for filter check
-            var fullText = ((data[2] || '') + ' ' +
-                           (data[6] || '') + ' ' +
-                           (data[7] || '') + ' ' +
-                           (data[8] || '') + ' ' +
-                           (data[11] || '')).toLowerCase();
+            var rawCode = (data[2] || '').toLowerCase();
+            var cleanCode = rawCode.replace(/^(item-?|prod-?)/, '');
+            var otherText = ((data[6] || '') + ' ' +
+                            (data[7] || '') + ' ' +
+                            (data[8] || '') + ' ' +
+                            (data[11] || '')).toLowerCase();
+
+            var fullText = otherText + ' ' + cleanCode;
+            var fullTextWithRawCode = otherText + ' ' + rawCode;
 
             var terms = productSearchTerm.split(/\s+/).filter(Boolean);
             if (!terms.length) return true;
@@ -1404,7 +1468,7 @@ $(document).ready(function () {
                     var reg = new RegExp('(?:^|[^a-z0-9])' + escapeRegex(term));
                     if (!reg.test(fullText)) return false;
                 } else {
-                    if (fullText.indexOf(term) === -1) return false;
+                    if (fullTextWithRawCode.indexOf(term) === -1) return false;
                 }
             }
             return true;
@@ -1414,49 +1478,29 @@ $(document).ready(function () {
             responsive: false,
             scrollX: true,
             pageLength: 10,
+            order: [[1, 'asc']], // Default: ordered by # column
             lengthMenu: [[10, 25, 50, -1], [10, 25, 50, "All"]],
             language: {
                 search: "_INPUT_",
                 searchPlaceholder: "Search products (e.g. sup, fan, cable)..."
             },
             columnDefs: [
-                { targets: [0, 1, 3, 4, 5, 9, 10, 12], searchable: false }
+                { targets: [0, 1, 3, 4, 5, 9, 10, 12], searchable: false },
+                { targets: 7, orderDataType: 'priority-product-search' }
             ]
         });
 
-        // Intercept search input — filter + re-sort rows by priority using clean DOM data
+        // Intercept search input — filter + sort by priority order
         var $dtSearchInput = $('#productTable_filter input');
         $dtSearchInput.off('keyup.DT search.DT input.DT paste.DT cut.DT')
                       .on('input', function () {
                           productSearchTerm = $(this).val().trim().toLowerCase();
 
-                          productTable.draw();
-
-                          if (!productSearchTerm) return;
-
-                          setTimeout(function () {
-                              var terms = productSearchTerm.split(/\s+/).filter(Boolean);
-                              if (!terms.length) return;
-                              var term = terms[0]; // Sort by first term priority
-
-                              var $tbody = $('#productTable tbody');
-                              var rows = $tbody.find('tr').get();
-
-                              rows.sort(function (a, b) {
-                                  // Read clean text from DOM data-search attrs (not DataTables HTML data)
-                                  var fieldsA = getFieldsFromTr(a);
-                                  var fieldsB = getFieldsFromTr(b);
-                                  var prioA = getMatchPriority(fieldsA, term);
-                                  var prioB = getMatchPriority(fieldsB, term);
-                                  if (prioA !== prioB) return prioA - prioB;
-                                  // Tie-break: alphabetical item name
-                                  return fieldsA.itemName.localeCompare(fieldsB.itemName);
-                              });
-
-                              $.each(rows, function (idx, row) {
-                                  $tbody.append(row);
-                              });
-                          }, 0);
+                          if (productSearchTerm) {
+                              productTable.order([7, 'asc']).draw();
+                          } else {
+                              productTable.order([[1, 'asc']]).draw();
+                          }
                       });
     }
 
