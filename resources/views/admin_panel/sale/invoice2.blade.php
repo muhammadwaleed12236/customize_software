@@ -627,16 +627,23 @@ $balanceDue = $grandTotal - $totalReceived;
                     
                     $productEng = strtoupper($item->product->item_name ?? $item->product_name ?? 'N/A');
                     $productUrdu = getUrduProductNameBooking($item);
+
+                    $hasDecimals = (round($rate, 2) != round($rate, 0)) 
+                                || (round($unitPrice, 2) != round($unitPrice, 0)) 
+                                || (round($amt, 2) != round($amt, 0));
+                    $amtDisplay = $hasDecimals ? number_format($amt, 2) : number_format($amt, 0);
+                    $unitPriceDisplay = $hasDecimals ? number_format($unitPrice, 2) : number_format($unitPrice, 0);
+                    $rateDisplay = $hasDecimals ? number_format($rate, 2) : number_format($rate, 0);
                 @endphp
                 <tr>
                     <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
-                        {{ number_format($amt, 0) }}
+                        {{ $amtDisplay }}
                     </td>
                     <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
-                        {{ number_format($unitPrice, 0) }}
+                        {{ $unitPriceDisplay }}
                     </td>
                     <td style="text-align: center; font-weight: 800; font-size: 15px; color: #000;">
-                        {{ number_format($rate, 0) }}
+                        {{ $rateDisplay }}
                     </td>
                     <td style="direction: rtl; text-align: right; padding: 6px 10px;">
                         <span class="item-desc-urdu">{{ !empty($productUrdu) ? $productUrdu : $productEng }}</span>

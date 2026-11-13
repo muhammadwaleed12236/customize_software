@@ -540,8 +540,11 @@
                                     <div style="font-size: 8.5px; font-weight: 600;">{{ $unitDisplay }}</div>
                                 @endif
                             </td>
-                            <td class="col-rate">{{ number_format($rate, 0) }}</td>
-                            <td class="col-amt">{{ number_format($amt, 0) }}</td>
+                            @php
+                                $hasDec = (round($rate, 2) != round($rate, 0)) || (round($amt, 2) != round($amt, 0));
+                            @endphp
+                            <td class="col-rate">{{ $hasDec ? number_format($rate, 2) : number_format($rate, 0) }}</td>
+                            <td class="col-amt">{{ $hasDec ? number_format($amt, 2) : number_format($amt, 0) }}</td>
                         </tr>
                     @endforeach
                 @endif
@@ -635,38 +638,41 @@
         <table class="receipt-totals-table">
             <tr>
                 <td class="tot-lbl">Sub Total:</td>
-                <td class="tot-val">{{ number_format($subTotal, 0) }}</td>
+                <td class="tot-val">{{ round($subTotal, 2) == round($subTotal, 0) ? number_format($subTotal, 0) : number_format($subTotal, 2) }}</td>
             </tr>
             @if(isset($thermalDiscount) && $thermalDiscount > 0)
             <tr>
                 <td class="tot-lbl">Discount:</td>
-                <td class="tot-val">- {{ number_format($thermalDiscount, 0) }}</td>
+                <td class="tot-val">- {{ round($thermalDiscount, 2) == round($thermalDiscount, 0) ? number_format($thermalDiscount, 0) : number_format($thermalDiscount, 2) }}</td>
             </tr>
             @endif
             <tr class="payable-box-row">
                 <td class="tot-lbl">TOTAL PAYABLE:</td>
-                <td class="tot-val">{{ number_format($totalPayable, 0) }}</td>
+                <td class="tot-val">{{ round($totalPayable, 2) == round($totalPayable, 0) ? number_format($totalPayable, 0) : number_format($totalPayable, 2) }}</td>
             </tr>
             <tr>
                 <td class="tot-lbl" style="padding-top: 4px;">Prev Balance:</td>
-                <td class="tot-val" style="padding-top: 4px;">{{ number_format($prevBalance, 0) }} Dr</td>
+                <td class="tot-val" style="padding-top: 4px;">{{ round($prevBalance, 2) == round($prevBalance, 0) ? number_format($prevBalance, 0) : number_format($prevBalance, 2) }} Dr</td>
             </tr>
             <tr>
                 <td class="tot-lbl">Paid / Received:</td>
-                <td class="tot-val">{{ number_format($paidAmount, 0) }}</td>
+                <td class="tot-val">{{ round($paidAmount, 2) == round($paidAmount, 0) ? number_format($paidAmount, 0) : number_format($paidAmount, 2) }}</td>
             </tr>
             @if(isset($receipts) && $receipts->count() > 0)
                 @foreach($receipts as $rc)
-                    @php $acTitle = optional($rc->Account)->title ?? 'Cash / Bank'; @endphp
+                    @php 
+                        $acTitle = optional($rc->Account)->title ?? 'Cash / Bank'; 
+                        $rcVal = (float)($rc->total_amount ?? $rc->amount ?? 0);
+                    @endphp
                     <tr>
-                        <td class="tot-lbl" style="font-size: 8px; padding-left: 6px; color: #555;">â”” {{ $acTitle }}:</td>
-                        <td class="tot-val" style="font-size: 8px; color: #555;">{{ number_format($rc->total_amount ?? $rc->amount, 0) }}</td>
+                        <td class="tot-lbl" style="font-size: 8px; padding-left: 6px; color: #555;">└ {{ $acTitle }}:</td>
+                        <td class="tot-val" style="font-size: 8px; color: #555;">{{ round($rcVal, 2) == round($rcVal, 0) ? number_format($rcVal, 0) : number_format($rcVal, 2) }}</td>
                     </tr>
                 @endforeach
             @endif
             <tr class="closing-box-row">
                 <td class="tot-lbl">CLOSING BALANCE:</td>
-                <td class="tot-val">{{ number_format($closingBalance, 0) }} Dr</td>
+                <td class="tot-val">{{ round($closingBalance, 2) == round($closingBalance, 0) ? number_format($closingBalance, 0) : number_format($closingBalance, 2) }} Dr</td>
             </tr>
         </table>
 
