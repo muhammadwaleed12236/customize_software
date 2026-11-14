@@ -2169,19 +2169,18 @@ public function finddc($invoice)
                 ->pluck("opening_balance", "id")
                 ->toArray();
 
-            // Authoritative latest closing balance directly from customer_ledgers (Matches Ledger Report 100%)
+            // Authoritative latest closing balance directly from customer_ledgers (Chronological by date)
             $cleanCustIds = array_map('intval', $customerIds);
             $latestLedgerBalances = [];
-            if (!empty($cleanCustIds)) {
-                $latestLedgerBalances = DB::table('customer_ledgers as cl')
-                    ->join(
-                        DB::raw('(SELECT customer_id, MAX(id) as max_id FROM customer_ledgers WHERE customer_id IN (' . implode(',', $cleanCustIds) . ') GROUP BY customer_id) as latest'),
-                        function ($join) {
-                            $join->on('cl.id', '=', 'latest.max_id');
-                        }
-                    )
-                    ->pluck('cl.closing_balance', 'cl.customer_id')
-                    ->toArray();
+            foreach ($cleanCustIds as $cid) {
+                $latest = DB::table('customer_ledgers')
+                    ->where('customer_id', $cid)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
+                    ->value('closing_balance');
+                if ($latest !== null) {
+                    $latestLedgerBalances[$cid] = (float)$latest;
+                }
             }
 
             foreach ($customerIds as $cid) {
