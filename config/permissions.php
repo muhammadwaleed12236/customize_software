@@ -398,6 +398,9 @@ return [
             'report.inventory.onhand.view' => 'Inventory Onhand',
             'report.stock.hold.view'       => 'Stock Hold',
             'report.assembly.view'         => 'Assembly',
+            'report.trial.balance.view'    => 'Trial Balance',
+            'report.income.statement.view' => 'Income Statement',
+            'report.balance.sheet.view'    => 'Balance Sheet',
         ],
     ],
 
