@@ -14,6 +14,7 @@ use App\Models\ExpenseVoucher;
 use App\Models\JournalVoucher;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
 
 class VoucherService
 {
@@ -186,6 +187,7 @@ class VoucherService
                     'transaction_type' => 'receipt',
                     'reference_id'     => $rvid,
                     'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
+                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
                 ]);
 
                 self::recalculateCustomerLedger((int)$partyId);
@@ -204,6 +206,7 @@ class VoucherService
                     'admin_or_user_id' => $userId,
                     'transaction_date' => $receiptDate,
                     'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
+                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
                     'opening_balance'  => $vendor->opening_balance ?? 0,
                     'previous_balance' => $previousBalance,
                     'debit_amount'     => 0,
@@ -629,6 +632,7 @@ class VoucherService
                     'admin_or_user_id' => $userId,
                     'transaction_date' => $receiptDate,
                     'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
+                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
                     'opening_balance'  => $previousBalance,
                     'previous_balance' => $previousBalance,
                     'debit_amount'     => $partyAmount,
@@ -658,6 +662,7 @@ class VoucherService
                     'transaction_type' => 'payment',
                     'reference_id'     => $pvid,
                     'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
+                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
                 ]);
 
                 self::recalculateCustomerLedger((int)$partyId);
@@ -1659,6 +1664,14 @@ class VoucherService
             $running = $running + (float)$entry->total_debit - (float)$entry->total_credit;
             $entry->closing_balance = $running;
             $entry->save();
+
+            // Sync sales table so invoices match the recalculated ledger
+            if ($entry->transaction_type === 'Sale' && is_numeric($entry->reference_id)) {
+                DB::table('sales')->where('id', (int)$entry->reference_id)->update([
+                    'previous_balance' => $entry->previous_balance,
+                    'total_balance'    => $entry->closing_balance,
+                ]);
+            }
         }
     }
 
