@@ -157,7 +157,7 @@
                         @endif
 
                         <div class="col-md-{{ $isSuper ? '5' : '8' }}">
-                            <label class="f-label">As of Date (تارِیخ تک)</label>
+                            <label class="f-label">As of Date</label>
                             <input type="date" id="as_of_date" class="form-control form-control-sm"
                                    style="height:36px; border-radius:6px; border:1.5px solid #cbd5e1;"
                                    value="{{ date('Y-m-d') }}">
@@ -177,7 +177,7 @@
             <div id="summaryCards" class="bs-kpi-grid" style="display:none;">
                 <div class="bs-kpi-card">
                     <div>
-                        <div class="bs-kpi-label">Total Assets (اثاثہ جات)</div>
+                        <div class="bs-kpi-label">Total Assets</div>
                         <div id="kpiTotalAssets" class="bs-kpi-val emerald">Rs. 0.00</div>
                     </div>
                     <div class="bs-kpi-icon" style="background:#d1fae5;color:#059669;"><i class="fas fa-coins"></i></div>
@@ -185,7 +185,7 @@
 
                 <div class="bs-kpi-card">
                     <div>
-                        <div class="bs-kpi-label">Total Liabilities (واجبات)</div>
+                        <div class="bs-kpi-label">Total Liabilities</div>
                         <div id="kpiTotalLiabilities" class="bs-kpi-val crimson">Rs. 0.00</div>
                     </div>
                     <div class="bs-kpi-icon" style="background:#fee2e2;color:#dc2626;"><i class="fas fa-hand-holding-usd"></i></div>
@@ -193,7 +193,7 @@
 
                 <div class="bs-kpi-card">
                     <div>
-                        <div class="bs-kpi-label">Working Capital (جاری سرمایہ)</div>
+                        <div class="bs-kpi-label">Working Capital</div>
                         <div id="kpiWorkingCapital" class="bs-kpi-val">Rs. 0.00</div>
                     </div>
                     <div class="bs-kpi-icon" style="background:#e0f2fe;color:#0284c7;"><i class="fas fa-chart-line"></i></div>
@@ -201,7 +201,7 @@
 
                 <div class="bs-kpi-card">
                     <div>
-                        <div class="bs-kpi-label">Owner's Equity (خالص سرمایہ)</div>
+                        <div class="bs-kpi-label">Owner's Equity</div>
                         <div id="kpiTotalEquity" class="bs-kpi-val" style="color:#7c3aed;">Rs. 0.00</div>
                     </div>
                     <div class="bs-kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fas fa-balance-scale"></i></div>
@@ -237,7 +237,7 @@
 
                         <div class="bs-panel-grow mb-2">
                             <div class="bs-section-header">
-                                <span><i class="fas fa-coins mr-1 text-warning"></i> ASSETS (اثاثہ جات)</span>
+                                <span><i class="fas fa-coins mr-1 text-warning"></i> ASSETS</span>
                                 <span id="hdrTotalAssets">Rs. 0.00</span>
                             </div>
 
@@ -317,7 +317,7 @@
                         {{-- TOTAL ASSETS CALLOUT --}}
                         <div class="bs-grand-total-card assets mb-2 mt-auto">
                             <div>
-                                <div class="font-weight-bold" style="font-size:13.5px;">TOTAL ASSETS (کل اثاثہ جات)</div>
+                                <div class="font-weight-bold" style="font-size:13.5px;">TOTAL ASSETS</div>
                                 <div class="small" style="opacity:.85; font-size:11px;">Current Assets + Liquid Funds + Inventory</div>
                             </div>
                             <div class="font-weight-bold text-success" style="font-size:18px; font-family:monospace;" id="valGrandAssets">Rs. 0.00</div>
@@ -330,12 +330,12 @@
 
                         <div class="bs-panel-grow mb-2">
                             <div class="bs-section-header" style="background:#1e3a5f;">
-                                <span><i class="fas fa-balance-scale mr-1 text-info"></i> LIABILITIES &amp; EQUITY (واجبات اور سرمایہ)</span>
+                                <span><i class="fas fa-balance-scale mr-1 text-info"></i> LIABILITIES &amp; EQUITY</span>
                                 <span id="hdrTotalLiabilitiesEquity">Rs. 0.00</span>
                             </div>
 
                             {{-- 1. LIABILITIES --}}
-                            <div class="bs-section-subhead">1. LIABILITIES (واجب الادا رقوم)</div>
+                            <div class="bs-section-subhead">1. LIABILITIES</div>
                             <table class="bs-table">
                                 <tbody>
                                     <tr>
@@ -350,7 +350,7 @@
                             </table>
 
                             {{-- 2. EQUITY & CAPITAL --}}
-                            <div class="bs-section-subhead mt-2">2. OWNER'S EQUITY &amp; RESERVES (سرمایہ)</div>
+                            <div class="bs-section-subhead mt-2">2. OWNER'S EQUITY &amp; RESERVES</div>
                             <table class="bs-table">
                                 <tbody>
                                     <tr>
