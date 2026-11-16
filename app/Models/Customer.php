@@ -28,10 +28,12 @@ class Customer extends Model
         return $this->belongsTo(Branch::class, 'branch_id');
     }
 
-    // Get the latest ledger entry
+    // Get the latest ledger entry (chronologically by created_at, then id)
     public function latestLedger()
     {
-        return $this->hasOne(CustomerLedger::class, 'customer_id')->latest('id');
+        return $this->hasOne(CustomerLedger::class, 'customer_id')
+            ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+            ->orderBy('id', 'desc');
     }
 
     public function openingBalanceHistories()

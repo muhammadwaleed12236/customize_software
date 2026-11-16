@@ -2003,8 +2003,11 @@ class SaleController extends Controller
             return response()->json(['error' => 'Customer not found'], 404);
         }
 
-        // Retrieve the latest ledger entry for the customer
-        $latestLedger = CustomerLedger::where("customer_id", $id)->latest("id")->first();
+        // Retrieve the latest ledger entry for the customer (chronologically by created_at, then id)
+        $latestLedger = CustomerLedger::where("customer_id", $id)
+            ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+            ->orderBy('id', 'desc')
+            ->first();
         if ($latestLedger) {
             $previous_balance = (float) $latestLedger->closing_balance;
         } else {
@@ -2847,7 +2850,10 @@ public function finddc($invoice)
             if ($customerId) {
                 $customer = Customer::find($customerId);
                 $saleAmount = (float)($request->subTotal1 ?? 0) - (float)($request->discountAmount ?? 0);
-                $latestLedger = CustomerLedger::where('customer_id', $customerId)->latest()->first();
+                $latestLedger = CustomerLedger::where('customer_id', $customerId)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
+                    ->first();
                 $currentBalance = $latestLedger ? $latestLedger->closing_balance : $customer->opening_balance;
 
                 // Total credit = current balance + new sale
@@ -3164,7 +3170,10 @@ public function finddc($invoice)
             // ✅ UPDATE CUSTOMER LEDGER WITH SALE AMOUNT
             if ($customerId) {
                 $saleAmount = (float)($request->subTotal1 ?? 0) - (float)($request->discountAmount ?? 0);
-                $latestLedger = CustomerLedger::where('customer_id', $customerId)->latest()->first();
+                $latestLedger = CustomerLedger::where('customer_id', $customerId)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
+                    ->first();
 
                 $previousBalance = $latestLedger ? $latestLedger->closing_balance : 0;
 
@@ -5389,7 +5398,10 @@ public function finddc($invoice)
 
                 // Fetch customer remaining items & latest ledger balance
                 $remainingItems = \App\Models\CustomerRemaining::where('sale_id', $sale->id)->get();
-                $latestLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer_id)->latest('id')->first();
+                $latestLedger = \App\Models\CustomerLedger::where('customer_id', $sale->customer_id)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
+                    ->first();
 
                 // Fetch actual outward gatepasses linked via warehouse_orders.sale_id = $sale->id
                 $gatepassRows = DB::table('outward_gatepasses')

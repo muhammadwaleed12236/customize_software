@@ -297,14 +297,14 @@ class VoucherController extends Controller
                 $pName = $cust?->customer_name ?? '-';
                 $pTel  = $pTel ?: ($cust?->mobile ?? '-');
                 $pHead = $pType === 'walkin' ? 'Walk-in Customer' : 'Customer Accounts';
-                $lastLedger = $custId ? DB::table('customer_ledgers')->where('customer_id', $custId)->orderByDesc('id')->first() : null;
+                $lastLedger = $custId ? DB::table('customer_ledgers')->where('customer_id', $custId)->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")->orderBy('id', 'desc')->first() : null;
                 $pBal = $lastLedger ? (float)$lastLedger->closing_balance : (float)($cust?->opening_balance ?? 0);
             } elseif ($pType === 'vendor') {
                 $ven = DB::table('vendors')->where('id', $pId)->first();
                 $pName = $ven?->name ?? '-';
                 $pTel  = $pTel ?: ($ven?->phone_number ?? '-');
                 $pHead = 'Vendor Accounts';
-                $lastLedger = DB::table('vendor_ledgers')->where('vendor_id', $pId)->orderByDesc('id')->first();
+                $lastLedger = DB::table('vendor_ledgers')->where('vendor_id', $pId)->orderByRaw("COALESCE(transaction_date, DATE(created_at), '1970-01-01') DESC")->orderBy('id', 'desc')->first();
                 $pBal = $lastLedger ? (float)$lastLedger->closing_balance : (float)($ven?->opening_balance ?? 0);
             } elseif (is_numeric($pType)) {
                 $acc = DB::table('accounts')->where('id', $pId)->first();
@@ -499,7 +499,7 @@ class VoucherController extends Controller
         }
 
         if ($type === 'customer') {
-            $query = Customer::with(['ledgers' => fn($q) => $q->latest('id')]);
+            $query = Customer::with(['ledgers' => fn($q) => $q->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")->orderBy('id', 'desc')]);
 
             // Branch filter (allow matching branch or unassigned customers)
             if ($branchId && $branchId !== 'all') {
@@ -521,7 +521,7 @@ class VoucherController extends Controller
             return response()->json($customers);
 
         } elseif ($type === 'walkin') {
-            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer'])->with(['ledgers' => fn($q) => $q->latest('id')]);
+            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer'])->with(['ledgers' => fn($q) => $q->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")->orderBy('id', 'desc')]);
 
             if ($branchId && $branchId !== 'all') {
                 $query->where(function ($q) use ($branchId) {
@@ -553,7 +553,8 @@ class VoucherController extends Controller
             $vendors = $query->get()->map(function ($v) use ($branchId) {
                 $lastLedger = \App\Models\VendorLedger::where('vendor_id', $v->id)
                     ->where('branch_id', $branchId ?? $v->branch_id)
-                    ->orderByDesc('id')
+                    ->orderByRaw("COALESCE(transaction_date, DATE(created_at), '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
                     ->first();
                 $closing = $lastLedger ? (float)$lastLedger->closing_balance : (float)($v->opening_balance ?? 0);
                 return [
@@ -2314,7 +2315,7 @@ class VoucherController extends Controller
             : (Auth::check() ? Auth::user()->branch_id : null);
 
         if ($type === 'customer') {
-            $query = \App\Models\Customer::with(['ledgers' => fn($q) => $q->latest()]);
+            $query = \App\Models\Customer::with(['ledgers' => fn($q) => $q->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")->orderBy('id', 'desc')]);
 
             if ($branchId && $branchId !== 'all') {
                 $query->where(function ($q) use ($branchId) {
@@ -2336,7 +2337,8 @@ class VoucherController extends Controller
             return response()->json($query->get()->map(function ($v) use ($branchId) {
                 $lastLedger = VendorLedger::where('vendor_id', $v->id)
                     ->where('branch_id', $branchId ?? $v->branch_id)
-                    ->orderByDesc('id')->first();
+                    ->orderByRaw("COALESCE(transaction_date, DATE(created_at), '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')->first();
                 $closing = $lastLedger ? (float) $lastLedger->closing_balance : (float) ($v->opening_balance ?? 0);
                 return ['id' => $v->id, 'text' => $v->name, 'mobile' => $v->phone ?? $v->contact ?? '', 'closing_balance' => $closing];
             }));
