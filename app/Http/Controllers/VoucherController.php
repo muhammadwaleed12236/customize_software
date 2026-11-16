@@ -713,6 +713,24 @@ class VoucherController extends Controller
         }
     }
 
+    public function unvoid_receipt($id)
+    {
+        $voucher = ReceiptsVoucher::findOrFail($id);
+
+        if ($voucher->status !== 'voided') {
+            return back()->with('error', 'Only voided vouchers can be unvoided!');
+        }
+
+        $success = \App\Services\VoucherService::unvoidReceiptVoucher($voucher, auth()->id());
+
+        if ($success) {
+            return back()->with('success', "Receipt Voucher #{$voucher->rvid} unvoided successfully! Ledgers and accounts restored.");
+        } else {
+            $err = \App\Services\VoucherService::$lastError;
+            return back()->with('error', 'Failed to unvoid Receipt Voucher.' . ($err ? " Error: {$err}" : ''));
+        }
+    }
+
     public function edit_receipt($id)
     {
         $voucher = ReceiptsVoucher::findOrFail($id);

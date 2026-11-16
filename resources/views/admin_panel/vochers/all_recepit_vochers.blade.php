@@ -340,6 +340,27 @@
             color: #ffffff;
             border-color: #f59e0b;
         }
+
+        .btn-action-unvoid {
+            background: #ffffff;
+            border: 1.5px solid #a7f3d0;
+            color: #047857;
+            border-radius: 6px;
+            padding: 3px 9px;
+            font-size: 11.5px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+
+        .btn-action-unvoid:hover {
+            background: #10b981;
+            color: #ffffff;
+            border-color: #10b981;
+        }
     </style>
 @endsection
 
@@ -603,6 +624,14 @@
                                                 @endcan
                                             @else
                                                 <span class="badge-status-voided"><i class="fas fa-times-circle"></i> Voided</span>
+                                                @can('receipts.voucher.create')
+                                                    <form action="{{ route('recepit-vochers.unvoid', $item->id) }}" method="POST" class="d-inline unvoid-form">
+                                                        @csrf
+                                                        <button type="button" class="btn-action-unvoid btn-trigger-unvoid" title="Unvoid (Restore) Voucher">
+                                                            <i class="fas fa-undo"></i> Unvoid
+                                                        </button>
+                                                    </form>
+                                                @endcan
                                                 <a href="{{ route('receiptVoucher.print', $item->id) }}"
                                                     target="_blank"
                                                     class="btn-action-print" title="Print Voided Receipt">
@@ -671,12 +700,33 @@
                 
                 Swal.fire({
                     title: 'Void Receipt Voucher?',
-                    text: 'This will reverse all financial ledger entries and mark this voucher as void. This action cannot be undone!',
+                    text: 'This will reverse all financial ledger entries and mark this voucher as void.',
                     icon: 'warning',
                     showCancelButton: true,
                     confirmButtonText: 'Yes, Void Voucher',
                     cancelButtonText: 'Cancel',
                     confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#64748b'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        form.submit();
+                    }
+                });
+            });
+
+            // SweetAlert Confirm for Unvoid Action
+            $(document).on('click', '.btn-trigger-unvoid', function(e) {
+                e.preventDefault();
+                const form = $(this).closest('form');
+                
+                Swal.fire({
+                    title: 'Unvoid Receipt Voucher?',
+                    text: 'This will restore all financial ledger entries and account balances for this voucher.',
+                    icon: 'question',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, Restore Voucher',
+                    cancelButtonText: 'Cancel',
+                    confirmButtonColor: '#10b981',
                     cancelButtonColor: '#64748b'
                 }).then((result) => {
                     if (result.isConfirmed) {
