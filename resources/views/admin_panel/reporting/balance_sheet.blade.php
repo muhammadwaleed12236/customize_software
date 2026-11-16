@@ -216,7 +216,7 @@
 
             <div id="placeholder" class="card shadow-sm border-0 text-center py-5 text-muted" style="border-radius:8px; border:1px solid var(--bs-border) !important;">
                 <i class="fas fa-landmark fa-3x mb-3" style="opacity:.3;"></i>
-                <p>Filters set kar ke <strong>Generate</strong> press karein.</p>
+                <p>Select filters and click <strong>Generate</strong> to view the balance sheet.</p>
             </div>
 
             {{-- Report Container --}}
