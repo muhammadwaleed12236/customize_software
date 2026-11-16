@@ -971,6 +971,13 @@ class VoucherService
                 $rowEntryDesc .= " ({$remarks})";
             }
 
+            $rowAccount = Account::with('head')->find($accId);
+            $rowHead = strtolower($rowAccount?->head?->name ?? '');
+            $isRowCashOrBank = str_contains($rowHead, 'cash') || str_contains($rowHead, 'bank');
+
+            $rowDebit  = $isRowCashOrBank ? 0 : $totalAccAmount;
+            $rowCredit = $isRowCashOrBank ? $totalAccAmount : 0;
+
             self::postLedgerEntry(
                 $accId,
                 'expense',
@@ -978,8 +985,8 @@ class VoucherService
                 $voucher->id,
                 $entryDate,
                 $rowEntryDesc,
-                $totalAccAmount,
-                0,
+                $rowDebit,
+                $rowCredit,
                 $userId,
                 true
             );
@@ -1049,7 +1056,7 @@ class VoucherService
             } else {
                 // GL Account (e.g. Cash in Hand / Bank Account)
                 $accountId = is_numeric($partyId) ? $partyId : $partyType;
-                $account   = Account::find($accountId);
+                $account   = Account::with('head')->find($accountId);
                 if ($account) {
                     $sourceDesc = "Expense Voucher #{$evid}";
                     if ($pDesc !== '') {
@@ -1058,6 +1065,12 @@ class VoucherService
                     if ($remarks) {
                         $sourceDesc .= " ({$remarks})";
                     }
+
+                    $partyHead = strtolower($account->head?->name ?? '');
+                    $isPartyExpense = str_contains($partyHead, 'expe');
+                    $partyDebit  = $isPartyExpense ? $partyAmount : 0;
+                    $partyCredit = $isPartyExpense ? 0 : $partyAmount;
+
                     self::postLedgerEntry(
                         $account->id,
                         'expense',
@@ -1065,8 +1078,8 @@ class VoucherService
                         $voucher->id,
                         $entryDate,
                         $sourceDesc,
-                        0,
-                        $partyAmount,
+                        $partyDebit,
+                        $partyCredit,
                         $userId
                     );
                     AccountLedgerEntry::recalculateRunningBalance((int)$account->id);

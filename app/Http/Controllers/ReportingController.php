@@ -4588,6 +4588,9 @@ class ReportingController extends Controller
 
         // ── Build Result ───────────────────────────────────────
         $rows = [];
+        $grandOb     = 0;
+        $grandTxDr   = 0;
+        $grandTxCr   = 0;
         $grandDebit  = 0;
         $grandCredit = 0;
 
@@ -4653,14 +4656,18 @@ class ReportingController extends Controller
             }
 
             // Hide zero balance accounts if requested
-            if ($hideZero && $debitBal == 0 && $creditBal == 0) {
+            if ($hideZero && $debitBal == 0 && $creditBal == 0 && $txDebit == 0 && $txCredit == 0 && $openingAtDate == 0) {
                 continue;
             }
 
+            $grandOb     += $openingAtDate;
+            $grandTxDr   += $txDebit;
+            $grandTxCr   += $txCredit;
             $grandDebit  += $debitBal;
             $grandCredit += $creditBal;
 
             $rows[] = [
+                'id'           => $acc->id,
                 'account_code' => $acc->account_code,
                 'title'        => $acc->title,
                 'head_name'    => $acc->head_name,
@@ -4678,6 +4685,9 @@ class ReportingController extends Controller
 
         return response()->json([
             'rows'          => $rows,
+            'grand_ob'      => $grandOb,
+            'grand_tx_dr'   => $grandTxDr,
+            'grand_tx_cr'   => $grandTxCr,
             'grand_debit'   => $grandDebit,
             'grand_credit'  => $grandCredit,
             'is_balanced'   => $isBalanced,

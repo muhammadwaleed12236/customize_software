@@ -1108,14 +1108,30 @@ class AccountsHeadController extends Controller
             $rowDescArr = \App\Services\VoucherService::safeDecodeArray($ev->row_description ?? []);
             $rDescStr = !empty($rowDescArr) ? implode(', ', array_filter(array_map('trim', $rowDescArr))) : '';
 
-            if ($side === 'party') {
+            $headName = strtolower($account->head?->name ?? '');
+            $isExpenseAccount = str_contains($headName, 'expe');
+            $isCashOrBank = str_contains($headName, 'cash') || str_contains($headName, 'bank');
+
+            if ($isExpenseAccount) {
+                // Expense accounts are ALWAYS debited in expense vouchers
+                $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($rDescStr ? " - " . $rDescStr : '') . ($ev->remarks ? " — " . $ev->remarks : '');
+                $debit = $amt;
+                $credit = 0;
+            } elseif ($isCashOrBank) {
+                // Cash / Bank accounts are payment sources, ALWAYS credited
                 $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($ev->remarks ? " — " . $ev->remarks : '');
                 $debit = 0;
                 $credit = $amt;
             } else {
-                $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($rDescStr ? " - " . $rDescStr : '') . ($ev->remarks ? " — " . $ev->remarks : '');
-                $debit = $amt;
-                $credit = 0;
+                if ($side === 'party') {
+                    $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($ev->remarks ? " — " . $ev->remarks : '');
+                    $debit = 0;
+                    $credit = $amt;
+                } else {
+                    $desc = "Expense Voucher #" . ($ev->evid ?? 'EV') . ($rDescStr ? " - " . $rDescStr : '') . ($ev->remarks ? " — " . $ev->remarks : '');
+                    $debit = $amt;
+                    $credit = 0;
+                }
             }
 
             $entryNo = \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'expense');

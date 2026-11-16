@@ -35,15 +35,16 @@
     }
 
     /* KPI Cards */
-    .tb-kpi-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 18px; }
-    @media(max-width:768px){ .tb-kpi-grid { grid-template-columns: 1fr; } }
+    .tb-kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 18px; }
+    @media(max-width:992px){ .tb-kpi-grid { grid-template-columns: repeat(2,1fr); } }
+    @media(max-width:576px){ .tb-kpi-grid { grid-template-columns: 1fr; } }
     .tb-kpi-card {
         background: #fff; border-radius: 8px; padding: 14px 18px;
         border: 1px solid var(--tb-border); box-shadow: 0 2px 6px rgba(0,0,0,.03);
         display: flex; align-items: center; justify-content: space-between;
     }
     .tb-kpi-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing:.04em; margin-bottom:2px; }
-    .tb-kpi-val   { font-size: 20px; font-weight: 800; color: var(--tb-navy); font-family: monospace; }
+    .tb-kpi-val   { font-size: 19px; font-weight: 800; color: var(--tb-navy); font-family: monospace; }
     .tb-kpi-val.emerald { color: #047857; }
     .tb-kpi-val.crimson { color: var(--tb-red); }
     .tb-kpi-icon  { width: 38px; height: 38px; border-radius: 7px; display:flex; align-items:center; justify-content:center; font-size:16px; }
@@ -57,11 +58,13 @@
     }
     #tbTable td { font-size: 12px; vertical-align: middle; padding: 7px 8px; }
     #tbTable tbody tr:hover { background: #f8fafc; }
+    .acc-link { color: #1e3a5f; text-decoration: none; font-weight: 700; }
+    .acc-link:hover { color: #2563eb; text-decoration: underline; }
 
     .balanced-badge   { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
     .unbalanced-badge { background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; }
 
-    .tfoot-row td { background: #1e3a5f !important; color: #fff !important; font-weight: 800; font-family: monospace; font-size: 13px; }
+    .tfoot-row td { background: #1e3a5f !important; color: #fff !important; font-weight: 800; font-family: monospace; font-size: 12.5px; }
 
     /* Print */
     @media print {
@@ -161,24 +164,31 @@
                 <div class="tb-kpi-grid">
                     <div class="tb-kpi-card">
                         <div>
-                            <div class="tb-kpi-label">Total Debit Balance</div>
-                            <div class="tb-kpi-val emerald" id="kpiDebit">0.00</div>
+                            <div class="tb-kpi-label">Total Period Debit (Dr)</div>
+                            <div class="tb-kpi-val emerald" id="kpiTxDebit">0.00</div>
                         </div>
                         <div class="tb-kpi-icon" style="background:#d1fae5;color:#059669;"><i class="fas fa-arrow-down"></i></div>
                     </div>
                     <div class="tb-kpi-card">
                         <div>
-                            <div class="tb-kpi-label">Total Credit Balance</div>
-                            <div class="tb-kpi-val crimson" id="kpiCredit">0.00</div>
+                            <div class="tb-kpi-label">Total Period Credit (Cr)</div>
+                            <div class="tb-kpi-val crimson" id="kpiTxCredit">0.00</div>
                         </div>
                         <div class="tb-kpi-icon" style="background:#fee2e2;color:#dc2626;"><i class="fas fa-arrow-up"></i></div>
                     </div>
                     <div class="tb-kpi-card">
                         <div>
-                            <div class="tb-kpi-label">Tally Status</div>
-                            <div id="kpiStatus"><span class="balanced-badge"><i class="fas fa-check-circle mr-1"></i> Balanced</span></div>
+                            <div class="tb-kpi-label">Closing Debit Balance</div>
+                            <div class="tb-kpi-val emerald" id="kpiDebit">0.00</div>
                         </div>
-                        <div class="tb-kpi-icon" style="background:#ede9fe;color:#7c3aed;"><i class="fas fa-balance-scale"></i></div>
+                        <div class="tb-kpi-icon" style="background:#ecfdf5;color:#047857;"><i class="fas fa-wallet"></i></div>
+                    </div>
+                    <div class="tb-kpi-card">
+                        <div>
+                            <div class="tb-kpi-label">Closing Credit Balance</div>
+                            <div class="tb-kpi-val crimson" id="kpiCredit">0.00</div>
+                        </div>
+                        <div class="tb-kpi-icon" style="background:#fef2f2;color:#b91c1c;"><i class="fas fa-file-invoice-dollar"></i></div>
                     </div>
                 </div>
             </div>
@@ -203,26 +213,35 @@
                     <div id="tableWrapper" style="display:none;" class="table-responsive">
                         <div class="d-flex justify-content-between align-items-center mb-2 no-print" id="tableTopBar">
                             <span id="recordCount" class="text-muted small font-weight-bold"></span>
-                            <span id="periodLabel" class="badge badge-secondary" style="font-size:11px;"></span>
+                            <div class="d-flex align-items-center gap-2">
+                                <span id="kpiStatus"></span>
+                                <span id="periodLabel" class="badge badge-secondary" style="font-size:11px;"></span>
+                            </div>
                         </div>
                         <table id="tbTable" class="table table-bordered mb-0" style="border-collapse:collapse;">
                             <thead>
                                 <tr>
                                     <th style="width:35px;" class="text-center">#</th>
-                                    <th style="width:90px;">Code</th>
-                                    <th style="min-width:200px;">Account Title</th>
-                                    <th style="min-width:140px;">Head / Group</th>
-                                    <th style="min-width:120px;">Branch</th>
-                                    <th class="text-end" style="width:140px;">Debit Balance</th>
-                                    <th class="text-end" style="width:140px;">Credit Balance</th>
+                                    <th style="width:100px;">Code</th>
+                                    <th style="min-width:180px;">Account Title</th>
+                                    <th style="min-width:130px;">Head / Group</th>
+                                    <th style="min-width:100px;">Branch</th>
+                                    <th class="text-end" style="width:125px;">Opening (Rs.)</th>
+                                    <th class="text-end" style="width:130px;color:#34d399 !important;">Debit (Dr)</th>
+                                    <th class="text-end" style="width:130px;color:#f87171 !important;">Credit (Cr)</th>
+                                    <th class="text-end" style="width:135px;background:#132644 !important;">Closing Debit</th>
+                                    <th class="text-end" style="width:135px;background:#132644 !important;">Closing Credit</th>
                                 </tr>
                             </thead>
                             <tbody id="tbBody"></tbody>
                             <tfoot>
                                 <tr class="tfoot-row">
-                                    <td colspan="5" class="text-end" style="font-family:sans-serif; font-size:13px; letter-spacing:.05em;">
+                                    <td colspan="5" class="text-end" style="font-family:sans-serif; font-size:12px; letter-spacing:.05em;">
                                         GRAND TOTAL
                                     </td>
+                                    <td class="text-end" id="footOb">0.00</td>
+                                    <td class="text-end" id="footTxDebit" style="color:#34d399;">0.00</td>
+                                    <td class="text-end" id="footTxCredit" style="color:#f87171;">0.00</td>
                                     <td class="text-end" id="footDebit">0.00</td>
                                     <td class="text-end" id="footCredit">0.00</td>
                                 </tr>
@@ -337,42 +356,59 @@ function renderTable(data) {
     tbody.innerHTML = '';
 
     if (rows.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4 font-weight-bold">Koi record nahi mila.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4 font-weight-bold">Koi record nahi mila.</td></tr>';
         document.getElementById('tableWrapper').style.display = 'block';
         document.getElementById('summarySection').style.display = 'none';
         return;
     }
 
+    const ledgerBaseUrl = '{{ url("accounts-head/ledger") }}';
+
     let html = '';
     rows.forEach((r, i) => {
-        const debitFmt  = r.debit_bal  > 0 ? '<span style="color:#047857;font-weight:700;font-family:monospace;">Rs. ' + fmt(r.debit_bal)  + '</span>' : '<span class="text-muted">—</span>';
-        const creditFmt = r.credit_bal > 0 ? '<span style="color:#dc2626;font-weight:700;font-family:monospace;">Rs. ' + fmt(r.credit_bal) + '</span>' : '<span class="text-muted">—</span>';
+        const obFmt     = (r.ob !== 0 && r.ob !== null) ? '<span style="font-family:monospace;font-weight:600;">Rs. ' + fmt(r.ob) + '</span>' : '<span class="text-muted">0.00</span>';
+        const txDrFmt   = r.tx_debit  > 0 ? '<span style="color:#047857;font-weight:700;font-family:monospace;">Rs. ' + fmt(r.tx_debit)  + '</span>' : '<span class="text-muted">—</span>';
+        const txCrFmt   = r.tx_credit > 0 ? '<span style="color:#dc2626;font-weight:700;font-family:monospace;">Rs. ' + fmt(r.tx_credit) + '</span>' : '<span class="text-muted">—</span>';
+        const debitFmt  = r.debit_bal  > 0 ? '<span style="color:#047857;font-weight:800;font-family:monospace;">Rs. ' + fmt(r.debit_bal)  + '</span>' : '<span class="text-muted">—</span>';
+        const creditFmt = r.credit_bal > 0 ? '<span style="color:#dc2626;font-weight:800;font-family:monospace;">Rs. ' + fmt(r.credit_bal) + '</span>' : '<span class="text-muted">—</span>';
+
+        const linkTitle = r.id 
+            ? `<a href="${ledgerBaseUrl}/${r.id}" target="_blank" class="acc-link" title="Open Account Ledger">${r.title} <i class="fas fa-external-link-alt ml-1" style="font-size:9px;opacity:0.5;"></i></a>`
+            : r.title;
 
         html += `<tr>
             <td class="text-center text-muted" style="font-size:11px;">${i+1}</td>
             <td style="font-family:monospace;font-size:11px;color:#64748b;">${r.account_code || '—'}</td>
-            <td class="font-weight-bold" style="color:#1e3a5f;">${r.title}</td>
+            <td>${linkTitle}</td>
             <td><span class="badge badge-secondary" style="font-size:10px;padding:3px 8px;">${r.head_name}</span></td>
             <td style="font-size:11px;color:#64748b;">${r.branch_name}</td>
-            <td class="text-end">${debitFmt}</td>
-            <td class="text-end">${creditFmt}</td>
+            <td class="text-end">${obFmt}</td>
+            <td class="text-end">${txDrFmt}</td>
+            <td class="text-end">${txCrFmt}</td>
+            <td class="text-end" style="background:rgba(5,150,105,0.03);">${debitFmt}</td>
+            <td class="text-end" style="background:rgba(220,38,38,0.03);">${creditFmt}</td>
         </tr>`;
     });
     tbody.innerHTML = html;
 
     // Footer
-    document.getElementById('footDebit').innerHTML  = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_debit)  + '</span>';
-    document.getElementById('footCredit').innerHTML = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_credit) + '</span>';
+    document.getElementById('footOb').innerHTML       = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_ob || 0)     + '</span>';
+    document.getElementById('footTxDebit').innerHTML  = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_tx_dr || 0)  + '</span>';
+    document.getElementById('footTxCredit').innerHTML = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_tx_cr || 0)  + '</span>';
+    document.getElementById('footDebit').innerHTML    = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_debit || 0)  + '</span>';
+    document.getElementById('footCredit').innerHTML   = '<span style="font-family:monospace;">Rs. ' + fmt(data.grand_credit || 0) + '</span>';
 
     // KPI
-    document.getElementById('kpiDebit').textContent  = 'Rs. ' + fmt(data.grand_debit);
-    document.getElementById('kpiCredit').textContent = 'Rs. ' + fmt(data.grand_credit);
+    document.getElementById('kpiTxDebit').textContent  = 'Rs. ' + fmt(data.grand_tx_dr || 0);
+    document.getElementById('kpiTxCredit').textContent = 'Rs. ' + fmt(data.grand_tx_cr || 0);
+    document.getElementById('kpiDebit').textContent    = 'Rs. ' + fmt(data.grand_debit || 0);
+    document.getElementById('kpiCredit').textContent   = 'Rs. ' + fmt(data.grand_credit || 0);
 
     const statusEl = document.getElementById('kpiStatus');
     if (data.is_balanced) {
         statusEl.innerHTML = '<span class="balanced-badge"><i class="fas fa-check-circle mr-1"></i> Balanced</span>';
     } else {
-        const diff = Math.abs(data.grand_debit - data.grand_credit);
+        const diff = Math.abs((data.grand_debit || 0) - (data.grand_credit || 0));
         statusEl.innerHTML = `<span class="unbalanced-badge"><i class="fas fa-exclamation-triangle mr-1"></i> Diff: Rs. ${fmt(diff)}</span>`;
     }
 
@@ -388,17 +424,20 @@ function renderTable(data) {
 
 function exportCSV() {
     const rows  = document.querySelectorAll('#tbTable tbody tr');
+    const gob   = document.getElementById('footOb').textContent;
+    const gtxDr = document.getElementById('footTxDebit').textContent;
+    const gtxCr = document.getElementById('footTxCredit').textContent;
     const gd    = document.getElementById('footDebit').textContent;
     const gc    = document.getElementById('footCredit').textContent;
 
-    let csv = '#,Code,Account Title,Head / Group,Branch,Debit Balance,Credit Balance\n';
+    let csv = '#,Code,Account Title,Head / Group,Branch,Opening (Rs.),Debit (Dr),Credit (Cr),Closing Debit,Closing Credit\n';
     rows.forEach(tr => {
         const cells = tr.querySelectorAll('td');
-        if (cells.length < 7) return;
+        if (cells.length < 10) return;
         const line = Array.from(cells).map(c => '"' + c.textContent.trim().replace(/"/g, '""') + '"').join(',');
         csv += line + '\n';
     });
-    csv += `"","","","","Grand Total","${gd.trim()}","${gc.trim()}"\n`;
+    csv += `"","","","","Grand Total","${gob.trim()}","${gtxDr.trim()}","${gtxCr.trim()}","${gd.trim()}","${gc.trim()}"\n`;
 
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
