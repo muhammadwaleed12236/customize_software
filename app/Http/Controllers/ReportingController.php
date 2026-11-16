@@ -4748,15 +4748,29 @@ class ReportingController extends Controller
             $salesQ->whereDate('created_at', '<=', $dateTo);
         }
 
+        $itemsGrossQ = DB::table('sale_items as si')
+            ->join('sales as s', 's.id', '=', 'si.sale_id')
+            ->where(function ($q) {
+                $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled');
+            });
+        if ($branchId) {
+            $itemsGrossQ->where('s.branch_id', $branchId);
+        }
+        if ($dateFrom) {
+            $itemsGrossQ->whereDate('s.created_at', '>=', $dateFrom);
+        }
+        if ($dateTo) {
+            $itemsGrossQ->whereDate('s.created_at', '<=', $dateTo);
+        }
+
+        $grossSales = (float) ($itemsGrossQ->sum('si.amount') ?? 0);
+
         $salesRow = $salesQ->selectRaw('
-            COALESCE(SUM(sub_total1), 0) as gross_sales,
             COALESCE(SUM(discount_amount), 0) as discount_amount,
-            COALESCE(SUM(additional_discount), 0) as additional_discount,
             COALESCE(SUM(total_net), 0) as total_net
         ')->first();
 
-        $grossSales            = (float) ($salesRow->gross_sales ?? 0);
-        $totalDiscounts        = (float) ($salesRow->discount_amount ?? 0) + (float) ($salesRow->additional_discount ?? 0);
+        $totalDiscounts        = (float) ($salesRow->discount_amount ?? 0);
         $netSalesBeforeReturns = (float) ($salesRow->total_net ?? 0);
 
         // Sales Returns
