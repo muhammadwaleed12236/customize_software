@@ -374,8 +374,11 @@
                             </span>
                         @endif
                     </div>
-                    <div class="inv-brand-sub">
+                    <div class="inv-brand-sub d-flex gap-3 align-items-center flex-wrap">
                         <span><i class="fas fa-barcode me-1" style="color: var(--inv-gold);"></i> INVOICE NO: <strong>{{ $purchase->invoice_no }}</strong></span>
+                        @if(!empty($purchase->manual_invoice))
+                            <span class="ms-3"><i class="fas fa-file-invoice me-1" style="color: #67e8f9;"></i> M. BILL#: <strong>{{ $purchase->manual_invoice }}</strong></span>
+                        @endif
                     </div>
                 </div>
                 <div class="inv-meta-tag">
@@ -395,6 +398,9 @@
                     <div class="inv-info-label"><i class="fas fa-calendar-alt text-primary"></i> Invoice Details</div>
                     <div class="inv-info-value">{{ \Carbon\Carbon::parse($purchase->purchase_date)->format('d M, Y') }}</div>
                     <div class="inv-info-sub">Type: <strong>{{ ucfirst($purchase->purchase_type ?? 'local') }} Purchase</strong></div>
+                    @if(!empty($purchase->manual_invoice))
+                        <div class="inv-info-sub mt-1"><i class="fas fa-file-invoice text-primary me-1"></i> M. Bill#: <strong class="text-dark">{{ $purchase->manual_invoice }}</strong></div>
+                    @endif
                     
                     @if($purchase->inwardGatepasses && $purchase->inwardGatepasses->count() > 0)
                         <div class="mt-2 pt-2 border-top">

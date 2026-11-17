@@ -744,7 +744,7 @@
                         <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center text-truncate" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
                             <i class="fas fa-file-invoice text-secondary me-1"></i>M. Bill#
                         </label>
-                        <input type="text" class="form-control shadow-xs" name="manual_invoice" id="manualInvoice" value="{{ $purchase->transport_name ?? '' }}" placeholder="Manual bill#..." style="font-size:0.78rem; height: 28px;">
+                        <input type="text" class="form-control shadow-xs" name="manual_invoice" id="manualInvoice" value="{{ $purchase->manual_invoice ?? $purchase->transport_name ?? '' }}" placeholder="Manual bill#..." style="font-size:0.78rem; height: 28px;">
                     </div>
 
                     <!-- Remarks -->

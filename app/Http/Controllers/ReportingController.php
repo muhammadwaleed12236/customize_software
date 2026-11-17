@@ -2442,6 +2442,7 @@ class ReportingController extends Controller
             ->select(
                 'purchases.purchase_date',
                 'purchases.invoice_no',
+                'purchases.manual_invoice',
                 DB::raw('COALESCE(vendors.name, purchases.vendor_name, "Local Market") as vendor_name'),
                 'products.item_code',
                 'products.item_name',
@@ -2462,6 +2463,7 @@ class ReportingController extends Controller
                 'purchases.id',
                 'purchases.purchase_date',
                 'purchases.invoice_no',
+                'purchases.manual_invoice',
                 'vendors.name',
                 'purchases.vendor_name',
                 'products.item_code',

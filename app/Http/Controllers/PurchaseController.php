@@ -336,6 +336,7 @@ class PurchaseController extends Controller
         // (B) Validation (warehouse_id now OPTIONAL - each line specifies its own warehouse)
         $validated = $request->validate([
             'invoice_no'          => 'nullable|string',
+            'manual_invoice'      => 'nullable|string',
             'vendor_id'           => 'nullable|exists:vendors,id',
             'customer_id'         => 'nullable|exists:customers,id',
             'party_type'          => 'nullable|string',
@@ -425,6 +426,7 @@ class PurchaseController extends Controller
                 'vendor_name'   => $request->vendor_name ?? null, // ✅ NEW: Store local market shop name
                 'purchase_date' => $validated['purchase_date'] ?? now(),
                 'invoice_no'    => $invoiceNo, // ✅ Always use the calculated ERP invoice number
+                'manual_invoice'=> $request->manual_invoice ?? $request->transport_name ?? null,
                 'note'          => $validated['note'] ?? null,
                 'purchase_type' => $request->purchase_type ?? 'standard', // ✅ SAVE TYPE
                 'subtotal'      => 0,
@@ -1204,6 +1206,7 @@ class PurchaseController extends Controller
 
         $validated = $request->validate([
             'invoice_no'      => 'nullable|string',
+            'manual_invoice'  => 'nullable|string',
             'vendor_id'       => 'nullable|exists:vendors,id',
             'customer_id'     => 'nullable|exists:customers,id',
             'party_type'      => 'nullable|string',
@@ -1403,6 +1406,7 @@ class PurchaseController extends Controller
                     'warehouse_id'  => $warehouseId,
                     'purchase_date' => $validated['purchase_date'] ?? $purchase->purchase_date,
                     'invoice_no'    => $validated['invoice_no'] ?? $purchase->invoice_no,
+                    'manual_invoice'=> $request->manual_invoice ?? $validated['manual_invoice'] ?? $purchase->manual_invoice,
                     'note'          => $validated['note'] ?? $purchase->note,
                     'transport_name'=> $validated['transport_name'] ?? $purchase->transport_name,
                 ]);
