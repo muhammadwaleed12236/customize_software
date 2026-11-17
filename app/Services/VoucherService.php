@@ -188,7 +188,7 @@ class VoucherService
                     'transaction_type' => 'receipt',
                     'reference_id'     => $rvid,
                     'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
-                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
+                    'created_at'       => !empty($voucher->receipt_date) ? (Carbon::parse($voucher->receipt_date)->isToday() ? now() : Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0)) : now(),
                 ]);
 
                 self::recalculateCustomerLedger((int)$partyId);
@@ -208,7 +208,7 @@ class VoucherService
                     'admin_or_user_id' => $userId,
                     'transaction_date' => $receiptDate,
                     'description'      => "Receipt Voucher #{$rvid}" . ($remarks ? " - {$remarks}" : ""),
-                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
+                    'created_at'       => !empty($voucher->receipt_date) ? (Carbon::parse($voucher->receipt_date)->isToday() ? now() : Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0)) : now(),
                     'opening_balance'  => $vendor->opening_balance ?? 0,
                     'previous_balance' => $previousBalance,
                     'debit_amount'     => 0,
@@ -673,7 +673,7 @@ class VoucherService
                     'admin_or_user_id' => $userId,
                     'transaction_date' => $receiptDate,
                     'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
-                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
+                    'created_at'       => !empty($voucher->receipt_date) ? (Carbon::parse($voucher->receipt_date)->isToday() ? now() : Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0)) : now(),
                     'opening_balance'  => $previousBalance,
                     'previous_balance' => $previousBalance,
                     'debit_amount'     => $partyAmount,
@@ -703,7 +703,7 @@ class VoucherService
                     'transaction_type' => 'payment',
                     'reference_id'     => $pvid,
                     'description'      => "Payment Voucher #{$pvid}" . ($remarks ? " - {$remarks}" : ""),
-                    'created_at'       => !empty($voucher->receipt_date) ? Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0) : now(),
+                    'created_at'       => !empty($voucher->receipt_date) ? (Carbon::parse($voucher->receipt_date)->isToday() ? now() : Carbon::parse($voucher->receipt_date)->setTime(12, 0, 0)) : now(),
                 ]);
 
                 self::recalculateCustomerLedger((int)$partyId);

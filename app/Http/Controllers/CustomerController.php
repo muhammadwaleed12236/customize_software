@@ -67,27 +67,9 @@ class CustomerController extends Controller
         // Get customers and append closing_balance from latest ledger
         $customers = $query->get();
 
-        // Batch-fetch latest ledger closing_balance for all customers
-        $customerIds = $customers->pluck('id')->toArray();
-        $latestBalances = [];
-        if (!empty($customerIds)) {
-            $latestLedgers = \App\Models\CustomerLedger::whereIn('customer_id', $customerIds)
-                ->select('customer_id', 'closing_balance')
-                ->whereIn('id', function($sub) use ($customerIds) {
-                    $sub->selectRaw('MAX(id)')
-                        ->from('customer_ledgers')
-                        ->whereIn('customer_id', $customerIds)
-                        ->groupBy('customer_id');
-                })
-                ->get();
-            foreach ($latestLedgers as $ll) {
-                $latestBalances[$ll->customer_id] = (float) $ll->closing_balance;
-            }
-        }
-
-        // Append closing_balance & previous_balance to each customer
-        $customers->each(function($c) use ($latestBalances) {
-            $bal = $latestBalances[$c->id] ?? (float)($c->opening_balance ?? 0);
+        // Append closing_balance & previous_balance to each customer using chronologically latest ledger entry
+        $customers->each(function($c) {
+            $bal = (float) $c->closing_balance;
             $c->closing_balance = $bal;
             $c->previous_balance = $bal;
         });
@@ -104,8 +86,11 @@ class CustomerController extends Controller
     {
         $customer = Customer::findOrFail($id);
 
-        // Get latest closing balance from ledger (accessor may not work over plain $.get without Accept header)
-        $latestLedger = CustomerLedger::where("customer_id", $id)->latest("id")->first();
+        // Get latest closing balance from ledger chronologically
+        $latestLedger = CustomerLedger::where("customer_id", $id)
+            ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+            ->orderBy('id', 'desc')
+            ->first();
         if ($latestLedger) {
             $closingBalance = (float) $latestLedger->closing_balance;
         } else {
