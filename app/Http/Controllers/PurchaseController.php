@@ -337,6 +337,7 @@ class PurchaseController extends Controller
         $validated = $request->validate([
             'invoice_no'          => 'nullable|string',
             'manual_invoice'      => 'nullable|string',
+            'vendor_invoice_no'   => 'nullable|string',
             'vendor_id'           => 'nullable|exists:vendors,id',
             'customer_id'         => 'nullable|exists:customers,id',
             'party_type'          => 'nullable|string',
@@ -427,6 +428,7 @@ class PurchaseController extends Controller
                 'purchase_date' => $validated['purchase_date'] ?? now(),
                 'invoice_no'    => $invoiceNo, // ✅ Always use the calculated ERP invoice number
                 'manual_invoice'=> $request->manual_invoice ?? $request->transport_name ?? null,
+                'vendor_invoice_no' => $request->vendor_invoice_no ?? null,
                 'note'          => $validated['note'] ?? null,
                 'purchase_type' => $request->purchase_type ?? 'standard', // ✅ SAVE TYPE
                 'subtotal'      => 0,
@@ -1205,9 +1207,10 @@ class PurchaseController extends Controller
         }
 
         $validated = $request->validate([
-            'invoice_no'      => 'nullable|string',
-            'manual_invoice'  => 'nullable|string',
-            'vendor_id'       => 'nullable|exists:vendors,id',
+            'invoice_no'        => 'nullable|string',
+            'manual_invoice'    => 'nullable|string',
+            'vendor_invoice_no' => 'nullable|string',
+            'vendor_id'         => 'nullable|exists:vendors,id',
             'customer_id'     => 'nullable|exists:customers,id',
             'party_type'      => 'nullable|string',
             'purchase_date'   => 'nullable|date',
@@ -1405,9 +1408,10 @@ class PurchaseController extends Controller
                     'branch_id'     => $branchId,
                     'warehouse_id'  => $warehouseId,
                     'purchase_date' => $validated['purchase_date'] ?? $purchase->purchase_date,
-                    'invoice_no'    => $validated['invoice_no'] ?? $purchase->invoice_no,
-                    'manual_invoice'=> $request->manual_invoice ?? $validated['manual_invoice'] ?? $purchase->manual_invoice,
-                    'note'          => $validated['note'] ?? $purchase->note,
+                    'invoice_no'        => $validated['invoice_no'] ?? $purchase->invoice_no,
+                    'manual_invoice'    => $request->manual_invoice ?? $validated['manual_invoice'] ?? $purchase->manual_invoice,
+                    'vendor_invoice_no' => $request->vendor_invoice_no ?? $validated['vendor_invoice_no'] ?? $purchase->vendor_invoice_no,
+                    'note'              => $validated['note'] ?? $purchase->note,
                     'transport_name'=> $validated['transport_name'] ?? $purchase->transport_name,
                 ]);
 

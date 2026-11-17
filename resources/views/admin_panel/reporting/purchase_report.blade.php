@@ -282,6 +282,7 @@
                                     <th style="width: 90px; white-space: nowrap;">Date</th>
                                     <th style="width: 105px; white-space: nowrap;">Invoice</th>
                                     <th style="width: 95px; white-space: nowrap;">M. Bill#</th>
+                                    <th style="width: 95px; white-space: nowrap;">Vendor Inv#</th>
                                     <th style="min-width: 130px; width: 13%;">Vendor</th>
                                     <th style="min-width: 260px; width: 25%;">Item / Product Details</th>
                                     <th class="text-end" style="width: 75px; white-space: nowrap;">Qty</th>
@@ -358,7 +359,7 @@
             let processedInvoices = new Set(); // To avoid double-counting invoice-level totals
 
             if (rows.length === 0) {
-                $('#reportBody').html('<tr><td colspan="14" class="text-center py-4 text-muted">No data found</td></tr>');
+                $('#reportBody').html('<tr><td colspan="15" class="text-center py-4 text-muted">No data found</td></tr>');
                 $('#summaryCards').hide();
                 return;
             }
@@ -379,6 +380,7 @@
                     <td style="white-space:nowrap; font-size:11.5px;">${r.purchase_date}</td>
                     <td><span class="invoice-no">${r.invoice_no}</span></td>
                     <td style="white-space:nowrap;"><span class="font-monospace text-secondary" style="font-size:11.5px; font-weight:600;">${r.manual_invoice || '-'}</span></td>
+                    <td style="white-space:nowrap;"><span class="font-monospace text-secondary" style="font-size:11.5px; font-weight:600;">${r.vendor_invoice_no || '-'}</span></td>
                     <td><strong class="text-dark" style="font-size:12px;">${r.vendor_name}</strong></td>
                     <td>
                         <div class="item-name mb-1">${r.item_name}</div>
@@ -400,13 +402,17 @@
                 // Add item-level discount to grand total
                 grandDiscount += n(r.item_discount);
 
-                // Invoice-level totals (count only once per unique invoice)
-                if (!processedInvoices.has(r.invoice_no)) {
+                // Invoice-level totals (count only once per unique purchase)
+                let invKey = (r.purchase_id !== undefined && r.purchase_id !== null)
+                    ? r.purchase_id
+                    : (r.branch_id ? r.branch_id + '_' + r.invoice_no : r.invoice_no);
+
+                if (!processedInvoices.has(invKey)) {
                     grandNet += n(r.net_amount);
                     grandPaid += n(r.paid_amount);
                     grandDue += n(r.due_amount);
                     grandDiscount += n(r.discount); // Add invoice-level discount
-                    processedInvoices.add(r.invoice_no);
+                    processedInvoices.add(invKey);
                 }
             });
 
@@ -419,7 +425,7 @@
 
             // Grand total row
             tableContent += `<tr class="font-weight-bold bg-light" style="font-family: monospace; font-size: 13px;">
-                <td colspan="11" class="text-end font-weight-bold" style="font-family: sans-serif;">Total Summary (Unique Invoices):</td>
+                <td colspan="12" class="text-end font-weight-bold" style="font-family: sans-serif;">Total Summary (Unique Invoices):</td>
                 <td class="text-end text-success font-weight-bold" style="background:rgba(13, 159, 110, 0.12);">${fmt(grandNet)}</td>
                 <td class="text-end text-dark font-weight-bold">${fmt(grandPaid)}</td>
                 <td class="text-end text-danger font-weight-bold">${fmt(grandDue)}</td>
@@ -622,9 +628,9 @@
                         return;
                     }
 
-                    var csv = 'Purchase Date,Invoice No,M. Bill No,Vendor,Item Code,Item Name,Qty,Unit,Price,Item Discount,Line Total,Subtotal,Discount,Extra Cost,Net Amount,Paid Amount,Due Amount\n';
+                    var csv = 'Purchase Date,Invoice No,M. Bill No,Vendor Invoice No,Vendor,Item Code,Item Name,Qty,Unit,Price,Item Discount,Line Total,Subtotal,Discount,Extra Cost,Net Amount,Paid Amount,Due Amount\n';
                     response.data.forEach(function(r) {
-                        csv += `"${r.purchase_date}","${r.invoice_no}","${r.manual_invoice || ''}","${r.vendor_name}","${r.item_code}","${r.item_name}",${r.qty},${r.unit},${r.price},${r.item_discount},${r.line_total},${r.subtotal},${r.discount},${r.extra_cost},${r.net_amount},${r.paid_amount},${r.due_amount}\n`;
+                        csv += `"${r.purchase_date}","${r.invoice_no}","${r.manual_invoice || ''}","${r.vendor_invoice_no || ''}","${r.vendor_name}","${r.item_code}","${r.item_name}",${r.qty},${r.unit},${r.price},${r.item_discount},${r.line_total},${r.subtotal},${r.discount},${r.extra_cost},${r.net_amount},${r.paid_amount},${r.due_amount}\n`;
                     });
 
                     var blob = new Blob(["\uFEFF" + csv], {type:'text/csv;charset=utf-8;'});

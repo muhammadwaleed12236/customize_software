@@ -399,8 +399,9 @@
     .top-field-date { flex: 0 0 130px; max-width: 130px; }
     .top-field-purchaser { flex: 0 0 145px; max-width: 145px; }
     .top-field-crdays { flex: 0 0 65px; max-width: 65px; }
-    .top-field-mbill { flex: 0 0 120px; max-width: 120px; }
-    .top-field-remarks { flex: 1 1 160px; min-width: 120px; }
+    .top-field-mbill { flex: 0 0 115px; max-width: 115px; }
+    .top-field-vinv { flex: 0 0 115px; max-width: 115px; }
+    .top-field-remarks { flex: 1 1 150px; min-width: 110px; }
     @media (max-width: 767.98px) {
         .top-field-branch,
         .top-field-loc,
@@ -408,6 +409,7 @@
         .top-field-purchaser,
         .top-field-crdays,
         .top-field-mbill,
+        .top-field-vinv,
         .top-field-remarks {
             flex: 1 1 calc(50% - 4px);
             max-width: 100%;
@@ -745,6 +747,14 @@
                             <i class="fas fa-file-invoice text-secondary me-1"></i>M. Bill#
                         </label>
                         <input type="text" class="form-control shadow-xs" name="manual_invoice" id="manualInvoice" value="{{ $purchase->manual_invoice ?? $purchase->transport_name ?? '' }}" placeholder="Manual bill#..." style="font-size:0.78rem; height: 28px;">
+                    </div>
+
+                    <!-- Vendor Invoice # -->
+                    <div class="top-field-vinv">
+                        <label class="form-label fw-bold text-uppercase text-secondary mb-0 d-flex align-items-center text-truncate" style="font-size:0.67rem; letter-spacing:0.3px; margin-bottom: 2px !important;">
+                            <i class="fas fa-receipt text-secondary me-1"></i>Vendor Inv#
+                        </label>
+                        <input type="text" class="form-control shadow-xs" name="vendor_invoice_no" id="vendorInvoiceNo" value="{{ $purchase->vendor_invoice_no ?? '' }}" placeholder="Vendor inv#..." style="font-size:0.78rem; height: 28px;">
                     </div>
 
                     <!-- Remarks -->

@@ -174,6 +174,7 @@
                         <div class="col-md-{{ $isSuper ? '3' : '4' }}">
                             <label class="f-label">Cost of Sales (COGS) Basis</label>
                             <select id="cogs_method" class="form-control form-control-sm" style="height:36px;">
+                                <option value="periodic" selected>Standard Accounting (Opening + Purchases - Returns - Closing)</option>
                                 <option value="item_cost">Product Cost (Qty &times; Cost Price)</option>
                                 <option value="purchases">Periodic Net Purchases</option>
                             </select>
@@ -295,14 +296,38 @@
                             </div>
                             <table class="stmt-table">
                                 <tbody>
-                                    <tr id="rowItemCogs">
-                                        <td class="item-name">Product Cost of Items Sold (Qty &times; Cost)</td>
+                                    {{-- Standard Accounting Periodic Rows --}}
+                                    <tr id="rowOpeningStock">
+                                        <td class="item-name"><i class="fas fa-box-open mr-1 text-muted"></i> Opening Inventory / Stock</td>
+                                        <td class="amount-col text-dark" id="valOpeningStock">Rs. 0.00</td>
+                                    </tr>
+                                    <tr id="rowGrossPurchases">
+                                        <td class="item-name" style="padding-left:18px;"><i class="fas fa-plus text-success mr-1"></i> Add: Purchases (Gross)</td>
+                                        <td class="amount-col text-success" id="valGrossPurchases">Rs. 0.00</td>
+                                    </tr>
+                                    <tr id="rowPurchaseReturns">
+                                        <td class="item-name" style="padding-left:18px;"><i class="fas fa-minus text-danger mr-1"></i> Less: Purchase Returns</td>
+                                        <td class="amount-col text-danger" id="valPurchaseReturns">Rs. 0.00</td>
+                                    </tr>
+                                    <tr id="rowGoodsAvailable" style="background:#f8fafc; font-weight:600;">
+                                        <td class="item-name"><i class="fas fa-boxes text-info mr-1"></i> Cost of Goods Available for Sale</td>
+                                        <td class="amount-col text-info" id="valGoodsAvailable">Rs. 0.00</td>
+                                    </tr>
+                                    <tr id="rowClosingStock">
+                                        <td class="item-name"><i class="fas fa-minus text-danger mr-1"></i> Less: Closing Inventory / Stock on Hand</td>
+                                        <td class="amount-col text-danger" id="valClosingStock">Rs. 0.00</td>
+                                    </tr>
+
+                                    {{-- Alternative Method Rows --}}
+                                    <tr id="rowItemCogs" style="display:none;">
+                                        <td class="item-name"><i class="fas fa-calculator text-muted mr-1"></i> Product Cost of Items Sold (Qty &times; Cost)</td>
                                         <td class="amount-col text-danger" id="valItemCogs">Rs. 0.00</td>
                                     </tr>
-                                    <tr id="rowPurchases">
-                                        <td class="item-name">Periodic Net Purchases</td>
+                                    <tr id="rowPurchases" style="display:none;">
+                                        <td class="item-name"><i class="fas fa-shopping-bag text-muted mr-1"></i> Periodic Net Purchases (Purchases &minus; Returns)</td>
                                         <td class="amount-col text-danger" id="valPurchases">Rs. 0.00</td>
                                     </tr>
+
                                     <tr class="total-row">
                                         <td class="font-weight-bold">TOTAL COST OF GOODS SOLD</td>
                                         <td class="amount-col text-danger" id="valTotalCogs">Rs. 0.00</td>
@@ -447,21 +472,29 @@ function renderStatement(d) {
     document.getElementById('hdrNetSales').textContent      = 'Rs. ' + fmt(d.net_revenue);
 
     // ── Cost of Goods Sold ─────────────────────────────────
-    document.getElementById('valItemCogs').textContent      = 'Rs. ' + fmt(d.item_cogs);
-    document.getElementById('valPurchases').textContent     = 'Rs. ' + fmt(d.net_purchases);
-    document.getElementById('valTotalCogs').textContent     = 'Rs. ' + fmt(d.active_cogs);
-    document.getElementById('hdrCogs').textContent          = 'Rs. ' + fmt(d.active_cogs);
+    document.getElementById('valOpeningStock').textContent    = 'Rs. ' + fmt(d.opening_stock);
+    document.getElementById('valGrossPurchases').textContent  = 'Rs. ' + fmt(d.gross_purchases);
+    document.getElementById('valPurchaseReturns').textContent = '(' + 'Rs. ' + fmt(d.purchase_returns) + ')';
+    document.getElementById('valGoodsAvailable').textContent  = 'Rs. ' + fmt(d.goods_available);
+    document.getElementById('valClosingStock').textContent    = '(' + 'Rs. ' + fmt(d.closing_stock) + ')';
+    document.getElementById('valItemCogs').textContent        = 'Rs. ' + fmt(d.item_cogs);
+    document.getElementById('valPurchases').textContent       = 'Rs. ' + fmt(d.net_purchases);
+    document.getElementById('valTotalCogs').textContent       = 'Rs. ' + fmt(d.active_cogs);
+    document.getElementById('hdrCogs').textContent            = 'Rs. ' + fmt(d.active_cogs);
 
     // Method row visibility
-    if (d.cogs_method === 'purchases') {
-        document.getElementById('rowItemCogs').style.opacity = '0.4';
-        document.getElementById('rowPurchases').style.opacity = '1.0';
-        document.getElementById('rowPurchases').style.fontWeight = 'bold';
-    } else {
-        document.getElementById('rowItemCogs').style.opacity = '1.0';
-        document.getElementById('rowItemCogs').style.fontWeight = 'bold';
-        document.getElementById('rowPurchases').style.opacity = '0.4';
-    }
+    const isPeriodic  = (d.cogs_method === 'periodic' || !d.cogs_method);
+    const isPurchases = (d.cogs_method === 'purchases');
+    const isItemCost  = (d.cogs_method === 'item_cost');
+
+    document.getElementById('rowOpeningStock').style.display    = isPeriodic ? '' : 'none';
+    document.getElementById('rowGrossPurchases').style.display  = isPeriodic ? '' : 'none';
+    document.getElementById('rowPurchaseReturns').style.display = isPeriodic ? '' : 'none';
+    document.getElementById('rowGoodsAvailable').style.display  = isPeriodic ? '' : 'none';
+    document.getElementById('rowClosingStock').style.display    = isPeriodic ? '' : 'none';
+
+    document.getElementById('rowItemCogs').style.display  = isItemCost ? '' : 'none';
+    document.getElementById('rowPurchases').style.display = isPurchases ? '' : 'none';
 
     // Gross Profit
     document.getElementById('valGrossProfit').textContent    = 'Rs. ' + fmt(d.gross_profit);
@@ -545,7 +578,15 @@ function exportCSV() {
     csv += 'Revenue,Sales Returns,' + document.getElementById('valSalesReturns').textContent.replace(/[Rs.\s,]/g, '') + '\n';
     csv += 'Revenue,NET REVENUE,' + document.getElementById('valNetRevenue').textContent.replace(/[Rs.\s,]/g, '') + '\n';
 
-    csv += 'Cost of Sales,Cost of Goods Sold,' + document.getElementById('valTotalCogs').textContent.replace(/[Rs.\s,]/g, '') + '\n';
+    const isPeriodic = document.getElementById('rowOpeningStock').style.display !== 'none';
+    if (isPeriodic) {
+        csv += 'Cost of Sales,Opening Stock,' + document.getElementById('valOpeningStock').textContent.replace(/[Rs.\s,]/g, '') + '\n';
+        csv += 'Cost of Sales,Add: Purchases,' + document.getElementById('valGrossPurchases').textContent.replace(/[Rs.\s,]/g, '') + '\n';
+        csv += 'Cost of Sales,Less: Purchase Returns,' + document.getElementById('valPurchaseReturns').textContent.replace(/[Rs.\s,()]/g, '') + '\n';
+        csv += 'Cost of Sales,Goods Available for Sale,' + document.getElementById('valGoodsAvailable').textContent.replace(/[Rs.\s,]/g, '') + '\n';
+        csv += 'Cost of Sales,Less: Closing Stock,' + document.getElementById('valClosingStock').textContent.replace(/[Rs.\s,()]/g, '') + '\n';
+    }
+    csv += 'Cost of Sales,Cost of Goods Sold (COGS),' + document.getElementById('valTotalCogs').textContent.replace(/[Rs.\s,]/g, '') + '\n';
     csv += 'Gross Profit,GROSS PROFIT,' + document.getElementById('valGrossProfit').textContent.replace(/[Rs.\s,]/g, '') + '\n';
 
     const expRows = document.querySelectorAll('#expenseRows tr');

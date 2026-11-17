@@ -2440,9 +2440,12 @@ class ReportingController extends Controller
                 return $q->where('purchases.vendor_id', $vendorId);
             })
             ->select(
+                'purchases.id as purchase_id',
+                'purchases.branch_id',
                 'purchases.purchase_date',
                 'purchases.invoice_no',
                 'purchases.manual_invoice',
+                'purchases.vendor_invoice_no',
                 DB::raw('COALESCE(vendors.name, purchases.vendor_name, "Local Market") as vendor_name'),
                 'products.item_code',
                 'products.item_name',
@@ -2461,9 +2464,11 @@ class ReportingController extends Controller
             )
             ->groupBy(
                 'purchases.id',
+                'purchases.branch_id',
                 'purchases.purchase_date',
                 'purchases.invoice_no',
                 'purchases.manual_invoice',
+                'purchases.vendor_invoice_no',
                 'vendors.name',
                 'purchases.vendor_name',
                 'products.item_code',
@@ -4799,7 +4804,9 @@ class ReportingController extends Controller
         }
 
         // ── 2. COST OF GOODS SOLD (COGS) ───────────────────────
-        // Option A: Direct Cost of Sold Items (Qty * Product Purchase Price)
+        $cogsMethod = $request->input('cogs_method', 'periodic'); // 'periodic' | 'item_cost' | 'purchases'
+
+        // 2.1 Direct Cost of Sold Items (Qty * Product Purchase Price)
         $cogsItemsQ = DB::table('sale_items as si')
             ->join('sales as s', 's.id', '=', 'si.sale_id')
             ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
@@ -4817,8 +4824,8 @@ class ReportingController extends Controller
         }
         $itemCogsTotal = (float) ($cogsItemsQ->sum(DB::raw('si.sales_qty * COALESCE(p.price, 0)')) ?? 0);
 
-        // Option B: Net Purchases in Period
-        $purchQ = DB::table('purchases');
+        // 2.2 Purchases in Period
+        $purchQ = DB::table('purchases')->whereNull('deleted_at');
         if ($branchId) {
             $purchQ->where('branch_id', $branchId);
         }
@@ -4854,8 +4861,79 @@ class ReportingController extends Controller
         $purchaseReturns    = (float) ($purchRetQ->sum('net_amount') ?? 0);
         $effectivePurchases = $netPurchases - $purchaseReturns;
 
+        // 2.3 Standard Accounting Periodic Inventory: Opening + Purchases - Returns - Closing Stock
+        // Closing Stock Valuation as of dateTo (warehouse_stocks)
+        $closingStockQ = DB::table('warehouse_stocks as ws');
+        if ($branchId) {
+            $closingStockQ->where('ws.branch_id', $branchId);
+        }
+        $closingStock = (float) $closingStockQ->selectRaw('COALESCE(SUM(ws.quantity * ws.price), 0) as val')->value('val');
+
+        // Opening Stock Valuation
+        $openMovementsQ = DB::table('stock_movements as sm')
+            ->join('products as p', 'p.id', '=', 'sm.product_id')
+            ->whereIn('sm.ref_type', ['OPENING', 'OPENING_ADJ']);
+        if ($branchId) {
+            $openMovementsQ->where('sm.branch_id', $branchId);
+        }
+        $initialOpeningStock = (float) $openMovementsQ->sum(DB::raw('sm.qty * COALESCE(p.price, 0)'));
+        if ($initialOpeningStock <= 0) {
+            $prodInitQ = DB::table('products');
+            if ($branchId) {
+                $prodInitQ->where('branch_id', $branchId);
+            }
+            $initialOpeningStock = (float) $prodInitQ->sum(DB::raw('COALESCE(initial_stock, 0) * COALESCE(price, 0)'));
+        }
+
+        $openingStock = $initialOpeningStock;
+        if ($dateFrom && $dateFrom > '2026-01-01') {
+            $purchBefore = (float) DB::table('purchases')
+                ->whereNull('deleted_at')
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->whereDate('purchase_date', '<', $dateFrom)
+                ->sum('net_amount');
+
+            $retBefore = (float) DB::table('purchase_returns')
+                ->when($branchId, function ($q) use ($branchId) {
+                    $q->whereExists(function ($sub) use ($branchId) {
+                        $sub->select(DB::raw(1))->from('purchases')
+                            ->whereColumn('purchases.id', 'purchase_returns.purchase_id')
+                            ->where('purchases.branch_id', $branchId);
+                    });
+                })
+                ->whereDate('return_date', '<', $dateFrom)
+                ->sum('net_amount');
+
+            $soldBefore = (float) DB::table('sale_items as si')
+                ->join('sales as s', 's.id', '=', 'si.sale_id')
+                ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
+                ->where(function ($q) { $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled'); })
+                ->when($branchId, fn($q) => $q->where('s.branch_id', $branchId))
+                ->whereDate('s.created_at', '<', $dateFrom)
+                ->sum(DB::raw('si.sales_qty * COALESCE(p.price, 0)'));
+
+            $calculatedOpening = $initialOpeningStock + ($purchBefore - $retBefore) - $soldBefore;
+            if ($calculatedOpening >= 0) {
+                $openingStock = $calculatedOpening;
+            }
+        }
+
+        $goodsAvailable = $openingStock + $effectivePurchases;
+        $periodicCogs   = $goodsAvailable - $closingStock;
+        if ($periodicCogs < 0 && $itemCogsTotal > 0) {
+            $periodicCogs = $itemCogsTotal;
+        }
+
         // Active COGS based on method selected:
-        $activeCogs         = ($cogsMethod === 'purchases') ? $effectivePurchases : $itemCogsTotal;
+        if ($cogsMethod === 'purchases') {
+            $activeCogs = $effectivePurchases;
+        } elseif ($cogsMethod === 'item_cost') {
+            $activeCogs = $itemCogsTotal;
+        } else {
+            // Default: 'periodic' (Standard Accounting: Opening + Purchases - Returns - Closing)
+            $activeCogs = $periodicCogs;
+        }
+
         $grossProfit        = $netRevenue - $activeCogs;
         $grossMarginPercent = $netRevenue > 0 ? round(($grossProfit / $netRevenue) * 100, 2) : 0;
 
@@ -4903,10 +4981,14 @@ class ReportingController extends Controller
             'sales_returns'        => $salesReturns,
             'net_revenue'          => $netRevenue,
             // COGS
-            'item_cogs'            => $itemCogsTotal,
+            'opening_stock'        => $openingStock,
             'gross_purchases'      => $grossPurchases,
             'purchase_returns'     => $purchaseReturns,
             'net_purchases'        => $effectivePurchases,
+            'goods_available'      => $goodsAvailable,
+            'closing_stock'        => $closingStock,
+            'periodic_cogs'        => $periodicCogs,
+            'item_cogs'            => $itemCogsTotal,
             'active_cogs'          => $activeCogs,
             // Gross Profit
             'gross_profit'         => $grossProfit,

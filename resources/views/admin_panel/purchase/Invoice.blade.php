@@ -377,7 +377,10 @@
                     <div class="inv-brand-sub d-flex gap-3 align-items-center flex-wrap">
                         <span><i class="fas fa-barcode me-1" style="color: var(--inv-gold);"></i> INVOICE NO: <strong>{{ $purchase->invoice_no }}</strong></span>
                         @if(!empty($purchase->manual_invoice))
-                            <span class="ms-3"><i class="fas fa-file-invoice me-1" style="color: #67e8f9;"></i> M. BILL#: <strong>{{ $purchase->manual_invoice }}</strong></span>
+                            <span class="ms-2"><i class="fas fa-file-invoice me-1" style="color: #67e8f9;"></i> M. BILL#: <strong>{{ $purchase->manual_invoice }}</strong></span>
+                        @endif
+                        @if(!empty($purchase->vendor_invoice_no))
+                            <span class="ms-2"><i class="fas fa-receipt me-1" style="color: #fde047;"></i> VENDOR INV#: <strong>{{ $purchase->vendor_invoice_no }}</strong></span>
                         @endif
                     </div>
                 </div>
@@ -400,6 +403,9 @@
                     <div class="inv-info-sub">Type: <strong>{{ ucfirst($purchase->purchase_type ?? 'local') }} Purchase</strong></div>
                     @if(!empty($purchase->manual_invoice))
                         <div class="inv-info-sub mt-1"><i class="fas fa-file-invoice text-primary me-1"></i> M. Bill#: <strong class="text-dark">{{ $purchase->manual_invoice }}</strong></div>
+                    @endif
+                    @if(!empty($purchase->vendor_invoice_no))
+                        <div class="inv-info-sub mt-1"><i class="fas fa-receipt text-warning me-1"></i> Vendor Inv#: <strong class="text-dark">{{ $purchase->vendor_invoice_no }}</strong></div>
                     @endif
                     
                     @if($purchase->inwardGatepasses && $purchase->inwardGatepasses->count() > 0)
