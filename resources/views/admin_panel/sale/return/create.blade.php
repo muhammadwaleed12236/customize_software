@@ -127,12 +127,18 @@
         <div class="col-md-6">
           <div class="card p-3">
             <div class="section-title mb-2">Return Information</div>
-            <div class="mb-2">
-              <label class="form-label fw-bold">Return Reference</label>
-              <input type="text" class="form-control" name="reference" placeholder="e.g, RET-001" value="RET-{{ $nextInvoiceNumber ?? date('YmdHis') }}">
+            <div class="row">
+              <div class="col-md-6 mb-2">
+                <label class="form-label fw-bold mb-0">Return Reference:</label>
+                <input type="text" class="form-control" name="reference" placeholder="e.g, RET-001" value="RET-{{ $nextInvoiceNumber ?? date('YmdHis') }}">
+              </div>
+              <div class="col-md-6 mb-2">
+                <label class="form-label fw-bold mb-0">Return Date: <span class="text-danger">*</span></label>
+                <input type="date" class="form-control" name="return_date" id="return_date" value="{{ date('Y-m-d') }}" required>
+              </div>
             </div>
             <div class="mb-2">
-              <label class="form-label fw-bold">Return Note</label>
+              <label class="form-label fw-bold mb-0">Return Note:</label>
               <textarea class="form-control" name="return_note" placeholder="Reason for return..." rows="2"></textarea>
             </div>
           </div>
@@ -414,11 +420,30 @@ $(document).ready(function() {
     const d = new Date();
     const pad = (n) => n < 10 ? '0' + n : n;
     const dt = `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${String(d.getFullYear()).slice(-2)} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    const dOnly = `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${String(d.getFullYear()).slice(-2)}`;
     $('#entryDateTime').text('Entry Date_Time: ' + dt);
-    $('#entryDate').text('Date: ' + dOnly);
+
+    const curVal = $('#return_date').val();
+    if (curVal) {
+      const parts = curVal.split('-');
+      if (parts.length === 3) {
+        $('#entryDate').text('Date: ' + parts[2] + '-' + parts[1] + '-' + parts[0].slice(-2));
+      }
+    } else {
+      const dOnly = `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${String(d.getFullYear()).slice(-2)}`;
+      $('#entryDate').text('Date: ' + dOnly);
+    }
   }
   setNowStamp();
+
+  $('#return_date').on('change', function() {
+    const val = $(this).val();
+    if (val) {
+      const parts = val.split('-');
+      if (parts.length === 3) {
+        $('#entryDate').text('Date: ' + parts[2] + '-' + parts[1] + '-' + parts[0].slice(-2));
+      }
+    }
+  });
 
   // Alert function - IMPROVED FOR VISIBILITY
   function showAlert(type, msg) {

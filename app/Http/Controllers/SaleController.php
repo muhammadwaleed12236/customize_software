@@ -3561,6 +3561,14 @@ public function finddc($invoice)
             $warehouseId = (int) ($request->input('warehouse_id', 1));
             $saleId      = (int) $request->sale_id;
 
+            $returnDateInput = $request->input('return_date');
+            if ($returnDateInput) {
+                $parsedDate = \Carbon\Carbon::parse($returnDateInput);
+                $returnTimestamp = $parsedDate->isToday() ? now() : $parsedDate->setTime(12, 0, 0);
+            } else {
+                $returnTimestamp = now();
+            }
+
             $product_ids   = $request->product_id   ?? [];
             $product_names = $request->product       ?? [];
             $product_codes = $request->item_code     ?? [];
@@ -3775,8 +3783,8 @@ public function finddc($invoice)
                         'ref_type'   => 'SALE_RETURN',
                         'ref_id'     => null, // will be updated after SalesReturn saved
                         'note'       => 'Sale return ' . ($sale ? $sale->invoice_no : '') . ($multiplier > 1 ? " ({$retQty} Ctn × {$multiplier} = {$retPieces} Pcs)" : "") . ($targetWhId ? " (Warehouse: {$targetWhId})" : " (Shop Stock)"),
-                        'created_at' => now(),
-                        'updated_at' => now(),
+                        'created_at' => $returnTimestamp,
+                        'updated_at' => $returnTimestamp,
                     ];
                 }
             }
@@ -3813,6 +3821,8 @@ public function finddc($invoice)
             $saleReturn->change              = $request->change;
             $saleReturn->total_items         = $total_items;
             $saleReturn->return_note         = $request->return_note;
+            $saleReturn->created_at          = $returnTimestamp;
+            $saleReturn->updated_at          = $returnTimestamp;
             $saleReturn->save();
 
             // Update movement ref_id now that SalesReturn is persisted
@@ -3829,7 +3839,10 @@ public function finddc($invoice)
             // ------------------------------------------------------------------
             $customer_id = $request->customer_id;
             if ($customer_id) {
-                $latestLedger = CustomerLedger::where('customer_id', $customer_id)->latest('id')->first();
+                $latestLedger = CustomerLedger::where('customer_id', $customer_id)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
+                    ->first();
                 $prevBal      = $latestLedger ? (float)$latestLedger->closing_balance : 0;
                 $newClosing   = $prevBal - (float)$request->total_net;
 
@@ -3843,6 +3856,7 @@ public function finddc($invoice)
                     'total_credit'     => (float)$request->total_net,
                     'closing_balance'  => $newClosing,
                     'opening_balance'  => 0,
+                    'created_at'       => $returnTimestamp,
                 ]);
             }
 
@@ -3864,7 +3878,7 @@ public function finddc($invoice)
                         'payment',
                         $saleReturn->reference ?? ('RET-' . $saleReturn->id),
                         $saleReturn->id,
-                        now()->toDateString(),
+                        $returnTimestamp->toDateString(),
                         'Sale Return Cash Refund — ' . ($saleReturn->reference ?? ('#' . $saleReturn->id)),
                         0,
                         $refAmt,
@@ -3874,7 +3888,10 @@ public function finddc($invoice)
 
                 // Customer Ledger: Record Cash Refund as DEBIT (customer received cash)
                 if ($customer_id && $totalRefundPaid > 0) {
-                    $latestLedger = CustomerLedger::where('customer_id', $customer_id)->latest('id')->first();
+                    $latestLedger = CustomerLedger::where('customer_id', $customer_id)
+                        ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                        ->orderBy('id', 'desc')
+                        ->first();
                     $prevBal      = $latestLedger ? (float)$latestLedger->closing_balance : 0;
                     $newClosing   = $prevBal + $totalRefundPaid;
 
@@ -3889,8 +3906,14 @@ public function finddc($invoice)
                         'total_credit'     => 0,
                         'closing_balance'  => $newClosing,
                         'opening_balance'  => 0,
+                        'created_at'       => $returnTimestamp,
                     ]);
                 }
+            }
+
+            // Recalculate customer running balance strictly in chronological order
+            if ($customer_id) {
+                \App\Services\VoucherService::recalculateCustomerLedger((int)$customer_id);
             }
 
             DB::commit();
