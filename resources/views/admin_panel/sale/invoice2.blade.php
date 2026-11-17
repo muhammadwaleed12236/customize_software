@@ -678,23 +678,9 @@ $balanceDue = $grandTotal - $totalReceived;
                         <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($netTotal, 2) }}</td>
                     </tr>
                     @endif
-                    </tr>
-                    @php
-                        $custOpening = floatval(optional($booking->customer)->opening_balance ?? 0);
-                        $prevInvoices = $displayPrevious - $custOpening;
-                    @endphp
-                    @if($custOpening != 0 && $prevInvoices > 0)
+                    @if($displayPrevious != 0)
                     <tr>
-                        <td style="background: #fafafa;">Opening Balance</td>
-                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($custOpening, 2) }}</td>
-                    </tr>
-                    <tr>
-                        <td style="background: #fafafa;">Previous Invoices Due</td>
-                        <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($prevInvoices, 2) }}</td>
-                    </tr>
-                    @elseif($displayPrevious != 0)
-                    <tr>
-                        <td style="background: #fafafa;">{{ $custOpening != 0 ? 'Opening Balance' : 'Previous Balance' }}</td>
+                        <td style="background: #fafafa;">Previous Balance</td>
                         <td style="text-align: right; font-weight: 800; color: #000;">Rs. {{ number_format($displayPrevious, 2) }}</td>
                     </tr>
                     @endif
