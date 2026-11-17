@@ -4688,6 +4688,277 @@ class ReportingController extends Controller
             ];
         }
 
+        // ── Operational Control Accounts (Missing Commercial Items) ──────
+        // Inhe sirf tab include karte hain jab specific account filter na ho
+        if (!$accountId) {
+            $branchName = $branchId ? (Branch::find($branchId)?->name ?? 'Branch') : 'All Branches';
+
+            // 1. Sales (Credit)
+            $salesTotal = (float) DB::table('sales')
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->sum('total_net');
+
+            // 2. Purchases (Debit)
+            $purchasesTotal = (float) DB::table('purchases')
+                ->whereNull('deleted_at')
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('purchase_date', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('purchase_date', '<=', $dateTo))
+                ->sum('net_amount');
+
+            // 3. Sales Returns (Debit)
+            $saleReturnTotal = (float) DB::table('sales_returns')
+                ->when($branchId, function ($q) use ($branchId) {
+                    $q->whereExists(function ($sq) use ($branchId) {
+                        $sq->select(DB::raw(1))->from('sales')
+                           ->whereColumn('sales.id', 'sales_returns.sale_id')
+                           ->where('sales.branch_id', $branchId);
+                    });
+                })
+                ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->sum('total_net');
+
+            // 4. Purchase Returns (Credit)
+            $purchaseReturnTotal = (float) DB::table('purchase_returns')
+                ->when($branchId, function ($q) use ($branchId) {
+                    $q->whereExists(function ($sq) use ($branchId) {
+                        $sq->select(DB::raw(1))->from('purchases')
+                           ->whereColumn('purchases.id', 'purchase_returns.purchase_id')
+                           ->where('purchases.branch_id', $branchId);
+                    });
+                })
+                ->when($dateFrom, fn($q) => $q->whereDate('return_date', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('return_date', '<=', $dateTo))
+                ->sum('net_amount');
+
+            // 5. Accounts Receivable - Customers (Debit)
+            $custQ = DB::table('customer_ledgers as cl1')
+                ->join(DB::raw('(SELECT customer_id, MAX(id) as max_id FROM customer_ledgers' . ($dateTo ? " WHERE DATE(created_at) <= '$dateTo'" : '') . ' GROUP BY customer_id) as cl2'), 'cl1.id', '=', 'cl2.max_id')
+                ->join('customers as c', 'c.id', '=', 'cl1.customer_id');
+            if ($branchId) $custQ->where('c.branch_id', $branchId);
+            $arTotal = (float) $custQ->sum('cl1.closing_balance');
+
+            // 6. Accounts Payable - Vendors (Credit)
+            $vendQ = DB::table('vendor_ledgers as vl1')
+                ->join(DB::raw('(SELECT vendor_id, MAX(id) as max_id FROM vendor_ledgers' . ($dateTo ? " WHERE DATE(created_at) <= '$dateTo'" : '') . ' GROUP BY vendor_id) as vl2'), 'vl1.id', '=', 'vl2.max_id')
+                ->join('vendors as v', 'v.id', '=', 'vl1.vendor_id');
+            if ($branchId) $vendQ->where('v.branch_id', $branchId);
+            $apTotal = (float) $vendQ->sum('vl1.closing_balance');
+
+            // 7. Discount Allowed (Debit)
+            $discountTotal = (float) DB::table('sales')
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->sum(DB::raw('COALESCE(discount_amount, 0) + COALESCE(additional_discount, 0)'));
+
+            // 8. Cartage Inward & Outward (Debit)
+            $inwardCartage = (float) DB::table('inward_gatepasses')
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->sum('freight_charges');
+            $purchExtra = (float) DB::table('purchases')
+                ->whereNull('deleted_at')
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('purchase_date', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('purchase_date', '<=', $dateTo))
+                ->sum('extra_cost');
+            $outwardCartage = (float) DB::table('sales')
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
+                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
+                ->sum('extra_charges');
+            $cartageTotal = $inwardCartage + $purchExtra + $outwardCartage;
+
+            // 9. Opening Stock / Inventory Valuation (Debit)
+            $stockQ = DB::table('warehouse_stocks as ws');
+            if ($branchId) $stockQ->where('ws.branch_id', $branchId);
+            $stockValuation = (float) $stockQ->selectRaw('COALESCE(SUM(ws.quantity * ws.price), 0) as val')->value('val');
+
+            // Operational Items List
+            $operationalItems = [
+                // Credit items
+                [
+                    'id'           => null,
+                    'account_code' => 'AP-CTRL',
+                    'title'        => 'Accounts Payable (Vendors / Creditors)',
+                    'head_name'    => 'Current Liabilities',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Credit',
+                    'ob'           => 0,
+                    'tx_debit'     => 0,
+                    'tx_credit'    => $apTotal,
+                    'debit_bal'    => 0,
+                    'credit_bal'   => $apTotal,
+                    'link_url'     => route('report.vendor.ledger.new'),
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'REV-SALE',
+                    'title'        => 'Sales Revenue',
+                    'head_name'    => 'Revenue / Sales',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Credit',
+                    'ob'           => 0,
+                    'tx_debit'     => 0,
+                    'tx_credit'    => $salesTotal,
+                    'debit_bal'    => 0,
+                    'credit_bal'   => $salesTotal,
+                    'link_url'     => route('report.sale'),
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'PUR-RET',
+                    'title'        => 'Purchase Returns (Outward)',
+                    'head_name'    => 'Purchases Contra',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Credit',
+                    'ob'           => 0,
+                    'tx_debit'     => 0,
+                    'tx_credit'    => $purchaseReturnTotal,
+                    'debit_bal'    => 0,
+                    'credit_bal'   => $purchaseReturnTotal,
+                    'link_url'     => null,
+                ],
+
+                // Debit items
+                [
+                    'id'           => null,
+                    'account_code' => 'PUR-CTRL',
+                    'title'        => 'Purchases Account',
+                    'head_name'    => 'Cost of Goods / Purchases',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $purchasesTotal,
+                    'tx_credit'    => 0,
+                    'debit_bal'    => $purchasesTotal,
+                    'credit_bal'   => 0,
+                    'link_url'     => route('report.purchase'),
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'SAL-RET',
+                    'title'        => 'Sales Returns (Inward)',
+                    'head_name'    => 'Revenue Contra',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $saleReturnTotal,
+                    'tx_credit'    => 0,
+                    'debit_bal'    => $saleReturnTotal,
+                    'credit_bal'   => 0,
+                    'link_url'     => null,
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'AR-CTRL',
+                    'title'        => 'Accounts Receivable (Customers / Debtors)',
+                    'head_name'    => 'Current Assets',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $arTotal,
+                    'tx_credit'    => 0,
+                    'debit_bal'    => $arTotal,
+                    'credit_bal'   => 0,
+                    'link_url'     => route('report.customer.ledger.new'),
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'EXP-FRT',
+                    'title'        => 'Cartage Inward & Outward (Transport/Freight)',
+                    'head_name'    => 'Direct & Indirect Expense',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $cartageTotal,
+                    'tx_credit'    => 0,
+                    'debit_bal'    => $cartageTotal,
+                    'credit_bal'   => 0,
+                    'link_url'     => null,
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'STK-VAL',
+                    'title'        => 'Opening Stock / Inventory Valuation',
+                    'head_name'    => 'Current Assets',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $stockValuation,
+                    'tx_credit'    => 0,
+                    'debit_bal'    => $stockValuation,
+                    'credit_bal'   => 0,
+                    'link_url'     => route('report.item_stock'),
+                ],
+                [
+                    'id'           => null,
+                    'account_code' => 'EXP-DISC',
+                    'title'        => 'Discount Allowed',
+                    'head_name'    => 'Operating Expenses',
+                    'branch_name'  => $branchName,
+                    'type'         => 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $discountTotal,
+                    'tx_credit'    => 0,
+                    'debit_bal'    => $discountTotal,
+                    'credit_bal'   => 0,
+                    'link_url'     => null,
+                ],
+            ];
+
+            foreach ($operationalItems as $item) {
+                if ($hideZero && $item['debit_bal'] == 0 && $item['credit_bal'] == 0) {
+                    continue;
+                }
+                $grandTxDr   += $item['tx_debit'];
+                $grandTxCr   += $item['tx_credit'];
+                $grandDebit  += $item['debit_bal'];
+                $grandCredit += $item['credit_bal'];
+                $rows[] = $item;
+            }
+
+            // 10. Owner's Capital / General Equity (Balancing Equation)
+            $equityDiff = $grandDebit - $grandCredit;
+            $capitalDr  = 0;
+            $capitalCr  = 0;
+            if ($equityDiff >= 0) {
+                $capitalCr = $equityDiff;
+            } else {
+                $capitalDr = abs($equityDiff);
+            }
+
+            if (!$hideZero || $capitalDr != 0 || $capitalCr != 0) {
+                $capitalRow = [
+                    'id'           => null,
+                    'account_code' => 'EQ-CAP',
+                    'title'        => "Owner's Capital / General Equity",
+                    'head_name'    => 'Equity & Reserves',
+                    'branch_name'  => $branchName,
+                    'type'         => $equityDiff >= 0 ? 'Credit' : 'Debit',
+                    'ob'           => 0,
+                    'tx_debit'     => $capitalDr,
+                    'tx_credit'    => $capitalCr,
+                    'debit_bal'    => $capitalDr,
+                    'credit_bal'   => $capitalCr,
+                    'link_url'     => route('report.balance_sheet'),
+                ];
+                $grandDebit  += $capitalDr;
+                $grandCredit += $capitalCr;
+                $grandTxDr   += $capitalDr;
+                $grandTxCr   += $capitalCr;
+                $rows[] = $capitalRow;
+            }
+        }
+
         $isBalanced = abs($grandDebit - $grandCredit) < 0.01;
 
         return response()->json([

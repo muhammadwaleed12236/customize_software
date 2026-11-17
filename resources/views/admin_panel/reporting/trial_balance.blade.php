@@ -372,15 +372,22 @@ function renderTable(data) {
         const debitFmt  = r.debit_bal  > 0 ? '<span style="color:#047857;font-weight:800;font-family:monospace;">Rs. ' + fmt(r.debit_bal)  + '</span>' : '<span class="text-muted">—</span>';
         const creditFmt = r.credit_bal > 0 ? '<span style="color:#dc2626;font-weight:800;font-family:monospace;">Rs. ' + fmt(r.credit_bal) + '</span>' : '<span class="text-muted">—</span>';
 
-        const linkTitle = r.id 
-            ? `<a href="${ledgerBaseUrl}/${r.id}" target="_blank" class="acc-link" title="Open Account Ledger">${r.title} <i class="fas fa-external-link-alt ml-1" style="font-size:9px;opacity:0.5;"></i></a>`
-            : r.title;
+        let linkTitle = r.title;
+        if (r.link_url) {
+            linkTitle = `<a href="${r.link_url}" target="_blank" class="acc-link" style="color:#0f52ba; font-weight:700;" title="View Report / Ledger">${r.title} <i class="fas fa-external-link-alt ml-1" style="font-size:9px;opacity:0.6;"></i></a>`;
+        } else if (r.id) {
+            linkTitle = `<a href="${ledgerBaseUrl}/${r.id}" target="_blank" class="acc-link" title="Open Account Ledger">${r.title} <i class="fas fa-external-link-alt ml-1" style="font-size:9px;opacity:0.5;"></i></a>`;
+        }
 
-        html += `<tr>
+        const isCtrl = !r.id;
+        const rowBg = isCtrl ? 'style="background: #fbfcfe;"' : '';
+        const headBadgeClass = isCtrl ? 'badge badge-info' : 'badge badge-secondary';
+
+        html += `<tr ${rowBg}>
             <td class="text-center text-muted" style="font-size:11px;">${i+1}</td>
-            <td style="font-family:monospace;font-size:11px;color:#64748b;">${r.account_code || '—'}</td>
+            <td style="font-family:monospace;font-size:11px;color:${isCtrl ? '#0f52ba;font-weight:700' : '#64748b'};">${r.account_code || '—'}</td>
             <td>${linkTitle}</td>
-            <td><span class="badge badge-secondary" style="font-size:10px;padding:3px 8px;">${r.head_name}</span></td>
+            <td><span class="${headBadgeClass}" style="font-size:10px;padding:3px 8px;">${r.head_name}</span></td>
             <td style="font-size:11px;color:#64748b;">${r.branch_name}</td>
             <td class="text-end">${obFmt}</td>
             <td class="text-end">${txDrFmt}</td>
