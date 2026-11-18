@@ -5566,4 +5566,586 @@ class ReportingController extends Controller
             'working_capital'           => $workingCapital,
         ]);
     }
+
+    // =========================================================================
+    //  ACCOUNTS RECEIVABLE REPORT (CUSTOMER RECEIVABLES / AGING) - READ-ONLY
+    // =========================================================================
+
+    /**
+     * Display the Accounts Receivable Report view.
+     */
+    public function receivable_report(Request $request)
+    {
+        $user = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        if ($isSuper) {
+            $branches = Branch::orderBy('name')->get();
+        } else {
+            $branches = $user->branch_id ? Branch::where('id', $user->branch_id)->get() : collect();
+        }
+
+        $defaultBranchId = $isSuper ? null : $user->branch_id;
+
+        // Distinct non-empty zones from customers
+        $zones = Customer::query()
+            ->when($defaultBranchId, fn($q) => $q->where('branch_id', $defaultBranchId))
+            ->whereNotNull('zone')
+            ->where('zone', '!=', '')
+            ->distinct()
+            ->orderBy('zone')
+            ->pluck('zone');
+
+        // Customers list for dropdown filter
+        $customers = Customer::query()
+            ->when($defaultBranchId, fn($q) => $q->where('branch_id', $defaultBranchId))
+            ->where(function ($q) {
+                $q->whereNull('status')
+                  ->orWhereNotIn('status', ['0', 'inactive']);
+            })
+            ->select('id', 'customer_id', 'customer_name', 'customer_name_ur', 'branch_id')
+            ->orderBy('customer_name')
+            ->get();
+
+        return view('admin_panel.reporting.receivable_report', compact(
+            'branches',
+            'isSuper',
+            'zones',
+            'customers',
+            'defaultBranchId'
+        ));
+    }
+
+    /**
+     * AJAX endpoint: Fetch Accounts Receivable and Aging data (READ-ONLY).
+     */
+    public function fetch_receivable_report(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        // Branch restriction
+        $branchId = null;
+        if ($isSuper) {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $branchId = (int)$request->branch_id;
+            }
+        } else {
+            $branchId = $user->branch_id ? (int)$user->branch_id : null;
+        }
+
+        $zone        = ($request->filled('zone') && $request->zone !== 'all') ? $request->zone : null;
+        $customerId  = ($request->filled('customer_id') && $request->customer_id !== 'all') ? (int)$request->customer_id : null;
+        $balanceType = $request->input('balance_type', 'all'); // default to all
+        $dateFrom    = $request->input('date_from'); // optional Y-m-d
+        $dateTo      = $request->input('date_to') ?: date('Y-m-d'); // defaults to today
+
+        $today = \Carbon\Carbon::today();
+        $asOf  = \Carbon\Carbon::parse($dateTo)->endOfDay();
+
+        // 1. Latest Closing Ledger Entry on or before $dateTo (MariaDB window function)
+        $closingLedgerSub = DB::table('customer_ledgers')
+            ->select('id', 'customer_id', 'closing_balance', 'created_at',
+                DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
+            )
+            ->whereDate('created_at', '<=', $dateTo);
+
+        // 2. Opening Balance Subquery (if date_from provided, latest ledger strictly before date_from)
+        $openingLedgerSub = null;
+        if ($dateFrom) {
+            $openingLedgerSub = DB::table('customer_ledgers')
+                ->select('id', 'customer_id', 'closing_balance',
+                    DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
+                )
+                ->whereDate('created_at', '<', $dateFrom);
+        }
+
+        // 3. Movement Subquery (debits & credits between date_from and date_to)
+        $movementSub = DB::table('customer_ledgers')
+            ->select(
+                'customer_id',
+                DB::raw('SUM(total_debit) as period_debit'),
+                DB::raw('SUM(total_credit) as period_credit')
+            );
+        if ($dateFrom) {
+            $movementSub->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
+        } else {
+            $movementSub->whereDate('created_at', '<=', $dateTo);
+        }
+        $movementSub->groupBy('customer_id');
+
+        // 4. Last Payment / Receipt Subquery
+        $lastReceiptSub = DB::table('customer_ledgers')
+            ->select('customer_id', 'created_at as last_receipt_date', 'total_credit as last_receipt_amount',
+                DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
+            )
+            ->where('total_credit', '>', 0)
+            ->whereDate('created_at', '<=', $dateTo);
+
+        // 5. Last Sale / Invoice Subquery
+        $lastSaleSub = DB::table('customer_ledgers')
+            ->select('customer_id', 'created_at as last_sale_date', 'total_debit as last_sale_amount',
+                DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
+            )
+            ->where('total_debit', '>', 0)
+            ->whereDate('created_at', '<=', $dateTo);
+
+        // Build main customer query
+        $query = DB::table('customers as c')
+            ->leftJoinSub($closingLedgerSub, 'cl_close', function ($join) {
+                $join->on('c.id', '=', 'cl_close.customer_id')->where('cl_close.rn', '=', 1);
+            })
+            ->leftJoinSub($movementSub, 'mov', function ($join) {
+                $join->on('c.id', '=', 'mov.customer_id');
+            })
+            ->leftJoinSub($lastReceiptSub, 'lr', function ($join) {
+                $join->on('c.id', '=', 'lr.customer_id')->where('lr.rn', '=', 1);
+            })
+            ->leftJoinSub($lastSaleSub, 'ls', function ($join) {
+                $join->on('c.id', '=', 'ls.customer_id')->where('ls.rn', '=', 1);
+            })
+            ->leftJoin('branches as b', 'b.id', '=', 'c.branch_id')
+            ->select(
+                'c.id',
+                'c.branch_id',
+                'c.customer_id as code',
+                'c.customer_name',
+                'c.customer_name_ur',
+                'c.contact_person',
+                'c.mobile',
+                'c.zone',
+                'c.credit_limit',
+                'c.no_credit_limit',
+                'c.opening_balance as initial_ob',
+                'c.status',
+                'b.name as branch_name',
+                'cl_close.closing_balance as ledger_closing',
+                'cl_close.created_at as last_tx_date',
+                'mov.period_debit',
+                'mov.period_credit',
+                'lr.last_receipt_date',
+                'lr.last_receipt_amount',
+                'ls.last_sale_date',
+                'ls.last_sale_amount'
+            );
+
+        if ($openingLedgerSub) {
+            $query->leftJoinSub($openingLedgerSub, 'cl_open', function ($join) {
+                $join->on('c.id', '=', 'cl_open.customer_id')->where('cl_open.rn', '=', 1);
+            })->addSelect('cl_open.closing_balance as ledger_opening');
+        }
+
+        if ($branchId) {
+            $query->where('c.branch_id', $branchId);
+        }
+
+        if ($zone) {
+            $query->where('c.zone', $zone);
+        }
+
+        if ($customerId) {
+            $query->where('c.id', $customerId);
+        }
+
+        $rawRows = $query->orderBy('c.customer_name')->get();
+
+        // Pre-fetch invoices for FIFO aging for all eligible customers in one fast query
+        $customerIdsWithDebit = [];
+        $balancesMap = [];
+
+        foreach ($rawRows as $r) {
+            $closingBal = $r->ledger_closing !== null ? (float)$r->ledger_closing : (float)($r->initial_ob ?? 0);
+            if ($closingBal > 0) {
+                $customerIdsWithDebit[] = $r->id;
+                $balancesMap[$r->id] = $closingBal;
+            }
+        }
+
+        $agingMap = [];
+        if (!empty($customerIdsWithDebit)) {
+            $invoices = DB::table('customer_ledgers')
+                ->whereIn('customer_id', $customerIdsWithDebit)
+                ->where('total_debit', '>', 0)
+                ->whereDate('created_at', '<=', $dateTo)
+                ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                ->orderBy('id', 'desc')
+                ->select('customer_id', 'total_debit', 'created_at')
+                ->get()
+                ->groupBy('customer_id');
+
+            foreach ($customerIdsWithDebit as $cid) {
+                $bal = $balancesMap[$cid] ?? 0;
+                $rem = $bal;
+                $c0 = 0.0; $c30 = 0.0; $c60 = 0.0; $c90 = 0.0;
+
+                if (isset($invoices[$cid])) {
+                    foreach ($invoices[$cid] as $inv) {
+                        if ($rem <= 0) break;
+                        $days = \Carbon\Carbon::parse($inv->created_at)->diffInDays($asOf);
+                        $amt = min((float)$inv->total_debit, $rem);
+
+                        if ($days <= 30) {
+                            $c0 += $amt;
+                        } elseif ($days <= 60) {
+                            $c30 += $amt;
+                        } elseif ($days <= 90) {
+                            $c60 += $amt;
+                        } else {
+                            $c90 += $amt;
+                        }
+                        $rem -= $amt;
+                    }
+                }
+
+                if ($rem > 0) {
+                    $c90 += $rem;
+                }
+
+                $agingMap[$cid] = [
+                    'c_0_30'    => $c0,
+                    'c_31_60'   => $c30,
+                    'c_61_90'   => $c60,
+                    'c_90_plus' => $c90,
+                ];
+            }
+        }
+
+        // Process rows and KPI totals
+        $rows = [];
+        $totalReceivable = 0;
+        $totalAdvance = 0;
+        $grandOpening = 0;
+        $grandDebit = 0;
+        $grandCredit = 0;
+        $overLimitCount = 0;
+        $overLimitAmount = 0;
+        $agingTotals = [
+            'c_0_30'    => 0,
+            'c_31_60'   => 0,
+            'c_61_90'   => 0,
+            'c_90_plus' => 0,
+        ];
+
+        foreach ($rawRows as $r) {
+            $closingBalance = $r->ledger_closing !== null ? (float)$r->ledger_closing : (float)($r->initial_ob ?? 0);
+            
+            $openingBalance = 0;
+            if ($dateFrom) {
+                $openingBalance = property_exists($r, 'ledger_opening') && $r->ledger_opening !== null
+                    ? (float)$r->ledger_opening
+                    : (float)($r->initial_ob ?? 0);
+            } else {
+                $openingBalance = (float)($r->initial_ob ?? 0);
+            }
+
+            $periodDebit  = (float)($r->period_debit ?? 0);
+            $periodCredit = (float)($r->period_credit ?? 0);
+
+            $creditLimit = (float)($r->credit_limit ?? 0);
+            $hasLimit    = empty($r->no_credit_limit) && $creditLimit > 0;
+            $isOverLimit = $hasLimit && ($closingBalance > $creditLimit);
+            $overLimitDiff = $isOverLimit ? ($closingBalance - $creditLimit) : 0;
+
+            if ($isOverLimit) {
+                $overLimitCount++;
+                $overLimitAmount += $overLimitDiff;
+            }
+
+            // Filter by Balance Type
+            if ($balanceType === 'receivable' && $closingBalance <= 0) continue;
+            if ($balanceType === 'advance' && $closingBalance >= 0) continue;
+            if ($balanceType === 'with_balance' && $closingBalance == 0) continue;
+            if ($balanceType === 'over_limit' && !$isOverLimit) continue;
+            if ($balanceType === 'zero' && $closingBalance != 0) continue;
+
+            if ($closingBalance > 0) {
+                $totalReceivable += $closingBalance;
+            } else {
+                $totalAdvance += abs($closingBalance);
+            }
+
+            $grandOpening += $openingBalance;
+            $grandDebit   += $periodDebit;
+            $grandCredit  += $periodCredit;
+
+            // Days since last payment
+            $daysSinceReceipt = null;
+            if ($r->last_receipt_date) {
+                $daysSinceReceipt = $today->diffInDays(\Carbon\Carbon::parse($r->last_receipt_date)->startOfDay());
+            }
+
+            // Days since last sale
+            $daysSinceSale = null;
+            if ($r->last_sale_date) {
+                $daysSinceSale = $today->diffInDays(\Carbon\Carbon::parse($r->last_sale_date)->startOfDay());
+            }
+
+            // Status label & badge
+            $statusBadge = 'success';
+            $statusText = 'Cleared / Nil';
+            if ($isOverLimit) {
+                $statusBadge = 'danger';
+                $statusText = 'Over Limit (+' . number_format($overLimitDiff, 0) . ')';
+            } elseif ($closingBalance > 0) {
+                $statusBadge = 'primary';
+                $statusText = 'Receivable';
+            } elseif ($closingBalance < 0) {
+                $statusBadge = 'info';
+                $statusText = 'Advance';
+            }
+
+            $agingData = $agingMap[$r->id] ?? ['c_0_30' => 0, 'c_31_60' => 0, 'c_61_90' => 0, 'c_90_plus' => 0];
+            $agingTotals['c_0_30']    += $agingData['c_0_30'];
+            $agingTotals['c_31_60']   += $agingData['c_31_60'];
+            $agingTotals['c_61_90']   += $agingData['c_61_90'];
+            $agingTotals['c_90_plus'] += $agingData['c_90_plus'];
+
+            $cleanPhone = preg_replace('/[^0-9]/', '', $r->mobile ?? '');
+            if (str_starts_with($cleanPhone, '0')) {
+                $cleanPhone = '92' . substr($cleanPhone, 1);
+            }
+
+            $rows[] = [
+                'id'                  => $r->id,
+                'code'                => $r->code,
+                'customer_name'       => $r->customer_name,
+                'customer_name_ur'    => $r->customer_name_ur,
+                'contact_person'      => $r->contact_person,
+                'mobile'              => $r->mobile,
+                'whatsapp_phone'      => $cleanPhone,
+                'zone'                => $r->zone ?: '—',
+                'branch_name'         => $r->branch_name ?: '—',
+                'credit_limit'        => $creditLimit,
+                'no_credit_limit'     => !empty($r->no_credit_limit),
+                'opening_balance'     => $openingBalance,
+                'period_debit'        => $periodDebit,
+                'period_credit'       => $periodCredit,
+                'closing_balance'     => $closingBalance,
+                'is_over_limit'       => $isOverLimit,
+                'over_limit_diff'     => $overLimitDiff,
+                'status_badge'        => $statusBadge,
+                'status_text'         => $statusText,
+                'aging'               => $agingData,
+                'last_receipt_date'   => $r->last_receipt_date ? \Carbon\Carbon::parse($r->last_receipt_date)->format('d M Y') : '—',
+                'last_receipt_amount' => $r->last_receipt_amount ? (float)$r->last_receipt_amount : 0,
+                'days_since_receipt'  => $daysSinceReceipt,
+                'last_sale_date'      => $r->last_sale_date ? \Carbon\Carbon::parse($r->last_sale_date)->format('d M Y') : '—',
+                'last_sale_amount'    => $r->last_sale_amount ? (float)$r->last_sale_amount : 0,
+                'days_since_sale'     => $daysSinceSale,
+                'ledger_url'          => route('report.customer.ledger.new', ['customer_id' => $r->id]),
+            ];
+        }
+
+        $branchName = $branchId ? (Branch::find($branchId)?->name ?? 'Branch') : 'All Branches';
+
+        return response()->json([
+            'rows' => $rows,
+            'kpi'  => [
+                'total_receivable'  => $totalReceivable,
+                'total_advance'     => $totalAdvance,
+                'net_outstanding'   => $totalReceivable - $totalAdvance,
+                'grand_opening'     => $grandOpening,
+                'grand_debit'       => $grandDebit,
+                'grand_credit'      => $grandCredit,
+                'grand_closing'     => $totalReceivable - $totalAdvance,
+                'customers_count'   => count($rows),
+                'over_limit_count'  => $overLimitCount,
+                'over_limit_amount' => $overLimitAmount,
+                'aging_totals'      => $agingTotals,
+            ],
+            'meta' => [
+                'branch_label' => $branchName,
+                'date_from'    => $dateFrom,
+                'date_to'      => $dateTo,
+                'balance_type' => $balanceType,
+            ]
+        ]);
+    }
+
+    // =========================================================================
+    //  ACCOUNTS PAYABLE REPORT (VENDOR PAYABLES) - READ-ONLY
+    // =========================================================================
+
+    /**
+     * Display the Accounts Payable Report view.
+     */
+    public function payable_report(Request $request)
+    {
+        $user = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        if ($isSuper) {
+            $branches = Branch::orderBy('name')->get();
+        } else {
+            $branches = $user->branch_id ? Branch::where('id', $user->branch_id)->get() : collect();
+        }
+
+        $defaultBranchId = $isSuper ? null : $user->branch_id;
+
+        // Vendors list for dropdown filter
+        $vendors = Vendor::query()
+            ->when($defaultBranchId, fn($q) => $q->where('branch_id', $defaultBranchId))
+            ->select('id', 'name', 'branch_id', 'phone')
+            ->orderBy('name')
+            ->get();
+
+        return view('admin_panel.reporting.payable_report', compact(
+            'branches',
+            'isSuper',
+            'vendors',
+            'defaultBranchId'
+        ));
+    }
+
+    /**
+     * AJAX endpoint: Fetch Accounts Payable data (READ-ONLY).
+     */
+    public function fetch_payable_report(Request $request)
+    {
+        $user    = Auth::user();
+        $isSuper = $user && $user->hasRole('super admin');
+
+        // Branch restriction
+        $branchId = null;
+        if ($isSuper) {
+            if ($request->filled('branch_id') && $request->branch_id !== 'all') {
+                $branchId = (int)$request->branch_id;
+            }
+        } else {
+            $branchId = $user->branch_id ? (int)$user->branch_id : null;
+        }
+
+        $vendorId = ($request->filled('vendor_id') && $request->vendor_id !== 'all') ? (int)$request->vendor_id : null;
+        $dateFrom = $request->input('date_from'); // optional Y-m-d
+        $dateTo   = $request->input('date_to') ?: date('Y-m-d'); // defaults to today
+
+        // 1. Latest Closing Ledger Entry on or before $dateTo
+        $closingLedgerSub = DB::table('vendor_ledgers')
+            ->select('id', 'vendor_id', 'closing_balance', 'created_at',
+                DB::raw('ROW_NUMBER() OVER (PARTITION BY vendor_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
+            )
+            ->whereDate('created_at', '<=', $dateTo)
+            ->whereNull('deleted_at');
+
+        // 2. Opening Balance Subquery (if date_from provided, latest ledger strictly before date_from)
+        $openingLedgerSub = null;
+        if ($dateFrom) {
+            $openingLedgerSub = DB::table('vendor_ledgers')
+                ->select('id', 'vendor_id', 'closing_balance',
+                    DB::raw('ROW_NUMBER() OVER (PARTITION BY vendor_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
+                )
+                ->whereDate('created_at', '<', $dateFrom)
+                ->whereNull('deleted_at');
+        }
+
+        // 3. Movement Subquery (debits & credits between date_from and date_to)
+        $movementSub = DB::table('vendor_ledgers')
+            ->select(
+                'vendor_id',
+                DB::raw('SUM(debit_amount) as period_debit'),
+                DB::raw('SUM(credit_amount) as period_credit')
+            )
+            ->whereNull('deleted_at');
+        if ($dateFrom) {
+            $movementSub->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
+        } else {
+            $movementSub->whereDate('created_at', '<=', $dateTo);
+        }
+        $movementSub->groupBy('vendor_id');
+
+        // Build main vendor query
+        $query = DB::table('vendors as v')
+            ->leftJoinSub($closingLedgerSub, 'vl_close', function ($join) {
+                $join->on('v.id', '=', 'vl_close.vendor_id')->where('vl_close.rn', '=', 1);
+            })
+            ->leftJoinSub($movementSub, 'mov', function ($join) {
+                $join->on('v.id', '=', 'mov.vendor_id');
+            })
+            ->leftJoin('branches as b', 'b.id', '=', 'v.branch_id')
+            ->select(
+                'v.id',
+                'v.branch_id',
+                'v.name as vendor_name',
+                'v.phone',
+                'v.opening_balance as initial_ob',
+                'b.name as branch_name',
+                'vl_close.closing_balance as ledger_closing',
+                'mov.period_debit',
+                'mov.period_credit'
+            );
+
+        if ($openingLedgerSub) {
+            $query->leftJoinSub($openingLedgerSub, 'vl_open', function ($join) {
+                $join->on('v.id', '=', 'vl_open.vendor_id')->where('vl_open.rn', '=', 1);
+            })->addSelect('vl_open.closing_balance as ledger_opening');
+        }
+
+        if ($branchId) {
+            $query->where('v.branch_id', $branchId);
+        }
+
+        if ($vendorId) {
+            $query->where('v.id', $vendorId);
+        }
+
+        $rawRows = $query->orderBy('v.name')->get();
+
+        $rows = [];
+        $grandOpening = 0;
+        $grandDebit = 0;
+        $grandCredit = 0;
+        $grandClosing = 0;
+
+        foreach ($rawRows as $r) {
+            $closingBalance = $r->ledger_closing !== null ? (float)$r->ledger_closing : (float)($r->initial_ob ?? 0);
+            
+            $openingBalance = 0;
+            if ($dateFrom) {
+                $openingBalance = property_exists($r, 'ledger_opening') && $r->ledger_opening !== null
+                    ? (float)$r->ledger_opening
+                    : (float)($r->initial_ob ?? 0);
+            } else {
+                $openingBalance = (float)($r->initial_ob ?? 0);
+            }
+
+            $periodDebit  = (float)($r->period_debit ?? 0);
+            $periodCredit = (float)($r->period_credit ?? 0);
+
+            $grandOpening += $openingBalance;
+            $grandDebit   += $periodDebit;
+            $grandCredit  += $periodCredit;
+            $grandClosing += $closingBalance;
+
+            $rows[] = [
+                'id'              => $r->id,
+                'code'            => 'VEND-' . str_pad($r->id, 4, '0', STR_PAD_LEFT),
+                'vendor_name'     => $r->vendor_name,
+                'phone'           => $r->phone,
+                'branch_name'     => $r->branch_name ?: '—',
+                'opening_balance' => $openingBalance,
+                'period_credit'   => $periodCredit, // Purchases
+                'period_debit'    => $periodDebit,  // Paid
+                'closing_balance' => $closingBalance, // Payable
+                'ledger_url'      => route('report.vendor.ledger.new', ['vendor_id' => $r->id]),
+            ];
+        }
+
+        $branchName = $branchId ? (Branch::find($branchId)?->name ?? 'Branch') : 'All Branches';
+
+        return response()->json([
+            'rows' => $rows,
+            'kpi'  => [
+                'grand_opening' => $grandOpening,
+                'grand_credit'  => $grandCredit, // Purchases
+                'grand_debit'   => $grandDebit,  // Paid
+                'grand_closing' => $grandClosing, // Payable
+                'vendors_count' => count($rows),
+            ],
+            'meta' => [
+                'branch_label' => $branchName,
+                'date_from'    => $dateFrom,
+                'date_to'      => $dateTo,
+            ]
+        ]);
+    }
 }

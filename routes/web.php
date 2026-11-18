@@ -808,6 +808,14 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('report/balance-sheet', [ReportingController::class, 'balanceSheet'])->middleware('permission:report.balance.sheet.view')->name('report.balance_sheet');
     Route::get('report/balance-sheet/fetch', [ReportingController::class, 'fetchBalanceSheet'])->middleware('permission:report.balance.sheet.view')->name('report.balance_sheet.fetch');
 
+    // Accounts Receivable Report (Customer Receivable - Read-Only, no logic affected)
+    Route::get('report/receivable', [ReportingController::class, 'receivable_report'])->middleware('permission:report.receivable.view|report.customer.ledger.view|report.sale.view|customer.view')->name('report.receivable');
+    Route::get('report/receivable/fetch', [ReportingController::class, 'fetch_receivable_report'])->middleware('permission:report.receivable.view|report.customer.ledger.view|report.sale.view|customer.view')->name('report.receivable.fetch');
+
+    // Accounts Payable Report (Vendor Payable - Read-Only, no logic affected)
+    Route::get('report/payable', [ReportingController::class, 'payable_report'])->middleware('permission:report.payable.view|report.vendor.ledger.view|report.purchase.view|vendor.ledger')->name('report.payable');
+    Route::get('report/payable/fetch', [ReportingController::class, 'fetch_payable_report'])->middleware('permission:report.payable.view|report.vendor.ledger.view|report.purchase.view|vendor.ledger')->name('report.payable.fetch');
+
     // reports
     Route::prefix('coa')->middleware('permission:chart.of.accounts.view')->group(function () {
         Route::get('/', [AccountsHeadController::class, 'index'])->name('coa.index');

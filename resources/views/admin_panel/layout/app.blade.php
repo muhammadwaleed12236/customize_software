@@ -29,6 +29,76 @@
             margin-left: 0 !important;
             min-width: 20%;
         }
+
+        /* ═══════════════════════════════════════════════
+           Reports Mega-Menu Styling (Multi-Column Grid)
+           ═══════════════════════════════════════════════ */
+        @media (min-width: 992px) {
+            .nav.page-navigation .nav-item.reports-mega-menu {
+                position: relative !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu {
+                right: -60px !important;
+                left: auto !important;
+                width: 820px !important;
+                max-width: 92vw !important;
+                background: #ffffff !important;
+                border-radius: 12px !important;
+                border: 1px solid #e2e8f0 !important;
+                box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+                padding: 16px 18px !important;
+                box-sizing: border-box !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu-flex {
+                display: flex !important;
+                flex-direction: row !important;
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 0 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col {
+                flex: 1 1 0 !important;
+                min-width: 180px !important;
+                padding: 0 12px !important;
+                margin: 0 !important;
+                list-style: none !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col + .rpt-col {
+                border-left: 1px solid #f1f5f9 !important;
+            }
+        }
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        /* Mobile adjustments (<= 991px) */
+        @media (max-width: 991px) {
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu-flex {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                padding: 0 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col {
+                border-left: none !important;
+                padding: 0 !important;
+                width: 100% !important;
+                margin-bottom: 6px !important;
+            }
+            
+        }
     </style>
     <!--=========================*
                 Met Data
@@ -291,6 +361,298 @@
             .nav.page-navigation .nav-item.show-submenu > .nav-link .menu-arrow,
             .nav.page-navigation .nav-item.show > .nav-link .menu-arrow {
                 transform: rotate(180deg) !important;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════
+           Reports Mega-Menu Styling (Multi-Column Grid)
+           ═══════════════════════════════════════════════ */
+        @media (min-width: 992px) {
+            .nav.page-navigation .nav-item.reports-mega-menu {
+                position: relative !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu {
+                right: -60px !important;
+                left: auto !important;
+                width: 820px !important;
+                max-width: 92vw !important;
+                background: #ffffff !important;
+                border-radius: 12px !important;
+                border: 1px solid #e2e8f0 !important;
+                box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+                padding: 16px 18px !important;
+                box-sizing: border-box !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu-flex {
+                display: flex !important;
+                flex-direction: row !important;
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 0 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col {
+                flex: 1 1 0 !important;
+                min-width: 180px !important;
+                padding: 0 12px !important;
+                margin: 0 !important;
+                list-style: none !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col + .rpt-col {
+                border-left: 1px solid #f1f5f9 !important;
+            }
+        }
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        
+
+        /* Mobile adjustments (<= 991px) */
+        @media (max-width: 991px) {
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu-flex {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                padding: 0 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col {
+                border-left: none !important;
+                padding: 0 !important;
+                width: 100% !important;
+                margin-bottom: 6px !important;
+            }
+            
+        }
+    
+        /* ═══════════════════════════════════════════════
+           Reports View Switcher (Grid & List Views)
+           ═══════════════════════════════════════════════ */
+        @media (min-width: 992px) {
+            .nav.page-navigation .nav-item.reports-mega-menu {
+                position: relative !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu {
+                background: #ffffff !important;
+                border-radius: 12px !important;
+                border: 1px solid #e2e8f0 !important;
+                box-shadow: 0 16px 36px rgba(15, 23, 42, 0.12), 0 4px 12px rgba(15, 23, 42, 0.05) !important;
+                padding: 12px 16px 16px 16px !important;
+                box-sizing: border-box !important;
+                transition: width 0.2s ease, right 0.2s ease !important;
+            }
+
+            /* --- Mode 1: Grid View (4 Columns) --- */
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-grid {
+                right: -80px !important;
+                left: auto !important;
+                width: 920px !important;
+                max-width: 95vw !important;
+                max-height: none !important;
+                overflow-y: visible !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-grid .submenu-flex {
+                display: flex !important;
+                flex-direction: row !important;
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 0 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-grid .rpt-col {
+                flex: 1 1 0 !important;
+                min-width: 210px !important;
+                padding: 0 12px !important;
+                margin: 0 !important;
+                list-style: none !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-grid .rpt-col + .rpt-col {
+                border-left: 1px solid #f1f5f9 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-grid .rpt-col-title {
+                font-size: 13.5px !important;
+                font-weight: 700 !important;
+                color: #2563eb !important;
+                letter-spacing: .01em !important;
+                padding-bottom: 8px !important;
+                margin-bottom: 8px !important;
+                border-bottom: 1px solid #f1f5f9 !important;
+                user-select: none !important;
+                cursor: default !important;
+                display: block !important;
+                text-align: left !important;
+                background: transparent !important;
+                border-top: none !important;
+                border-left: none !important;
+                border-right: none !important;
+            }
+
+            /* --- Mode 2: Classic List View (Single Column) --- */
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-list {
+                right: 0 !important;
+                left: auto !important;
+                width: 290px !important;
+                max-height: 80vh !important;
+                overflow-y: auto !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-list .submenu-flex {
+                display: flex !important;
+                flex-direction: column !important;
+                list-style: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                gap: 4px !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-list .rpt-col {
+                width: 100% !important;
+                padding: 0 !important;
+                border-left: none !important;
+                margin-bottom: 4px !important;
+                list-style: none !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu.rpt-mode-list .rpt-col-title {
+                font-size: 11px !important;
+                font-weight: 700 !important;
+                color: #475569 !important;
+                text-transform: uppercase !important;
+                letter-spacing: .05em !important;
+                padding: 4px 8px !important;
+                margin: 6px 0 3px 0 !important;
+                background: #f1f5f9 !important;
+                border-radius: 4px !important;
+                border: 1px solid #e2e8f0 !important;
+                display: block !important;
+                user-select: none !important;
+            }
+        }
+
+        /* Top switcher bar */
+        .rpt-view-switch-bar {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            border-bottom: 1px solid #f1f5f9 !important;
+            padding-bottom: 8px !important;
+            margin-bottom: 10px !important;
+        }
+        .rpt-switch-label {
+            font-size: 11px !important;
+            font-weight: 700 !important;
+            color: #64748b !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.05em !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 5px !important;
+        }
+        .rpt-toggle-btns {
+            display: flex !important;
+            gap: 3px !important;
+            background: #f1f5f9 !important;
+            padding: 2px !important;
+            border-radius: 6px !important;
+        }
+        .rpt-toggle-btn {
+            border: none !important;
+            outline: none !important;
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            padding: 2px 9px !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 4px !important;
+            transition: all 0.15s ease !important;
+            text-decoration: none !important;
+        }
+        .rpt-toggle-btn.active {
+            background: #2563eb !important;
+            color: #ffffff !important;
+            box-shadow: 0 1px 3px rgba(37,99,235,0.25) !important;
+        }
+        .rpt-toggle-btn:not(.active) {
+            background: transparent !important;
+            color: #64748b !important;
+        }
+        .rpt-toggle-btn:not(.active):hover {
+            color: #1e293b !important;
+            background: rgba(0,0,0,0.04) !important;
+        }
+
+        /* Common item list styles */
+        .rpt-col-list {
+            list-style: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+        .rpt-col-list li {
+            list-style: none !important;
+            margin: 2px 0 !important;
+            line-height: normal !important;
+        }
+        .rpt-col-list li a {
+            display: flex !important;
+            align-items: center !important;
+            gap: 9px !important;
+            padding: 6px 8px !important;
+            border-radius: 6px !important;
+            font-size: 12.5px !important;
+            font-weight: 500 !important;
+            color: #334155 !important;
+            text-decoration: none !important;
+            white-space: nowrap !important;
+            transition: all 0.15s ease !important;
+        }
+        .rpt-col-list li a i {
+            width: 16px !important;
+            text-align: center !important;
+            color: #3b82f6 !important;
+            font-size: 13px !important;
+            flex-shrink: 0 !important;
+            transition: transform 0.15s ease !important;
+        }
+        .rpt-col-list li a:hover {
+            background-color: #eff6ff !important;
+            color: #1d4ed8 !important;
+            font-weight: 600 !important;
+        }
+        .rpt-col-list li a:hover i {
+            transform: scale(1.15) !important;
+            color: #1d4ed8 !important;
+        }
+
+        /* Mobile adjustments (<= 991px) */
+        @media (max-width: 991px) {
+            .rpt-view-switch-bar {
+                display: none !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .submenu-flex {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 12px !important;
+                padding: 0 !important;
+            }
+            .nav.page-navigation .nav-item.reports-mega-menu .rpt-col {
+                border-left: none !important;
+                padding: 0 !important;
+                width: 100% !important;
+                margin-bottom: 6px !important;
+            }
+            .rpt-col-title {
+                font-size: 12.5px !important;
+                margin-top: 6px !important;
+                padding-bottom: 6px !important;
+                color: #2563eb !important;
             }
         }
     </style>
@@ -629,64 +991,121 @@
                         @endif
 
                         <!-- Reports Menu -->
-                        @if(Auth::user()->canAny(['report.item.stock.view', 'report.product.ledger.view', 'report.customer.ledger.view', 'report.vendor.ledger.view', 'report.purchase.view', 'report.sale.view', 'branch.ledger.view', 'report.assembly.view', 'report.inventory.onhand.view', 'report.stock.hold.view', 'report.trial.balance.view', 'report.income.statement.view', 'report.balance.sheet.view']))
-                        <li class="nav-item">
+                        @if(Auth::user()->canAny(['report.item.stock.view', 'report.product.ledger.view', 'report.customer.ledger.view', 'report.vendor.ledger.view', 'report.purchase.view', 'report.sale.view', 'branch.ledger.view', 'report.assembly.view', 'report.inventory.onhand.view', 'report.stock.hold.view', 'report.trial.balance.view', 'report.income.statement.view', 'report.balance.sheet.view']) || Auth::user()->hasRole('super admin'))
+                        <li class="nav-item reports-mega-menu">
                             <a href="#" class="nav-link">
                                 <i class="menu_icon feather ft-clipboard"></i>
                                 <span class="menu-title">Reports</span>
                                 <i class="menu-arrow"></i>
                             </a>
-                            <div class="submenu">
-                                <ul class="submenu-item">
-                                    @can('report.customer.ledger.view')
-                                    <li><a href="{{ route('report.customer.ledger.new') }}"><i class="fa-solid fa-users"></i> Customer Ledger Report</a></li>
-                                    @endcan
-                                    @if(Auth::user()->can('report.vendor.ledger.view') || Auth::user()->can('vendor.ledger') || Auth::user()->hasRole('super admin'))
-                                    <li><a href="{{ route('vendors-ledger') }}"><i class="fa-solid fa-users"></i> Vendor Ledger Report</a></li>
+                            <div class="submenu rpt-mode-grid" id="reportsSubmenu">
+                                {{-- View Switcher Bar (Grid vs List) --}}
+                                <div class="rpt-view-switch-bar">
+                                    <div class="rpt-switch-label">
+                                        <i class="feather ft-clipboard text-primary"></i>
+                                        <span>Reports Directory</span>
+                                    </div>
+                                    <div class="rpt-toggle-btns">
+                                        <button type="button" class="rpt-toggle-btn active" id="btnRptGrid" onclick="setRptView('grid', event)" title="4-Column Grid View">
+                                            <i class="fas fa-th-large"></i> Grid
+                                        </button>
+                                        <button type="button" class="rpt-toggle-btn" id="btnRptList" onclick="setRptView('list', event)" title="Classic Single List View">
+                                            <i class="fas fa-list-ul"></i> List
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <ul class="submenu-item submenu-flex">
+
+                                    {{-- Column 1: Customers & Sales --}}
+                                    @if(Auth::user()->canAny(['report.customer.ledger.view', 'report.sale.view', 'customer.view']) || Auth::user()->hasRole('super admin'))
+                                    <li class="rpt-col">
+                                        <div class="rpt-col-title">Customers &amp; Sales</div>
+                                        <ul class="rpt-col-list">
+                                            @can('report.customer.ledger.view')
+                                            <li><a href="{{ route('report.customer.ledger.new') }}"><i class="fa-solid fa-users"></i> Customer Ledger Report</a></li>
+                                            @endcan
+                                            @if(Auth::user()->can('report.customer.ledger.view') || Auth::user()->can('report.sale.view') || Auth::user()->can('customer.view') || Auth::user()->hasRole('super admin'))
+                                            <li><a href="{{ route('report.receivable') }}"><i class="fas fa-hand-holding-usd"></i> Receivable Report</a></li>
+                                            @endif
+                                            @can('report.customer.ledger.view')
+                                            <li><a href="{{ route('report.customer.ledger') }}"><i class="fa-solid fa-user-tag"></i> Customer Ledger</a></li>
+                                            @endcan
+                                            @can('report.sale.view')
+                                            <li><a href="{{ route('report.sale') }}"><i class="fa-solid fa-chart-line"></i> Sale Report</a></li>
+                                            <li><a href="{{ route('report.salesman.performance') }}"><i class="fa-solid fa-user-tie"></i> Salesman Performance</a></li>
+                                            @endcan
+                                        </ul>
+                                    </li>
                                     @endif
-                                    @can('report.product.ledger.view')
-                                    <li><a href="{{ route('report.product_ledger') }}"><i class="fa-solid fa-boxes-stacked"></i> Product Ledger</a></li>
-                                    @endcan
-                                    @can('report.item.stock.view')
-                                    <li><a href="{{ route('report.item_stock') }}"><i class="fa-solid fa-users"></i> Item Stock Report</a></li>
-                                    @endcan
-                                    @can('report.purchase.view')
-                                    <li><a href="{{ route('report.purchase') }}"><i class="fa-solid fa-users"></i> Purchase Report</a></li>
-                                    <li><a href="{{ route('report.local_purchase') }}"><i class="fas fa-store-alt"></i> Local Purchase Report</a></li>
-                                    <li><a href="{{ route('report.po_vs_gatepass') }}"><i class="fas fa-tasks"></i> PO vs Gatepass Report</a></li>
-                                    @endcan
-                                    @can('report.sale.view')
-                                    <li><a href="{{ route('report.sale') }}"><i class="fa-solid fa-users"></i> Sale Report</a></li>
-                                    <li><a href="{{ route('report.salesman.performance') }}"><i class="fa-solid fa-user-tie"></i> Salesman Performance</a></li>
-                                    @endcan
-                                    @can('report.customer.ledger.view')
-                                    <li><a href="{{ route('report.customer.ledger') }}"><i class="fa-solid fa-users"></i> Customer Ledger</a></li>
-                                    @endcan
-                                    @can('branch.ledger.view')
-                                    @if(Auth::user()->hasRole('super admin'))
-                                        <li><a href="{{ route('branch_ledger_all_branches') }}"><i class="fa-solid fa-book"></i> All Branches Ledger</a></li>
-                                    @else
-                                        <li><a href="{{ route('branch_ledger_view_branch', Auth::user()->branch_id) }}"><i class="fa-solid fa-book"></i> Branch Ledger</a></li>
+
+                                    {{-- Column 2: Vendors & Purchases --}}
+                                    @if(Auth::user()->canAny(['report.vendor.ledger.view', 'vendor.ledger', 'report.purchase.view']) || Auth::user()->hasRole('super admin'))
+                                    <li class="rpt-col">
+                                        <div class="rpt-col-title">Vendors &amp; Purchases</div>
+                                        <ul class="rpt-col-list">
+                                            @if(Auth::user()->can('report.vendor.ledger.view') || Auth::user()->can('vendor.ledger') || Auth::user()->hasRole('super admin'))
+                                            <li><a href="{{ route('vendors-ledger') }}"><i class="fa-solid fa-users"></i> Vendor Ledger Report</a></li>
+                                            <li><a href="{{ route('report.payable') }}"><i class="fas fa-file-invoice-dollar"></i> Payable Report</a></li>
+                                            @endif
+                                            @can('report.purchase.view')
+                                            <li><a href="{{ route('report.purchase') }}"><i class="fa-solid fa-cart-shopping"></i> Purchase Report</a></li>
+                                            <li><a href="{{ route('report.local_purchase') }}"><i class="fas fa-store-alt"></i> Local Purchase Report</a></li>
+                                            <li><a href="{{ route('report.po_vs_gatepass') }}"><i class="fas fa-tasks"></i> PO vs Gatepass Report</a></li>
+                                            @endcan
+                                        </ul>
+                                    </li>
                                     @endif
-                                    @endcan
-                                    @can('report.assembly.view')
-                                    <li><a href="{{route('assembly.report')}}"><i class="fas fa-cogs"></i> Assembly Report</a></li>
-                                    @endcan
-                                    @can('report.inventory.onhand.view')
-                                    <li><a href="{{ route('reports.onhand') }}"><i class="fas fa-warehouse"></i> Inventory On-Hand</a></li>
-                                    @endcan
-                                    @can('report.stock.hold.view')
-                                    <li><a href="{{ route('report.stock.hold.audit') }}"><i class="fas fa-boxes"></i> Stock Hold Audit</a></li>
-                                    @endcan
-                                    @can('report.trial.balance.view')
-                                    <li><a href="{{ route('report.trial_balance') }}"><i class="fas fa-balance-scale"></i> Trial Balance</a></li>
-                                    @endcan
-                                    @can('report.income.statement.view')
-                                    <li><a href="{{ route('report.income_statement') }}"><i class="fas fa-file-invoice-dollar"></i> Income Statement</a></li>
-                                    @endcan
-                                    @can('report.balance.sheet.view')
-                                    <li><a href="{{ route('report.balance_sheet') }}"><i class="fas fa-landmark"></i> Balance Sheet</a></li>
-                                    @endcan
+
+                                    {{-- Column 3: Stock & Inventory --}}
+                                    @if(Auth::user()->canAny(['report.product.ledger.view', 'report.item.stock.view', 'report.inventory.onhand.view', 'report.stock.hold.view', 'report.assembly.view']) || Auth::user()->hasRole('super admin'))
+                                    <li class="rpt-col">
+                                        <div class="rpt-col-title">Stock &amp; Inventory</div>
+                                        <ul class="rpt-col-list">
+                                            @can('report.product.ledger.view')
+                                            <li><a href="{{ route('report.product_ledger') }}"><i class="fa-solid fa-boxes-stacked"></i> Product Ledger</a></li>
+                                            @endcan
+                                            @can('report.item.stock.view')
+                                            <li><a href="{{ route('report.item_stock') }}"><i class="fas fa-cubes"></i> Item Stock Report</a></li>
+                                            @endcan
+                                            @can('report.inventory.onhand.view')
+                                            <li><a href="{{ route('reports.onhand') }}"><i class="fas fa-warehouse"></i> Inventory On-Hand</a></li>
+                                            @endcan
+                                            @can('report.stock.hold.view')
+                                            <li><a href="{{ route('report.stock.hold.audit') }}"><i class="fas fa-boxes"></i> Stock Hold Audit</a></li>
+                                            @endcan
+                                            @can('report.assembly.view')
+                                            <li><a href="{{route('assembly.report')}}"><i class="fas fa-cogs"></i> Assembly Report</a></li>
+                                            @endcan
+                                        </ul>
+                                    </li>
+                                    @endif
+
+                                    {{-- Column 4: Financial Accounts --}}
+                                    @if(Auth::user()->canAny(['report.trial.balance.view', 'report.income.statement.view', 'report.balance.sheet.view', 'branch.ledger.view']) || Auth::user()->hasRole('super admin'))
+                                    <li class="rpt-col">
+                                        <div class="rpt-col-title">Financial Accounts</div>
+                                        <ul class="rpt-col-list">
+                                            @can('report.trial.balance.view')
+                                            <li><a href="{{ route('report.trial_balance') }}"><i class="fas fa-balance-scale"></i> Trial Balance</a></li>
+                                            @endcan
+                                            @can('report.income.statement.view')
+                                            <li><a href="{{ route('report.income_statement') }}"><i class="fas fa-file-invoice-dollar"></i> Income Statement</a></li>
+                                            @endcan
+                                            @can('report.balance.sheet.view')
+                                            <li><a href="{{ route('report.balance_sheet') }}"><i class="fas fa-landmark"></i> Balance Sheet</a></li>
+                                            @endcan
+                                            @can('branch.ledger.view')
+                                            @if(Auth::user()->hasRole('super admin'))
+                                                <li><a href="{{ route('branch_ledger_all_branches') }}"><i class="fa-solid fa-book"></i> All Branches Ledger</a></li>
+                                            @else
+                                                <li><a href="{{ route('branch_ledger_view_branch', Auth::user()->branch_id) }}"><i class="fa-solid fa-book"></i> Branch Ledger</a></li>
+                                            @endif
+                                            @endcan
+                                        </ul>
+                                    </li>
+                                    @endif
+
                                 </ul>
                             </div>
                         </li>
@@ -908,6 +1327,44 @@
 
     @yield('js')
 
+      <script>
+      function setRptView(mode, e) {
+          if (e) {
+              e.preventDefault();
+              e.stopPropagation();
+          }
+          var sub = document.getElementById('reportsSubmenu');
+          var btnG = document.getElementById('btnRptGrid');
+          var btnL = document.getElementById('btnRptList');
+          if (!sub) return;
+
+          if (mode === 'list') {
+              sub.classList.remove('rpt-mode-grid');
+              sub.classList.add('rpt-mode-list');
+              if (btnL && btnG) {
+                  btnL.classList.add('active');
+                  btnG.classList.remove('active');
+              }
+              try { localStorage.setItem('rpt_view_pref', 'list'); } catch(err){}
+          } else {
+              sub.classList.remove('rpt-mode-list');
+              sub.classList.add('rpt-mode-grid');
+              if (btnL && btnG) {
+                  btnG.classList.add('active');
+                  btnL.classList.remove('active');
+              }
+              try { localStorage.setItem('rpt_view_pref', 'grid'); } catch(err){}
+          }
+      }
+
+      // Restore saved view preference immediately on ready
+      $(document).ready(function() {
+          try {
+              var saved = localStorage.getItem('rpt_view_pref') || 'grid';
+              setRptView(saved);
+          } catch(err){}
+      });
+      </script>
 </body>
 
 </html>

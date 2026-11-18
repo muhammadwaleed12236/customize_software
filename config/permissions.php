@@ -401,6 +401,8 @@ return [
             'report.trial.balance.view'    => 'Trial Balance',
             'report.income.statement.view' => 'Income Statement',
             'report.balance.sheet.view'    => 'Balance Sheet',
+            'report.receivable.view'       => 'Customer Receivable Report',
+            'report.payable.view'          => 'Vendor Payable Report',
         ],
     ],
 
