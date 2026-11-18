@@ -350,10 +350,10 @@
 
                                                     @can('payment.voucher.create')
                                                         <div class="dropdown-divider my-1"></div>
-                                                        <form action="{{ route('payment-vouchers.destroy', $item->id) }}" method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to VOID this payment? Ledgers will be reversed.');">
+                                                        <form action="{{ route('payment-vouchers.destroy', $item->id) }}" method="POST" class="d-inline form-void-payment">
                                                             @csrf
                                                             @method('DELETE')
-                                                            <button type="submit" class="dropdown-item text-danger" style="background: none; border: none; width: 100%; text-align: left;">
+                                                            <button type="button" class="dropdown-item text-danger btn-trigger-void-payment" style="background: none; border: none; width: 100%; text-align: left;">
                                                                 <i class="fas fa-ban text-danger" style="width: 16px;"></i> Void Payment
                                                             </button>
                                                         </form>
@@ -362,6 +362,14 @@
                                                     <div class="px-3 py-1">
                                                         <span class="badge bg-danger text-white">Voided</span>
                                                     </div>
+                                                    @can('payment.voucher.create')
+                                                        <form action="{{ route('payment-vouchers.unvoid', $item->id) }}" method="POST" class="d-inline form-unvoid-payment">
+                                                            @csrf
+                                                            <button type="button" class="dropdown-item text-success btn-trigger-unvoid-payment" style="background: none; border: none; width: 100%; text-align: left;">
+                                                                <i class="fas fa-undo text-success" style="width: 16px;"></i> Unvoid Payment
+                                                            </button>
+                                                        </form>
+                                                    @endcan
                                                     <a class="dropdown-item" href="{{ route('PaymentVoucher.print', $item->id) }}" target="_blank">
                                                         <i class="fas fa-print text-muted" style="width: 16px;"></i> Print Voided
                                                     </a>
@@ -496,6 +504,48 @@ $(document).ready(function() {
         
         // Open the modal (Bootstrap 4 format)
         $('#viewProofModal').modal('show');
+    });
+
+    // SweetAlert Confirm for Void Action
+    $(document).on('click', '.btn-trigger-void-payment', function(e) {
+        e.preventDefault();
+        const form = $(this).closest('form');
+        
+        Swal.fire({
+            title: 'Void Payment Voucher?',
+            text: 'Are you sure you want to VOID this payment voucher? Financial ledgers and accounts will be reversed.',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Void Voucher',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
+    });
+
+    // SweetAlert Confirm for Unvoid Action
+    $(document).on('click', '.btn-trigger-unvoid-payment', function(e) {
+        e.preventDefault();
+        const form = $(this).closest('form');
+        
+        Swal.fire({
+            title: 'Unvoid Payment Voucher?',
+            text: 'Are you sure you want to UNVOID (Restore) this payment voucher? Ledgers and accounts will be restored.',
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Restore Voucher',
+            cancelButtonText: 'Cancel',
+            confirmButtonColor: '#10b981',
+            cancelButtonColor: '#64748b'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                form.submit();
+            }
+        });
     });
 });
 </script>

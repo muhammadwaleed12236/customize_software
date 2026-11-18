@@ -661,6 +661,7 @@ class VoucherService
             if ($partyType === 'vendor') {
                 $lastLedger = VendorLedger::where('vendor_id', $partyId)
                     ->where('branch_id', $branchId)
+                    ->orderByRaw("COALESCE(transaction_date, DATE(created_at), '1970-01-01') DESC")
                     ->orderBy('id', 'desc')
                     ->first();
 
@@ -686,6 +687,7 @@ class VoucherService
                 self::recalculateVendorLedger((int)$partyId, $branchId);
             } elseif ($partyType === 'customer' || $partyType === 'walkin') {
                 $lastLedger = CustomerLedger::where('customer_id', $partyId)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
                     ->orderBy('id', 'desc')
                     ->first();
 
@@ -782,6 +784,45 @@ class VoucherService
         } catch (\Exception $e) {
             DB::rollBack();
             Log::error("Payment Voucher Update Error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Unvoid a previously voided Payment Voucher.
+     * Restores party ledgers (Vendor / Customer / Account) and General Account ledger entries,
+     * recalculates running balances, and sets voucher status to active.
+     */
+    public static function unvoidPaymentVoucher(PaymentVoucher $voucher, $userId): bool
+    {
+        if ($voucher->status !== 'voided') {
+            self::$lastError = 'Only voided vouchers can be unvoided.';
+            return false;
+        }
+
+        DB::beginTransaction();
+        try {
+            // 1. Cleanly remove any leftover/dangling ledger entries if any exist
+            self::reversePaymentVoucher($voucher, $userId, false);
+
+            // 2. Re-apply all ledger effects (both row accounts and party side)
+            $success = self::applyPaymentVoucher($voucher, [], $userId);
+            if (!$success) {
+                DB::rollBack();
+                return false;
+            }
+
+            // 3. Restore voucher status to active and processed
+            $voucher->processed = 1;
+            $voucher->status    = 'active';
+            $voucher->save();
+
+            DB::commit();
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            self::$lastError = $e->getMessage();
+            Log::error("Payment Voucher Unvoid Error: " . $e->getMessage());
             return false;
         }
     }

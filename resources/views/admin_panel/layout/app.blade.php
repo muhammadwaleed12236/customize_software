@@ -106,13 +106,13 @@
     <meta charset="UTF-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Zare Bootstrap 4 Admin Template">
+    <meta name="description" content="ERP System">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <!--=========================*
               Page Title
     *===========================-->
-    <title>Home 2 | Zare Bootstrap 4 Admin Template</title>
+    <title>@yield('title', 'ERP System')</title>
 
     <!--=========================*
                 Favicon

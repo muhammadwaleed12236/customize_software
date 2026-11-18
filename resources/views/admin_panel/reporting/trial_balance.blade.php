@@ -67,12 +67,149 @@
     .tfoot-row td { background: #1e3a5f !important; color: #fff !important; font-weight: 800; font-family: monospace; font-size: 12.5px; }
 
     /* Print */
+    #formalPrintDoc {
+        display: none;
+    }
+
     @media print {
-        .rpt-header-bar .btn, #filterCard, .no-print { display: none !important; }
-        .rpt-header-bar { background: #0f1f38 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        #tbTable th    { background: #0f1f38 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .tfoot-row td  { background: #1e3a5f !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .main-content  { margin: 0 !important; padding: 0 !important; }
+        @page {
+            size: A4 portrait;
+            margin: 0mm !important;
+        }
+        html, body, .container-scroller, .main-content, .rpt-wrapper, .container-fluid {
+            background: #fff !important;
+            color: #000 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            border: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Hide all interactive/screen UI elements */
+        .rt_nav_header, .nav-bottom, .navbar, .footer, .no-print,
+        .rpt-header-bar, #filterCard, .tb-kpi-grid, #summarySection,
+        #placeholder, #loader, .btn, #tableWrapper, .card,
+        .main-footer, .header, .sidebar, .sidebar-menu, .header-area {
+            display: none !important;
+        }
+
+        #formalPrintDoc {
+            display: block !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            padding: 10mm 10mm 10mm 10mm !important;
+            margin: 0 !important;
+            background: #fff !important;
+            color: #000 !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+        }
+
+        .print-doc-header {
+            margin-bottom: 6px;
+        }
+        .print-company-title {
+            font-size: 16pt;
+            font-weight: 800;
+            color: #000;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+        }
+        .print-doc-title {
+            font-size: 22pt;
+            font-weight: 900;
+            color: #000;
+            margin-bottom: 2px;
+        }
+        .print-doc-period {
+            font-size: 12pt;
+            font-weight: 700;
+            color: #000;
+        }
+        .print-top-divider {
+            border-bottom: 2.5px solid #000;
+            margin-top: 6px;
+            margin-bottom: 12px;
+        }
+
+        .print-tb-table {
+            width: 100% !important;
+            max-width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            font-size: 10pt !important;
+            margin-bottom: 16px !important;
+            color: #000 !important;
+        }
+        .print-tb-table th {
+            border-top: 2px solid #000 !important;
+            border-bottom: 2px solid #000 !important;
+            padding: 7px 4px !important;
+            background: #f1f5f9 !important;
+            font-weight: 800 !important;
+            color: #000 !important;
+            font-size: 10pt !important;
+            text-transform: uppercase !important;
+            vertical-align: middle !important;
+        }
+        .print-tb-table td {
+            border-bottom: 1px solid #cbd5e1 !important;
+            padding: 6px 4px !important;
+            vertical-align: middle !important;
+            color: #000 !important;
+            font-size: 10pt !important;
+        }
+        .print-tb-table tr {
+            page-break-inside: avoid;
+        }
+        .print-tb-table tr.p-tfoot td {
+            border-top: 2px solid #000 !important;
+            border-bottom: 3.5px double #000 !important;
+            font-weight: 900 !important;
+            padding: 8px 4px !important;
+            background: #fff !important;
+            font-size: 11pt !important;
+            color: #000 !important;
+            font-family: "Courier New", Courier, monospace !important;
+        }
+
+        .print-doc-footer {
+            margin-top: 25px;
+            font-size: 10pt;
+            color: #000;
+            page-break-inside: avoid;
+        }
+        .print-footer-info {
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #000;
+            padding-top: 6px;
+            margin-bottom: 45px;
+            font-weight: 600;
+            color: #000;
+        }
+        .print-sign-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        .print-sign-box {
+            border-top: 1.5px dashed #000;
+            width: 170px;
+            text-align: center;
+            padding-top: 6px;
+            font-size: 10.5pt;
+            font-weight: 700;
+            color: #000;
+        }
     }
 </style>
 
@@ -250,6 +387,58 @@
                     </div>
 
                 </div>
+            </div>{{-- /card --}}
+
+            {{-- ── FORMAL A4 PRINT DOCUMENT (Shown ONLY when printing) ──── --}}
+            <div id="formalPrintDoc" class="formal-print-sheet">
+                <div class="print-doc-header">
+                    <div class="print-company-title" id="p_branch_title">Company / Branch Name</div>
+                    <div class="print-doc-title">Trial Balance</div>
+                    <div class="print-doc-period" id="p_period_text">For The Period: 01 Jan 2026 to 18 Nov 2026</div>
+                    <div class="print-top-divider"></div>
+                </div>
+
+                <table class="print-tb-table">
+                    <thead>
+                        <tr>
+                            <th style="width:3.5%;" class="text-center">#</th>
+                            <th style="width:14.5%;">Code</th>
+                            <th style="width:23%;">Account Title</th>
+                            <th style="width:13%;">Head</th>
+                            <th class="text-end" style="width:9%;">Opening</th>
+                            <th class="text-end" style="width:9%;">Debit (Dr)</th>
+                            <th class="text-end" style="width:9%;">Credit (Cr)</th>
+                            <th class="text-end" style="width:9.5%;">Closing Debit</th>
+                            <th class="text-end" style="width:9.5%;">Closing Credit</th>
+                        </tr>
+                    </thead>
+                    <tbody id="p_tb_body">
+                        <!-- Populated dynamically -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="p-tfoot">
+                            <td colspan="4" class="text-end" style="font-size:11pt; font-weight:900; letter-spacing:.03em; text-transform:uppercase;">GRAND TOTAL:</td>
+                            <td class="text-end" style="font-size:11pt; font-weight:900; white-space:nowrap;" id="p_foot_ob">0</td>
+                            <td class="text-end" style="font-size:11pt; font-weight:900; white-space:nowrap;" id="p_foot_tx_dr">0</td>
+                            <td class="text-end" style="font-size:11pt; font-weight:900; white-space:nowrap;" id="p_foot_tx_cr">0</td>
+                            <td class="text-end" style="font-size:11.5pt; font-weight:900; white-space:nowrap;" id="p_foot_debit">0</td>
+                            <td class="text-end" style="font-size:11.5pt; font-weight:900; white-space:nowrap;" id="p_foot_credit">0</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="print-doc-footer">
+                    <div class="print-footer-info">
+                        <span>Printed on: <span id="p_print_time"></span></span>
+                        <span>Summary of Ledger Balances</span>
+                        <span>ERP System &mdash; Financial Statement</span>
+                    </div>
+                    <div class="print-sign-row">
+                        <div class="print-sign-box">Prepared By</div>
+                        <div class="print-sign-box">Accountant</div>
+                        <div class="print-sign-box">Approved By</div>
+                    </div>
+                </div>
             </div>
 
         </div>{{-- /container --}}
@@ -289,6 +478,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Auto load on initial page view
     loadReport();
+
+    // Remove document title during printing so browsers do not print default header text
+    window.addEventListener('beforeprint', function () {
+        window._savedDocTitle = document.title;
+        document.title = '';
+    });
+    window.addEventListener('afterprint', function () {
+        document.title = window._savedDocTitle || 'ERP System';
+    });
 });
 
 function updateAccountsByBranch(branchId) {
@@ -427,6 +625,62 @@ function renderTable(data) {
 
     document.getElementById('summarySection').style.display = 'block';
     document.getElementById('tableWrapper').style.display   = 'block';
+
+    // ── Build Formal A4 Print Sheet ────────────────────────
+    renderFormalPrintDoc(data);
+}
+
+function fmtPrint(n) {
+    const val = Math.round(parseFloat(n || 0));
+    const absFmt = Math.abs(val).toLocaleString('en-PK');
+    return val < 0 ? `(${absFmt})` : absFmt;
+}
+
+function renderFormalPrintDoc(data) {
+    const branchEl = document.getElementById('branch_id');
+    const branchText = (branchEl && branchEl.selectedIndex >= 0 && branchEl.value !== 'all') 
+        ? branchEl.options[branchEl.selectedIndex].text 
+        : 'All Branches';
+    document.getElementById('p_branch_title').textContent = branchText;
+
+    const df = document.getElementById('date_from').value;
+    const dt = document.getElementById('date_to').value;
+    const dfFormatted = df ? new Date(df + 'T00:00:00').toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' }) : 'Beginning';
+    const dtFormatted = dt ? new Date(dt + 'T00:00:00').toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' }) : 'Today';
+    document.getElementById('p_period_text').textContent = `For The Period: ${dfFormatted} to ${dtFormatted}`;
+
+    const now = new Date();
+    document.getElementById('p_print_time').textContent = now.toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+    const rows = data.rows || [];
+    let html = '';
+    rows.forEach((r, i) => {
+        const obVal  = (r.ob !== 0 && r.ob !== null) ? fmtPrint(r.ob) : '0';
+        const drVal  = r.tx_debit > 0 ? fmtPrint(r.tx_debit) : '-';
+        const crVal  = r.tx_credit > 0 ? fmtPrint(r.tx_credit) : '-';
+        const cDrVal = r.debit_bal > 0 ? fmtPrint(r.debit_bal) : '-';
+        const cCrVal = r.credit_bal > 0 ? fmtPrint(r.credit_bal) : '-';
+
+        html += `<tr>
+            <td class="text-center" style="font-size:10pt; font-weight:700; color:#000;">${i + 1}</td>
+            <td style="font-family:'Courier New', monospace; font-size:10pt; font-weight:700; color:#000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${r.account_code || '—'}</td>
+            <td style="font-weight:700; color:#000; font-size:10.5pt; overflow:hidden; text-overflow:ellipsis;">${r.title}</td>
+            <td style="font-size:10pt; font-weight:600; color:#000; overflow:hidden; text-overflow:ellipsis;">${r.head_name}</td>
+            <td class="text-end" style="font-family:'Courier New', monospace; font-size:10.5pt; font-weight:700; color:#000; white-space:nowrap;">${obVal}</td>
+            <td class="text-end" style="font-family:'Courier New', monospace; font-size:10.5pt; font-weight:700; color:#000; white-space:nowrap;">${drVal}</td>
+            <td class="text-end" style="font-family:'Courier New', monospace; font-size:10.5pt; font-weight:700; color:#000; white-space:nowrap;">${crVal}</td>
+            <td class="text-end" style="font-family:'Courier New', monospace; font-size:11pt; font-weight:800; color:#000; white-space:nowrap;">${cDrVal}</td>
+            <td class="text-end" style="font-family:'Courier New', monospace; font-size:11pt; font-weight:800; color:#000; white-space:nowrap;">${cCrVal}</td>
+        </tr>`;
+    });
+    document.getElementById('p_tb_body').innerHTML = html;
+
+    // Footer
+    document.getElementById('p_foot_ob').textContent     = fmtPrint(data.grand_ob || 0);
+    document.getElementById('p_foot_tx_dr').textContent  = fmtPrint(data.grand_tx_dr || 0);
+    document.getElementById('p_foot_tx_cr').textContent  = fmtPrint(data.grand_tx_cr || 0);
+    document.getElementById('p_foot_debit').textContent  = fmtPrint(data.grand_debit || 0);
+    document.getElementById('p_foot_credit').textContent = fmtPrint(data.grand_credit || 0);
 }
 
 function exportCSV() {

@@ -1083,6 +1083,24 @@ class VoucherController extends Controller
         }
     }
 
+    public function unvoid_payment($id)
+    {
+        $voucher = PaymentVoucher::findOrFail($id);
+
+        if ($voucher->status !== 'voided') {
+            return back()->with('error', 'Only voided vouchers can be unvoided!');
+        }
+
+        $success = \App\Services\VoucherService::unvoidPaymentVoucher($voucher, auth()->id());
+
+        if ($success) {
+            return back()->with('success', "Payment Voucher #{$voucher->pvid} unvoided successfully! Ledgers and accounts restored.");
+        } else {
+            $err = \App\Services\VoucherService::$lastError;
+            return back()->with('error', 'Failed to unvoid Payment Voucher.' . ($err ? " Error: {$err}" : ''));
+        }
+    }
+
     public function edit_payment($id)
     {
         $voucher = PaymentVoucher::findOrFail($id);

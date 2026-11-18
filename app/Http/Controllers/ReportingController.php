@@ -4693,15 +4693,24 @@ class ReportingController extends Controller
         if (!$accountId) {
             $branchName = $branchId ? (Branch::find($branchId)?->name ?? 'Branch') : 'All Branches';
 
-            // 1. Sales (Credit)
-            $salesTotal = (float) DB::table('sales')
-                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
-                ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
-                ->sum('total_net');
+            // 1. Sales (Credit - Gross Sales matching Income Statement)
+            $salesTotal = (float) DB::table('sale_items as si')
+                ->join('sales as s', 's.id', '=', 'si.sale_id')
+                ->where(function ($q) { $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled'); })
+                ->when($branchId, fn($q) => $q->where('s.branch_id', $branchId))
+                ->when($dateFrom, fn($q) => $q->whereDate('s.created_at', '>=', $dateFrom))
+                ->when($dateTo,   fn($q) => $q->whereDate('s.created_at', '<=', $dateTo))
+                ->sum('si.amount');
+            if ($salesTotal <= 0) {
+                $salesTotal = (float) DB::table('sales')
+                    ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
+                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+                    ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
+                    ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
+                    ->sum('total_net');
+            }
 
-            // 2. Purchases (Debit)
+            // 2. Purchases (Debit - matching Purchases Report & Income Statement)
             $purchasesTotal = (float) DB::table('purchases')
                 ->whereNull('deleted_at')
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
@@ -4709,7 +4718,7 @@ class ReportingController extends Controller
                 ->when($dateTo,   fn($q) => $q->whereDate('purchase_date', '<=', $dateTo))
                 ->sum('net_amount');
 
-            // 3. Sales Returns (Debit)
+            // 3. Sales Returns (Debit - matching Sales Return Report & Income Statement)
             $saleReturnTotal = (float) DB::table('sales_returns')
                 ->when($branchId, function ($q) use ($branchId) {
                     $q->whereExists(function ($sq) use ($branchId) {
@@ -4722,7 +4731,7 @@ class ReportingController extends Controller
                 ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
                 ->sum('total_net');
 
-            // 4. Purchase Returns (Credit)
+            // 4. Purchase Returns (Credit - matching Income Statement)
             $purchaseReturnTotal = (float) DB::table('purchase_returns')
                 ->when($branchId, function ($q) use ($branchId) {
                     $q->whereExists(function ($sq) use ($branchId) {
@@ -4735,27 +4744,31 @@ class ReportingController extends Controller
                 ->when($dateTo,   fn($q) => $q->whereDate('return_date', '<=', $dateTo))
                 ->sum('net_amount');
 
-            // 5. Accounts Receivable - Customers (Debit)
-            $custQ = DB::table('customer_ledgers as cl1')
-                ->join(DB::raw('(SELECT customer_id, MAX(id) as max_id FROM customer_ledgers' . ($dateTo ? " WHERE DATE(created_at) <= '$dateTo'" : '') . ' GROUP BY customer_id) as cl2'), 'cl1.id', '=', 'cl2.max_id')
-                ->join('customers as c', 'c.id', '=', 'cl1.customer_id');
-            if ($branchId) $custQ->where('c.branch_id', $branchId);
-            $arTotal = (float) $custQ->sum('cl1.closing_balance');
+            // 5. Accounts Receivable - Customers (Debit - Live Transactional exact match with /report/receivable and Balance Sheet)
+            $recReq = new Request([
+                'branch_id' => $branchId,
+                'date_from' => $dateFrom,
+                'date_to'   => $dateTo,
+            ]);
+            $recData = $this->fetch_receivable_report($recReq)->getData(true);
+            $arTotal = (float) ($recData['kpi']['grand_closing'] ?? 0);
 
-            // 6. Accounts Payable - Vendors (Credit)
-            $vendQ = DB::table('vendor_ledgers as vl1')
-                ->join(DB::raw('(SELECT vendor_id, MAX(id) as max_id FROM vendor_ledgers' . ($dateTo ? " WHERE DATE(created_at) <= '$dateTo'" : '') . ' GROUP BY vendor_id) as vl2'), 'vl1.id', '=', 'vl2.max_id')
-                ->join('vendors as v', 'v.id', '=', 'vl1.vendor_id');
-            if ($branchId) $vendQ->where('v.branch_id', $branchId);
-            $apTotal = (float) $vendQ->sum('vl1.closing_balance');
+            // 6. Accounts Payable - Vendors (Credit - Live Transactional exact match with /report/payable and Balance Sheet)
+            $payReq = new Request([
+                'branch_id' => $branchId,
+                'date_from' => $dateFrom,
+                'date_to'   => $dateTo,
+            ]);
+            $payData = $this->fetch_payable_report($payReq)->getData(true);
+            $apTotal = (float) ($payData['kpi']['grand_closing'] ?? 0);
 
-            // 7. Discount Allowed (Debit)
+            // 7. Discount Allowed (Debit - matching Income Statement Sales Discount)
             $discountTotal = (float) DB::table('sales')
                 ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
                 ->when($dateTo,   fn($q) => $q->whereDate('created_at', '<=', $dateTo))
-                ->sum(DB::raw('COALESCE(discount_amount, 0) + COALESCE(additional_discount, 0)'));
+                ->sum('discount_amount');
 
             // 8. Cartage Inward & Outward (Debit)
             $inwardCartage = (float) DB::table('inward_gatepasses')
@@ -4777,10 +4790,14 @@ class ReportingController extends Controller
                 ->sum('extra_charges');
             $cartageTotal = $inwardCartage + $purchExtra + $outwardCartage;
 
-            // 9. Opening Stock / Inventory Valuation (Debit)
-            $stockQ = DB::table('warehouse_stocks as ws');
-            if ($branchId) $stockQ->where('ws.branch_id', $branchId);
-            $stockValuation = (float) $stockQ->selectRaw('COALESCE(SUM(ws.quantity * ws.price), 0) as val')->value('val');
+            // 9. Opening Stock / Inventory Valuation (Debit - Market Value matching Opening Stocks / Income Statement)
+            $isReq = new Request([
+                'branch_id' => $branchId,
+                'date_from' => $dateFrom,
+                'date_to'   => $dateTo,
+            ]);
+            $isData = $this->fetchIncomeStatement($isReq)->getData(true);
+            $stockValuation = (float) ($isData['opening_stock'] ?? 0);
 
             // Operational Items List
             $operationalItems = [
@@ -5133,60 +5150,93 @@ class ReportingController extends Controller
         $effectivePurchases = $netPurchases - $purchaseReturns;
 
         // 2.3 Standard Accounting Periodic Inventory: Opening + Purchases - Returns - Closing Stock
-        // Closing Stock Valuation as of dateTo (warehouse_stocks)
-        $closingStockQ = DB::table('warehouse_stocks as ws');
-        if ($branchId) {
-            $closingStockQ->where('ws.branch_id', $branchId);
-        }
-        $closingStock = (float) $closingStockQ->selectRaw('COALESCE(SUM(ws.quantity * ws.price), 0) as val')->value('val');
+        // Closing Stock Valuation — exactly matching Item Stock Report
+        $allProdsForCS = \App\Models\Product::select('id', 'wholesale_price', 'price')->get()->keyBy('id');
+        $csQtyMap = DB::table('warehouse_stocks')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->select('product_id', DB::raw('SUM(quantity) as total_qty'))
+            ->groupBy('product_id')
+            ->pluck('total_qty', 'product_id');
 
-        // Opening Stock Valuation
-        $openMovementsQ = DB::table('stock_movements as sm')
-            ->join('products as p', 'p.id', '=', 'sm.product_id')
-            ->whereIn('sm.ref_type', ['OPENING', 'OPENING_ADJ']);
-        if ($branchId) {
-            $openMovementsQ->where('sm.branch_id', $branchId);
-        }
-        $initialOpeningStock = (float) $openMovementsQ->sum(DB::raw('sm.qty * COALESCE(p.price, 0)'));
-        if ($initialOpeningStock <= 0) {
-            $prodInitQ = DB::table('products');
-            if ($branchId) {
-                $prodInitQ->where('branch_id', $branchId);
+        $closingStock = 0;
+        $csNeedPrice = [];
+        foreach ($csQtyMap as $pid => $qty) {
+            $p = $allProdsForCS[$pid] ?? null;
+            $wPrice = (float)(($p->wholesale_price ?? 0));
+            if ($wPrice <= 0) $wPrice = (float)(($p->price ?? 0));
+            if ($wPrice <= 0) {
+                $csNeedPrice[] = $pid;
             }
-            $initialOpeningStock = (float) $prodInitQ->sum(DB::raw('COALESCE(initial_stock, 0) * COALESCE(price, 0)'));
+            $closingStock += (float)$qty * $wPrice;
+        }
+        if (!empty($csNeedPrice)) {
+            $csLatest = DB::table('purchase_items')
+                ->whereIn('product_id', $csNeedPrice)
+                ->select('product_id', 'price')
+                ->orderBy('id', 'desc')
+                ->get()
+                ->unique('product_id')
+                ->keyBy('product_id');
+            foreach ($csNeedPrice as $pid) {
+                $qty = (float)($csQtyMap[$pid] ?? 0);
+                $fallback = (float)($csLatest[$pid]->price ?? 0);
+                $closingStock += $qty * $fallback;
+            }
         }
 
-        $openingStock = $initialOpeningStock;
-        if ($dateFrom && $dateFrom > '2026-01-01') {
-            $purchBefore = (float) DB::table('purchases')
-                ->whereNull('deleted_at')
-                ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                ->whereDate('purchase_date', '<', $dateFrom)
-                ->sum('net_amount');
+        // Opening Stock Valuation (Wholesale / Market Value - matching Opening Stocks Manager /opening-stocks)
+        $queryOpen = \App\Models\Product::with(['warehouseStocks']);
+        if ($branchId) {
+            $bid = (int) $branchId;
+            $queryOpen->where(function ($q) use ($bid) {
+                $q->where('branch_id', $bid)
+                  ->orWhereHas('warehouseStocks', fn($ws) => $ws->where('branch_id', $bid))
+                  ->orWhereHas('stocks', fn($st) => $st->where('branch_id', $bid));
+            });
+        }
+        $queryOpen->where(function ($q) use ($branchId) {
+            $q->where('initial_stock', '>', 0)
+              ->orWhereExists(function ($sub) use ($branchId) {
+                  $sub->select(DB::raw(1))->from('stock_movements')
+                      ->whereColumn('stock_movements.product_id', 'products.id')
+                      ->whereIn('stock_movements.ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
+                      ->when($branchId, fn($sm) => $sm->where('branch_id', (int) $branchId));
+              })
+              ->orWhereExists(function ($sub2) use ($branchId) {
+                  $sub2->select(DB::raw(1))->from('warehouse_stocks')
+                      ->whereColumn('warehouse_stocks.product_id', 'products.id')
+                      ->where('warehouse_stocks.quantity', '>', 0)
+                      ->when($branchId, fn($ws) => $ws->where('branch_id', (int) $branchId));
+              });
+        });
+        $openProds = $queryOpen->get();
+        $pIds = $openProds->pluck('id')->toArray();
 
-            $retBefore = (float) DB::table('purchase_returns')
-                ->when($branchId, function ($q) use ($branchId) {
-                    $q->whereExists(function ($sub) use ($branchId) {
-                        $sub->select(DB::raw(1))->from('purchases')
-                            ->whereColumn('purchases.id', 'purchase_returns.purchase_id')
-                            ->where('purchases.branch_id', $branchId);
-                    });
-                })
-                ->whereDate('return_date', '<', $dateFrom)
-                ->sum('net_amount');
+        $openMovements = DB::table('stock_movements')
+            ->whereIn('product_id', $pIds)
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
+            ->when($branchId, fn($q) => $q->where('branch_id', (int) $branchId))
+            ->get()
+            ->groupBy('product_id');
 
-            $soldBefore = (float) DB::table('sale_items as si')
-                ->join('sales as s', 's.id', '=', 'si.sale_id')
-                ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
-                ->where(function ($q) { $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled'); })
-                ->when($branchId, fn($q) => $q->where('s.branch_id', $branchId))
-                ->whereDate('s.created_at', '<', $dateFrom)
-                ->sum(DB::raw('si.sales_qty * COALESCE(p.price, 0)'));
-
-            $calculatedOpening = $initialOpeningStock + ($purchBefore - $retBefore) - $soldBefore;
-            if ($calculatedOpening >= 0) {
-                $openingStock = $calculatedOpening;
+        $openingStock = 0;
+        foreach ($openProds as $p) {
+            $moves = $openMovements->get($p->id, collect());
+            $movOpening = $moves->where('type', 'in')->sum('qty');
+            if ($moves->isNotEmpty() && $movOpening > 0) {
+                $openingQty = (float) $movOpening;
+            } elseif ($p->initial_stock !== null && $p->initial_stock > 0) {
+                $openingQty = (float) $p->initial_stock;
+            } else {
+                $whSum = $p->warehouseStocks
+                    ->when($branchId, fn($c) => $c->where('branch_id', (int) $branchId))
+                    ->sum('quantity');
+                $openingQty = max(0, (float) $whSum);
             }
+
+            $wPrice = (float) ($p->wholesale_price ?? 0);
+            if ($wPrice <= 0) $wPrice = (float) ($p->price ?? 0);
+            $openingStock += ($openingQty * $wPrice);
         }
 
         $goodsAvailable = $openingStock + $effectivePurchases;
@@ -5308,13 +5358,54 @@ class ReportingController extends Controller
 
         // ── 1. ASSETS ──────────────────────────────────────────
 
-        // 1.1 Cash in Hand accounts
+        // 1.2 Bank Balances (Head is Bank or code is BANK, excluding Expense)
+        $bankAccounts = DB::table('accounts as a')
+            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
+            ->where(function ($q) {
+                $q->where('ah.name', 'Bank')
+                  ->orWhere('a.account_code', 'like', '%-BANK-%');
+            })
+            ->where('ah.name', '!=', 'Expence')
+            ->where('a.account_code', 'not like', '%-EXPE-%')
+            ->where(function ($q) {
+                $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
+            })
+            ->when($branchId, fn($q) => $q->where('a.branch_id', $branchId))
+            ->select('a.id', 'a.title', 'a.account_code', 'a.opening_balance', 'a.type')
+            ->get();
+
+        $bankAccountIds = $bankAccounts->pluck('id')->toArray();
+
+        $bankList = [];
+        $totalBank = 0;
+        foreach ($bankAccounts as $ba) {
+            $tx = DB::table('account_ledger_entries')
+                ->where('account_id', $ba->id)
+                ->where('voucher_type', '!=', 'opening_balance')
+                ->when($asOfDate, fn($q) => $q->whereDate('transaction_date', '<=', $asOfDate))
+                ->selectRaw('COALESCE(SUM(debit),0) as dr, COALESCE(SUM(credit),0) as cr')
+                ->first();
+            $bal = (float) $ba->opening_balance + (float) $tx->dr - (float) $tx->cr;
+            if ($bal != 0) {
+                $bankList[] = [
+                    'title'   => $ba->title,
+                    'code'    => $ba->account_code,
+                    'balance' => $bal,
+                ];
+                $totalBank += $bal;
+            }
+        }
+
+        // 1.1 Cash in Hand accounts (Head is Cash or code is CASH, strictly excluding Bank and Expense)
         $cashAccounts = DB::table('accounts as a')
             ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
             ->where(function ($q) {
                 $q->where('ah.name', 'Cash')
-                  ->orWhere('a.title', 'like', '%cash%');
+                  ->orWhere('a.account_code', 'like', '%-CASH-%');
             })
+            ->when(!empty($bankAccountIds), fn($q) => $q->whereNotIn('a.id', $bankAccountIds))
+            ->where('ah.name', '!=', 'Expence')
+            ->where('a.account_code', 'not like', '%-EXPE-%')
             ->where(function ($q) {
                 $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
             })
@@ -5342,55 +5433,49 @@ class ReportingController extends Controller
             }
         }
 
-        // 1.2 Bank Balances
-        $bankAccounts = DB::table('accounts as a')
-            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
-            ->where(function ($q) {
-                $q->where('ah.name', 'Bank')
-                  ->orWhere('a.title', 'like', '%bank%');
-            })
-            ->where(function ($q) {
-                $q->whereNull('a.status')->orWhereNotIn('a.status', [0, '0', 'inactive']);
-            })
-            ->when($branchId, fn($q) => $q->where('a.branch_id', $branchId))
-            ->select('a.id', 'a.title', 'a.account_code', 'a.opening_balance', 'a.type')
-            ->get();
+        // 1.3 Trade Receivables (Customers - Live Transactional exact match with /report/receivable)
+        $recReq = new Request([
+            'branch_id' => $branchId,
+            'date_to'   => $asOfDate,
+        ]);
+        $recData = $this->fetch_receivable_report($recReq)->getData(true);
+        $totalReceivables = (float) ($recData['kpi']['grand_closing'] ?? 0);
 
-        $bankList = [];
-        $totalBank = 0;
-        foreach ($bankAccounts as $ba) {
-            $tx = DB::table('account_ledger_entries')
-                ->where('account_id', $ba->id)
-                ->where('voucher_type', '!=', 'opening_balance')
-                ->when($asOfDate, fn($q) => $q->whereDate('transaction_date', '<=', $asOfDate))
-                ->selectRaw('COALESCE(SUM(debit),0) as dr, COALESCE(SUM(credit),0) as cr')
-                ->first();
-            $bal = (float) $ba->opening_balance + (float) $tx->dr - (float) $tx->cr;
-            if ($bal != 0) {
-                $bankList[] = [
-                    'title'   => $ba->title,
-                    'code'    => $ba->account_code,
-                    'balance' => $bal,
-                ];
-                $totalBank += $bal;
+        // 1.4 Stock on Hand Valuation — exactly matching Item Stock Report
+        // Per-product loop: warehouse_stocks qty * wholesale_price (with purchase_items fallback)
+        $allProductsForStock = \App\Models\Product::select('id', 'wholesale_price', 'price')->get()->keyBy('id');
+        $wsQtyMap = DB::table('warehouse_stocks')
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->select('product_id', DB::raw('SUM(quantity) as total_qty'))
+            ->groupBy('product_id')
+            ->pluck('total_qty', 'product_id');
+
+        $productIdsNeedingPurchasePrice = [];
+        $totalStock = 0;
+        foreach ($wsQtyMap as $pid => $qty) {
+            $p = $allProductsForStock[$pid] ?? null;
+            $wPrice = (float)(($p->wholesale_price ?? 0));
+            if ($wPrice <= 0) $wPrice = (float)(($p->price ?? 0));
+            if ($wPrice <= 0) {
+                $productIdsNeedingPurchasePrice[] = $pid;
+            }
+            $totalStock += (float)$qty * $wPrice;
+        }
+        // Fallback: for products with no price, use latest purchase_items price
+        if (!empty($productIdsNeedingPurchasePrice)) {
+            $latestPrices = DB::table('purchase_items')
+                ->whereIn('product_id', $productIdsNeedingPurchasePrice)
+                ->select('product_id', 'price')
+                ->orderBy('id', 'desc')
+                ->get()
+                ->unique('product_id')
+                ->keyBy('product_id');
+            foreach ($productIdsNeedingPurchasePrice as $pid) {
+                $qty = (float)($wsQtyMap[$pid] ?? 0);
+                $fallback = (float)($latestPrices[$pid]->price ?? 0);
+                $totalStock += $qty * $fallback;
             }
         }
-
-        // 1.3 Trade Receivables (Customers)
-        $custQ = DB::table('customer_ledgers as cl1')
-            ->join(DB::raw('(SELECT customer_id, MAX(id) as max_id FROM customer_ledgers' . ($asOfDate ? " WHERE DATE(created_at) <= '$asOfDate'" : '') . ' GROUP BY customer_id) as cl2'), 'cl1.id', '=', 'cl2.max_id')
-            ->join('customers as c', 'c.id', '=', 'cl1.customer_id');
-        if ($branchId) {
-            $custQ->where('c.branch_id', $branchId);
-        }
-        $totalReceivables = (float) $custQ->sum('cl1.closing_balance');
-
-        // 1.4 Stock on Hand Valuation (warehouse_stocks)
-        $stockQ = DB::table('warehouse_stocks as ws');
-        if ($branchId) {
-            $stockQ->where('ws.branch_id', $branchId);
-        }
-        $totalStock = (float) $stockQ->selectRaw('COALESCE(SUM(ws.quantity * ws.price), 0) as val')->value('val');
 
         // 1.5 Loans & Advances
         $loanAccounts = DB::table('accounts as a')
@@ -5463,72 +5548,78 @@ class ReportingController extends Controller
 
         // ── 2. LIABILITIES ─────────────────────────────────────
 
-        // 2.1 Trade Payables (Vendors / Suppliers)
-        $vendQ = DB::table('vendor_ledgers as vl1')
-            ->join(DB::raw('(SELECT vendor_id, MAX(id) as max_id FROM vendor_ledgers' . ($asOfDate ? " WHERE DATE(created_at) <= '$asOfDate'" : '') . ' GROUP BY vendor_id) as vl2'), 'vl1.id', '=', 'vl2.max_id')
-            ->join('vendors as v', 'v.id', '=', 'vl1.vendor_id');
+        // 2.1 Trade Payables (Vendors / Suppliers - Live Transactional, exact match with /report/payable)
+        $vendQ = DB::table('vendors as v');
         if ($branchId) {
             $vendQ->where('v.branch_id', $branchId);
         }
-        $totalPayables = (float) $vendQ->sum('vl1.closing_balance');
+        $vendorsList = $vendQ->select('v.id', 'v.branch_id', 'v.opening_balance as initial_ob')->get();
+
+        $totalPayables = 0;
+        foreach ($vendorsList as $v) {
+            $vId = (int)$v->id;
+            $vBranch = $branchId ?: null;
+            $openingBalance = (float)($v->initial_ob ?? 0);
+
+            // Purchases (Credit)
+            $pQ = DB::table('purchases')->where('vendor_id', $vId)->whereNull('deleted_at');
+            if ($vBranch) $pQ->where('branch_id', $vBranch);
+            if ($asOfDate) $pQ->whereDate('created_at', '<=', $asOfDate);
+            $purchases = (float)$pQ->sum(DB::raw('COALESCE(net_amount, 0)'));
+
+            // Purchase Returns (Debit)
+            $rQ = DB::table('purchase_returns')->where('vendor_id', $vId);
+            if ($asOfDate) $rQ->whereDate('created_at', '<=', $asOfDate);
+            $returns = (float)$rQ->sum('net_amount');
+
+            // Payments (Debit)
+            $pvQ = DB::table('payment_vouchers')->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'voided');
+            });
+            if ($asOfDate) $pvQ->whereDate('receipt_date', '<=', $asOfDate);
+            \App\Services\VoucherService::scopePartyQuery($pvQ, $vId, 'party_id');
+            $payments = 0;
+            foreach ($pvQ->get() as $pv) {
+                $payments += \App\Services\VoucherService::getPartyAmount($pv, $vId, 'vendor');
+            }
+
+            // Receipts / Refunds (Credit)
+            $rvQ = DB::table('receipts_vouchers')->where(function ($q) {
+                $q->whereNull('status')->orWhere('status', '!=', 'voided');
+            });
+            if ($asOfDate) $rvQ->whereDate('receipt_date', '<=', $asOfDate);
+            \App\Services\VoucherService::scopePartyQuery($rvQ, $vId, 'party_id');
+            $refunds = 0;
+            foreach ($rvQ->get() as $rv) {
+                $refunds += \App\Services\VoucherService::getPartyAmount($rv, $vId, 'vendor');
+            }
+
+            // Journal Vouchers
+            $jvDebQ = DB::table('journal_vouchers')->where('debit_party_type', 'vendor')->where('debit_party_id', $vId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($asOfDate) $jvDebQ->whereDate('voucher_date', '<=', $asOfDate);
+            $jvDeb = (float)$jvDebQ->sum('amount');
+
+            $jvCredQ = DB::table('journal_vouchers')->where('credit_party_type', 'vendor')->where('credit_party_id', $vId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($asOfDate) $jvCredQ->whereDate('voucher_date', '<=', $asOfDate);
+            $jvCred = (float)$jvCredQ->sum('amount');
+
+            $closingBalance = $openingBalance + ($purchases + $refunds + $jvCred) - ($returns + $payments + $jvDeb);
+            $totalPayables += $closingBalance;
+        }
 
         $totalLiabilities = $totalPayables;
 
         // ── 3. EQUITY & RESERVES ───────────────────────────────
 
-        // 3.1 Current Period Net Profit (from start of year to asOfDate)
-        $startOfYear = date('Y-01-01', strtotime($asOfDate));
-
-        // Revenue in year up to asOfDate
-        $salesQ = DB::table('sales')->where(function ($q) {
-            $q->whereNull('status')->orWhere('status', '!=', 'cancelled');
-        });
-        if ($branchId) {
-            $salesQ->where('branch_id', $branchId);
-        }
-        $salesQ->whereDate('created_at', '>=', $startOfYear)->whereDate('created_at', '<=', $asOfDate);
-        $salesNet = (float) ($salesQ->sum('total_net') ?? 0);
-
-        $returnsQ = DB::table('sales_returns');
-        if ($branchId) {
-            $returnsQ->whereExists(function ($q) use ($branchId) {
-                $q->select(DB::raw(1))->from('sales')
-                  ->whereColumn('sales.id', 'sales_returns.sale_id')
-                  ->where('sales.branch_id', $branchId);
-            });
-        }
-        $returnsQ->whereDate('created_at', '>=', $startOfYear)->whereDate('created_at', '<=', $asOfDate);
-        $salesReturns = (float) ($returnsQ->sum('total_net') ?? 0);
-        $periodNetRevenue = $salesNet - $salesReturns;
-
-        // COGS (sold items cost)
-        $cogsQ = DB::table('sale_items as si')
-            ->join('sales as s', 's.id', '=', 'si.sale_id')
-            ->leftJoin('products as p', 'p.id', '=', 'si.product_id')
-            ->where(function ($q) {
-                $q->whereNull('s.status')->orWhere('s.status', '!=', 'cancelled');
-            });
-        if ($branchId) {
-            $cogsQ->where('s.branch_id', $branchId);
-        }
-        $cogsQ->whereDate('s.created_at', '>=', $startOfYear)->whereDate('s.created_at', '<=', $asOfDate);
-        $periodCogs = (float) ($cogsQ->sum(DB::raw('si.sales_qty * COALESCE(p.price, 0)')) ?? 0);
-
-        // Operating Expenses
-        $expQ = DB::table('account_ledger_entries as ale')
-            ->join('accounts as a', 'a.id', '=', 'ale.account_id')
-            ->join('account_heads as ah', 'ah.id', '=', 'a.head_id')
-            ->where(function ($q) {
-                $q->where('ah.name', 'like', '%exp%')->orWhere('ah.name', 'like', '%expense%');
-            })
-            ->where('ale.voucher_type', '!=', 'opening_balance');
-        if ($branchId) {
-            $expQ->where('ale.branch_id', $branchId);
-        }
-        $expQ->whereDate('ale.transaction_date', '>=', $startOfYear)->whereDate('ale.transaction_date', '<=', $asOfDate);
-        $periodExpenses = (float) ($expQ->selectRaw('COALESCE(SUM(ale.debit), 0) - COALESCE(SUM(ale.credit), 0) as total')->value('total') ?? 0);
-
-        $retainedEarnings = ($periodNetRevenue - $periodCogs) - $periodExpenses;
+        // 3.1 Current Period Net Profit (Synchronized 100% with Income Statement authoritative Net Profit)
+        $isReq = new Request([
+            'branch_id' => $branchId,
+            'date_to'   => $asOfDate,
+        ]);
+        $isData = $this->fetchIncomeStatement($isReq)->getData(true);
+        $retainedEarnings = (float) ($isData['net_profit'] ?? 0);
 
         // Total Equity = Total Assets - Total Liabilities
         $totalEquity = $totalAssets - $totalLiabilities;
@@ -5636,163 +5727,267 @@ class ReportingController extends Controller
 
         $zone        = ($request->filled('zone') && $request->zone !== 'all') ? $request->zone : null;
         $customerId  = ($request->filled('customer_id') && $request->customer_id !== 'all') ? (int)$request->customer_id : null;
-        $balanceType = $request->input('balance_type', 'all'); // default to all
-        $dateFrom    = $request->input('date_from'); // optional Y-m-d
-        $dateTo      = $request->input('date_to') ?: date('Y-m-d'); // defaults to today
+        $balanceType = $request->input('balance_type', 'all');
+        $dateFrom    = $request->input('date_from');
+        $dateTo      = $request->input('date_to') ?: date('Y-m-d');
 
         $today = \Carbon\Carbon::today();
         $asOf  = \Carbon\Carbon::parse($dateTo)->endOfDay();
 
-        // 1. Latest Closing Ledger Entry on or before $dateTo (MariaDB window function)
-        $closingLedgerSub = DB::table('customer_ledgers')
-            ->select('id', 'customer_id', 'closing_balance', 'created_at',
-                DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
-            )
-            ->whereDate('created_at', '<=', $dateTo);
-
-        // 2. Opening Balance Subquery (if date_from provided, latest ledger strictly before date_from)
-        $openingLedgerSub = null;
-        if ($dateFrom) {
-            $openingLedgerSub = DB::table('customer_ledgers')
-                ->select('id', 'customer_id', 'closing_balance',
-                    DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
-                )
-                ->whereDate('created_at', '<', $dateFrom);
-        }
-
-        // 3. Movement Subquery (debits & credits between date_from and date_to)
-        $movementSub = DB::table('customer_ledgers')
-            ->select(
-                'customer_id',
-                DB::raw('SUM(total_debit) as period_debit'),
-                DB::raw('SUM(total_credit) as period_credit')
-            );
-        if ($dateFrom) {
-            $movementSub->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
-        } else {
-            $movementSub->whereDate('created_at', '<=', $dateTo);
-        }
-        $movementSub->groupBy('customer_id');
-
-        // 4. Last Payment / Receipt Subquery
-        $lastReceiptSub = DB::table('customer_ledgers')
-            ->select('customer_id', 'created_at as last_receipt_date', 'total_credit as last_receipt_amount',
-                DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
-            )
-            ->where('total_credit', '>', 0)
-            ->whereDate('created_at', '<=', $dateTo);
-
-        // 5. Last Sale / Invoice Subquery
-        $lastSaleSub = DB::table('customer_ledgers')
-            ->select('customer_id', 'created_at as last_sale_date', 'total_debit as last_sale_amount',
-                DB::raw('ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
-            )
-            ->where('total_debit', '>', 0)
-            ->whereDate('created_at', '<=', $dateTo);
-
-        // Build main customer query
-        $query = DB::table('customers as c')
-            ->leftJoinSub($closingLedgerSub, 'cl_close', function ($join) {
-                $join->on('c.id', '=', 'cl_close.customer_id')->where('cl_close.rn', '=', 1);
-            })
-            ->leftJoinSub($movementSub, 'mov', function ($join) {
-                $join->on('c.id', '=', 'mov.customer_id');
-            })
-            ->leftJoinSub($lastReceiptSub, 'lr', function ($join) {
-                $join->on('c.id', '=', 'lr.customer_id')->where('lr.rn', '=', 1);
-            })
-            ->leftJoinSub($lastSaleSub, 'ls', function ($join) {
-                $join->on('c.id', '=', 'ls.customer_id')->where('ls.rn', '=', 1);
-            })
+        // ── Build Customer List ──────────────────────────────────────────
+        $customerQuery = DB::table('customers as c')
             ->leftJoin('branches as b', 'b.id', '=', 'c.branch_id')
             ->select(
-                'c.id',
-                'c.branch_id',
-                'c.customer_id as code',
-                'c.customer_name',
-                'c.customer_name_ur',
-                'c.contact_person',
-                'c.mobile',
-                'c.zone',
-                'c.credit_limit',
-                'c.no_credit_limit',
-                'c.opening_balance as initial_ob',
-                'c.status',
-                'b.name as branch_name',
-                'cl_close.closing_balance as ledger_closing',
-                'cl_close.created_at as last_tx_date',
-                'mov.period_debit',
-                'mov.period_credit',
-                'lr.last_receipt_date',
-                'lr.last_receipt_amount',
-                'ls.last_sale_date',
-                'ls.last_sale_amount'
+                'c.id', 'c.branch_id', 'c.customer_id as code',
+                'c.customer_name', 'c.customer_name_ur', 'c.contact_person',
+                'c.mobile', 'c.zone', 'c.credit_limit', 'c.no_credit_limit',
+                'c.opening_balance as initial_ob', 'c.status',
+                'b.name as branch_name'
             );
 
-        if ($openingLedgerSub) {
-            $query->leftJoinSub($openingLedgerSub, 'cl_open', function ($join) {
-                $join->on('c.id', '=', 'cl_open.customer_id')->where('cl_open.rn', '=', 1);
-            })->addSelect('cl_open.closing_balance as ledger_opening');
-        }
-
         if ($branchId) {
-            $query->where('c.branch_id', $branchId);
+            $customerQuery->where('c.branch_id', $branchId);
         }
-
         if ($zone) {
-            $query->where('c.zone', $zone);
+            $customerQuery->where('c.zone', $zone);
         }
-
         if ($customerId) {
-            $query->where('c.id', $customerId);
+            $customerQuery->where('c.id', $customerId);
         }
 
-        $rawRows = $query->orderBy('c.customer_name')->get();
+        $rawRows = $customerQuery->orderBy('c.customer_name')->get();
 
-        // Pre-fetch invoices for FIFO aging for all eligible customers in one fast query
+        // ── Check if purchases.customer_id column exists (for contra) ───
+        $hasCustIdOnPurchases = \Illuminate\Support\Facades\Schema::hasColumn('purchases', 'customer_id');
+
+        // ── Per-customer live calculation ────────────────────────────────
+        $processedRows = [];
+        foreach ($rawRows as $r) {
+            $cId = $r->id;
+
+            // Opening Balance
+            if ($dateFrom) {
+                $openingBalance = $this->getCustomerOpeningBalance($cId, $dateFrom);
+            } else {
+                $openingBalance = (float)($r->initial_ob ?? 0);
+            }
+
+            // ── Period Sales (Debit) ─────────────────────────────────────
+            $periodSalesRaw = DB::table('sales')
+                ->leftJoin('sale_items', 'sale_items.sale_id', '=', 'sales.id')
+                ->where('sales.customer_id', $cId)
+                ->where(function ($q) {
+                    $q->whereNull('sales.status')->orWhere('sales.status', '!=', 'cancelled');
+                })
+                ->select(
+                    'sales.id',
+                    'sales.total_net',
+                    'sales.additional_discount',
+                    'sales.extra_charges',
+                    DB::raw('COALESCE(SUM(sale_items.amount), 0) as items_sum'),
+                    DB::raw('COUNT(sale_items.id) as items_count')
+                )
+                ->groupBy('sales.id', 'sales.total_net', 'sales.additional_discount', 'sales.extra_charges');
+
+            if ($dateFrom) {
+                $periodSalesRaw->whereBetween(DB::raw('DATE(sales.created_at)'), [$dateFrom, $dateTo]);
+            } else {
+                $periodSalesRaw->whereDate('sales.created_at', '<=', $dateTo);
+            }
+            $periodSalesRaw = $periodSalesRaw->get();
+
+            $periodSales = 0;
+            foreach ($periodSalesRaw as $ps) {
+                $itemsSum = (float)$ps->items_sum;
+                $addDisc  = (float)($ps->additional_discount ?? 0);
+                $extraChg = (float)($ps->extra_charges ?? 0);
+                if ($ps->items_count > 0 && $itemsSum > 0) {
+                    $periodSales += max(0, $itemsSum - $addDisc + $extraChg);
+                } else {
+                    $periodSales += (float)($ps->total_net ?? 0);
+                }
+            }
+
+            // ── Period Returns (Credit) ──────────────────────────────────
+            $returnsQ = DB::table('sales_returns')
+                ->join('sales', 'sales.id', '=', 'sales_returns.sale_id')
+                ->where('sales.customer_id', $cId);
+            if ($dateFrom) {
+                $returnsQ->whereBetween(DB::raw('DATE(sales_returns.created_at)'), [$dateFrom, $dateTo]);
+            } else {
+                $returnsQ->whereDate('sales_returns.created_at', '<=', $dateTo);
+            }
+            $periodReturns = (float)$returnsQ->sum('sales_returns.total_net');
+
+            // ── Period Refunds (Debit – cash refunds on returns) ─────────
+            $refundsQ = DB::table('account_ledger_entries')
+                ->join('sales_returns', 'sales_returns.id', '=', 'account_ledger_entries.voucher_id')
+                ->join('sales', 'sales.id', '=', 'sales_returns.sale_id')
+                ->where('sales.customer_id', $cId)
+                ->where('account_ledger_entries.voucher_type', 'payment')
+                ->where('account_ledger_entries.voucher_no', 'like', 'RET-%');
+            if ($dateFrom) {
+                $refundsQ->whereBetween(DB::raw('DATE(account_ledger_entries.transaction_date)'), [$dateFrom, $dateTo]);
+            } else {
+                $refundsQ->whereDate('account_ledger_entries.transaction_date', '<=', $dateTo);
+            }
+            $periodRefunds = (float)$refundsQ->sum('account_ledger_entries.credit');
+
+            // ── Period Receipts (Credit) ─────────────────────────────────
+            $receiptsQ = DB::table('receipts_vouchers')
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                });
+            if ($dateFrom) {
+                $receiptsQ->whereBetween(DB::raw('DATE(receipt_date)'), [$dateFrom, $dateTo]);
+            } else {
+                $receiptsQ->whereDate('receipt_date', '<=', $dateTo);
+            }
+            \App\Services\VoucherService::scopePartyQuery($receiptsQ, $cId, 'party_id');
+            $receiptsRaw   = $receiptsQ->get();
+            $periodReceipts = 0;
+            foreach ($receiptsRaw as $rec) {
+                $periodReceipts += \App\Services\VoucherService::getPartyAmount($rec, $cId, 'customer');
+            }
+
+            // ── Period Payments (Credit – customer rebates/discounts) ────
+            $paymentsQ = DB::table('payment_vouchers')
+                ->where(function ($q) {
+                    $q->whereNull('status')->orWhere('status', '!=', 'voided');
+                });
+            if ($dateFrom) {
+                $paymentsQ->whereBetween(DB::raw('DATE(receipt_date)'), [$dateFrom, $dateTo]);
+            } else {
+                $paymentsQ->whereDate('receipt_date', '<=', $dateTo);
+            }
+            \App\Services\VoucherService::scopePartyQuery($paymentsQ, $cId, 'party_id');
+            $paymentsRaw   = $paymentsQ->get();
+            $periodPayments = 0;
+            foreach ($paymentsRaw as $pv) {
+                $periodPayments += \App\Services\VoucherService::getPartyAmount($pv, $cId, 'customer');
+            }
+
+            // ── Period JV Debits & Credits ───────────────────────────────
+            $jvDebQ = DB::table('journal_vouchers')
+                ->where('debit_party_type', 'customer')
+                ->where('debit_party_id', $cId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            $jvCredQ = DB::table('journal_vouchers')
+                ->where('credit_party_type', 'customer')
+                ->where('credit_party_id', $cId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($dateFrom) {
+                $jvDebQ->whereBetween(DB::raw('DATE(voucher_date)'), [$dateFrom, $dateTo]);
+                $jvCredQ->whereBetween(DB::raw('DATE(voucher_date)'), [$dateFrom, $dateTo]);
+            } else {
+                $jvDebQ->whereDate('voucher_date', '<=', $dateTo);
+                $jvCredQ->whereDate('voucher_date', '<=', $dateTo);
+            }
+            $periodJvDeb  = (float)$jvDebQ->sum('amount');
+            $periodJvCred = (float)$jvCredQ->sum('amount');
+
+            // ── Period Contra Purchases (Credit) ─────────────────────────
+            $periodCustPur = 0;
+            if ($hasCustIdOnPurchases) {
+                $cpQ = DB::table('purchases')
+                    ->where('customer_id', $cId)
+                    ->whereNull('deleted_at');
+                if ($dateFrom) {
+                    $cpQ->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
+                } else {
+                    $cpQ->whereDate('created_at', '<=', $dateTo);
+                }
+                $periodCustPur = (float)$cpQ->sum(DB::raw('COALESCE(net_amount, 0)'));
+            }
+
+            // ── Totals ───────────────────────────────────────────────────
+            $periodDebit  = $periodSales + $periodRefunds + $periodJvDeb;
+            $periodCredit = $periodReturns + $periodReceipts + $periodPayments + $periodJvCred + $periodCustPur;
+            $closingBalance = $openingBalance + $periodDebit - $periodCredit;
+
+            // ── Last Receipt Date (from live receipts_vouchers) ──────────
+            $lastReceiptDate   = null;
+            $lastReceiptAmount = 0;
+            $lastRecQ = DB::table('receipts_vouchers')
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); })
+                ->whereDate('receipt_date', '<=', $dateTo);
+            \App\Services\VoucherService::scopePartyQuery($lastRecQ, $cId, 'party_id');
+            $lastRecRow = $lastRecQ->orderBy('receipt_date', 'desc')->orderBy('id', 'desc')->first();
+            if ($lastRecRow) {
+                $lastReceiptDate   = $lastRecRow->receipt_date;
+                $lastReceiptAmount = \App\Services\VoucherService::getPartyAmount($lastRecRow, $cId, 'customer');
+            }
+
+            // ── Last Sale Date (from live sales table) ───────────────────
+            $lastSaleDate   = null;
+            $lastSaleAmount = 0;
+            $lastSaleRow = DB::table('sales')
+                ->where('customer_id', $cId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
+                ->whereDate('created_at', '<=', $dateTo)
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc')
+                ->select('created_at', 'total_net')
+                ->first();
+            if ($lastSaleRow) {
+                $lastSaleDate   = $lastSaleRow->created_at;
+                $lastSaleAmount = (float)($lastSaleRow->total_net ?? 0);
+            }
+
+            $r->_opening  = $openingBalance;
+            $r->_debit    = $periodDebit;
+            $r->_credit   = $periodCredit;
+            $r->_closing  = $closingBalance;
+            $r->_lr_date  = $lastReceiptDate;
+            $r->_lr_amt   = $lastReceiptAmount;
+            $r->_ls_date  = $lastSaleDate;
+            $r->_ls_amt   = $lastSaleAmount;
+            $processedRows[] = $r;
+        }
+
+        // ── FIFO Aging from live sales table ─────────────────────────────
         $customerIdsWithDebit = [];
         $balancesMap = [];
-
-        foreach ($rawRows as $r) {
-            $closingBal = $r->ledger_closing !== null ? (float)$r->ledger_closing : (float)($r->initial_ob ?? 0);
-            if ($closingBal > 0) {
+        foreach ($processedRows as $r) {
+            if ($r->_closing > 0) {
                 $customerIdsWithDebit[] = $r->id;
-                $balancesMap[$r->id] = $closingBal;
+                $balancesMap[$r->id]    = $r->_closing;
             }
         }
 
         $agingMap = [];
         if (!empty($customerIdsWithDebit)) {
-            $invoices = DB::table('customer_ledgers')
+            $agingInvoicesQ = DB::table('sales')
                 ->whereIn('customer_id', $customerIdsWithDebit)
-                ->where('total_debit', '>', 0)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'cancelled'); })
                 ->whereDate('created_at', '<=', $dateTo)
-                ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
-                ->orderBy('id', 'desc')
-                ->select('customer_id', 'total_debit', 'created_at')
-                ->get()
-                ->groupBy('customer_id');
+                ->select('customer_id', 'total_net', 'created_at')
+                ->orderBy('created_at', 'desc')
+                ->orderBy('id', 'desc');
+
+            if ($dateFrom) {
+                // For aging we still want all invoices up to dateTo (not just period)
+                // because closing balance may include older invoices
+            }
+
+            $agingInvoices = $agingInvoicesQ->get()->groupBy('customer_id');
 
             foreach ($customerIdsWithDebit as $cid) {
                 $bal = $balancesMap[$cid] ?? 0;
                 $rem = $bal;
                 $c0 = 0.0; $c30 = 0.0; $c60 = 0.0; $c90 = 0.0;
 
-                if (isset($invoices[$cid])) {
-                    foreach ($invoices[$cid] as $inv) {
+                if (isset($agingInvoices[$cid])) {
+                    foreach ($agingInvoices[$cid] as $inv) {
                         if ($rem <= 0) break;
                         $days = \Carbon\Carbon::parse($inv->created_at)->diffInDays($asOf);
-                        $amt = min((float)$inv->total_debit, $rem);
+                        $amt  = min((float)($inv->total_net ?? 0), $rem);
+                        if ($amt <= 0) continue;
 
-                        if ($days <= 30) {
-                            $c0 += $amt;
-                        } elseif ($days <= 60) {
-                            $c30 += $amt;
-                        } elseif ($days <= 90) {
-                            $c60 += $amt;
-                        } else {
-                            $c90 += $amt;
-                        }
+                        if ($days <= 30)       { $c0  += $amt; }
+                        elseif ($days <= 60)   { $c30 += $amt; }
+                        elseif ($days <= 90)   { $c60 += $amt; }
+                        else                   { $c90 += $amt; }
                         $rem -= $amt;
                     }
                 }
@@ -5826,20 +6021,11 @@ class ReportingController extends Controller
             'c_90_plus' => 0,
         ];
 
-        foreach ($rawRows as $r) {
-            $closingBalance = $r->ledger_closing !== null ? (float)$r->ledger_closing : (float)($r->initial_ob ?? 0);
-            
-            $openingBalance = 0;
-            if ($dateFrom) {
-                $openingBalance = property_exists($r, 'ledger_opening') && $r->ledger_opening !== null
-                    ? (float)$r->ledger_opening
-                    : (float)($r->initial_ob ?? 0);
-            } else {
-                $openingBalance = (float)($r->initial_ob ?? 0);
-            }
-
-            $periodDebit  = (float)($r->period_debit ?? 0);
-            $periodCredit = (float)($r->period_credit ?? 0);
+        foreach ($processedRows as $r) {
+            $openingBalance = $r->_opening;
+            $periodDebit    = $r->_debit;
+            $periodCredit   = $r->_credit;
+            $closingBalance = $r->_closing;
 
             $creditLimit = (float)($r->credit_limit ?? 0);
             $hasLimit    = empty($r->no_credit_limit) && $creditLimit > 0;
@@ -5868,16 +6054,16 @@ class ReportingController extends Controller
             $grandDebit   += $periodDebit;
             $grandCredit  += $periodCredit;
 
-            // Days since last payment
+            // Days since last receipt
             $daysSinceReceipt = null;
-            if ($r->last_receipt_date) {
-                $daysSinceReceipt = $today->diffInDays(\Carbon\Carbon::parse($r->last_receipt_date)->startOfDay());
+            if ($r->_lr_date) {
+                $daysSinceReceipt = $today->diffInDays(\Carbon\Carbon::parse($r->_lr_date)->startOfDay());
             }
 
             // Days since last sale
             $daysSinceSale = null;
-            if ($r->last_sale_date) {
-                $daysSinceSale = $today->diffInDays(\Carbon\Carbon::parse($r->last_sale_date)->startOfDay());
+            if ($r->_ls_date) {
+                $daysSinceSale = $today->diffInDays(\Carbon\Carbon::parse($r->_ls_date)->startOfDay());
             }
 
             // Status label & badge
@@ -5909,8 +6095,8 @@ class ReportingController extends Controller
                 'id'                  => $r->id,
                 'code'                => $r->code,
                 'customer_name'       => $r->customer_name,
-                'customer_name_ur'    => $r->customer_name_ur,
-                'contact_person'      => $r->contact_person,
+                'customer_name_ur'    => $r->customer_name_ur ?? null,
+                'contact_person'      => $r->contact_person ?? null,
                 'mobile'              => $r->mobile,
                 'whatsapp_phone'      => $cleanPhone,
                 'zone'                => $r->zone ?: '—',
@@ -5926,11 +6112,11 @@ class ReportingController extends Controller
                 'status_badge'        => $statusBadge,
                 'status_text'         => $statusText,
                 'aging'               => $agingData,
-                'last_receipt_date'   => $r->last_receipt_date ? \Carbon\Carbon::parse($r->last_receipt_date)->format('d M Y') : '—',
-                'last_receipt_amount' => $r->last_receipt_amount ? (float)$r->last_receipt_amount : 0,
+                'last_receipt_date'   => $r->_lr_date ? \Carbon\Carbon::parse($r->_lr_date)->format('d M Y') : '—',
+                'last_receipt_amount' => (float)($r->_lr_amt ?? 0),
                 'days_since_receipt'  => $daysSinceReceipt,
-                'last_sale_date'      => $r->last_sale_date ? \Carbon\Carbon::parse($r->last_sale_date)->format('d M Y') : '—',
-                'last_sale_amount'    => $r->last_sale_amount ? (float)$r->last_sale_amount : 0,
+                'last_sale_date'      => $r->_ls_date ? \Carbon\Carbon::parse($r->_ls_date)->format('d M Y') : '—',
+                'last_sale_amount'    => (float)($r->_ls_amt ?? 0),
                 'days_since_sale'     => $daysSinceSale,
                 'ledger_url'          => route('report.customer.ledger.new', ['customer_id' => $r->id]),
             ];
@@ -6019,48 +6205,8 @@ class ReportingController extends Controller
         $dateFrom = $request->input('date_from'); // optional Y-m-d
         $dateTo   = $request->input('date_to') ?: date('Y-m-d'); // defaults to today
 
-        // 1. Latest Closing Ledger Entry on or before $dateTo
-        $closingLedgerSub = DB::table('vendor_ledgers')
-            ->select('id', 'vendor_id', 'closing_balance', 'created_at',
-                DB::raw('ROW_NUMBER() OVER (PARTITION BY vendor_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
-            )
-            ->whereDate('created_at', '<=', $dateTo)
-            ->whereNull('deleted_at');
-
-        // 2. Opening Balance Subquery (if date_from provided, latest ledger strictly before date_from)
-        $openingLedgerSub = null;
-        if ($dateFrom) {
-            $openingLedgerSub = DB::table('vendor_ledgers')
-                ->select('id', 'vendor_id', 'closing_balance',
-                    DB::raw('ROW_NUMBER() OVER (PARTITION BY vendor_id ORDER BY COALESCE(created_at, "1970-01-01") DESC, id DESC) as rn')
-                )
-                ->whereDate('created_at', '<', $dateFrom)
-                ->whereNull('deleted_at');
-        }
-
-        // 3. Movement Subquery (debits & credits between date_from and date_to)
-        $movementSub = DB::table('vendor_ledgers')
-            ->select(
-                'vendor_id',
-                DB::raw('SUM(debit_amount) as period_debit'),
-                DB::raw('SUM(credit_amount) as period_credit')
-            )
-            ->whereNull('deleted_at');
-        if ($dateFrom) {
-            $movementSub->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
-        } else {
-            $movementSub->whereDate('created_at', '<=', $dateTo);
-        }
-        $movementSub->groupBy('vendor_id');
-
-        // Build main vendor query
-        $query = DB::table('vendors as v')
-            ->leftJoinSub($closingLedgerSub, 'vl_close', function ($join) {
-                $join->on('v.id', '=', 'vl_close.vendor_id')->where('vl_close.rn', '=', 1);
-            })
-            ->leftJoinSub($movementSub, 'mov', function ($join) {
-                $join->on('v.id', '=', 'mov.vendor_id');
-            })
+        // Build main vendor query (aligned exactly with /vendors-ledger authoritative logic)
+        $vendorQuery = DB::table('vendors as v')
             ->leftJoin('branches as b', 'b.id', '=', 'v.branch_id')
             ->select(
                 'v.id',
@@ -6068,48 +6214,87 @@ class ReportingController extends Controller
                 'v.name as vendor_name',
                 'v.phone',
                 'v.opening_balance as initial_ob',
-                'b.name as branch_name',
-                'vl_close.closing_balance as ledger_closing',
-                'mov.period_debit',
-                'mov.period_credit'
+                'b.name as branch_name'
             );
 
-        if ($openingLedgerSub) {
-            $query->leftJoinSub($openingLedgerSub, 'vl_open', function ($join) {
-                $join->on('v.id', '=', 'vl_open.vendor_id')->where('vl_open.rn', '=', 1);
-            })->addSelect('vl_open.closing_balance as ledger_opening');
-        }
-
         if ($branchId) {
-            $query->where('v.branch_id', $branchId);
+            $vendorQuery->where('v.branch_id', $branchId);
         }
 
         if ($vendorId) {
-            $query->where('v.id', $vendorId);
+            $vendorQuery->where('v.id', $vendorId);
         }
 
-        $rawRows = $query->orderBy('v.name')->get();
+        $vendors = $vendorQuery->orderBy('v.name')->get();
 
         $rows = [];
         $grandOpening = 0;
-        $grandDebit = 0;
-        $grandCredit = 0;
+        $grandDebit   = 0;
+        $grandCredit  = 0;
         $grandClosing = 0;
 
-        foreach ($rawRows as $r) {
-            $closingBalance = $r->ledger_closing !== null ? (float)$r->ledger_closing : (float)($r->initial_ob ?? 0);
-            
-            $openingBalance = 0;
-            if ($dateFrom) {
-                $openingBalance = property_exists($r, 'ledger_opening') && $r->ledger_opening !== null
-                    ? (float)$r->ledger_opening
-                    : (float)($r->initial_ob ?? 0);
-            } else {
-                $openingBalance = (float)($r->initial_ob ?? 0);
+        foreach ($vendors as $v) {
+            $vId = (int)$v->id;
+            $vBranch = $branchId ?: null;
+
+            // 1. Mathematically exact opening balance matching /vendors-ledger
+            $openingBalance = $dateFrom 
+                ? $this->getVendorOpeningBalance($vId, $vBranch, $dateFrom) 
+                : (float)($v->initial_ob ?? 0);
+
+            // 2. Period Purchases (Credit)
+            $pQ = DB::table('purchases')
+                ->where('vendor_id', $vId)
+                ->whereNull('deleted_at');
+            if ($vBranch) $pQ->where('branch_id', $vBranch);
+            if ($dateFrom) $pQ->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
+            else $pQ->whereDate('created_at', '<=', $dateTo);
+            $purchases = (float)$pQ->sum(DB::raw('COALESCE(net_amount, 0)'));
+
+            // 3. Period Purchase Returns (Debit)
+            $rQ = DB::table('purchase_returns')->where('vendor_id', $vId);
+            if ($dateFrom) $rQ->whereBetween(DB::raw('DATE(created_at)'), [$dateFrom, $dateTo]);
+            else $rQ->whereDate('created_at', '<=', $dateTo);
+            $returns = (float)$rQ->sum('net_amount');
+
+            // 4. Period Payments (Debit)
+            $pvQ = DB::table('payment_vouchers')
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($dateFrom) $pvQ->whereBetween(DB::raw('DATE(receipt_date)'), [$dateFrom, $dateTo]);
+            else $pvQ->whereDate('receipt_date', '<=', $dateTo);
+            \App\Services\VoucherService::scopePartyQuery($pvQ, $vId, 'party_id');
+            $payments = 0;
+            foreach ($pvQ->get() as $pv) {
+                $payments += \App\Services\VoucherService::getPartyAmount($pv, $vId, 'vendor');
             }
 
-            $periodDebit  = (float)($r->period_debit ?? 0);
-            $periodCredit = (float)($r->period_credit ?? 0);
+            // 5. Period Receipts / Refunds (Credit)
+            $rvQ = DB::table('receipts_vouchers')
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($dateFrom) $rvQ->whereBetween(DB::raw('DATE(receipt_date)'), [$dateFrom, $dateTo]);
+            else $rvQ->whereDate('receipt_date', '<=', $dateTo);
+            \App\Services\VoucherService::scopePartyQuery($rvQ, $vId, 'party_id');
+            $refunds = 0;
+            foreach ($rvQ->get() as $rv) {
+                $refunds += \App\Services\VoucherService::getPartyAmount($rv, $vId, 'vendor');
+            }
+
+            // 6. Period Journal Vouchers
+            $jvDebQ = DB::table('journal_vouchers')->where('debit_party_type', 'vendor')->where('debit_party_id', $vId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($dateFrom) $jvDebQ->whereBetween(DB::raw('DATE(voucher_date)'), [$dateFrom, $dateTo]);
+            else $jvDebQ->whereDate('voucher_date', '<=', $dateTo);
+            $jvDeb = (float)$jvDebQ->sum('amount');
+
+            $jvCredQ = DB::table('journal_vouchers')->where('credit_party_type', 'vendor')->where('credit_party_id', $vId)
+                ->where(function ($q) { $q->whereNull('status')->orWhere('status', '!=', 'voided'); });
+            if ($dateFrom) $jvCredQ->whereBetween(DB::raw('DATE(voucher_date)'), [$dateFrom, $dateTo]);
+            else $jvCredQ->whereDate('voucher_date', '<=', $dateTo);
+            $jvCred = (float)$jvCredQ->sum('amount');
+
+            $periodCredit   = $purchases + $refunds + $jvCred;
+            $periodDebit    = $returns + $payments + $jvDeb;
+            $closingBalance = $openingBalance + $periodCredit - $periodDebit;
 
             $grandOpening += $openingBalance;
             $grandDebit   += $periodDebit;
@@ -6117,16 +6302,16 @@ class ReportingController extends Controller
             $grandClosing += $closingBalance;
 
             $rows[] = [
-                'id'              => $r->id,
-                'code'            => 'VEND-' . str_pad($r->id, 4, '0', STR_PAD_LEFT),
-                'vendor_name'     => $r->vendor_name,
-                'phone'           => $r->phone,
-                'branch_name'     => $r->branch_name ?: '—',
+                'id'              => $v->id,
+                'code'            => 'VEND-' . str_pad($v->id, 4, '0', STR_PAD_LEFT),
+                'vendor_name'     => $v->vendor_name,
+                'phone'           => $v->phone,
+                'branch_name'     => $v->branch_name ?: '—',
                 'opening_balance' => $openingBalance,
                 'period_credit'   => $periodCredit, // Purchases
                 'period_debit'    => $periodDebit,  // Paid
                 'closing_balance' => $closingBalance, // Payable
-                'ledger_url'      => route('report.vendor.ledger.new', ['vendor_id' => $r->id]),
+                'ledger_url'      => route('report.vendor.ledger.new', ['vendor_id' => $v->id]),
             ];
         }
 

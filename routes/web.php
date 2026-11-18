@@ -726,6 +726,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('/payment-vouchers/{id}/edit', [VoucherController::class, 'edit_payment'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.edit');
     Route::put('/payment-vouchers/{id}', [VoucherController::class, 'update_payment'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.update');
     Route::delete('/payment-vouchers/{id}', [VoucherController::class, 'destroy_payment'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.destroy');
+    Route::post('/payment-vouchers/{id}/unvoid', [VoucherController::class, 'unvoid_payment'])->middleware('permission:payment.voucher.create')->name('payment-vouchers.unvoid');
 
     ////// expense voucher
     Route::get('/all-expense-vochers', [VoucherController::class, 'all_expense_vochers'])->middleware('permission:expense.voucher.view')->name('all-expense-vochers');

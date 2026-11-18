@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta http-equiv="x-ua-compatible" content="ie=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Zare Bootstrap 4 Admin Template">
-    <title>Home</title>
+    <meta name="description" content="ERP System">
+    <title>@yield('title', 'ERP System')</title>
 
     <link rel="shortcut icon" type="image/x-icon" href="{{ asset('assets/images/favicon.png') }}">
     <link rel="stylesheet" href="{{ asset('assets/css/bootstrap.min.css') }}">

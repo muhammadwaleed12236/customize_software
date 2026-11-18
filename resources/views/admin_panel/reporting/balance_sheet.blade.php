@@ -104,12 +104,200 @@
     }
 
     /* Print */
+    #formalPrintDoc {
+        display: none;
+    }
+
     @media print {
-        .rpt-header-bar .btn, #filterCard, .no-print { display: none !important; }
-        .rpt-header-bar { background: #0f1f38 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .bs-section-header { background: #0f1f38 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-        .bs-scroll-box { max-height: none !important; overflow: visible !important; }
-        .main-content { margin: 0 !important; padding: 0 !important; }
+        @page {
+            size: A4 portrait;
+            margin: 0mm !important;
+        }
+        html, body, .container-scroller, .main-content, .rpt-wrapper, .container-fluid {
+            background: #fff !important;
+            color: #000 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            border: none !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* Hide all interactive/screen UI elements */
+        .rt_nav_header, .nav-bottom, .navbar, .footer, .no-print,
+        .rpt-header-bar, #filterCard, .bs-kpi-grid, #summaryCards,
+        #placeholder, #loader, .btn, #reportContainer,
+        .main-footer, .header, .sidebar, .sidebar-menu, .header-area {
+            display: none !important;
+        }
+
+        #formalPrintDoc {
+            display: block !important;
+            box-sizing: border-box !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-width: 100% !important;
+            padding: 8mm 12mm 6mm 12mm !important;
+            margin: 0 !important;
+            background: #fff !important;
+            color: #000 !important;
+            page-break-inside: avoid !important;
+            page-break-after: avoid !important;
+        }
+
+        .print-doc-header {
+            margin-bottom: 6px;
+        }
+        .print-company-title {
+            font-size: 15pt;
+            font-weight: 800;
+            color: #000;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+            letter-spacing: .02em;
+        }
+        .print-doc-title {
+            font-size: 20pt;
+            font-weight: 900;
+            color: #000;
+            margin-bottom: 2px;
+        }
+        .print-doc-period {
+            font-size: 11.5pt;
+            font-weight: 700;
+            color: #000;
+        }
+        .print-top-divider {
+            border-bottom: 2.5px solid #000;
+            margin-top: 6px;
+            margin-bottom: 8px;
+        }
+
+        .print-currency-header {
+            text-align: right;
+            margin-bottom: 4px;
+            padding-right: 2px;
+        }
+        .print-currency-header span {
+            font-size: 11.5pt;
+            font-style: italic;
+            text-decoration: underline;
+            font-weight: 700;
+            color: #000;
+        }
+
+        .print-statement-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11pt;
+            margin-bottom: 12px;
+            color: #000;
+        }
+        .print-statement-table td {
+            padding: 4px 4px;
+            vertical-align: middle;
+            color: #000;
+        }
+        .print-statement-table tr.p-sec-head td {
+            font-weight: 900;
+            font-size: 13pt;
+            padding-top: 10px;
+            padding-bottom: 4px;
+            color: #000;
+            letter-spacing: .02em;
+        }
+        .print-statement-table tr.p-sub-item td.p-desc {
+            padding-left: 20px;
+            color: #000;
+            font-weight: 600;
+            font-size: 11pt;
+        }
+        .print-statement-table tr.p-sub-item td.p-val {
+            text-align: right;
+            font-family: "Courier New", Courier, monospace, sans-serif;
+            font-size: 11.5pt;
+            font-weight: 700;
+            color: #000;
+            width: 170px;
+        }
+        .print-statement-table tr.p-subtotal td {
+            font-weight: 800;
+            padding-top: 6px;
+            padding-bottom: 6px;
+            font-size: 11.5pt;
+            color: #000;
+        }
+        .print-statement-table tr.p-subtotal td.p-desc {
+            text-align: right;
+            padding-right: 20px;
+            font-weight: 800;
+        }
+        .print-statement-table tr.p-subtotal td.p-val {
+            text-align: right;
+            font-family: "Courier New", Courier, monospace, sans-serif;
+            font-size: 11.5pt;
+            font-weight: 800;
+            border-top: 1.5px solid #000;
+            color: #000;
+            width: 170px;
+        }
+        .print-statement-table tr.p-grandtotal td {
+            font-weight: 900;
+            font-size: 13pt;
+            padding-top: 7px;
+            padding-bottom: 7px;
+            color: #000;
+        }
+        .print-statement-table tr.p-grandtotal td.p-desc {
+            text-align: right;
+            padding-right: 20px;
+            font-weight: 900;
+            letter-spacing: .01em;
+        }
+        .print-statement-table tr.p-grandtotal td.p-val {
+            text-align: right;
+            font-family: "Courier New", Courier, monospace, sans-serif;
+            font-size: 13pt;
+            font-weight: 900;
+            border-top: 1.5px solid #000;
+            border-bottom: 3.5px double #000;
+            color: #000;
+            width: 170px;
+        }
+
+        .print-doc-footer {
+            margin-top: 16px;
+            font-size: 9.5pt;
+            color: #000;
+            page-break-inside: avoid;
+        }
+        .print-footer-info {
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px solid #000;
+            padding-top: 5px;
+            margin-bottom: 30px;
+            font-weight: 600;
+            color: #000;
+        }
+        .print-sign-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 20px;
+        }
+        .print-sign-box {
+            border-top: 1.5px dashed #000;
+            width: 160px;
+            text-align: center;
+            padding-top: 6px;
+            font-size: 10pt;
+            font-weight: 700;
+            color: #000;
+        }
     }
 </style>
 
@@ -397,6 +585,39 @@
 
             </div>{{-- /reportContainer --}}
 
+            {{-- ── 5. FORMAL A4 PRINT DOCUMENT (Shown ONLY when printing) ──── --}}
+            <div id="formalPrintDoc" class="formal-print-sheet">
+                <div class="print-doc-header">
+                    <div class="print-company-title" id="p_branch_title">Company / Branch Name</div>
+                    <div class="print-doc-title">Balance Sheet</div>
+                    <div class="print-doc-period" id="p_as_of_text">As of November 18, 2026</div>
+                    <div class="print-top-divider"></div>
+                </div>
+
+                <div class="print-currency-header">
+                    <span>Amount Rs.</span>
+                </div>
+
+                <table class="print-statement-table">
+                    <tbody id="p_statement_body">
+                        <!-- Populated dynamically by renderFormalPrintDoc -->
+                    </tbody>
+                </table>
+
+                <div class="print-doc-footer">
+                    <div class="print-footer-info">
+                        <span>Printed on: <span id="p_print_time"></span></span>
+                        <span>Statement of Financial Position</span>
+                        <span>ERP System &mdash; Financial Statement</span>
+                    </div>
+                    <div class="print-sign-row">
+                        <div class="print-sign-box">Prepared By</div>
+                        <div class="print-sign-box">Accountant</div>
+                        <div class="print-sign-box">Approved By</div>
+                    </div>
+                </div>
+            </div>
+
         </div>{{-- /container --}}
     </div>
 </div>
@@ -415,6 +636,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Auto load on initial view
     loadReport();
+
+    // Remove document title during printing so browsers do not print default header text
+    window.addEventListener('beforeprint', function () {
+        window._savedDocTitle = document.title;
+        document.title = '';
+    });
+    window.addEventListener('afterprint', function () {
+        document.title = window._savedDocTitle || 'ERP System';
+    });
 });
 
 function fmt(n) {
@@ -566,6 +796,99 @@ function renderBalanceSheet(d) {
 
     document.getElementById('summaryCards').style.display    = 'grid';
     document.getElementById('reportContainer').style.display = 'block';
+
+    // ── Build Formal A4 Print Sheet ────────────────────────
+    renderFormalPrintDoc(d);
+}
+
+function fmtPrint(n) {
+    const val = Math.round(parseFloat(n || 0));
+    const absFmt = Math.abs(val).toLocaleString('en-PK');
+    return val < 0 ? `(${absFmt})` : absFmt;
+}
+function fmtPrintNeg(n) {
+    const val = Math.abs(Math.round(parseFloat(n || 0)));
+    return val === 0 ? '0' : `(${val.toLocaleString('en-PK')})`;
+}
+
+function renderFormalPrintDoc(d) {
+    const branchName = d.branch_label || 'All Branches';
+    document.getElementById('p_branch_title').textContent = branchName;
+
+    // As of Date
+    const asOfInput = document.getElementById('as_of_date')?.value || d.as_of_date;
+    const dt = asOfInput ? new Date(asOfInput + 'T00:00:00') : new Date();
+    const dateFormatted = dt.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    document.getElementById('p_as_of_text').textContent = `As of ${dateFormatted}`;
+
+    // Print timestamp
+    const now = new Date();
+    document.getElementById('p_print_time').textContent = now.toLocaleDateString('en-US', { day:'2-digit', month:'short', year:'numeric' }) + ' ' + now.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+    let html = '';
+
+    // ══════════════════════════════════════════════════════════
+    //  1. ASSETS
+    // ══════════════════════════════════════════════════════════
+    html += `<tr class="p-sec-head"><td colspan="2">1. ASSETS</td></tr>`;
+    
+    // Cash in Hand
+    html += `<tr class="p-sub-item"><td class="p-desc">Cash in Hand</td><td class="p-val">${fmtPrint(d.total_cash)}</td></tr>`;
+
+    // Bank Accounts (Single summary total line)
+    html += `<tr class="p-sub-item"><td class="p-desc">Bank Accounts</td><td class="p-val">${fmtPrint(d.total_bank)}</td></tr>`;
+
+    // Trade Receivables
+    html += `<tr class="p-sub-item"><td class="p-desc">Trade Receivables (Customer Balances)</td><td class="p-val">${fmtPrint(d.total_receivables)}</td></tr>`;
+
+    // Inventory
+    html += `<tr class="p-sub-item"><td class="p-desc">Inventory / Stock on Hand (Valuation)</td><td class="p-val">${fmtPrint(d.total_stock)}</td></tr>`;
+
+    // Loans & Advances
+    if (parseFloat(d.total_loans || 0) !== 0) {
+        html += `<tr class="p-sub-item"><td class="p-desc">Loans &amp; Advances</td><td class="p-val">${fmtPrint(d.total_loans)}</td></tr>`;
+    }
+
+    // Other Assets
+    if (parseFloat(d.total_other_assets || 0) !== 0) {
+        html += `<tr class="p-sub-item"><td class="p-desc">Other Current Assets</td><td class="p-val">${fmtPrint(d.total_other_assets)}</td></tr>`;
+    }
+
+    // TOTAL ASSETS
+    html += `<tr class="p-grandtotal">
+        <td class="p-desc">TOTAL ASSETS</td>
+        <td class="p-val">${fmtPrint(d.total_assets)}</td>
+    </tr>`;
+
+    // ══════════════════════════════════════════════════════════
+    //  2. LIABILITIES & EQUITY
+    // ══════════════════════════════════════════════════════════
+    html += `<tr class="p-sec-head" style="padding-top:10px;"><td colspan="2">2. LIABILITIES &amp; OWNER'S EQUITY</td></tr>`;
+
+    // Liabilities
+    html += `<tr class="p-sub-item"><td class="p-desc" style="font-weight:700;">Liabilities:</td><td class="p-val"></td></tr>`;
+    html += `<tr class="p-sub-item"><td class="p-desc" style="padding-left:30px;">Trade Payables (Vendor / Supplier Balances)</td><td class="p-val">${fmtPrint(d.total_payables)}</td></tr>`;
+    html += `<tr class="p-subtotal">
+        <td class="p-desc">Total Liabilities</td>
+        <td class="p-val">${fmtPrint(d.total_liabilities)}</td>
+    </tr>`;
+
+    // Owner's Equity & Reserves
+    html += `<tr class="p-sub-item" style="padding-top:4px;"><td class="p-desc" style="font-weight:700;">Owner's Equity &amp; Reserves:</td><td class="p-val"></td></tr>`;
+    html += `<tr class="p-sub-item"><td class="p-desc" style="padding-left:30px;">Owner's Capital / General Reserves</td><td class="p-val">${fmtPrint(d.owners_capital)}</td></tr>`;
+    html += `<tr class="p-sub-item"><td class="p-desc" style="padding-left:30px;">Current Period Net Profit / Retained Earnings</td><td class="p-val">${fmtPrint(d.retained_earnings)}</td></tr>`;
+    html += `<tr class="p-subtotal">
+        <td class="p-desc">Total Owner's Equity</td>
+        <td class="p-val">${fmtPrint(d.total_equity)}</td>
+    </tr>`;
+
+    // TOTAL LIABILITIES & EQUITY
+    html += `<tr class="p-grandtotal">
+        <td class="p-desc">TOTAL LIABILITIES &amp; OWNER'S EQUITY</td>
+        <td class="p-val">${fmtPrint(d.total_liabilities_equity)}</td>
+    </tr>`;
+
+    document.getElementById('p_statement_body').innerHTML = html;
 }
 
 function exportCSV() {
