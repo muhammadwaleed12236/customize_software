@@ -202,6 +202,127 @@
             @csrf
             <input type="hidden" name="rvid" value="{{ $nextRvid }}">
 
+            @if(($receiptVoucherMode ?? 'standard') === 'single_table')
+                {{-- ─── SINGLE TABLE MODE: VOUCHER INFORMATION ─── --}}
+                <div class="rv-card">
+                    <div class="rv-card-header gray d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-calendar3"></i> Voucher Information
+                        </div>
+                        <span class="badge bg-primary-subtle text-primary fw-semibold px-2 py-1 rounded" style="font-size: 0.75rem;">
+                            <i class="bi bi-table me-1"></i> Single Table Mode
+                        </span>
+                    </div>
+                    <div class="rv-card-body">
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">Receipt Date <span class="text-danger">*</span></label>
+                                <input type="date" name="receipt_date" class="form-control" value="{{ now()->toDateString() }}" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Reference # / Cheque #</label>
+                                <input type="text" name="voucher_ref" id="singleVoucherRef" class="form-control" placeholder="e.g. Cheque / Slip #">
+                            </div>
+                            <div class="col-md-{{ $isSuperAdmin ? '3' : '6' }}">
+                                <label class="form-label">Voucher Remarks / Narration</label>
+                                <input type="text" name="remarks" id="singleRemarks" class="form-control" placeholder="e.g. Payment received for Invoice INV-0023...">
+                            </div>
+                            @if($isSuperAdmin)
+                            <div class="col-md-3">
+                                <label class="form-label">Branch <span class="text-danger">*</span></label>
+                                <select name="branch_id" id="branch_id" class="form-select" required>
+                                    <option value="">— Select Branch —</option>
+                                    @foreach ($Branch as $b)
+                                        <option value="{{ $b->id }}" {{ $currentBranch == $b->id ? 'selected' : '' }}>{{ $b->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            @else
+                            <input type="hidden" name="branch_id" id="branch_id" value="{{ $currentBranch }}">
+                            @endif
+                            <input type="hidden" name="entry_date" value="{{ now()->toDateString() }}">
+                        </div>
+                    </div>
+                </div>
+
+                {{-- ─── SINGLE TABLE MODE: CUSTOMER & DEPOSIT TABLE ─── --}}
+                <div class="rv-card">
+                    <div class="rv-card-header blue d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-receipt"></i> Customer Receipt & Deposit Accounts
+                        </div>
+                        <span style="font-weight: 400; font-size: 0.78rem; opacity: 0.8;">Customer payment & deposit account in single row</span>
+                    </div>
+                    <div class="rv-card-body" style="padding: 1rem;">
+                        <div class="table-responsive">
+                            <table class="to-table" id="singleTable">
+                                <thead>
+                                    <tr>
+                                        <th style="width:3%">#</th>
+                                        <th style="width:28%">Customer</th>
+                                        <th style="width:16%">Current Balance</th>
+                                        <th style="width:20%">Account Head</th>
+                                        <th style="width:20%">Account Name</th>
+                                        <th style="width:10%">Amount (Rs.)</th>
+                                        <th style="width:3%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="singleRows">
+                                    <tr class="single-row">
+                                        <td><div class="row-num single-row-num">1</div></td>
+                                        <td>
+                                            <input type="hidden" name="party_type[]" value="customer">
+                                            <input type="hidden" name="party_tel[]" class="singlePartyTel" value="">
+                                            <input type="hidden" name="narration_id[]" value="">
+                                            <input type="hidden" name="reference_no[]" class="singleRowRef" value="">
+                                            <select name="party_id[]" class="form-select singlePartySelect" onchange="onSingleCustomerChange(this)" required>
+                                                <option value="">Loading customers...</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="text" class="form-control singlePartyBal text-end" readonly placeholder="0.00" style="font-weight: 600; color: #1e293b; background: #f8fafc;">
+                                        </td>
+                                        <td>
+                                            <select name="row_account_head[]" class="form-select singleAccountHead" required>
+                                                <option value="">— Select Head —</option>
+                                                @foreach ($AccountHeads as $head)
+                                                    <option value="{{ $head->id }}">{{ $head->name }}</option>
+                                                @endforeach
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select name="row_account_id[]" class="form-select singleAccountSub" required>
+                                                <option value="">— Select Account —</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="number" name="amount[]" step="0.01" min="0" class="form-control singleAmount" placeholder="0.00" required>
+                                            <input type="hidden" name="party_amount[]" class="singlePartyAmount" value="0">
+                                        </td>
+                                        <td>
+                                            <button type="button" class="btn-remove-row removeSingleRow" title="Remove row">
+                                                <i class="bi bi-trash3"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background: #f8fafc; font-weight: 600;">
+                                        <td colspan="5" class="text-end" style="padding: 0.6rem 1rem;">Total Received Amount:</td>
+                                        <td style="padding: 0.6rem;">
+                                            <span id="singleTotalDisplay" style="color: #2563eb; font-size: 1.05rem; font-weight: 700;">Rs. 0.00</span>
+                                        </td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <button type="button" class="add-row-btn mt-2" id="addSingleRowBtn">
+                            <i class="bi bi-plus-lg"></i> Add Another Row
+                        </button>
+                    </div>
+                </div>
+            @else
             {{-- ─── VOUCHER META ─── --}}
             <div class="rv-card">
                 <div class="rv-card-header gray">
@@ -375,6 +496,7 @@
                     </button>
                 </div>
             </div>
+            @endif
 
             {{-- ─── FOOTER: Tips + Total + Actions ─── --}}
             <div class="row g-3">
@@ -416,7 +538,271 @@
 
 @section('js')
 <script>
+var cachedCustomers = null;
+
+function formatNum(n) {
+    return parseFloat(n || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function onSingleCustomerChange(elem) {
+    var $select = $(elem);
+    var $row = $select.closest('.single-row');
+    var custId = $select.val();
+
+    if (!custId) {
+        $row.find('.singlePartyBal').val('0.00');
+        $row.find('.singlePartyTel').val('');
+        return;
+    }
+
+    // 1. Direct option attributes (instant 0ms)
+    var opt = elem.options ? elem.options[elem.selectedIndex] : null;
+    var bal = null;
+    var mob = '';
+    if (opt) {
+        var optBal = opt.getAttribute('data-bal');
+        if (optBal !== null && optBal !== undefined && optBal !== '') {
+            bal = parseFloat(optBal);
+        }
+        mob = opt.getAttribute('data-mobile') || '';
+    }
+
+    // 2. Cached customers lookup
+    if ((bal === null || isNaN(bal)) && cachedCustomers && cachedCustomers.length) {
+        var found = cachedCustomers.find(function (c) { return String(c.id) === String(custId); });
+        if (found) {
+            bal = parseFloat(found.closing_balance || 0);
+            if (!mob) mob = found.mobile || '';
+        }
+    }
+
+    if (bal !== null && !isNaN(bal)) {
+        $row.find('.singlePartyBal').val(formatNum(bal));
+        $row.find('.singlePartyTel').val(mob);
+    }
+
+    // 3. Live server balance fetch (Primary: get-opening-balance, Secondary: get-customer)
+    var balanceUrl = '{{ url("get-opening-balance/customer") }}/' + custId;
+    $.getJSON(balanceUrl, function (res) {
+        if (res && (res.closing_balance !== undefined || res.balance !== undefined)) {
+            var liveBal = res.closing_balance !== undefined ? parseFloat(res.closing_balance) : parseFloat(res.balance);
+            $row.find('.singlePartyBal').val(formatNum(liveBal));
+        }
+    }).fail(function () {
+        $.getJSON('/get-customer/' + custId, function (res2) {
+            if (res2 && (res2.closing_balance !== undefined || res2.previous_balance !== undefined)) {
+                var liveBal2 = res2.closing_balance !== undefined ? parseFloat(res2.closing_balance) : parseFloat(res2.previous_balance);
+                $row.find('.singlePartyBal').val(formatNum(liveBal2));
+                if (res2.mobile && !$row.find('.singlePartyTel').val()) {
+                    $row.find('.singlePartyTel').val(res2.mobile);
+                }
+            }
+        });
+    });
+}
+
 $(document).ready(function () {
+    var isSingleMode = {{ ($receiptVoucherMode ?? 'standard') === 'single_table' ? 'true' : 'false' }};
+
+    if (isSingleMode) {
+        // ═══════════════════════════════════════════════════════════════════════
+        // SINGLE TABLE MODE JAVASCRIPT
+        // ═══════════════════════════════════════════════════════════════════════
+
+        function loadCustomersForSelect($select, selectedId) {
+            var branchId = $('#branch_id').val() || '';
+            $select.html('<option value="" class="select-loading">Loading customers...</option>');
+
+            if (cachedCustomers !== null) {
+                renderCustomerOptions($select, cachedCustomers, selectedId);
+                return;
+            }
+
+            $.getJSON('{{ route("receipt.party.list") }}', { type: 'customer', branch_id: branchId }, function (data) {
+                cachedCustomers = data || [];
+                renderCustomerOptions($select, cachedCustomers, selectedId);
+            }).fail(function () {
+                $select.html('<option value="">Error loading customers</option>');
+            });
+        }
+
+        function renderCustomerOptions($select, data, selectedId) {
+            var html = '<option value="">— Select Customer —</option>';
+            data.forEach(function (c) {
+                var mobileTxt = c.mobile ? ' (' + c.mobile + ')' : '';
+                html += '<option value="' + c.id + '" data-bal="' + (c.closing_balance || 0) + '" data-mobile="' + (c.mobile || '') + '">'
+                     + c.text + mobileTxt + '</option>';
+            });
+            $select.html(html);
+            if (selectedId) {
+                $select.val(selectedId);
+            }
+            $select.trigger('change');
+        }
+
+        // Initialize first row
+        $('.singlePartySelect').each(function () {
+            loadCustomersForSelect($(this));
+        });
+
+        // Customer select change -> update balance & mobile
+        $(document).on('change', '.singlePartySelect', function () {
+            onSingleCustomerChange(this);
+        });
+
+        // Account Head change -> load sub-accounts
+        $(document).on('change', '.singleAccountHead', function () {
+            var headId = $(this).val();
+            var branchId = $('#branch_id').val() || '';
+            var $sub = $(this).closest('.single-row').find('.singleAccountSub');
+            $sub.html('<option value="" class="select-loading">Loading...</option>');
+
+            if (!headId) {
+                $sub.html('<option value="">— Select Account —</option>');
+                return;
+            }
+
+            $.getJSON('{{ url("get-accounts-by-head") }}/' + headId, { branch_id: branchId }, function (res) {
+                var html = '<option value="">— Select Account —</option>';
+                (res || []).forEach(function (acc) {
+                    html += '<option value="' + acc.id + '">' + acc.title + '</option>';
+                });
+                $sub.html(html);
+            }).fail(function () {
+                $sub.html('<option value="">Error loading</option>');
+            });
+        });
+
+        // Amount input -> sync party amount & recalculate total
+        $(document).on('input', '.singleAmount', function () {
+            var val = parseFloat($(this).val()) || 0;
+            $(this).closest('.single-row').find('.singlePartyAmount').val(val > 0 ? val.toFixed(2) : '0');
+            calculateSingleTotal();
+        });
+
+        function calculateSingleTotal() {
+            var total = 0;
+            $('.singleAmount').each(function () {
+                var val = parseFloat($(this).val()) || 0;
+                total += val;
+                $(this).closest('.single-row').find('.singlePartyAmount').val(val > 0 ? val.toFixed(2) : '0');
+            });
+            $('#totalAmount').val(total.toFixed(2));
+            $('#totalAmountDisplay').text(formatNum(total));
+            $('#singleTotalDisplay').text('Rs. ' + formatNum(total));
+        }
+
+        // Sync reference number
+        $(document).on('input', '#singleVoucherRef', function () {
+            var ref = $(this).val();
+            $('.singleRowRef').val(ref);
+        });
+
+        // Add row
+        $('#addSingleRowBtn').on('click', function () {
+            var rowCount = $('.single-row').length + 1;
+            var headOptions = '';
+            @foreach ($AccountHeads as $head)
+                headOptions += '<option value="{{ $head->id }}">{{ $head->name }}</option>';
+            @endforeach
+
+            var currentRef = $('#singleVoucherRef').val() || '';
+
+            var $newRow = $(`
+                <tr class="single-row">
+                    <td><div class="row-num single-row-num">${rowCount}</div></td>
+                    <td>
+                        <input type="hidden" name="party_type[]" value="customer">
+                        <input type="hidden" name="party_tel[]" class="singlePartyTel" value="">
+                        <input type="hidden" name="narration_id[]" value="">
+                        <input type="hidden" name="reference_no[]" class="singleRowRef" value="${currentRef}">
+                        <select name="party_id[]" class="form-select singlePartySelect" onchange="onSingleCustomerChange(this)" required>
+                            <option value="">Loading customers...</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="text" class="form-control singlePartyBal text-end" readonly placeholder="0.00" style="font-weight: 600; color: #1e293b; background: #f8fafc;">
+                    </td>
+                    <td>
+                        <select name="row_account_head[]" class="form-select singleAccountHead" required>
+                            <option value="">— Select Head —</option>
+                            ${headOptions}
+                        </select>
+                    </td>
+                    <td>
+                        <select name="row_account_id[]" class="form-select singleAccountSub" required>
+                            <option value="">— Select Account —</option>
+                        </select>
+                    </td>
+                    <td>
+                        <input type="number" name="amount[]" step="0.01" min="0" class="form-control singleAmount" placeholder="0.00" required>
+                        <input type="hidden" name="party_amount[]" class="singlePartyAmount" value="0">
+                    </td>
+                    <td>
+                        <button type="button" class="btn-remove-row removeSingleRow" title="Remove row">
+                            <i class="bi bi-trash3"></i>
+                        </button>
+                    </td>
+                </tr>
+            `);
+
+            $('#singleRows').append($newRow);
+            renumberSingleRows();
+            loadCustomersForSelect($newRow.find('.singlePartySelect'));
+        });
+
+        // Remove row
+        $(document).on('click', '.removeSingleRow', function () {
+            if ($('.single-row').length > 1) {
+                $(this).closest('tr').remove();
+                renumberSingleRows();
+                calculateSingleTotal();
+            } else {
+                alert('At least one row is required.');
+            }
+        });
+
+        function renumberSingleRows() {
+            $('.single-row').each(function (i) {
+                $(this).find('.single-row-num').text(i + 1);
+            });
+        }
+
+        // Branch change -> reload customers and accounts
+        $('#branch_id').on('change', function () {
+            cachedCustomers = null;
+            $('.singlePartySelect').each(function () {
+                var cur = $(this).val();
+                loadCustomersForSelect($(this), cur);
+            });
+            $('.singleAccountHead').trigger('change');
+        });
+
+        // Single form submit validation
+        $('#receiptForm').on('submit', function () {
+            var total = 0;
+            var refVal = $('#singleVoucherRef').val() || '';
+            $('.singleRowRef').val(refVal);
+
+            $('.singleAmount').each(function () {
+                var val = parseFloat($(this).val()) || 0;
+                total += val;
+                $(this).closest('.single-row').find('.singlePartyAmount').val(val.toFixed(2));
+            });
+
+            if (total <= 0) {
+                alert('Please enter a valid received amount greater than zero.');
+                return false;
+            }
+
+            $('#totalAmount').val(total.toFixed(2));
+            return true;
+        });
+
+    } else {
+        // ═══════════════════════════════════════════════════════════════════════
+        // STANDARD DUAL TABLE JAVASCRIPT (ORIGINAL UNTOUCHED)
+        // ═══════════════════════════════════════════════════════════════════════
 
     // ─── NARRATION TOGGLE ───────────────────────────────────────────────────
     $(document).on('change', '.narrationSelect', function () {
@@ -494,11 +880,23 @@ $(document).ready(function () {
     $(document).on('change', '.partySelect', function () {
         var $row = $(this).closest('.party-row');
         var $opt = $(this).find(':selected');
-        var bal  = parseFloat($opt.data('bal')) || 0;
-        var mob  = $opt.data('mobile') || '';
+        var optElem = this.options ? this.options[this.selectedIndex] : null;
+        var bal  = parseFloat($opt.attr('data-bal') || $opt.data('bal') || (optElem ? optElem.getAttribute('data-bal') : 0)) || 0;
+        var mob  = $opt.attr('data-mobile') || $opt.data('mobile') || (optElem ? optElem.getAttribute('data-mobile') : '') || '';
 
         $row.find('.partyTel').val(mob);
         $row.find('.partyBal').val(formatNum(bal));
+
+        var pId = $(this).val();
+        var pType = $row.find('.partyTypeSelect').val() || 'customer';
+        if (pId && (pType === 'customer' || pType === 'vendor')) {
+            $.getJSON('{{ url("get-opening-balance") }}/' + pType + '/' + pId, function (res) {
+                if (res && (res.closing_balance !== undefined || res.balance !== undefined)) {
+                    var realBal = res.closing_balance !== undefined ? parseFloat(res.closing_balance) : parseFloat(res.balance);
+                    $row.find('.partyBal').val(formatNum(realBal));
+                }
+            });
+        }
     });
 
     // Branch change → reload all parties and account subs
@@ -787,6 +1185,8 @@ $(document).ready(function () {
             }
         });
     });
+
+    } // end else (Standard Mode)
 
 });
 </script>

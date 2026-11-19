@@ -74,7 +74,7 @@
     @media print {
         @page {
             size: A4 portrait;
-            margin: 0mm !important;
+            margin: 6mm 8mm 6mm 8mm !important;
         }
         html, body, .container-scroller, .main-content, .rpt-wrapper, .container-fluid {
             background: #fff !important;
@@ -94,7 +94,8 @@
         .rt_nav_header, .nav-bottom, .navbar, .footer, .no-print,
         .rpt-header-bar, #filterCard, .tb-kpi-grid, #summarySection,
         #placeholder, #loader, .btn, #tableWrapper, .card,
-        .main-footer, .header, .sidebar, .sidebar-menu, .header-area {
+        .main-footer, .header, .sidebar, .sidebar-menu, .header-area,
+        #reportPreviewModal {
             display: none !important;
         }
 
@@ -104,19 +105,18 @@
             width: 100% !important;
             max-width: 100% !important;
             min-width: 100% !important;
-            padding: 10mm 10mm 10mm 10mm !important;
+            padding: 0 !important;
             margin: 0 !important;
             background: #fff !important;
             color: #000 !important;
-            page-break-inside: avoid !important;
-            page-break-after: avoid !important;
         }
 
         .print-doc-header {
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            page-break-inside: avoid;
         }
         .print-company-title {
-            font-size: 16pt;
+            font-size: 15pt;
             font-weight: 800;
             color: #000;
             margin-bottom: 2px;
@@ -124,20 +124,20 @@
             letter-spacing: .02em;
         }
         .print-doc-title {
-            font-size: 22pt;
+            font-size: 20pt;
             font-weight: 900;
             color: #000;
             margin-bottom: 2px;
         }
         .print-doc-period {
-            font-size: 12pt;
+            font-size: 11pt;
             font-weight: 700;
             color: #000;
         }
         .print-top-divider {
-            border-bottom: 2.5px solid #000;
+            border-bottom: 2px solid #000;
             margin-top: 6px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
 
         .print-tb-table {
@@ -145,45 +145,57 @@
             max-width: 100% !important;
             table-layout: fixed !important;
             border-collapse: collapse !important;
-            font-size: 10pt !important;
-            margin-bottom: 16px !important;
+            font-size: 8.5pt !important;
+            margin-bottom: 12px !important;
             color: #000 !important;
         }
+        .print-tb-table thead {
+            display: table-header-group !important;
+        }
         .print-tb-table th {
-            border-top: 2px solid #000 !important;
-            border-bottom: 2px solid #000 !important;
-            padding: 7px 4px !important;
-            background: #f1f5f9 !important;
+            border-top: 1.5px solid #000 !important;
+            border-bottom: 1.5px solid #000 !important;
+            padding: 5px 3px !important;
+            background: #f8fafc !important;
             font-weight: 800 !important;
             color: #000 !important;
-            font-size: 10pt !important;
+            font-size: 8pt !important;
             text-transform: uppercase !important;
             vertical-align: middle !important;
+            line-height: 1.2 !important;
         }
         .print-tb-table td {
             border-bottom: 1px solid #cbd5e1 !important;
-            padding: 6px 4px !important;
+            padding: 4px 3px !important;
             vertical-align: middle !important;
             color: #000 !important;
-            font-size: 10pt !important;
+            font-size: 8.5pt !important;
+            line-height: 1.25 !important;
         }
         .print-tb-table tr {
-            page-break-inside: avoid;
+            page-break-inside: avoid !important;
+        }
+        .print-tb-table .num-cell {
+            text-align: right !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            font-variant-numeric: tabular-nums !important;
+            font-feature-settings: "tnum" !important;
+            white-space: nowrap !important;
+            letter-spacing: -0.01em !important;
         }
         .print-tb-table tr.p-tfoot td {
-            border-top: 2px solid #000 !important;
-            border-bottom: 3.5px double #000 !important;
-            font-weight: 900 !important;
-            padding: 8px 4px !important;
+            border-top: 1.5px solid #000 !important;
+            border-bottom: 3px double #000 !important;
+            font-weight: 800 !important;
+            padding: 6px 3px !important;
             background: #fff !important;
-            font-size: 11pt !important;
+            font-size: 8.5pt !important;
             color: #000 !important;
-            font-family: "Courier New", Courier, monospace !important;
         }
 
         .print-doc-footer {
-            margin-top: 25px;
-            font-size: 10pt;
+            margin-top: 20px;
+            font-size: 8.5pt;
             color: #000;
             page-break-inside: avoid;
         }
@@ -191,26 +203,90 @@
             display: flex;
             justify-content: space-between;
             border-top: 1px solid #000;
-            padding-top: 6px;
-            margin-bottom: 45px;
+            padding-top: 4px;
+            margin-bottom: 40px;
             font-weight: 600;
             color: #000;
+            font-size: 8pt;
         }
         .print-sign-row {
             display: flex;
             justify-content: space-between;
-            padding: 0 20px;
+            padding: 0 15px;
         }
         .print-sign-box {
             border-top: 1.5px dashed #000;
-            width: 170px;
+            width: 150px;
             text-align: center;
-            padding-top: 6px;
-            font-size: 10.5pt;
+            padding-top: 5px;
+            font-size: 9pt;
             font-weight: 700;
             color: #000;
         }
     }
+
+    /* ── Full-Page Clean Report Preview Styles ──── */
+    .report-preview-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #f1f5f9;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .report-preview-topbar {
+        height: 52px;
+        background: #0f1f38;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        flex-shrink: 0;
+    }
+    .report-preview-body {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: auto;
+        padding: 24px 20px 50px 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+    }
+    .report-preview-paper {
+        background: #ffffff;
+        width: 100%;
+        max-width: 1200px;
+        min-height: 80vh;
+        padding: 35px 45px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        color: #000;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .report-preview-paper .print-doc-header { margin-bottom: 12px; }
+    .report-preview-paper .print-company-title { font-size: 16pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+    .report-preview-paper .print-doc-title { font-size: 22pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+    .report-preview-paper .print-doc-period { font-size: 11.5pt; font-weight: 700; color: #334155; }
+    .report-preview-paper .print-top-divider { border-bottom: 2px solid #000; margin-top: 8px; margin-bottom: 14px; }
+    .report-preview-paper .print-tb-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 9.5pt; margin-bottom: 16px; color: #000; }
+    .report-preview-paper .print-tb-table th { border-top: 2px solid #000; border-bottom: 2px solid #000; padding: 8px 6px; background: #f8fafc; font-weight: 800; color: #000; font-size: 9pt; text-transform: uppercase; vertical-align: middle; line-height: 1.25; }
+    .report-preview-paper .print-tb-table td { border-bottom: 1px solid #cbd5e1; padding: 7px 6px; vertical-align: middle; color: #000; font-size: 9.5pt; line-height: 1.3; }
+    .report-preview-paper .print-tb-table .num-cell { text-align: right; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; white-space: nowrap; letter-spacing: -0.01em; font-size: 9.5pt; }
+    .report-preview-paper .print-tb-table tr.p-tfoot td { border-top: 2px solid #000; border-bottom: 3.5px double #000; font-weight: 800; padding: 9px 6px; background: #fff; font-size: 10pt; color: #000; }
+    .report-preview-paper .print-doc-footer { margin-top: 30px; font-size: 9pt; color: #000; }
+    .report-preview-paper .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 45px; font-weight: 600; color: #000; font-size: 8.5pt; }
+    .report-preview-paper .print-sign-row { display: flex; justify-content: space-between; padding: 0 25px; }
+    .report-preview-paper .print-sign-box { border-top: 1.5px dashed #000; width: 160px; text-align: center; padding-top: 6px; font-size: 9.5pt; font-weight: 700; color: #000; }
 </style>
 
 <div class="main-content">
@@ -230,8 +306,8 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button onclick="window.print()" class="btn btn-sm btn-outline-light font-weight-bold no-print">
-                        <i class="fas fa-print mr-1"></i> Print
+                    <button onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold no-print" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
                     </button>
                     <button onclick="exportCSV()" class="btn btn-sm btn-light font-weight-bold text-dark border no-print">
                         <i class="fas fa-file-csv mr-1 text-success"></i> CSV
@@ -401,15 +477,15 @@
                 <table class="print-tb-table">
                     <thead>
                         <tr>
-                            <th style="width:3.5%;" class="text-center">#</th>
-                            <th style="width:14.5%;">Code</th>
-                            <th style="width:23%;">Account Title</th>
-                            <th style="width:13%;">Head</th>
-                            <th class="text-end" style="width:9%;">Opening</th>
-                            <th class="text-end" style="width:9%;">Debit (Dr)</th>
-                            <th class="text-end" style="width:9%;">Credit (Cr)</th>
-                            <th class="text-end" style="width:9.5%;">Closing Debit</th>
-                            <th class="text-end" style="width:9.5%;">Closing Credit</th>
+                            <th style="width:3%;" class="text-center">#</th>
+                            <th style="width:10%;">Code</th>
+                            <th style="width:22%;">Account Title</th>
+                            <th style="width:10%;">Head</th>
+                            <th class="text-end" style="width:11%;">Opening</th>
+                            <th class="text-end" style="width:11%;">Debit (Dr)</th>
+                            <th class="text-end" style="width:11%;">Credit (Cr)</th>
+                            <th class="text-end" style="width:11%;">Closing Debit</th>
+                            <th class="text-end" style="width:11%;">Closing Credit</th>
                         </tr>
                     </thead>
                     <tbody id="p_tb_body">
@@ -417,12 +493,12 @@
                     </tbody>
                     <tfoot>
                         <tr class="p-tfoot">
-                            <td colspan="4" class="text-end" style="font-size:11pt; font-weight:900; letter-spacing:.03em; text-transform:uppercase;">GRAND TOTAL:</td>
-                            <td class="text-end" style="font-size:11pt; font-weight:900; white-space:nowrap;" id="p_foot_ob">0</td>
-                            <td class="text-end" style="font-size:11pt; font-weight:900; white-space:nowrap;" id="p_foot_tx_dr">0</td>
-                            <td class="text-end" style="font-size:11pt; font-weight:900; white-space:nowrap;" id="p_foot_tx_cr">0</td>
-                            <td class="text-end" style="font-size:11.5pt; font-weight:900; white-space:nowrap;" id="p_foot_debit">0</td>
-                            <td class="text-end" style="font-size:11.5pt; font-weight:900; white-space:nowrap;" id="p_foot_credit">0</td>
+                            <td colspan="4" class="text-end" style="font-size:8.5pt; font-weight:800; letter-spacing:.02em; text-transform:uppercase;">GRAND TOTAL:</td>
+                            <td class="text-end num-cell" style="font-weight:800;" id="p_foot_ob">0</td>
+                            <td class="text-end num-cell" style="font-weight:800;" id="p_foot_tx_dr">0</td>
+                            <td class="text-end num-cell" style="font-weight:800;" id="p_foot_tx_cr">0</td>
+                            <td class="text-end num-cell" style="font-weight:800;" id="p_foot_debit">0</td>
+                            <td class="text-end num-cell" style="font-weight:800;" id="p_foot_credit">0</td>
                         </tr>
                     </tfoot>
                 </table>
@@ -437,6 +513,31 @@
                         <div class="print-sign-box">Prepared By</div>
                         <div class="print-sign-box">Accountant</div>
                         <div class="print-sign-box">Approved By</div>
+                    </div>
+                </div>
+            </div>{{-- /formalPrintDoc --}}
+
+            {{-- ── Full-Page Clean Print Preview Modal ──── --}}
+            <div id="reportPreviewModal" class="report-preview-overlay" style="display:none;" onclick="if(event.target===this) closePrintPreview()">
+                <div class="report-preview-topbar">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge badge-light text-dark font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                            <i class="fas fa-eye mr-1 text-primary"></i> PREVIEW
+                        </span>
+                        <span style="font-weight:700; font-size:14px; letter-spacing:.02em;">Trial Balance &mdash; Print Document Preview</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-light font-weight-bold text-dark" onclick="printFromPreview()">
+                            <i class="fas fa-print mr-1 text-primary"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light font-weight-bold" onclick="closePrintPreview()">
+                            <i class="fas fa-times mr-1"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="report-preview-body">
+                    <div class="report-preview-paper" id="previewPaperContent">
+                        <!-- Populated dynamically by openPrintPreview() -->
                     </div>
                 </div>
             </div>
@@ -662,15 +763,15 @@ function renderFormalPrintDoc(data) {
         const cCrVal = r.credit_bal > 0 ? fmtPrint(r.credit_bal) : '-';
 
         html += `<tr>
-            <td class="text-center" style="font-size:10pt; font-weight:700; color:#000;">${i + 1}</td>
-            <td style="font-family:'Courier New', monospace; font-size:10pt; font-weight:700; color:#000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${r.account_code || '—'}</td>
-            <td style="font-weight:700; color:#000; font-size:10.5pt; overflow:hidden; text-overflow:ellipsis;">${r.title}</td>
-            <td style="font-size:10pt; font-weight:600; color:#000; overflow:hidden; text-overflow:ellipsis;">${r.head_name}</td>
-            <td class="text-end" style="font-family:'Courier New', monospace; font-size:10.5pt; font-weight:700; color:#000; white-space:nowrap;">${obVal}</td>
-            <td class="text-end" style="font-family:'Courier New', monospace; font-size:10.5pt; font-weight:700; color:#000; white-space:nowrap;">${drVal}</td>
-            <td class="text-end" style="font-family:'Courier New', monospace; font-size:10.5pt; font-weight:700; color:#000; white-space:nowrap;">${crVal}</td>
-            <td class="text-end" style="font-family:'Courier New', monospace; font-size:11pt; font-weight:800; color:#000; white-space:nowrap;">${cDrVal}</td>
-            <td class="text-end" style="font-family:'Courier New', monospace; font-size:11pt; font-weight:800; color:#000; white-space:nowrap;">${cCrVal}</td>
+            <td class="text-center" style="font-size:8pt; font-weight:700; color:#334155;">${i + 1}</td>
+            <td style="font-size:8pt; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${r.account_code || '—'}</td>
+            <td style="font-weight:700; color:#000; font-size:8.5pt; word-break:break-word;">${r.title}</td>
+            <td style="font-size:8pt; font-weight:600; color:#334155; word-break:break-word;">${r.head_name}</td>
+            <td class="num-cell" style="font-weight:600;">${obVal}</td>
+            <td class="num-cell" style="font-weight:600;">${drVal}</td>
+            <td class="num-cell" style="font-weight:600;">${crVal}</td>
+            <td class="num-cell" style="font-weight:700;">${cDrVal}</td>
+            <td class="num-cell" style="font-weight:700;">${cCrVal}</td>
         </tr>`;
     });
     document.getElementById('p_tb_body').innerHTML = html;
@@ -681,7 +782,175 @@ function renderFormalPrintDoc(data) {
     document.getElementById('p_foot_tx_cr').textContent  = fmtPrint(data.grand_tx_cr || 0);
     document.getElementById('p_foot_debit').textContent  = fmtPrint(data.grand_debit || 0);
     document.getElementById('p_foot_credit').textContent = fmtPrint(data.grand_credit || 0);
+
+    // If preview modal is currently open, sync it live
+    const previewModal = document.getElementById('reportPreviewModal');
+    if (previewModal && previewModal.style.display === 'flex') {
+        const formalDoc = document.getElementById('formalPrintDoc');
+        const paper = document.getElementById('previewPaperContent');
+        if (formalDoc && paper) {
+            paper.innerHTML = formalDoc.innerHTML;
+        }
+    }
 }
+
+function openPrintPreview() {
+    const formalDoc = document.getElementById('formalPrintDoc');
+    if (!formalDoc) return;
+
+    const tbody = formalDoc.querySelector('tbody');
+    if (tbody && tbody.children.length === 0) {
+        alert('Report data is still loading or empty. Please wait a moment or click Generate.');
+        return;
+    }
+
+    const reportHtml = formalDoc.innerHTML;
+    const branchTitle = document.getElementById('p_branch_title')?.textContent || 'Company';
+    const docTitle = 'Trial Balance';
+    const periodText = document.getElementById('p_period_text')?.textContent || '';
+    const fullTitle = `${docTitle} - ${branchTitle}`;
+
+    // 1. Try opening as a clean, full normal page in a new tab
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 1050px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 1050px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            padding: 28px 34px;
+        }
+
+        .print-doc-header { margin-bottom: 8px; }
+        .print-company-title { font-size: 13pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+        .print-doc-title { font-size: 18pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+        .print-doc-period { font-size: 10pt; font-weight: 600; color: #334155; }
+        .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 10px; }
+
+        .print-tb-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 14px; color: #000; table-layout: fixed; }
+        .print-tb-table th { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 6px 4px; background: #f8fafc; font-weight: 800; color: #000; font-size: 8pt; text-transform: uppercase; vertical-align: middle; }
+        .print-tb-table td { border-bottom: 1px solid #cbd5e1; padding: 5px 4px; vertical-align: middle; color: #000; font-size: 8.5pt; }
+        .print-tb-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; white-space: nowrap; font-size: 8.5pt; }
+        .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000; border-bottom: 3px double #000; font-weight: 800; padding: 7px 4px; background: #fff; font-size: 9pt; color: #000; }
+
+        .print-doc-footer { margin-top: 24px; font-size: 8.5pt; color: #000; }
+        .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 35px; font-weight: 600; color: #000; font-size: 8pt; }
+        .print-sign-row { display: flex; justify-content: space-between; padding: 0 20px; }
+        .print-sign-box { border-top: 1.5px dashed #000; width: 150px; text-align: center; padding-top: 6px; font-size: 8.5pt; font-weight: 700; color: #000; }
+
+        @media print {
+            body { background: #fff !important; padding: 0 !important; }
+            .action-toolbar, .no-print { display: none !important; }
+            .normal-page-card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-balance-scale"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        ${reportHtml}
+    </div>
+</body>
+</html>`);
+        win.document.close();
+        win.focus();
+        return;
+    }
+
+    // 2. Fallback if popups are blocked by browser: show in-page full normal card
+    const paper = document.getElementById('previewPaperContent');
+    const modal = document.getElementById('reportPreviewModal');
+    if (paper && modal) {
+        paper.innerHTML = reportHtml;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closePrintPreview() {
+    const modal = document.getElementById('reportPreviewModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function printFromPreview() {
+    window.print();
+}
+
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        closePrintPreview();
+    }
+});
 
 function exportCSV() {
     const rows  = document.querySelectorAll('#tbTable tbody tr');

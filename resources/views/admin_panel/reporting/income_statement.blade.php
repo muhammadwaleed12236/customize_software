@@ -134,7 +134,8 @@
         .rt_nav_header, .nav-bottom, .navbar, .footer, .no-print,
         .rpt-header-bar, #filterCard, .is-kpi-grid, #summaryCards,
         #placeholder, #loader, .btn, #reportContainer,
-        .main-footer, .header, .sidebar, .sidebar-menu, .header-area {
+        .main-footer, .header, .sidebar, .sidebar-menu, .header-area,
+        #reportPreviewModal {
             display: none !important;
         }
 
@@ -302,6 +303,77 @@
             color: #000;
         }
     }
+
+    /* ── Full-Page Clean Report Preview Styles ──── */
+    .report-preview-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100vw;
+        height: 100vh;
+        background: #f1f5f9;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .report-preview-topbar {
+        height: 52px;
+        background: #0f1f38;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 24px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+        flex-shrink: 0;
+    }
+    .report-preview-body {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: auto;
+        padding: 24px 20px 50px 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+    }
+    .report-preview-paper {
+        background: #ffffff;
+        width: 100%;
+        max-width: 820px;
+        min-height: 80vh;
+        padding: 30px 40px;
+        box-shadow: 0 1px 10px rgba(0,0,0,0.06);
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        color: #000;
+        box-sizing: border-box;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .report-preview-paper .print-doc-header { margin-bottom: 6px; }
+    .report-preview-paper .print-company-title { font-size: 15pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+    .report-preview-paper .print-doc-title { font-size: 20pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+    .report-preview-paper .print-doc-period { font-size: 11pt; font-weight: 700; color: #000; }
+    .report-preview-paper .print-top-divider { border-bottom: 2.5px solid #000; margin-top: 6px; margin-bottom: 8px; }
+    .report-preview-paper .print-currency-header { text-align: right; margin-bottom: 4px; padding-right: 2px; }
+    .report-preview-paper .print-currency-header span { font-size: 11.5pt; font-style: italic; text-decoration: underline; font-weight: 700; color: #000; }
+    .report-preview-paper .print-statement-table { width: 100%; border-collapse: collapse; font-size: 11pt; margin-bottom: 12px; color: #000; }
+    .report-preview-paper .print-statement-table td { padding: 4px 4px; vertical-align: middle; color: #000; }
+    .report-preview-paper .print-statement-table tr.p-sec-head td { font-weight: 900; font-size: 13pt; padding-top: 10px; padding-bottom: 4px; color: #000; letter-spacing: .02em; }
+    .report-preview-paper .print-statement-table tr.p-sub-item td.p-desc { padding-left: 20px; color: #000; font-weight: 600; font-size: 11pt; }
+    .report-preview-paper .print-statement-table tr.p-sub-item td.p-val { text-align: right; font-family: "Courier New", Courier, monospace, sans-serif; font-size: 11.5pt; font-weight: 700; color: #000; width: 170px; }
+    .report-preview-paper .print-statement-table tr.p-subtotal td { font-weight: 800; padding-top: 6px; padding-bottom: 6px; font-size: 11.5pt; color: #000; }
+    .report-preview-paper .print-statement-table tr.p-subtotal td.p-desc { text-align: right; padding-right: 20px; font-weight: 800; }
+    .report-preview-paper .print-statement-table tr.p-subtotal td.p-val { text-align: right; font-family: "Courier New", Courier, monospace, sans-serif; font-size: 11.5pt; font-weight: 800; border-top: 1.5px solid #000; color: #000; width: 170px; }
+    .report-preview-paper .print-statement-table tr.p-grandtotal td { font-weight: 900; font-size: 13pt; padding-top: 10px; padding-bottom: 10px; color: #000; }
+    .report-preview-paper .print-statement-table tr.p-grandtotal td.p-desc { text-align: right; padding-right: 20px; font-weight: 900; }
+    .report-preview-paper .print-statement-table tr.p-grandtotal td.p-val { text-align: right; font-family: "Courier New", Courier, monospace, sans-serif; font-size: 13pt; font-weight: 900; border-top: 1.5px solid #000; border-bottom: 3.5px double #000; color: #000; width: 170px; }
+    .report-preview-paper .print-doc-footer { margin-top: 16px; font-size: 9.5pt; color: #000; }
+    .report-preview-paper .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 5px; margin-bottom: 30px; font-weight: 600; color: #000; }
+    .report-preview-paper .print-sign-row { display: flex; justify-content: space-between; padding: 0 20px; }
+    .report-preview-paper .print-sign-box { border-top: 1.5px dashed #000; width: 160px; text-align: center; padding-top: 6px; font-size: 10pt; font-weight: 700; color: #000; }
 </style>
 
 <div class="main-content">
@@ -321,8 +393,8 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
-                    <button onclick="window.print()" class="btn btn-sm btn-outline-light font-weight-bold no-print">
-                        <i class="fas fa-print mr-1"></i> Print
+                    <button onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold no-print" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
                     </button>
                     <button onclick="exportCSV()" class="btn btn-sm btn-light font-weight-bold text-dark border no-print">
                         <i class="fas fa-file-csv mr-1 text-success"></i> CSV
@@ -619,6 +691,31 @@
                         <div class="print-sign-box">Approved By</div>
                     </div>
                 </div>
+            </div>{{-- /formalPrintDoc --}}
+
+            {{-- ── Full-Page Clean Print Preview Modal ──── --}}
+            <div id="reportPreviewModal" class="report-preview-overlay" style="display:none;" onclick="if(event.target===this) closePrintPreview()">
+                <div class="report-preview-topbar">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge badge-light text-dark font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                            <i class="fas fa-eye mr-1 text-primary"></i> PREVIEW
+                        </span>
+                        <span style="font-weight:700; font-size:14px; letter-spacing:.02em;">Income Statement &mdash; Print Document Preview</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-light font-weight-bold text-dark" onclick="printFromPreview()">
+                            <i class="fas fa-print mr-1 text-primary"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light font-weight-bold" onclick="closePrintPreview()">
+                            <i class="fas fa-times mr-1"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="report-preview-body">
+                    <div class="report-preview-paper" id="previewPaperContent">
+                        <!-- Populated dynamically by openPrintPreview() -->
+                    </div>
+                </div>
             </div>
 
         </div>{{-- /container --}}
@@ -864,7 +961,183 @@ function renderFormalPrintDoc(d) {
     </tr>`;
 
     document.getElementById('p_statement_body').innerHTML = html;
+
+    // If preview modal is currently open, sync it live
+    const previewModal = document.getElementById('reportPreviewModal');
+    if (previewModal && previewModal.style.display === 'flex') {
+        const formalDoc = document.getElementById('formalPrintDoc');
+        const paper = document.getElementById('previewPaperContent');
+        if (formalDoc && paper) {
+            paper.innerHTML = formalDoc.innerHTML;
+        }
+    }
 }
+
+function openPrintPreview() {
+    const formalDoc = document.getElementById('formalPrintDoc');
+    if (!formalDoc) return;
+
+    const tbody = formalDoc.querySelector('tbody');
+    if (tbody && tbody.children.length === 0) {
+        alert('Report data is still loading or empty. Please wait a moment or click Generate.');
+        return;
+    }
+
+    const reportHtml = formalDoc.innerHTML;
+    const branchTitle = document.getElementById('p_branch_title')?.textContent || 'Company';
+    const docTitle = 'Income Statement';
+    const fullTitle = `${docTitle} - ${branchTitle}`;
+
+    // 1. Try opening as a clean, full normal page in a new tab
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 820px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 820px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            padding: 30px 40px;
+        }
+
+        .print-doc-header { margin-bottom: 6px; }
+        .print-company-title { font-size: 13pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+        .print-doc-title { font-size: 18pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+        .print-doc-period { font-size: 10pt; font-weight: 600; color: #334155; }
+        .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 10px; }
+
+        .print-currency-header { text-align: right; margin-bottom: 6px; }
+        .print-currency-header span { font-size: 9.5pt; font-style: italic; text-decoration: underline; font-weight: 700; color: #000; }
+
+        .print-statement-table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 16px; color: #000; }
+        .print-statement-table td { padding: 4px 4px; vertical-align: middle; color: #000; }
+        .print-statement-table tr.p-sec-head td { font-weight: 900; font-size: 11pt; padding-top: 12px; padding-bottom: 4px; color: #000; letter-spacing: .02em; }
+        .print-statement-table tr.p-sub-item td.p-desc { padding-left: 16px; color: #000; font-weight: 600; font-size: 10pt; }
+        .print-statement-table tr.p-sub-item td.p-val { text-align: right; font-variant-numeric: tabular-nums; font-size: 10pt; font-weight: 700; color: #000; width: 170px; }
+        .print-statement-table tr.p-subtotal td { font-weight: 800; padding-top: 6px; padding-bottom: 6px; font-size: 10pt; color: #000; }
+        .print-statement-table tr.p-subtotal td.p-desc { text-align: right; padding-right: 16px; font-weight: 800; }
+        .print-statement-table tr.p-subtotal td.p-val { text-align: right; font-variant-numeric: tabular-nums; font-size: 10pt; font-weight: 800; border-top: 1.5px solid #000; color: #000; width: 170px; }
+        .print-statement-table tr.p-grandtotal td { font-weight: 900; font-size: 11pt; padding-top: 10px; padding-bottom: 10px; color: #000; }
+        .print-statement-table tr.p-grandtotal td.p-desc { text-align: right; padding-right: 16px; font-weight: 900; }
+        .print-statement-table tr.p-grandtotal td.p-val { text-align: right; font-variant-numeric: tabular-nums; font-size: 11pt; font-weight: 900; border-top: 1.5px solid #000; border-bottom: 3.5px double #000; color: #000; width: 170px; }
+
+        .print-doc-footer { margin-top: 25px; font-size: 9pt; color: #000; }
+        .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 35px; font-weight: 600; color: #000; font-size: 8.5pt; }
+        .print-sign-row { display: flex; justify-content: space-between; padding: 0 20px; }
+        .print-sign-box { border-top: 1.5px dashed #000; width: 150px; text-align: center; padding-top: 6px; font-size: 9pt; font-weight: 700; color: #000; }
+
+        @media print {
+            body { background: #fff !important; padding: 0 !important; }
+            .action-toolbar, .no-print { display: none !important; }
+            .normal-page-card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        ${reportHtml}
+    </div>
+</body>
+</html>`);
+        win.document.close();
+        win.focus();
+        return;
+    }
+
+    // 2. Fallback if popups are blocked by browser: show in-page full normal card
+    const paper = document.getElementById('previewPaperContent');
+    const modal = document.getElementById('reportPreviewModal');
+    if (paper && modal) {
+        paper.innerHTML = reportHtml;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closePrintPreview() {
+    const modal = document.getElementById('reportPreviewModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function printFromPreview() {
+    window.print();
+}
+
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+        closePrintPreview();
+    }
+});
 
 function exportCSV() {
     let csv = 'INCOME STATEMENT (PROFIT & LOSS)\n';

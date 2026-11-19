@@ -289,6 +289,48 @@
                     </div>
                 </div>
 
+                {{-- CARD 2C: RECEIPT VOUCHER INTERFACE MODE --}}
+                <div class="card border-0 rounded-4 shadow-sm mb-4">
+                    <div class="card-header bg-white py-3 px-4 border-bottom">
+                        <h5 class="fw-bold mb-0 text-dark d-flex align-items-center gap-2">
+                            <i class="fas fa-receipt text-primary"></i> Receipt Voucher Interface Layout (رسید واؤچر کا لے آؤٹ)
+                        </h5>
+                        <small class="text-muted">Choose interface layout for Receipt Voucher screen (<code class="text-primary">/recepit-vochers</code>).</small>
+                    </div>
+
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            {{-- OPTION 1: STANDARD (DUAL GRIDS - FROM & TO) --}}
+                            <div class="col-md-6">
+                                <label class="mode-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 {{ ($settings->receipt_voucher_mode ?? 'standard') === 'standard' ? 'active-mode' : '' }}" for="mode_rv_standard">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <input class="form-check-input mt-0 mode-radio" type="radio" name="receipt_voucher_mode" id="mode_rv_standard" value="standard" {{ ($settings->receipt_voucher_mode ?? 'standard') === 'standard' ? 'checked' : '' }}>
+                                        <span class="fs-5 text-primary"><i class="fas fa-columns"></i></span>
+                                        <h6 class="fw-bold mb-0 text-dark">Standard Layout (Default)</h6>
+                                    </div>
+                                    <p class="small text-muted mb-0 ps-4">
+                                        Do (2) alag tables display hoti hain: <strong>FROM (Received From Party)</strong> aur <strong>TO (Received Into Accounts)</strong>. Multiple parties aur accounts split karne ke liye.
+                                    </p>
+                                </label>
+                            </div>
+
+                            {{-- OPTION 2: SINGLE TABLE (UNIFIED CUSTOMER & ACCOUNT GRID) --}}
+                            <div class="col-md-6">
+                                <label class="mode-card p-3 rounded-3 border d-block cursor-pointer position-relative h-100 {{ ($settings->receipt_voucher_mode ?? 'standard') === 'single_table' ? 'active-mode' : '' }}" for="mode_rv_single">
+                                    <div class="d-flex align-items-center gap-2 mb-2">
+                                        <input class="form-check-input mt-0 mode-radio" type="radio" name="receipt_voucher_mode" id="mode_rv_single" value="single_table" {{ ($settings->receipt_voucher_mode ?? 'standard') === 'single_table' ? 'checked' : '' }}>
+                                        <span class="fs-5 text-success"><i class="fas fa-table"></i></span>
+                                        <h6 class="fw-bold mb-0 text-dark">Single Table (Simplified Grid)</h6>
+                                    </div>
+                                    <p class="small text-muted mb-0 ps-4">
+                                        Aik hi aasan table display hoti hai: <strong>Customer | Current Balance | Account Head | Deposit Account | Amount</strong>. Simple aur daily payments ke liye.
+                                    </p>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 {{-- CARD 3: A4 INVOICE PRINT & DESIGN CUSTOMIZATION --}}
                 <div class="card border-0 rounded-4 shadow-sm mb-4">
                     <div class="card-header bg-white py-3 px-4 border-bottom d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -578,7 +620,7 @@
         }
 
             // Radio button active-mode toggle
-        document.querySelectorAll('input[name="purchase_party_source"], input[name="warehouse_mode"]').forEach(radio => {
+        document.querySelectorAll('input[name="purchase_party_source"], input[name="warehouse_mode"], input[name="receipt_voucher_mode"]').forEach(radio => {
             radio.addEventListener('change', function() {
                 const name = this.getAttribute('name');
                 document.querySelectorAll('input[name="' + name + '"]').forEach(r => {

@@ -444,8 +444,12 @@ class VoucherController extends Controller
             if (!$customer) {
                 return response()->json(['opening_balance' => 0, 'closing_balance' => 0, 'balance' => 0]);
             }
-            $lastLedger = CustomerLedger::where('customer_id', $id)->orderBy('id', 'desc')->first();
-            $closing = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+            try {
+                $closing = (float) app(\App\Http\Controllers\ReportingController::class)->getCustomerOpeningBalance((int)$id, date('Y-m-d', strtotime('+1 day')));
+            } catch (\Exception $e) {
+                $lastLedger = CustomerLedger::where('customer_id', $id)->orderBy('id', 'desc')->first();
+                $closing = $lastLedger ? (float)$lastLedger->closing_balance : (float)($customer->opening_balance ?? 0);
+            }
             return response()->json([
                 'opening_balance' => (float)($customer->opening_balance ?? 0),
                 'closing_balance' => $closing,
@@ -499,7 +503,7 @@ class VoucherController extends Controller
         }
 
         if ($type === 'customer') {
-            $query = Customer::with(['ledgers' => fn($q) => $q->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")->orderBy('id', 'desc')]);
+            $query = Customer::query();
 
             // Branch filter (allow matching branch or unassigned customers)
             if ($branchId && $branchId !== 'all') {
@@ -508,9 +512,15 @@ class VoucherController extends Controller
                 });
             }
 
-            $customers = $query->get()->map(function ($c) {
-                $ledger = $c->ledgers->first();
-                $closing = $ledger ? (float)$ledger->closing_balance : (float)($c->opening_balance ?? 0);
+            $reportingController = app(\App\Http\Controllers\ReportingController::class);
+            $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+            $customers = $query->get()->map(function ($c) use ($reportingController, $tomorrow) {
+                try {
+                    $closing = (float) $reportingController->getCustomerOpeningBalance((int)$c->id, $tomorrow);
+                } catch (\Exception $e) {
+                    $closing = (float)($c->closing_balance ?? 0);
+                }
                 return [
                     'id'              => $c->id,
                     'text'            => $c->customer_name,
@@ -521,7 +531,7 @@ class VoucherController extends Controller
             return response()->json($customers);
 
         } elseif ($type === 'walkin') {
-            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer'])->with(['ledgers' => fn($q) => $q->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")->orderBy('id', 'desc')]);
+            $query = Customer::whereIn('customer_type', ['walking', 'Walking Customer']);
 
             if ($branchId && $branchId !== 'all') {
                 $query->where(function ($q) use ($branchId) {
@@ -529,9 +539,15 @@ class VoucherController extends Controller
                 });
             }
 
-            $walkins = $query->get()->map(function ($c) {
-                $ledger = $c->ledgers->first();
-                $closing = $ledger ? (float)$ledger->closing_balance : (float)($c->opening_balance ?? 0);
+            $reportingController = app(\App\Http\Controllers\ReportingController::class);
+            $tomorrow = date('Y-m-d', strtotime('+1 day'));
+
+            $walkins = $query->get()->map(function ($c) use ($reportingController, $tomorrow) {
+                try {
+                    $closing = (float) $reportingController->getCustomerOpeningBalance((int)$c->id, $tomorrow);
+                } catch (\Exception $e) {
+                    $closing = (float)($c->closing_balance ?? 0);
+                }
                 return [
                     'id'              => $c->id,
                     'text'            => $c->customer_name,
@@ -608,7 +624,18 @@ class VoucherController extends Controller
         $nextId = $lastVoucher ? $lastVoucher->id + 1 : 1;
         $nextRvid = 'RVID-' . str_pad($nextId, 3, '0', STR_PAD_LEFT);
 
-        return view('admin_panel.vochers.reciepts_vouchers', compact('narrations', 'AccountHeads', 'nextRvid', 'isSuperAdmin', 'currentBranch', 'Branch'));
+        $saleSettings = \App\Models\SaleSetting::getSettings();
+        $receiptVoucherMode = $saleSettings->receipt_voucher_mode ?? 'standard';
+
+        return view('admin_panel.vochers.reciepts_vouchers', compact(
+            'narrations',
+            'AccountHeads',
+            'nextRvid',
+            'isSuperAdmin',
+            'currentBranch',
+            'Branch',
+            'receiptVoucherMode'
+        ));
     }
 
 
@@ -653,6 +680,11 @@ class VoucherController extends Controller
                 $partyAmounts = [(float)$request->total_amount];
             }
 
+            $referenceNo = $request->reference_no;
+            if ((empty($referenceNo) || (is_array($referenceNo) && empty(array_filter($referenceNo)))) && $request->filled('voucher_ref')) {
+                $referenceNo = array_fill(0, count($partyIds) ?: 1, $request->voucher_ref);
+            }
+
             $voucherData = [
                 'branch_id'        => $branchId,
                 'rvid'             => $rvid,
@@ -664,7 +696,7 @@ class VoucherController extends Controller
                 'tel'              => json_encode($partyTels),
                 'remarks'          => $request->remarks,
                 'narration_id'     => json_encode($narrationIds),
-                'reference_no'     => json_encode($request->reference_no),
+                'reference_no'     => json_encode($referenceNo),
                 'row_account_head' => json_encode($request->row_account_head),
                 'row_account_id'   => json_encode($request->row_account_id),
                 'discount_value'   => json_encode($request->discount_value),
@@ -820,8 +852,13 @@ class VoucherController extends Controller
                 $cust = Customer::find($pId);
                 $pName = $cust?->customer_name ?? '';
                 $pTel  = $pTel ?: ($cust?->mobile ?? '');
-                $lastLedger = CustomerLedger::where('customer_id', $pId)->latest('id')->first();
-                $pBal = $lastLedger ? (float)$lastLedger->closing_balance : (float)($cust?->opening_balance ?? 0);
+                $tomorrow = date('Y-m-d', strtotime('+1 day'));
+                try {
+                    $pBal = (float) app(\App\Http\Controllers\ReportingController::class)->getCustomerOpeningBalance((int)$pId, $tomorrow);
+                } catch (\Exception $e) {
+                    $lastLedger = CustomerLedger::where('customer_id', $pId)->latest('id')->first();
+                    $pBal = $lastLedger ? (float)$lastLedger->closing_balance : (float)($cust?->opening_balance ?? 0);
+                }
             } elseif ($pType === 'vendor') {
                 $ven = Vendor::find($pId);
                 $pName = $ven?->name ?? '';
@@ -850,10 +887,35 @@ class VoucherController extends Controller
         $partyMobile  = $partyRows[0]['tel'] ?? '';
         $partyBalance = $partyRows[0]['balance'] ?? 0;
 
+        $singleCount = max(count($partyRows), count($rows), 1);
+        $singleRows = [];
+        for ($i = 0; $i < $singleCount; $i++) {
+            $pRow = $partyRows[$i] ?? ($partyRows[0] ?? []);
+            $rRow = $rows[$i] ?? ($rows[0] ?? []);
+            
+            $singleRows[] = [
+                'party_id'         => $pRow['id'] ?? null,
+                'party_name'       => $pRow['name'] ?? '',
+                'party_tel'        => $pRow['tel'] ?? '',
+                'party_balance'    => $pRow['balance'] ?? 0,
+                'row_account_head' => $rRow['row_account_head'] ?? null,
+                'row_account_id'   => $rRow['row_account_id'] ?? null,
+                'sub_accounts'     => $rRow['sub_accounts'] ?? [],
+                'amount'           => isset($rRow['amount']) ? $rRow['amount'] : ($pRow['amount'] ?? 0),
+                'reference_no'     => $rRow['reference_no'] ?? ($referenceArray[$i] ?? ($referenceArray[0] ?? '')),
+            ];
+        }
+        $voucherRef = $referenceArray[0] ?? ($voucher->reference_no ? (is_array(json_decode($voucher->reference_no, true)) ? (json_decode($voucher->reference_no, true)[0] ?? '') : $voucher->reference_no) : '');
+
+        $saleSettings = \App\Models\SaleSetting::getSettings();
+        $receiptVoucherMode = $saleSettings->receipt_voucher_mode ?? 'standard';
+
         return view('admin_panel.vochers.edit', compact(
             'voucher',
             'rows',
             'partyRows',
+            'singleRows',
+            'voucherRef',
             'narrations',
             'AccountHeads',
             'Branch',
@@ -861,7 +923,8 @@ class VoucherController extends Controller
             'currentBranch',
             'partyName',
             'partyMobile',
-            'partyBalance'
+            'partyBalance',
+            'receiptVoucherMode'
         ));
     }
 
@@ -919,12 +982,18 @@ class VoucherController extends Controller
                 $partyAmounts = [(float)$request->total_amount];
             }
 
+            $referenceNo = $request->reference_no;
+            if ((empty($referenceNo) || (is_array($referenceNo) && empty(array_filter($referenceNo)))) && $request->filled('voucher_ref')) {
+                $referenceNo = array_fill(0, count($partyIds) ?: 1, $request->voucher_ref);
+            }
+
             $updateData = array_merge($request->all(), [
                 'party_type'   => $partyTypes,
                 'party_id'     => $partyIds,
                 'party_amount' => $partyAmounts,
                 'party_tel'    => $partyTels,
                 'narration_id' => $narrationIds,
+                'reference_no' => $referenceNo,
                 'branch_id'    => $branchId,
             ]);
 

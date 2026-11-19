@@ -31,6 +31,7 @@ class SaleSettingController extends Controller
             'show_received_account' => $request->has('show_received_account'),
             'show_delivery_remaining_qty' => $request->has('show_delivery_remaining_qty'),
             'warehouse_mode' => $request->input('warehouse_mode', 'global') === 'product_wise' ? 'product_wise' : 'global',
+            'receipt_voucher_mode' => in_array($request->input('receipt_voucher_mode'), ['standard', 'single_table']) ? $request->input('receipt_voucher_mode') : 'standard',
         ];
 
         // Invoice customization settings
