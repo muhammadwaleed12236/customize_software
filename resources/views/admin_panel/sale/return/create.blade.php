@@ -134,7 +134,15 @@
               </div>
               <div class="col-md-6 mb-2">
                 <label class="form-label fw-bold mb-0">Return Date: <span class="text-danger">*</span></label>
-                <input type="date" class="form-control" name="return_date" id="return_date" value="{{ date('Y-m-d') }}" required>
+                <input type="date" class="form-control" name="return_date" id="return_date" 
+                       min="{{ $sale->created_at ? \Carbon\Carbon::parse($sale->created_at)->format('Y-m-d') : '' }}"
+                       data-sale-date="{{ $sale->created_at ? \Carbon\Carbon::parse($sale->created_at)->format('d-m-Y') : '' }}"
+                       value="{{ date('Y-m-d') }}" required>
+                @if($sale->created_at)
+                  <small class="text-danger fw-bold d-block mt-1" style="font-size: 11px;">
+                    <i class="fa fa-exclamation-triangle"></i> Min Date: {{ \Carbon\Carbon::parse($sale->created_at)->format('d-m-Y') }} (Sale Date)
+                  </small>
+                @endif
               </div>
             </div>
             <div class="mb-2">
@@ -435,8 +443,27 @@ $(document).ready(function() {
   }
   setNowStamp();
 
+  const saleDateMin = $('#return_date').attr('min');
+  const saleDateFormatted = $('#return_date').data('sale-date');
+
   $('#return_date').on('change', function() {
     const val = $(this).val();
+    if (saleDateMin && val && val < saleDateMin) {
+      const msg = 'Return date cannot be earlier than the original sale date (' + saleDateFormatted + ').';
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Invalid Return Date',
+          text: msg,
+          confirmButtonColor: '#3085d6',
+          confirmButtonText: 'OK'
+        });
+      } else {
+        alert(msg);
+      }
+      $(this).val(saleDateMin);
+      return;
+    }
     if (val) {
       const parts = val.split('-');
       if (parts.length === 3) {
@@ -612,6 +639,22 @@ $(document).ready(function() {
   $('#saleReturnForm').on('submit', function(e) {
     console.log('🔵 FORM SUBMIT CLICKED');
     e.preventDefault();
+
+    if (saleDateMin && $('#return_date').val() && $('#return_date').val() < saleDateMin) {
+      const msg = 'Return date cannot be earlier than the original sale date (' + saleDateFormatted + ').';
+      if (typeof Swal !== 'undefined') {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Invalid Return Date',
+          text: msg,
+          confirmButtonColor: '#3085d6',
+          confirmButtonText: 'OK'
+        });
+      } else {
+        alert(msg);
+      }
+      return false;
+    }
 
     // Validate at least one item selected
     let hasItems = false;

@@ -3561,10 +3561,19 @@ public function finddc($invoice)
             $warehouseId = (int) ($request->input('warehouse_id', 1));
             $saleId      = (int) $request->sale_id;
 
+            $sale = DB::table('sales')->where('id', $saleId)->first();
+
             $returnDateInput = $request->input('return_date');
             if ($returnDateInput) {
                 $parsedDate = \Carbon\Carbon::parse($returnDateInput);
                 $returnTimestamp = $parsedDate->isToday() ? now() : $parsedDate->setTime(12, 0, 0);
+
+                if ($sale && $sale->created_at) {
+                    $saleDate = \Carbon\Carbon::parse($sale->created_at)->startOfDay();
+                    if ($parsedDate->startOfDay()->lt($saleDate)) {
+                        throw new \Exception('Return date cannot be earlier than the original sale date (' . $saleDate->format('d-m-Y') . ').');
+                    }
+                }
             } else {
                 $returnTimestamp = now();
             }
@@ -3987,6 +3996,182 @@ public function finddc($invoice)
         return view('admin_panel.sale.return.index', [
             'salesReturns' => $salesReturns,
         ]);
+    }
+
+    public function editSaleReturn($id)
+    {
+        $saleReturn = SalesReturn::with('sale.customer')->findOrFail($id);
+
+        if (Auth::check() && !Auth::user()->hasRole('super admin')) {
+            $branchId = (int) (Auth::user()->branch_id ?? 0);
+            if ($saleReturn->sale && (int)$saleReturn->sale->branch_id !== $branchId) {
+                abort(403, 'Unauthorized access to this sale return.');
+            }
+        }
+
+        $rawProducts = explode(',', $saleReturn->product ?? '');
+        $codes       = explode(',', $saleReturn->product_code ?? '');
+        $brands      = explode(',', $saleReturn->brand ?? '');
+        $units       = explode(',', $saleReturn->unit ?? '');
+        $prices      = explode(',', $saleReturn->per_price ?? '');
+        $discounts   = explode(',', $saleReturn->per_discount ?? '');
+        $qtys        = explode(',', $saleReturn->qty ?? '');
+        $totals      = explode(',', $saleReturn->per_total ?? '');
+
+        $items = [];
+        foreach ($rawProducts as $i => $name) {
+            if (trim($name) === '' && (!isset($qtys[$i]) || (float)$qtys[$i] <= 0)) {
+                continue;
+            }
+            $unitStr = trim($units[$i] ?? '');
+            if ($unitStr === '[object Object]' || $unitStr === '') {
+                $unitStr = '-';
+            }
+            $brandStr = trim($brands[$i] ?? '');
+            if ($brandStr === '[object Object]') {
+                $brandStr = '-';
+            }
+            $codeStr = trim($codes[$i] ?? '');
+            if ($codeStr === '[object Object]') {
+                $codeStr = '-';
+            }
+            $items[] = [
+                'name'     => trim($name),
+                'code'     => $codeStr,
+                'brand'    => $brandStr,
+                'unit'     => $unitStr,
+                'price'    => (float)($prices[$i] ?? 0),
+                'discount' => (float)($discounts[$i] ?? 0),
+                'qty'      => (float)($qtys[$i] ?? 0),
+                'total'    => (float)($totals[$i] ?? 0),
+            ];
+        }
+
+        $saleDate = $saleReturn->sale && $saleReturn->sale->created_at 
+            ? Carbon::parse($saleReturn->sale->created_at)->format('Y-m-d') 
+            : null;
+        $saleDateFormatted = $saleReturn->sale && $saleReturn->sale->created_at 
+            ? Carbon::parse($saleReturn->sale->created_at)->format('d-m-Y') 
+            : null;
+
+        return view('admin_panel.sale.return.edit', compact('saleReturn', 'items', 'saleDate', 'saleDateFormatted'));
+    }
+
+    public function updateSaleReturn(Request $request, $id)
+    {
+        $request->validate([
+            'return_date' => 'required|date',
+        ]);
+
+        $saleReturn = SalesReturn::with('sale.customer')->findOrFail($id);
+
+        if (Auth::check() && !Auth::user()->hasRole('super admin')) {
+            $branchId = (int) (Auth::user()->branch_id ?? 0);
+            if ($saleReturn->sale && (int)$saleReturn->sale->branch_id !== $branchId) {
+                abort(403, 'Unauthorized access to this sale return.');
+            }
+        }
+
+        $newDateInput = $request->input('return_date');
+        $parsedDate   = Carbon::parse($newDateInput);
+
+        // Validation: Return date cannot be earlier than original sale date
+        if ($saleReturn->sale && $saleReturn->sale->created_at) {
+            $saleDate = Carbon::parse($saleReturn->sale->created_at)->startOfDay();
+            if ($parsedDate->startOfDay()->lt($saleDate)) {
+                $saleDateFormatted = $saleDate->format('d-m-Y');
+                $errorMsg = "Return date cannot be earlier than the original sale date ({$saleDateFormatted}).";
+
+                if ($request->ajax() || $request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => $errorMsg,
+                    ], 422);
+                }
+
+                return back()->withInput()->with('error', $errorMsg);
+            }
+        }
+
+        DB::beginTransaction();
+        try {
+            $newTimestamp = $parsedDate->isToday() ? now() : $parsedDate->setTime(12, 0, 0);
+            $newDateOnly  = $newTimestamp->toDateString();
+
+            // 1. Update SalesReturn timestamps (only date is modified)
+            $saleReturn->created_at = $newTimestamp;
+            $saleReturn->updated_at = now();
+            $saleReturn->save();
+
+            // 2. Update stock movements to reflect return date in cardex/ledgers
+            DB::table('stock_movements')
+                ->where('ref_type', 'SALE_RETURN')
+                ->where('ref_id', $saleReturn->id)
+                ->update([
+                    'created_at' => $newTimestamp,
+                    'updated_at' => $newTimestamp,
+                ]);
+
+            // 3. Update customer ledger entries & recalculate running balances
+            DB::table('customer_ledgers')
+                ->where('reference_id', $saleReturn->id)
+                ->whereIn('transaction_type', ['Sale Return', 'Sale Return Refund'])
+                ->update([
+                    'created_at' => $newTimestamp,
+                    'updated_at' => $newTimestamp,
+                ]);
+
+            $customerId = $saleReturn->customer ?: ($saleReturn->sale ? $saleReturn->sale->customer_id : null);
+            if ($customerId && is_numeric($customerId)) {
+                \App\Services\VoucherService::recalculateCustomerLedger((int)$customerId);
+            }
+
+            // 4. Update account ledger entries if cash refund was issued & recalculate running balances
+            $accEntries = DB::table('account_ledger_entries')
+                ->where('voucher_type', 'payment')
+                ->where('voucher_id', $saleReturn->id)
+                ->get();
+
+            $affectedAccountIds = [];
+            foreach ($accEntries as $ae) {
+                $affectedAccountIds[] = (int)$ae->account_id;
+                DB::table('account_ledger_entries')
+                    ->where('id', $ae->id)
+                    ->update([
+                        'transaction_date' => $newDateOnly,
+                        'created_at'       => $newTimestamp,
+                        'updated_at'       => $newTimestamp,
+                    ]);
+            }
+
+            foreach (array_unique($affectedAccountIds) as $accId) {
+                AccountLedgerEntry::recalculateRunningBalance($accId);
+            }
+
+            DB::commit();
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success'  => true,
+                    'message'  => 'Sale return date updated successfully.',
+                    'new_date' => $newTimestamp->format('d-m-Y'),
+                ]);
+            }
+
+            return redirect()->route('sale.returns.index')->with('success', 'Sale return date updated successfully.');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update sale return date: ' . $e->getMessage(),
+                ], 500);
+            }
+
+            return back()->with('error', 'Failed to update sale return date: ' . $e->getMessage());
+        }
     }
 
     public function saleinvoice($id)
