@@ -276,34 +276,192 @@ class SyncStockBalances extends Command
                     ['qty' => $trueBal, 'updated_at' => $now]
                 );
 
-                // 2. Update warehouse_stocks table
-                // Check if branch has warehouses with allocated stock
-                $whEntries = DB::table('warehouse_stocks')
+                // 2. Update warehouse_stocks table with exact per-warehouse ledger calculations
+                $prodModel = Product::find($pId);
+
+                // Find all warehouses belonging to this branch, plus any warehouses involved in purchases/sales/transfers/existing records
+                $branchWhIds = DB::table('branch_warehouse')->where('branch_id', $bId)->pluck('warehouse_id')->toArray();
+                $txPurWhIds = DB::table('purchase_items')
+                    ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+                    ->where('purchase_items.product_id', $pId)
+                    ->where('purchases.branch_id', $bId)
+                    ->whereNull('purchases.deleted_at')
+                    ->pluck('purchase_items.warehouse_id')
+                    ->toArray();
+                $txSaleWhIds = DB::table('sale_items')
+                    ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+                    ->where('sale_items.product_id', $pId)
+                    ->where('sales.branch_id', $bId)
+                    ->where('sales.status', '!=', 'cancelled')
+                    ->pluck('sale_items.warehouse_id')
+                    ->toArray();
+                $existingWhIds = DB::table('warehouse_stocks')
                     ->where('product_id', $pId)
                     ->where('branch_id', $bId)
-                    ->get();
+                    ->pluck('warehouse_id')
+                    ->toArray();
 
-                $warehouseOnlyEntries = $whEntries->filter(fn($w) => !is_null($w->warehouse_id));
-                $warehouseOnlySum = (float) $warehouseOnlyEntries->sum('quantity');
+                $allWhCandidates = array_unique(array_filter(array_merge($branchWhIds, $txPurWhIds, $txSaleWhIds, $existingWhIds)));
 
-                if ($warehouseOnlyEntries->isEmpty()) {
-                    // Only shop stock or no record exists
+                $totalWhStock = 0.0;
+                foreach ($allWhCandidates as $wId) {
+                    $whBalance = $this->calculateWarehouseLedgerBalance($pId, $bId, (int)$wId, $prodModel);
+                    $totalWhStock += $whBalance;
+
                     DB::table('warehouse_stocks')->updateOrInsert(
-                        ['product_id' => $pId, 'branch_id' => $bId, 'warehouse_id' => null],
-                        ['quantity' => $trueBal, 'updated_at' => $now]
-                    );
-                } else {
-                    // Specific warehouses hold some stock. Shop receives the remainder.
-                    $shopRemainder = $trueBal - $warehouseOnlySum;
-                    DB::table('warehouse_stocks')->updateOrInsert(
-                        ['product_id' => $pId, 'branch_id' => $bId, 'warehouse_id' => null],
-                        ['quantity' => $shopRemainder, 'updated_at' => $now]
+                        ['product_id' => $pId, 'branch_id' => $bId, 'warehouse_id' => $wId],
+                        ['quantity' => $whBalance, 'updated_at' => $now]
                     );
                 }
+
+                // Calculate shop balance (warehouse_id = null)
+                $shopBalance = $this->calculateWarehouseLedgerBalance($pId, $bId, null, $prodModel);
+                $allocatedTotal = $totalWhStock + $shopBalance;
+                $remainder = $trueBal - $allocatedTotal;
+                $finalShopBalance = $shopBalance + $remainder;
+
+                DB::table('warehouse_stocks')->updateOrInsert(
+                    ['product_id' => $pId, 'branch_id' => $bId, 'warehouse_id' => null],
+                    ['quantity' => $finalShopBalance, 'updated_at' => $now]
+                );
             }
         });
 
         $this->info("✅ Synchronization completed successfully! All stocks snapshot tables now match the transaction ledger.");
         return 0;
+    }
+
+    /**
+     * Compute exact ledger balance for a specific warehouse (or shop if null)
+     */
+    private function calculateWarehouseLedgerBalance(int $productId, int $branchId, ?int $warehouseId, Product $product): float
+    {
+        $ppp = (float) ($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
+        $isCartonProd = ($ppp > 1);
+
+        // 1. Opening Stock from stock_movements
+        $openQ = DB::table('stock_movements')
+            ->where('product_id', $productId)
+            ->where('branch_id', $branchId)
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+            ->where('type', 'in');
+
+        if (\Illuminate\Support\Facades\Schema::hasColumn('stock_movements', 'warehouse_id')) {
+            if ($warehouseId !== null) {
+                $openQ->where('warehouse_id', $warehouseId);
+            } else {
+                $openQ->whereNull('warehouse_id');
+            }
+        }
+        $opening = (float) $openQ->sum('qty');
+
+        if ($opening == 0 && $warehouseId === null) {
+            $hasAnyMov = DB::table('stock_movements')
+                ->where('product_id', $productId)
+                ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
+                ->exists();
+            if (!$hasAnyMov && (float)($product->initial_stock ?? 0) > 0) {
+                $primaryBranch = $product->branch_id ?: 1;
+                if ($branchId == $primaryBranch) {
+                    $opening = (float) $product->initial_stock;
+                }
+            }
+        }
+
+        // 2. Purchases
+        $purQ = DB::table('purchase_items')
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->where('purchase_items.product_id', $productId)
+            ->where('purchases.branch_id', $branchId)
+            ->whereNull('purchases.deleted_at');
+
+        if ($warehouseId !== null) {
+            $purQ->where(function ($q) use ($warehouseId) {
+                $q->where('purchase_items.warehouse_id', $warehouseId)
+                  ->orWhere(function ($sq) use ($warehouseId) {
+                      $sq->whereNull('purchase_items.warehouse_id')->where('purchases.warehouse_id', $warehouseId);
+                  });
+            });
+        } else {
+            $purQ->whereNull('purchase_items.warehouse_id')->whereNull('purchases.warehouse_id');
+        }
+
+        $purchases = 0.0;
+        foreach ($purQ->select('purchase_items.qty', 'purchase_items.packing_qty', 'purchase_items.item_per_piece')->get() as $pb) {
+            $m = (float)($pb->item_per_piece > 1 ? $pb->item_per_piece : ($isCartonProd ? $ppp : 1));
+            $effectivePbQty = (!empty($pb->packing_qty) && (float)$pb->packing_qty > 0) ? $pb->packing_qty : $pb->qty;
+            $purchases += $isCartonProd ? Product::parseCartonQtyToPieces($effectivePbQty, $m, 'ctn') : ((float)$effectivePbQty * $m);
+        }
+
+        // 3. Sales Out
+        $saleQ = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sale_items.product_id', $productId)
+            ->where('sales.branch_id', $branchId)
+            ->where('sales.status', '!=', 'cancelled');
+
+        if ($warehouseId !== null) {
+            $saleQ->where('sale_items.warehouse_id', $warehouseId);
+        } else {
+            $saleQ->whereNull('sale_items.warehouse_id');
+        }
+
+        $sales = 0.0;
+        foreach ($saleQ->select('sale_items.sales_qty', 'sale_items.sale_unit')->get() as $sb) {
+            $isPcsSale = strtolower($sb->sale_unit ?? '') === 'pcs';
+            $sales += Product::parseCartonQtyToPieces($sb->sales_qty, $ppp, $isPcsSale ? 'pcs' : 'ctn');
+        }
+
+        // 4. Sales Returns
+        $saleReturns = 0.0;
+        $srQ = DB::table('sales_returns')
+            ->where('product_code', $product->item_code)
+            ->whereExists(function ($sub) use ($branchId) {
+                $sub->select(DB::raw(1))
+                    ->from('sales')
+                    ->whereColumn('sales.id', 'sales_returns.sale_id')
+                    ->where('sales.branch_id', $branchId);
+            });
+        foreach ($srQ->select('sales_returns.qty', 'sales_returns.sale_id')->get() as $srb) {
+            $origSaleItem = DB::table('sale_items')->where('sale_id', $srb->sale_id)->where('product_id', $productId)->first();
+            $origWh = $origSaleItem ? $origSaleItem->warehouse_id : null;
+            if ($origWh == $warehouseId) {
+                $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
+                $saleReturns += Product::parseCartonQtyToPieces($srb->qty, $ppp, $isPcsReturn ? 'pcs' : 'ctn');
+            }
+        }
+
+        // 5. Stock Transfers
+        $transfersIn = 0.0;
+        $transfersOut = 0.0;
+        if ($warehouseId !== null) {
+            $transfersIn = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('to_warehouse_id', $warehouseId)
+                ->where('status', 'approved')
+                ->sum('quantity');
+
+            $transfersOut = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('from_warehouse_id', $warehouseId)
+                ->where('status', 'approved')
+                ->sum('quantity');
+        }
+
+        // 6. Damaged Stocks
+        $damaged = 0.0;
+        if (\Illuminate\Support\Facades\Schema::hasTable('damaged_stocks')) {
+            $dmgQ = DB::table('damaged_stocks')
+                ->where('product_id', $productId)
+                ->where('branch_id', $branchId);
+            if ($warehouseId !== null) {
+                $dmgQ->where('warehouse_id', $warehouseId);
+            } else {
+                $dmgQ->whereNull('warehouse_id');
+            }
+            $damaged = (float) $dmgQ->sum('quantity');
+        }
+
+        return ($opening + $purchases + $saleReturns + $transfersIn) - ($sales + $transfersOut + $damaged);
     }
 }
