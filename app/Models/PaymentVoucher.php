@@ -14,6 +14,40 @@ class PaymentVoucher extends Model
         'processed' => 'boolean',
     ];
 
+    protected static function booted()
+    {
+        static::creating(function ($voucher) {
+            // Auto-detect branch from paying account so voucher branch matches paying cashbook
+            if (!empty($voucher->row_account_id)) {
+                $accVal = $voucher->row_account_id;
+                $firstAccId = null;
+                if (is_array($accVal)) {
+                    $firstAccId = $accVal[0] ?? null;
+                } elseif (is_numeric($accVal)) {
+                    $firstAccId = (int)$accVal;
+                } elseif (is_string($accVal)) {
+                    $decoded = json_decode($accVal, true);
+                    if (is_array($decoded) && !empty($decoded)) {
+                        $firstAccId = $decoded[0] ?? null;
+                    } elseif (is_numeric($accVal)) {
+                        $firstAccId = (int)$accVal;
+                    }
+                }
+                if ($firstAccId) {
+                    $acc = \App\Models\Account::find($firstAccId);
+                    if ($acc && $acc->branch_id) {
+                        $voucher->branch_id = (int)$acc->branch_id;
+                        return;
+                    }
+                }
+            }
+
+            if (empty($voucher->branch_id) && auth()->check() && auth()->user()->branch_id) {
+                $voucher->branch_id = (int)auth()->user()->branch_id;
+            }
+        });
+    }
+
     public function branch()
     {
         return $this->belongsTo(Branch::class, 'branch_id');

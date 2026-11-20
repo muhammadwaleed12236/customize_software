@@ -659,13 +659,15 @@ class PurchaseController extends Controller
                     if ($sourceAccount) {
                         $rowAccountHeads[] = $sourceAccount->head_id ?? 1;
 
+                        $purchaseDate = $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->toDateString() : now()->toDateString();
+
                         // ✅ NEW: Post to Account Ledger (Account-side detail)
                         $this->postLedgerEntry(
                             $accId, 
                             'payment', 
                             $pvid, 
                             null, 
-                            now()->toDateString(), 
+                            $purchaseDate, 
                             'Payment for Purchase Invoice: ' . $purchase->invoice_no, 
                             0, 
                             $amt
@@ -679,7 +681,7 @@ class PurchaseController extends Controller
                                 'admin_or_user_id' => auth()->id(),
                                 'transaction_type' => 'payment',
                                 'reference_id'     => $purchase->id,
-                                'transaction_date' => now(),
+                                'transaction_date' => $purchaseDate,
                                 'description'      => "Payment for Purchase #{$purchase->invoice_no} (via {$sourceAccount->title})",
                                 'opening_balance'  => $latestVendorBalance,
                                 'previous_balance' => $latestVendorBalance,
@@ -693,14 +695,28 @@ class PurchaseController extends Controller
                     }
                 }
 
+                // Determine voucher branch: prefer paying account's branch, fallback to purchase branch, fallback to auth branch
+                $voucherBranchId = (int)$branchId;
+                if (!empty($paymentAccountIds)) {
+                    $firstAcc = \App\Models\Account::find($paymentAccountIds[0]);
+                    if ($firstAcc && $firstAcc->branch_id) {
+                        $voucherBranchId = (int)$firstAcc->branch_id;
+                    }
+                }
+                if (empty($voucherBranchId) && Auth::check() && Auth::user()->branch_id) {
+                    $voucherBranchId = (int)Auth::user()->branch_id;
+                }
+
                 // 2b. Create Payment Voucher record (for audit trail & reporting)
                 $discountsArray = array_fill(0, count($paymentAccountIds), 0);
+                $purchaseDateYmd = $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : now()->format('Y-m-d');
                 
                 \App\Models\PaymentVoucher::create([
                     'pvid'                => $pvid,
-                    'receipt_date'        => now()->format('Y-m-d'),
+                    'branch_id'           => $voucherBranchId ?? 1,
+                    'receipt_date'        => $purchaseDateYmd,
                     'entry_date'          => now()->format('Y-m-d'),
-                    'type'                => 'vendor',
+                    'type'                => $vendorId ? 'vendor' : 'local_market',
                     'party_id'            => $validated['vendor_id'] ?? null,
                     'tel'                 => $request->tel ?? null,
                     'remarks'             => 'Payment for Purchase Invoice: ' . $purchase->invoice_no,
@@ -1518,13 +1534,28 @@ class PurchaseController extends Controller
                         }
                     }
 
+                    // Determine voucher branch: prefer paying account's branch, fallback to purchase branch, fallback to auth branch
+                    $voucherBranchId = (int)$branchId;
+                    if (!empty($paymentAccountIds)) {
+                        $firstAcc = \App\Models\Account::find($paymentAccountIds[0]);
+                        if ($firstAcc && $firstAcc->branch_id) {
+                            $voucherBranchId = (int)$firstAcc->branch_id;
+                        }
+                    }
+                    if (empty($voucherBranchId) && Auth::check() && Auth::user()->branch_id) {
+                        $voucherBranchId = (int)Auth::user()->branch_id;
+                    }
+
                     // Create new payment voucher
                     $discountsArray = array_fill(0, count($paymentAccountIds), 0);
+                    $purchaseDateYmd = $purchase->purchase_date ? \Carbon\Carbon::parse($purchase->purchase_date)->format('Y-m-d') : now()->format('Y-m-d');
+
                     \App\Models\PaymentVoucher::create([
                         'pvid'                => $pvid,
-                        'receipt_date'        => $purchase->purchase_date ?? now()->format('Y-m-d'),
+                        'branch_id'           => $voucherBranchId ?? 1,
+                        'receipt_date'        => $purchaseDateYmd,
                         'entry_date'          => now()->format('Y-m-d'),
-                        'type'                => 'vendor',
+                        'type'                => $purchase->vendor_id ? 'vendor' : 'local_market',
                         'party_id'            => $purchase->vendor_id,
                         'remarks'             => 'Payment for Purchase Invoice: ' . $purchase->invoice_no,
                         'narration_id'        => json_encode(['1']),

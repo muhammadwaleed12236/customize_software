@@ -771,7 +771,24 @@ class VoucherController extends Controller
         $AccountHeads = AccountHead::get();
 
         $isSuperAdmin = Auth::user()->hasRole('super admin');
-        $currentBranch = $voucher->branch_id ?? (Auth::user()->branch_id ?? 1);
+
+        // Auto-detect branch from paying account if voucher branch was mismatched
+        $firstAccId = null;
+        $accIds = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_id);
+        if (!empty($accIds)) {
+            $firstAccId = $accIds[0];
+        } elseif (is_numeric($voucher->row_account_id)) {
+            $firstAccId = (int)$voucher->row_account_id;
+        }
+        $payingAccountBranch = null;
+        if ($firstAccId) {
+            $accObj = Account::find($firstAccId);
+            if ($accObj && $accObj->branch_id) {
+                $payingAccountBranch = (int)$accObj->branch_id;
+            }
+        }
+
+        $currentBranch = $payingAccountBranch ?? ($voucher->branch_id ?? (Auth::user()->branch_id ?? 1));
         $Branch = \App\Models\Branch::all();
 
         // Decode rows safely
@@ -957,21 +974,28 @@ class VoucherController extends Controller
                 }
             }
 
-            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
-                $branchId = (int) $request->branch_id;
-            } else {
-                $detectedBranch = null;
-                if (!empty($request->row_account_id)) {
-                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
-                    if ($firstAccId) {
-                        $accObj = Account::find($firstAccId);
-                        if ($accObj && $accObj->branch_id) {
-                            $detectedBranch = (int) $accObj->branch_id;
-                        }
+            // Branch handling: auto-detect from paying account so voucher branch always matches paying cashbook
+            $detectedBranch = null;
+            if (!empty($request->row_account_id)) {
+                $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                if ($firstAccId) {
+                    $accObj = Account::find($firstAccId);
+                    if ($accObj && $accObj->branch_id) {
+                        $detectedBranch = (int) $accObj->branch_id;
                     }
                 }
-                $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
+            if (!$detectedBranch && !empty($partyIds)) {
+                $firstPartyId = is_array($partyIds) ? ($partyIds[0] ?? null) : $partyIds;
+                if ($firstPartyId) {
+                    $vendObj = Vendor::find($firstPartyId);
+                    if ($vendObj && $vendObj->branch_id) {
+                        $detectedBranch = (int) $vendObj->branch_id;
+                    }
+                }
+            }
+            $branchId = $detectedBranch 
+                ?? ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0 ? (int)$request->branch_id : (int)($voucher->branch_id ?? auth()->user()->branch_id ?? 1));
 
             $partyTypes   = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
             $partyIds     = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
@@ -1059,31 +1083,28 @@ class VoucherController extends Controller
                     $narrationIds[] = (string)$narrId; // force string format
                 }
             }
-            // Branch handling: use explicit branch if provided, otherwise auto-detect from paying account or party
-            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
-                $branchId = (int) $request->branch_id;
-            } else {
-                $detectedBranch = null;
-                if (!empty($request->row_account_id)) {
-                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
-                    if ($firstAccId) {
-                        $accObj = Account::find($firstAccId);
-                        if ($accObj && $accObj->branch_id) {
-                            $detectedBranch = (int) $accObj->branch_id;
-                        }
+            // Branch handling: auto-detect from paying account so voucher branch always matches paying cashbook
+            $detectedBranch = null;
+            if (!empty($request->row_account_id)) {
+                $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                if ($firstAccId) {
+                    $accObj = Account::find($firstAccId);
+                    if ($accObj && $accObj->branch_id) {
+                        $detectedBranch = (int) $accObj->branch_id;
                     }
                 }
-                if (!$detectedBranch && !empty($partyIds)) {
-                    $firstPartyId = is_array($partyIds) ? ($partyIds[0] ?? null) : $partyIds;
-                    if ($firstPartyId) {
-                        $vendObj = Vendor::find($firstPartyId);
-                        if ($vendObj && $vendObj->branch_id) {
-                            $detectedBranch = (int) $vendObj->branch_id;
-                        }
-                    }
-                }
-                $branchId = $detectedBranch ?? (int) (auth()->user()->branch_id ?? 1);
             }
+            if (!$detectedBranch && !empty($partyIds)) {
+                $firstPartyId = is_array($partyIds) ? ($partyIds[0] ?? null) : $partyIds;
+                if ($firstPartyId) {
+                    $vendObj = Vendor::find($firstPartyId);
+                    if ($vendObj && $vendObj->branch_id) {
+                        $detectedBranch = (int) $vendObj->branch_id;
+                    }
+                }
+            }
+            $branchId = $detectedBranch 
+                ?? ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0 ? (int)$request->branch_id : (int)(auth()->user()->branch_id ?? 1));
 
             // Party arrays (support multiple parties)
             $partyTypes   = $request->party_type ?? (isset($request->vendor_type) ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : ['vendor']);
@@ -1178,7 +1199,24 @@ class VoucherController extends Controller
         $AccountHeads = AccountHead::get();
 
         $isSuperAdmin = Auth::user()->hasRole('super admin');
-        $currentBranch = $voucher->branch_id ?? (Auth::user()->branch_id ?? 1);
+
+        // Auto-detect branch from paying account if voucher branch was mismatched
+        $firstAccId = null;
+        $accIds = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_id);
+        if (!empty($accIds)) {
+            $firstAccId = $accIds[0];
+        } elseif (is_numeric($voucher->row_account_id)) {
+            $firstAccId = (int)$voucher->row_account_id;
+        }
+        $payingAccountBranch = null;
+        if ($firstAccId) {
+            $accObj = Account::find($firstAccId);
+            if ($accObj && $accObj->branch_id) {
+                $payingAccountBranch = (int)$accObj->branch_id;
+            }
+        }
+
+        $currentBranch = $payingAccountBranch ?? ($voucher->branch_id ?? (Auth::user()->branch_id ?? 1));
         $Branch = \App\Models\Branch::all();
 
         // Decode rows safely
@@ -1327,21 +1365,28 @@ class VoucherController extends Controller
                 }
             }
 
-            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
-                $branchId = (int) $request->branch_id;
-            } else {
-                $detectedBranch = null;
-                if (!empty($request->row_account_id)) {
-                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
-                    if ($firstAccId) {
-                        $accObj = Account::find($firstAccId);
-                        if ($accObj && $accObj->branch_id) {
-                            $detectedBranch = (int) $accObj->branch_id;
-                        }
+            // Branch handling: auto-detect from paying account so voucher branch always matches paying cashbook
+            $detectedBranch = null;
+            if (!empty($request->row_account_id)) {
+                $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                if ($firstAccId) {
+                    $accObj = Account::find($firstAccId);
+                    if ($accObj && $accObj->branch_id) {
+                        $detectedBranch = (int) $accObj->branch_id;
                     }
                 }
-                $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
+            if (!$detectedBranch && !empty($partyIds)) {
+                $firstPartyId = is_array($partyIds) ? ($partyIds[0] ?? null) : $partyIds;
+                if ($firstPartyId) {
+                    $vendObj = Vendor::find($firstPartyId);
+                    if ($vendObj && $vendObj->branch_id) {
+                        $detectedBranch = (int) $vendObj->branch_id;
+                    }
+                }
+            }
+            $branchId = $detectedBranch 
+                ?? ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0 ? (int)$request->branch_id : (int)($voucher->branch_id ?? auth()->user()->branch_id ?? 1));
 
             $partyTypes        = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
             $partyIds          = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
@@ -1668,7 +1713,24 @@ class VoucherController extends Controller
         $AccountHeads = AccountHead::get();
 
         $isSuperAdmin = Auth::user()->hasRole('super admin');
-        $currentBranch = $voucher->branch_id ?? (Auth::user()->branch_id ?? 1);
+
+        // Auto-detect branch from paying account if voucher branch was mismatched
+        $firstAccId = null;
+        $accIds = \App\Services\VoucherService::safeDecodeArray($voucher->row_account_id);
+        if (!empty($accIds)) {
+            $firstAccId = $accIds[0];
+        } elseif (is_numeric($voucher->row_account_id)) {
+            $firstAccId = (int)$voucher->row_account_id;
+        }
+        $payingAccountBranch = null;
+        if ($firstAccId) {
+            $accObj = Account::find($firstAccId);
+            if ($accObj && $accObj->branch_id) {
+                $payingAccountBranch = (int)$accObj->branch_id;
+            }
+        }
+
+        $currentBranch = $payingAccountBranch ?? ($voucher->branch_id ?? (Auth::user()->branch_id ?? 1));
         $Branch = \App\Models\Branch::all();
 
         // Decode rows safely
@@ -1817,21 +1879,28 @@ class VoucherController extends Controller
                 }
             }
 
-            if ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0) {
-                $branchId = (int) $request->branch_id;
-            } else {
-                $detectedBranch = null;
-                if (!empty($request->row_account_id)) {
-                    $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
-                    if ($firstAccId) {
-                        $accObj = Account::find($firstAccId);
-                        if ($accObj && $accObj->branch_id) {
-                            $detectedBranch = (int) $accObj->branch_id;
-                        }
+            // Branch handling: auto-detect from paying account so voucher branch always matches paying cashbook
+            $detectedBranch = null;
+            if (!empty($request->row_account_id)) {
+                $firstAccId = is_array($request->row_account_id) ? ($request->row_account_id[0] ?? null) : $request->row_account_id;
+                if ($firstAccId) {
+                    $accObj = Account::find($firstAccId);
+                    if ($accObj && $accObj->branch_id) {
+                        $detectedBranch = (int) $accObj->branch_id;
                     }
                 }
-                $branchId = $detectedBranch ?? (int) ($voucher->branch_id ?? auth()->user()->branch_id ?? 1);
             }
+            if (!$detectedBranch && !empty($partyIds)) {
+                $firstPartyId = is_array($partyIds) ? ($partyIds[0] ?? null) : $partyIds;
+                if ($firstPartyId) {
+                    $vendObj = Vendor::find($firstPartyId);
+                    if ($vendObj && $vendObj->branch_id) {
+                        $detectedBranch = (int) $vendObj->branch_id;
+                    }
+                }
+            }
+            $branchId = $detectedBranch 
+                ?? ($request->filled('branch_id') && is_numeric($request->branch_id) && (int)$request->branch_id > 0 ? (int)$request->branch_id : (int)($voucher->branch_id ?? auth()->user()->branch_id ?? 1));
 
             $partyTypes        = $request->party_type ?? ($request->vendor_type ? (is_array($request->vendor_type) ? $request->vendor_type : [$request->vendor_type]) : []);
             $partyIds          = $request->party_id ?? ($request->vendor_id ? (is_array($request->vendor_id) ? $request->vendor_id : [$request->vendor_id]) : []);
