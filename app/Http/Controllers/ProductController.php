@@ -215,7 +215,7 @@ class ProductController extends Controller
 
  public function searchProducts(Request $request)
  {
-     $q = $request->get('q');
+     $q = trim((string)$request->get('q', ''));
      $vendorId = $request->get('vendor_id');
  
      // ✅ GLOBAL PRODUCTS - Show all products from all branches
@@ -233,13 +233,20 @@ class ProductController extends Controller
              $query->whereRaw('1=0');
          }
      }
-      $products = $query
-         ->where(function ($query) use ($q) {
-             $query->where('item_name', 'like', "%{$q}%")
-                   ->orWhere('item_name_urdu', 'like', "%{$q}%")
-                   ->orWhere('item_code', 'like', "%{$q}%")
-                   ->orWhere('barcode_path', 'like', "%{$q}%")
-                   ->orWhere('model', 'like', "%{$q}%")
+
+     if ($q !== '') {
+         $qLower = strtolower($q);
+         $qStarts = $qLower . '%';
+         $qWord = '% ' . $qLower . '%';
+         $qContains = '%' . $qLower . '%';
+         $keywords = array_filter(explode(' ', $qLower));
+
+         $query->where(function ($builder) use ($q, $qContains, $keywords) {
+             $builder->where('item_name', 'like', $qContains)
+                   ->orWhere('item_name_urdu', 'like', $qContains)
+                   ->orWhere('item_code', 'like', $qContains)
+                   ->orWhere('barcode_path', 'like', $qContains)
+                   ->orWhere('model', 'like', $qContains)
                    ->orWhereHas('brand', function ($bQuery) use ($q) {
                        $bQuery->where('name', 'like', "%{$q}%");
                    })
@@ -249,8 +256,41 @@ class ProductController extends Controller
                    ->orWhereHas('sub_category_relation', function ($scQuery) use ($q) {
                        $scQuery->where('name', 'like', "%{$q}%");
                    });
-         })
-         ->limit(20)
+
+             // Support multi-word searches matching across fields
+             if (count($keywords) > 1) {
+                 $builder->orWhere(function ($multiQ) use ($keywords) {
+                     foreach ($keywords as $kw) {
+                         $multiQ->where(function ($wQ) use ($kw) {
+                             $wQ->where('item_name', 'like', "%{$kw}%")
+                                ->orWhere('item_code', 'like', "%{$kw}%")
+                                ->orWhere('model', 'like', "%{$kw}%");
+                         });
+                     }
+                 });
+             }
+         });
+
+         // Intelligent relevance ranking: Exact match > Starts With > Word Boundary > Substring
+         $query->orderByRaw('
+             CASE 
+                 WHEN LOWER(item_code) = ? THEN 1
+                 WHEN LOWER(item_name) = ? THEN 2
+                 WHEN LOWER(item_code) LIKE ? THEN 3
+                 WHEN LOWER(item_name) LIKE ? THEN 4
+                 WHEN LOWER(CONCAT(" ", item_code, " ")) LIKE ? THEN 5
+                 WHEN LOWER(CONCAT(" ", item_name, " ")) LIKE ? THEN 6
+                 WHEN LOWER(item_code) LIKE ? THEN 7
+                 WHEN LOWER(item_name) LIKE ? THEN 8
+                 ELSE 9
+             END ASC,
+             LENGTH(item_code) ASC,
+             LENGTH(item_name) ASC
+         ', [$qLower, $qLower, $qStarts, $qStarts, $qWord, $qWord, $qContains, $qContains]);
+     }
+
+     $products = $query
+         ->limit(25)
          ->get()
          ->map(function ($product) use ($request) {
              $branchId = $request->get('branch_id') ?: (Auth::check() ? Auth::user()->branch_id : null);
@@ -307,12 +347,18 @@ public function searchProductsForSalebypagination(Request $request)
     // NO branch restriction - products are GLOBAL
 
     if ($q !== '') {
-        $query->where(function ($builder) use ($q) {
-            $builder->where('item_name', 'like', "%{$q}%")
-                    ->orWhere('item_name_urdu', 'like', "%{$q}%")
-                    ->orWhere('item_code', 'like', "%{$q}%")
-                    ->orWhere('barcode_path', 'like', "%{$q}%")
-                    ->orWhere('model', 'like', "%{$q}%")
+        $qLower = strtolower($q);
+        $qStarts = $qLower . '%';
+        $qWord = '% ' . $qLower . '%';
+        $qContains = '%' . $qLower . '%';
+        $keywords = array_filter(explode(' ', $qLower));
+
+        $query->where(function ($builder) use ($q, $qContains, $keywords) {
+            $builder->where('item_name', 'like', $qContains)
+                    ->orWhere('item_name_urdu', 'like', $qContains)
+                    ->orWhere('item_code', 'like', $qContains)
+                    ->orWhere('barcode_path', 'like', $qContains)
+                    ->orWhere('model', 'like', $qContains)
                     ->orWhereHas('brand', function ($bQuery) use ($q) {
                         $bQuery->where('name', 'like', "%{$q}%");
                     })
@@ -322,11 +368,40 @@ public function searchProductsForSalebypagination(Request $request)
                     ->orWhereHas('sub_category_relation', function ($scQuery) use ($q) {
                         $scQuery->where('name', 'like', "%{$q}%");
                     });
+
+            if (count($keywords) > 1) {
+                $builder->orWhere(function ($multiQ) use ($keywords) {
+                    foreach ($keywords as $kw) {
+                        $multiQ->where(function ($wQ) use ($kw) {
+                            $wQ->where('item_name', 'like', "%{$kw}%")
+                               ->orWhere('item_code', 'like', "%{$kw}%")
+                               ->orWhere('model', 'like', "%{$kw}%");
+                        });
+                    }
+                });
+            }
         });
+
+        $query->orderByRaw('
+            CASE 
+                WHEN LOWER(item_code) = ? THEN 1
+                WHEN LOWER(item_name) = ? THEN 2
+                WHEN LOWER(item_code) LIKE ? THEN 3
+                WHEN LOWER(item_name) LIKE ? THEN 4
+                WHEN LOWER(CONCAT(" ", item_code, " ")) LIKE ? THEN 5
+                WHEN LOWER(CONCAT(" ", item_name, " ")) LIKE ? THEN 6
+                WHEN LOWER(item_code) LIKE ? THEN 7
+                WHEN LOWER(item_name) LIKE ? THEN 8
+                ELSE 9
+            END ASC,
+            LENGTH(item_code) ASC,
+            LENGTH(item_name) ASC
+        ', [$qLower, $qLower, $qStarts, $qStarts, $qWord, $qWord, $qContains, $qContains]);
+    } else {
+        $query->orderBy('id', 'asc');
     }
 
     $products = $query
-        ->orderBy('id', 'asc')
         ->skip(($page - 1) * $perPage)
         ->take($perPage)
         ->get();
