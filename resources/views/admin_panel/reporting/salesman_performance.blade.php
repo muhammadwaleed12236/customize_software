@@ -97,6 +97,9 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4);" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <button type="button" onclick="shareOnWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
@@ -232,6 +235,57 @@
                     </div>
                 </div>
             </div>
+
+            {{-- ── Formal Clean Print Document (Used for Preview & Print) ── --}}
+            <div id="formalPrintDoc" style="display:none;">
+                <div class="print-doc-header">
+                    <div class="print-company-title" id="p_branch_title">ALL BRANCHES</div>
+                    <div class="print-doc-title" id="p_doc_title">Salesman Performance Report</div>
+                    <div class="print-doc-period" id="p_doc_period">Monthly productivity, commission &amp; sales target analysis</div>
+                    <div class="print-top-divider"></div>
+                </div>
+
+                <!-- Table Container populated dynamically -->
+                <div id="p_table_container"></div>
+
+                <div class="print-doc-footer">
+                    <div class="print-footer-info">
+                        <span>Printed on: <span id="p_print_time"></span></span>
+                        <span id="p_footer_doc_desc">Salesman Performance &amp; Productivity Summary</span>
+                        <span>ERP System &mdash; Sales Management</span>
+                    </div>
+                    <div class="print-sign-row">
+                        <div class="print-sign-box">Prepared By</div>
+                        <div class="print-sign-box">Sales Manager</div>
+                        <div class="print-sign-box">Approved By</div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ── Full-Page Clean Print Preview Modal ──── --}}
+            <div id="reportPreviewModal" class="report-preview-overlay" style="display:none;" onclick="if(event.target===this) closePrintPreview()">
+                <div class="report-preview-topbar">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge badge-light text-dark font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                            <i class="fas fa-eye mr-1 text-primary"></i> PREVIEW
+                        </span>
+                        <span style="font-weight:700; font-size:14px; letter-spacing:.02em;">Salesman Performance Report &mdash; Print Document Preview</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-light font-weight-bold text-dark" onclick="printFromPreview()">
+                            <i class="fas fa-print mr-1 text-primary"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light font-weight-bold" onclick="closePrintPreview()">
+                            <i class="fas fa-times mr-1"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="report-preview-body">
+                    <div class="report-preview-paper" id="previewPaperContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -258,12 +312,80 @@
     #performanceTable tbody tr:hover { background-color: #f0f4ff !important; transition: 0.2s; }
     
     .salesman-name { font-weight: 700; color: #0066cc; font-size: 14px; }
-    
+
+    /* ── Formal Print Document Styles ──── */
+    #formalPrintDoc {
+        display: none;
+        background: #fff;
+        color: #000;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .print-doc-header { margin-bottom: 10px; }
+    .print-company-title { font-size: 15pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+    .print-doc-title { font-size: 21pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+    .print-doc-period { font-size: 11pt; font-weight: 600; color: #1e293b; }
+    .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 12px; }
+
+    .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 10pt !important; margin-bottom: 14px !important; color: #000 !important; }
+    .print-tb-table thead { display: table-header-group !important; }
+    .print-tb-table th { border-top: 1.5px solid #000 !important; border-bottom: 1.5px solid #000 !important; padding: 8px 6px !important; background: #f8fafc !important; font-weight: 800 !important; color: #000 !important; font-size: 9.5pt !important; text-transform: uppercase !important; vertical-align: middle !important; line-height: 1.25 !important; }
+    .print-tb-table td { border-bottom: 1px solid #cbd5e1 !important; padding: 7px 6px !important; vertical-align: middle !important; color: #000 !important; font-size: 10pt !important; line-height: 1.3 !important; overflow: hidden; word-wrap: break-word; }
+    .print-tb-table tr { page-break-inside: avoid !important; }
+    .print-tb-table .num-cell { text-align: right !important; font-variant-numeric: tabular-nums !important; font-feature-settings: "tnum" !important; white-space: nowrap !important; font-size: 10.5pt !important; letter-spacing: -0.01em !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
+    .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000 !important; border-bottom: 3px double #000 !important; font-weight: 800 !important; padding: 9px 6px !important; background: #fff !important; font-size: 11pt !important; color: #000 !important; }
+
+    .print-doc-footer { margin-top: 24px; font-size: 9.5pt; color: #000; page-break-inside: avoid; }
+    .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 38px; font-weight: 600; color: #000; font-size: 9pt; }
+    .print-sign-row { display: flex; justify-content: space-between; padding: 0 15px; }
+    .print-sign-box { border-top: 1.5px dashed #000; width: 140px; text-align: center; padding-top: 6px; font-size: 9.5pt; font-weight: 700; color: #000; }
+
+    /* ── Full-Page Clean Report Preview Overlay ──── */
+    .report-preview-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100vw; height: 100vh;
+        background: #f1f5f9;
+        z-index: 99999;
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+    .report-preview-topbar {
+        height: 52px; background: #0f1f38; color: #fff;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); flex-shrink: 0;
+    }
+    .report-preview-body {
+        flex: 1; overflow-y: auto; overflow-x: auto;
+        padding: 24px 20px 50px 20px;
+        display: flex; justify-content: center;
+    }
+    .report-preview-paper {
+        background: #ffffff;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 32px 34px;
+        width: 100%; max-width: 950px;
+        height: max-content; box-sizing: border-box;
+    }
+
     @media print {
-        #performanceFilterForm, #btnSearch, .btn { display: none !important; }
-        .main-content { padding: 0 !important; margin-top:0 !important; }
-        .card { border: none !important; box-shadow: none !important; }
-        #reportContent { overflow: visible !important; }
+        @page {
+            size: A4 portrait;
+            margin: 6mm 6mm 6mm 6mm !important;
+        }
+        body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+        .main-content { padding: 0 !important; margin: 0 !important; }
+        .rpt-wrapper, .navbar, .sidebar, .rpt-header-bar, #performanceFilterForm, #reportContent, #ledgerContent, .no-print, .btn, .card {
+            display: none !important;
+        }
+        #formalPrintDoc {
+            display: block !important;
+            padding: 0 !important; margin: 0 !important;
+            width: 100% !important; max-width: 100% !important;
+        }
+        .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+        .print-tb-table th, .print-tb-table td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
 </style>
 @endsection
@@ -279,7 +401,11 @@
         function n(v) { return parseFloat(v) || 0; }
         function fmt(v) { return n(v).toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
+        window.currentSummaryData = [];
+        window.currentLedgerData = [];
+
         function renderRows(rows) {
+            window.currentSummaryData = rows || [];
             let tableContent = '';
             let grandInvoices = 0;
             let grandAmount = 0;
@@ -287,6 +413,7 @@
             if (rows.length === 0) {
                 $('#reportBody').html('<tr><td colspan="6" class="text-center py-4 text-muted">No performance data found for this criteria</td></tr>');
                 $('#tableFooter').hide();
+                if (typeof renderFormalPrintDoc === 'function') renderFormalPrintDoc();
                 return;
             }
 
@@ -310,6 +437,7 @@
             $('#tableFooter').show();
 
             $('#reportBody').html(tableContent);
+            if (typeof renderFormalPrintDoc === 'function') renderFormalPrintDoc();
         }
 
         $('#btnSearch').on('click', function() {
@@ -383,6 +511,7 @@
                 },
                 success: function(response) {
                     $('#ledgerLoader').hide();
+                    window.currentLedgerData = response || [];
                     let html = '';
                     let total = 0;
 
@@ -403,6 +532,7 @@
 
                     $('#ledgerBody').html(html);
                     $('#ledgerTotal').text(fmt(total));
+                    if (typeof renderFormalPrintDoc === 'function') renderFormalPrintDoc();
                 },
                 error: function(xhr) {
                     $('#ledgerLoader').hide();
@@ -555,5 +685,302 @@
             window.open(waUrl, '_blank');
         };
     });
+
+function renderFormalPrintDoc() {
+    const isLedger = !!$('#salesman_id').val();
+    const branchName = $('#branch_id option:selected').val() ? $('#branch_id option:selected').text().toUpperCase() : 'ALL BRANCHES';
+    const startDate = $('#start_date').val() || '';
+    const endDate = $('#end_date').val() || '';
+    const periodText = (startDate && endDate) ? `For The Period: ${startDate} to ${endDate}` : '';
+
+    const pBranchTitle = document.getElementById('p_branch_title');
+    const pDocTitle = document.getElementById('p_doc_title');
+    const pDocPeriod = document.getElementById('p_doc_period');
+    const pTableContainer = document.getElementById('p_table_container');
+    const pFooterDesc = document.getElementById('p_footer_doc_desc');
+    const pPrintTime = document.getElementById('p_print_time');
+
+    if (pBranchTitle) pBranchTitle.textContent = branchName;
+    if (pPrintTime) {
+        const now = new Date();
+        pPrintTime.textContent = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + 
+                                 now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    function n(v) { return parseFloat(v) || 0; }
+    function fmt(v) { return n(v).toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+    if (isLedger) {
+        const salesmanName = $('#salesman_id option:selected').text();
+        if (pDocTitle) pDocTitle.textContent = 'Salesman Detailed Sales Ledger';
+        if (pDocPeriod) pDocPeriod.textContent = `Salesman: ${salesmanName} | ${periodText}`;
+        if (pFooterDesc) pFooterDesc.textContent = `Salesman Detailed Ledger & Transactions — ${salesmanName}`;
+
+        const data = window.currentLedgerData || [];
+        let grandTotal = 0;
+        let tbodyHtml = '';
+
+        if (data.length === 0) {
+            tbodyHtml = '<tr><td colspan="6" style="text-align:center; padding:18px; color:#64748b; font-style:italic;">No transactions found for this salesman</td></tr>';
+        } else {
+            data.forEach(function(item, idx) {
+                const amt = n(item.total_amount);
+                grandTotal += amt;
+                tbodyHtml += `
+                <tr>
+                    <td style="text-align:center;">${idx + 1}</td>
+                    <td>${item.date || '-'}</td>
+                    <td style="font-weight:700;">${item.invoice_no || '-'}</td>
+                    <td>${item.customer || '-'}</td>
+                    <td>${item.branch || '-'}</td>
+                    <td class="num-cell" style="font-weight:700;">${fmt(amt)}</td>
+                </tr>`;
+            });
+        }
+
+        const tableHtml = `
+        <table class="print-tb-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%; text-align: center;">#</th>
+                    <th style="width: 14%;">DATE</th>
+                    <th style="width: 18%;">INVOICE #</th>
+                    <th style="width: 28%;">CUSTOMER</th>
+                    <th style="width: 17%;">BRANCH</th>
+                    <th style="width: 18%; text-align: right;">AMOUNT (PKR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tbodyHtml}
+            </tbody>
+            <tfoot>
+                <tr class="p-tfoot">
+                    <td colspan="5" style="text-align: right; font-weight: 800;">GRAND TOTAL:</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 11pt;">${fmt(grandTotal)}</td>
+                </tr>
+            </tfoot>
+        </table>`;
+
+        if (pTableContainer) pTableContainer.innerHTML = tableHtml;
+
+    } else {
+        // Summary Mode
+        if (pDocTitle) pDocTitle.textContent = 'Salesman Performance Report';
+        if (pDocPeriod) pDocPeriod.textContent = `${periodText} | Monthly productivity & sales target analysis`;
+        if (pFooterDesc) pFooterDesc.textContent = 'Salesman Performance & Productivity Summary';
+
+        const data = window.currentSummaryData || [];
+        let grandInvoices = 0;
+        let grandAmount = 0;
+        let tbodyHtml = '';
+
+        if (data.length === 0) {
+            tbodyHtml = '<tr><td colspan="6" style="text-align:center; padding:18px; color:#64748b; font-style:italic;">No performance data found for this criteria</td></tr>';
+        } else {
+            data.forEach(function(r, idx) {
+                const invCount = n(r.total_invoices);
+                const salesAmt = n(r.total_amount);
+                grandInvoices += invCount;
+                grandAmount += salesAmt;
+                tbodyHtml += `
+                <tr>
+                    <td style="text-align:center;">${idx + 1}</td>
+                    <td style="font-weight:700;">${r.salesman_name || 'N/A'}</td>
+                    <td>${r.branch_name || '-'}</td>
+                    <td style="text-align:center;">${r.month_year || '-'}</td>
+                    <td class="num-cell" style="font-weight:600;">${invCount}</td>
+                    <td class="num-cell" style="font-weight:700;">${fmt(salesAmt)}</td>
+                </tr>`;
+            });
+        }
+
+        const tableHtml = `
+        <table class="print-tb-table">
+            <thead>
+                <tr>
+                    <th style="width: 5%; text-align: center;">#</th>
+                    <th style="width: 31%;">SALESMAN NAME</th>
+                    <th style="width: 20%;">BRANCH</th>
+                    <th style="width: 15%; text-align: center;">MONTH</th>
+                    <th style="width: 13%; text-align: right;">TOTAL INVOICES</th>
+                    <th style="width: 16%; text-align: right;">TOTAL SALES (PKR)</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tbodyHtml}
+            </tbody>
+            <tfoot>
+                <tr class="p-tfoot">
+                    <td colspan="4" style="text-align: right; font-weight: 800;">GRAND TOTAL:</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 11pt;">${grandInvoices}</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 11pt;">${fmt(grandAmount)}</td>
+                </tr>
+            </tfoot>
+        </table>`;
+
+        if (pTableContainer) pTableContainer.innerHTML = tableHtml;
+    }
+}
+
+function openPrintPreview() {
+    renderFormalPrintDoc();
+
+    const docElem = document.getElementById('formalPrintDoc');
+    if (!docElem) return;
+
+    const reportHtml = docElem.innerHTML;
+    const isLedger = !!$('#salesman_id').val();
+    const fullTitle = isLedger ? 'Salesman Detailed Sales Ledger' : 'Salesman Performance Report';
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.open();
+        win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>${fullTitle} - Print Preview</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        body {
+            margin: 0;
+            padding: 0;
+            background: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            color: #000;
+        }
+        .action-toolbar {
+            position: sticky;
+            top: 0;
+            background: #0f1f38;
+            color: #fff;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .report-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: .02em;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 5px;
+            border: 1px solid rgba(255,255,255,0.3);
+            background: rgba(255,255,255,0.15);
+            color: #fff;
+            cursor: pointer;
+            transition: 0.15s;
+        }
+        .btn-action:hover { background: rgba(255,255,255,0.25); }
+        .btn-primary-action { background: #2563eb; border-color: #2563eb; }
+        .btn-primary-action:hover { background: #1d4ed8; }
+
+        .normal-page-card {
+            max-width: 950px;
+            margin: 24px auto 40px auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+            border: 1px solid #cbd5e1;
+            padding: 32px 34px;
+        }
+
+        .print-doc-header { margin-bottom: 10px; }
+        .print-company-title { font-size: 15pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+        .print-doc-title { font-size: 21pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+        .print-doc-period { font-size: 11pt; font-weight: 600; color: #1e293b; }
+        .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 12px; }
+
+        .print-tb-table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 14px; color: #000; table-layout: fixed; }
+        .print-tb-table thead { display: table-header-group; }
+        .print-tb-table th { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 8px 6px; background: #f8fafc; font-weight: 800; color: #000; font-size: 9.5pt; text-transform: uppercase; vertical-align: middle; line-height: 1.25; }
+        .print-tb-table td { border-bottom: 1px solid #cbd5e1; padding: 7px 6px; vertical-align: middle; color: #000; font-size: 10pt; line-height: 1.3; overflow: hidden; word-wrap: break-word; }
+        .print-tb-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; white-space: nowrap; font-size: 10.5pt; letter-spacing: -0.01em; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000; border-bottom: 3px double #000; font-weight: 800; padding: 9px 6px; background: #fff; font-size: 11pt; color: #000; }
+
+        .print-doc-footer { margin-top: 24px; font-size: 9.5pt; color: #000; }
+        .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 38px; font-weight: 600; color: #000; font-size: 9pt; }
+        .print-sign-row { display: flex; justify-content: space-between; padding: 0 15px; }
+        .print-sign-box { border-top: 1.5px dashed #000; width: 140px; text-align: center; padding-top: 6px; font-size: 9.5pt; font-weight: 700; color: #000; }
+
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 6mm 6mm 6mm 6mm !important;
+            }
+            body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+            .action-toolbar, .no-print { display: none !important; }
+            .normal-page-card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 !important; }
+            .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+            .print-tb-table th { font-size: 9pt !important; padding: 6px 4px !important; }
+            .print-tb-table td { font-size: 9.5pt !important; padding: 5px 4px !important; }
+            .print-tb-table .num-cell { font-size: 9.5pt !important; }
+            .print-tb-table tr.p-tfoot td { font-size: 10.5pt !important; padding: 7px 4px !important; }
+            .print-tb-table th, .print-tb-table td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-user-tie"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        ${reportHtml}
+    </div>
+</body>
+</html>`);
+        win.document.close();
+        win.focus();
+        return;
+    }
+
+    const paper = document.getElementById('previewPaperContent');
+    const modal = document.getElementById('reportPreviewModal');
+    if (paper && modal) {
+        paper.innerHTML = reportHtml;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closePrintPreview() {
+    const modal = document.getElementById('reportPreviewModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function printFromPreview() {
+    window.print();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePrintPreview();
+});
 </script>
 @endsection

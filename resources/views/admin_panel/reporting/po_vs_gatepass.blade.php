@@ -160,6 +160,9 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold no-print" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <button type="button" id="waShareBtn" onclick="shareWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
@@ -319,12 +322,106 @@
     .progress { height: 8px; border-radius: 4px; background-color: #e9ecef; }
     .progress-bar { transition: width 0.6s ease; }
 
+    /* ── High-Contrast Dark Print Styles ──── */
     @media print {
-        #filterForm, #btnSearch, .btn, .main-footer { display: none !important; }
-        .main-content { padding: 0 !important; margin-top:0 !important; }
-        .card { border: none !important; box-shadow: none !important; }
-        #reportContent { overflow: visible !important; }
-        body { background: white !important; }
+        @page {
+            size: auto;
+            margin: 0mm !important;
+        }
+
+        #filterForm, #btnSearch, .btn, .rpt-header-bar, #loader,
+        .no-print, .main-footer, .footer, .rt_nav_header, .nav-bottom, .navbar, .header, .sidebar, .sidebar-menu, .header-area {
+            display: none !important;
+        }
+
+        body, html, .main-content, .rpt-wrapper, .container-fluid {
+            background: #fff !important;
+            color: #000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .main-content {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        #reportContent {
+            overflow: visible !important;
+            display: block !important;
+            padding: 8mm 6mm !important;
+            border: none !important;
+        }
+
+        #reportContent .card-body {
+            padding: 0 !important;
+        }
+
+        #reportTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+        }
+
+        #reportTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 11px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 7px 8px !important;
+            text-transform: uppercase !important;
+        }
+
+        #reportTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            font-size: 11px !important;
+            padding: 6px 8px !important;
+            vertical-align: middle !important;
+        }
+
+        #reportTable .po-no {
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 12px !important;
+        }
+
+        #reportTable .item-name {
+            font-weight: 800 !important;
+            color: #000000 !important;
+        }
+
+        #reportTable .text-muted {
+            color: #1e293b !important;
+            font-weight: 600 !important;
+        }
+
+        #reportTable .text-success {
+            color: #047857 !important;
+            font-weight: 800 !important;
+        }
+
+        #reportTable .text-danger {
+            color: #dc2626 !important;
+            font-weight: 800 !important;
+        }
+
+        .badge {
+            font-weight: 800 !important;
+            border-width: 1.5px !important;
+            padding: 2px 6px !important;
+            font-size: 10px !important;
+        }
     }
 </style>
 @endsection
@@ -628,6 +725,287 @@
             a.href = url;
             a.download = 'PO_Variance_Report_' + new Date().toISOString().slice(0,10) + '.csv';
             a.click();
+        };
+
+        /* ---------- Clean Full-Page Print Preview ---------- */
+        window.openPrintPreview = function() {
+            const reportBox = document.getElementById('reportContent');
+            if (!reportBox) return;
+
+            const tbody = reportBox.querySelector('#reportBody');
+            if (tbody && (tbody.children.length === 0 || tbody.textContent.includes('No procurement data'))) {
+                alert('Report data is empty or still loading. Please wait a moment or click Generate.');
+                return;
+            }
+
+            const clone = reportBox.cloneNode(true);
+            $(clone).find('#pdfHeader').remove();
+            $(clone).find('#loader').remove();
+            const tableHtml = clone.innerHTML;
+
+            const branchTitle = $('#branch_id option:selected').text().trim() || 'All Branches';
+            const vendorTitle = $('#vendor_id option:selected').text().trim() || 'All Vendors';
+            const docTitle = 'PO vs Gatepass Report';
+            const fullTitle = `${docTitle} - ${branchTitle}`;
+            const sDate = $('#start_date').val();
+            const eDate = $('#end_date').val();
+            let periodStr = (sDate && eDate) ? `${sDate} to ${eDate}` : 'All Dates';
+            if (vendorTitle && vendorTitle !== '-- All Vendors --') {
+                periodStr += ` | Vendor: ${vendorTitle}`;
+            }
+
+            const ordVal = $('#stat_ordered').text().trim() || '0';
+            const recVal = $('#stat_received').text().trim() || '0';
+            const varVal = $('#stat_variance').text().trim() || '0';
+
+            const summaryHtml = `
+                <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:16px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; padding:10px 16px;">
+                    <div>
+                        <span style="font-size:10.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Total Ordered Units:</span>
+                        <span style="font-size:14px; font-weight:800; color:#0f172a; margin-left:6px;">${ordVal}</span>
+                    </div>
+                    <div>
+                        <span style="font-size:10.5px; font-weight:700; color:#047857; text-transform:uppercase;">Total Received Units:</span>
+                        <span style="font-size:14px; font-weight:800; color:#047857; margin-left:6px;">${recVal}</span>
+                    </div>
+                    <div>
+                        <span style="font-size:10.5px; font-weight:700; color:#dc2626; text-transform:uppercase;">Pending Variance:</span>
+                        <span style="font-size:14px; font-weight:800; color:#dc2626; margin-left:6px;">${varVal}</span>
+                    </div>
+                </div>
+            `;
+
+            const win = window.open('', '_blank');
+            if (win) {
+                win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 1350px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 1350px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            padding: 28px 32px;
+            box-sizing: border-box;
+        }
+
+        .preview-header {
+            margin-bottom: 16px;
+        }
+        .preview-company {
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            color: #000000;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .preview-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #000000;
+            margin-bottom: 3px;
+            letter-spacing: -0.01em;
+        }
+        .preview-period {
+            font-size: 12.5px;
+            color: #1e293b;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .preview-divider {
+            border-bottom: 2.5px solid #000000;
+            margin-bottom: 14px;
+        }
+
+        #reportTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+            font-size: 11.5px !important;
+        }
+        #reportTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 11px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 7px 8px !important;
+            text-transform: uppercase !important;
+        }
+        #reportTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            padding: 6px 8px !important;
+            vertical-align: middle !important;
+        }
+        #reportTable .po-no {
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 12.5px !important;
+        }
+        #reportTable .item-name {
+            font-weight: 800 !important;
+            color: #000000 !important;
+        }
+        #reportTable .text-muted {
+            color: #1e293b !important;
+            font-weight: 600 !important;
+        }
+        #reportTable .text-success {
+            color: #047857 !important;
+            font-weight: 800 !important;
+        }
+        #reportTable .text-danger {
+            color: #dc2626 !important;
+            font-weight: 800 !important;
+        }
+
+        .badge {
+            font-weight: 800 !important;
+            border-width: 1.5px !important;
+            padding: 3px 8px !important;
+            border-radius: 4px;
+            font-size: 10.5px !important;
+            display: inline-block;
+        }
+        .bg-success {
+            background: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1.5px solid #059669 !important;
+        }
+        .bg-warning {
+            background: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1.5px solid #d97706 !important;
+        }
+        .bg-danger {
+            background: #fee2e2 !important;
+            color: #991b1b !important;
+            border: 1.5px solid #dc2626 !important;
+        }
+        .progress {
+            height: 9px !important;
+            border-radius: 4px;
+            background-color: #e2e8f0 !important;
+            overflow: hidden;
+            display: flex;
+        }
+        .progress-bar {
+            height: 100%;
+        }
+
+        @media print {
+            @page {
+                size: auto;
+                margin: 0mm !important;
+            }
+            html, body {
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .action-toolbar, .no-print {
+                display: none !important;
+            }
+            .normal-page-card {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 10mm 12mm 10mm 12mm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-tasks"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        <div class="preview-header">
+            <div class="preview-company">${branchTitle.toUpperCase()}</div>
+            <div class="preview-title">PO vs Gatepass Report</div>
+            <div class="preview-period">For The Period: ${periodStr}</div>
+            <div class="preview-divider"></div>
+        </div>
+        ${summaryHtml}
+        ${tableHtml}
+    </div>
+</body>
+</html>`);
+                win.document.close();
+                win.focus();
+                return;
+            }
+            window.print();
         };
     });
 </script>

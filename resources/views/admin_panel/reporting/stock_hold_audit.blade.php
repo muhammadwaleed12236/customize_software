@@ -142,6 +142,92 @@
         padding: 10px 8px;
         border: 1px solid #1e3a5f;
     }
+
+    /* ── High-Contrast Dark Print Styles ──── */
+    @media print {
+        @page {
+            size: auto;
+            margin: 0mm !important;
+        }
+
+        form, .btn, .rpt-header-bar, .card-footer,
+        .no-print, .main-footer, .footer, .rt_nav_header, .nav-bottom, .navbar, .header, .sidebar, .sidebar-menu, .header-area {
+            display: none !important;
+        }
+
+        body, html, .main-content, .rpt-wrapper, .container-fluid {
+            background: #fff !important;
+            color: #000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .main-content {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        #auditTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+        }
+
+        #auditTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 10.5px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 7px 6px !important;
+            text-transform: uppercase !important;
+        }
+
+        #auditTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            font-size: 11px !important;
+            padding: 6px 8px !important;
+            vertical-align: middle !important;
+        }
+
+        #auditTable strong.text-dark {
+            color: #000000 !important;
+            font-weight: 800 !important;
+        }
+
+        #auditTable .text-primary {
+            color: #000000 !important;
+            font-weight: 800 !important;
+        }
+
+        #auditTable .text-success {
+            color: #047857 !important;
+            font-weight: 800 !important;
+        }
+
+        #auditTable .text-muted {
+            color: #1e293b !important;
+            font-weight: 600 !important;
+        }
+
+        .badge {
+            font-weight: 800 !important;
+            border-width: 1.5px !important;
+            padding: 2px 6px !important;
+            font-size: 10px !important;
+            border-radius: 4px;
+        }
+    }
 </style>
 
 <div class="main-content">
@@ -162,6 +248,9 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold no-print" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <a href="{{ route('report.stock.hold.audit.export', request()->query()) }}" class="btn btn-sm btn-light font-weight-bold text-dark border">
                         <i class="fas fa-file-excel mr-1 text-success"></i> Export CSV
                     </a>
@@ -364,4 +453,292 @@
         </div>
     </div>
 </div>
+@endsection
+
+@section('js')
+<script>
+function openPrintPreview() {
+    const tableEl = document.getElementById('auditTable');
+    if (!tableEl) return;
+
+    const tbody = tableEl.querySelector('tbody');
+    if (tbody && (tbody.children.length === 0 || tbody.textContent.includes('No stock hold audit records found'))) {
+        alert('Report data is empty. Please adjust your filters.');
+        return;
+    }
+
+    const clone = tableEl.cloneNode(true);
+    const tableHtml = clone.outerHTML;
+
+    const docTitle = 'Stock Hold Audit Report';
+    const custTitle = $('select[name="customer_id"] option:selected').text().trim() || 'All Customers';
+    const fullTitle = `${docTitle} - ${custTitle}`;
+
+    const refNo = $('input[name="invoice_no"]').val();
+    const dFrom = $('input[name="date_from"]').val();
+    const dTo = $('input[name="date_to"]').val();
+    let periodParts = [];
+    if (dFrom && dTo) periodParts.push(`Period: ${dFrom} to ${dTo}`);
+    else if (dFrom) periodParts.push(`From: ${dFrom}`);
+    else if (dTo) periodParts.push(`To: ${dTo}`);
+    else periodParts.push('All Dates');
+
+    if (custTitle && custTitle !== 'All Customers') periodParts.push(`Customer: ${custTitle}`);
+    if (refNo) periodParts.push(`Ref: ${refNo}`);
+    const periodStr = periodParts.join(' | ');
+
+    // Summary stats
+    const kpiElements = document.querySelectorAll('.rpt-kpi-card');
+    let summaryHtml = '';
+    if (kpiElements && kpiElements.length >= 4) {
+        const avail = kpiElements[0].querySelector('.rpt-kpi-val')?.textContent.trim() || '0.00';
+        const deliv = kpiElements[1].querySelector('.rpt-kpi-val')?.textContent.trim() || '0.00';
+        const rem   = kpiElements[2].querySelector('.rpt-kpi-val')?.textContent.trim() || '0.00';
+        const val   = kpiElements[3].querySelector('.rpt-kpi-val')?.textContent.trim() || '0.00';
+
+        summaryHtml = `
+            <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:16px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; padding:10px 16px;">
+                <div>
+                    <span style="font-size:10.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Total Available:</span>
+                    <span style="font-size:14px; font-weight:800; color:#0f172a; margin-left:6px;">${avail}</span>
+                </div>
+                <div>
+                    <span style="font-size:10.5px; font-weight:700; color:#d97706; text-transform:uppercase;">Total Delivered:</span>
+                    <span style="font-size:14px; font-weight:800; color:#d97706; margin-left:6px;">${deliv}</span>
+                </div>
+                <div>
+                    <span style="font-size:10.5px; font-weight:700; color:#047857; text-transform:uppercase;">Remaining Hold:</span>
+                    <span style="font-size:14px; font-weight:800; color:#047857; margin-left:6px;">${rem}</span>
+                </div>
+                <div>
+                    <span style="font-size:10.5px; font-weight:700; color:#7c3aed; text-transform:uppercase;">Inventory Value:</span>
+                    <span style="font-size:14px; font-weight:800; color:#7c3aed; margin-left:6px;">${val}</span>
+                </div>
+            </div>
+        `;
+    }
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 1350px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 1350px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            padding: 28px 32px;
+            box-sizing: border-box;
+        }
+
+        .preview-header {
+            margin-bottom: 16px;
+        }
+        .preview-company {
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            color: #000000;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .preview-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #000000;
+            margin-bottom: 3px;
+            letter-spacing: -0.01em;
+        }
+        .preview-period {
+            font-size: 12.5px;
+            color: #1e293b;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .preview-divider {
+            border-bottom: 2.5px solid #000000;
+            margin-bottom: 14px;
+        }
+
+        #auditTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+            font-size: 11.5px !important;
+        }
+        #auditTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 10.5px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 7px 6px !important;
+            text-transform: uppercase !important;
+        }
+        #auditTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            padding: 6px 8px !important;
+            vertical-align: middle !important;
+        }
+        #auditTable strong.text-dark {
+            color: #000000 !important;
+            font-weight: 800 !important;
+        }
+        #auditTable .text-primary {
+            color: #000000 !important;
+            font-weight: 800 !important;
+        }
+        #auditTable .text-muted {
+            color: #1e293b !important;
+            font-weight: 600 !important;
+        }
+        #auditTable .text-success {
+            color: #047857 !important;
+            font-weight: 800 !important;
+        }
+
+        .badge {
+            font-weight: 800 !important;
+            border-width: 1.5px !important;
+            padding: 3px 8px !important;
+            border-radius: 4px;
+            font-size: 10px !important;
+            display: inline-block;
+        }
+        .badge-success {
+            background: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1.5px solid #059669 !important;
+        }
+        .badge-warning {
+            background: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1.5px solid #d97706 !important;
+        }
+        .badge-primary {
+            background: #e0e7ff !important;
+            color: #3730a3 !important;
+            border: 1.5px solid #6366f1 !important;
+        }
+        .badge-light {
+            background: #f1f5f9 !important;
+            color: #0f172a !important;
+            border: 1.5px solid #94a3b8 !important;
+        }
+
+        @media print {
+            @page {
+                size: auto;
+                margin: 0mm !important;
+            }
+            html, body {
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .action-toolbar, .no-print {
+                display: none !important;
+            }
+            .normal-page-card {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 10mm 12mm 10mm 12mm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-lock"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        <div class="preview-header">
+            <div class="preview-company">AMEEN & SONS CORPORATE ERP</div>
+            <div class="preview-title">Stock Hold Audit Report</div>
+            <div class="preview-period">${periodStr}</div>
+            <div class="preview-divider"></div>
+        </div>
+        ${summaryHtml}
+        ${tableHtml}
+    </div>
+</body>
+</html>`);
+        win.document.close();
+        win.focus();
+        return;
+    }
+    window.print();
+}
+</script>
 @endsection
