@@ -16,6 +16,7 @@ class StockTransfer extends Model
         'to_shop',
         'product_id',
         'quantity',
+        'transfer_date',
         'remarks',
         // New fields for approval workflow
         'status',
@@ -26,6 +27,7 @@ class StockTransfer extends Model
 
     protected $casts = [
         'approved_at' => 'datetime',
+        'transfer_date' => 'datetime',
     ];
 
     // Relationships

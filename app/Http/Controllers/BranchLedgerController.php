@@ -287,10 +287,22 @@ class BranchLedgerController extends Controller
 
         // Apply date range filters
         if ($request->filled('from_date')) {
-            $query->whereDate('created_at', '>=', $request->from_date);
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('transfer_date', '>=', $request->from_date)
+                  ->orWhere(function ($sub) use ($request) {
+                      $sub->whereNull('transfer_date')
+                          ->whereDate('created_at', '>=', $request->from_date);
+                  });
+            });
         }
         if ($request->filled('to_date')) {
-            $query->whereDate('created_at', '<=', $request->to_date);
+            $query->where(function ($q) use ($request) {
+                $q->whereDate('transfer_date', '<=', $request->to_date)
+                  ->orWhere(function ($sub) use ($request) {
+                      $sub->whereNull('transfer_date')
+                          ->whereDate('created_at', '<=', $request->to_date);
+                  });
+            });
         }
 
         $transfers = $query->paginate(50);

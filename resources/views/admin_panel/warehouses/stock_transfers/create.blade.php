@@ -89,39 +89,47 @@ textarea.f-control { resize:vertical; }
                 <form action="{{ route('stock_transfers.store') }}" method="POST" id="transferForm" autocomplete="off">
                 @csrf
 
-                {{-- ══════════ SECTION 1: BRANCH (Super Admin only) ══════════ --}}
-                @if($isSuperAdmin)
+                {{-- ══════════ SECTION 1: BRANCH & DATE SELECTION ══════════ --}}
                 <div class="st-section">
                     <div class="st-section-title">
-                        <span class="badge-num">1</span> Branch Selection
+                        <span class="badge-num">1</span> {{ $isSuperAdmin ? 'Branch & Transfer Details' : 'Transfer Details' }}
                     </div>
                     <div class="row g-3">
-                        <div class="col-md-5">
+                        @if($isSuperAdmin)
+                        <div class="col-md-4">
                             <label class="f-label"><i class="fas fa-code-branch me-1 text-primary"></i> Select Branch <span class="text-danger">*</span></label>
                             <select name="branch_id" id="branch_id_select" class="f-control" required>
-                    <option value="">— Select Branch —</option>
-                    @foreach($branches as $b)
-                        <option value="{{ $b->id }}">🏪 {{ $b->name ?? $b->branch_name ?? 'Branch #'.$b->id }}</option>
-                    @endforeach
-                </select>
-            </div>
-            <div class="col-md-7 d-flex align-items-end">
-                <div class="st-alert st-alert-info w-100" id="branch_hint" style="display:block; margin-bottom:0;">
-                    <i class="fas fa-info-circle me-1"></i> Select a branch first — product source locations will load based on that branch's stock.
+                                <option value="">— Select Branch —</option>
+                                @foreach($branches as $b)
+                                    <option value="{{ $b->id }}">🏪 {{ $b->name ?? $b->branch_name ?? 'Branch #'.$b->id }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="f-label"><i class="fas fa-calendar-alt me-1 text-primary"></i> Transfer Date <span class="text-danger">*</span></label>
+                            <input type="date" name="transfer_date" id="transfer_date" class="f-control" value="{{ date('Y-m-d') }}" required>
+                        </div>
+                        <div class="col-md-5 d-flex align-items-end">
+                            <div class="st-alert st-alert-info w-100" id="branch_hint" style="display:block; margin-bottom:0; padding:9px 12px; font-size:.82rem;">
+                                <i class="fas fa-info-circle me-1"></i> Select a branch first — product source locations will load based on that branch's stock.
+                            </div>
+                        </div>
+                        @else
+                        <input type="hidden" name="branch_id" value="{{ $currentBranchId }}">
+                        <div class="col-md-4">
+                            <label class="f-label"><i class="fas fa-calendar-alt me-1 text-primary"></i> Transfer Date <span class="text-danger">*</span></label>
+                            <input type="date" name="transfer_date" id="transfer_date" class="f-control" value="{{ date('Y-m-d') }}" required>
+                        </div>
+                        @endif
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
-    @else
-    <input type="hidden" name="branch_id" value="{{ $currentBranchId }}">
-    @endif
 
-    {{-- ══════════ SECTION 2: ITEMS TO TRANSFER ══════════ --}}
-    <div class="st-section">
-        <div class="st-section-title">
-            <span class="badge-num">{{ $isSuperAdmin ? 2 : 1 }}</span> Items to Transfer
-            <span style="font-size:.75rem; color:#6b7280; font-weight:500; text-transform:none;">Select product → choose source location → enter quantity</span>
-        </div>
+                {{-- ══════════ SECTION 2: ITEMS TO TRANSFER ══════════ --}}
+                <div class="st-section">
+                    <div class="st-section-title">
+                        <span class="badge-num">2</span> Items to Transfer
+                        <span style="font-size:.75rem; color:#6b7280; font-weight:500; text-transform:none;">Select product → choose source location → enter quantity</span>
+                    </div>
 
         <div class="st-alert st-alert-err" id="stock_alert"></div>
 
@@ -176,7 +184,7 @@ textarea.f-control { resize:vertical; }
     {{-- ══════════ SECTION 3: DESTINATION ══════════ --}}
     <div class="st-section">
         <div class="st-section-title">
-            <span class="badge-num">{{ $isSuperAdmin ? 3 : 2 }}</span> Transfer Destination
+            <span class="badge-num">3</span> Transfer Destination
         </div>
         <div class="row g-3">
             <div class="col-md-4">
@@ -215,7 +223,7 @@ textarea.f-control { resize:vertical; }
     {{-- ══════════ SECTION 4: REMARKS ══════════ --}}
     <div class="st-section">
         <div class="st-section-title">
-            <span class="badge-num">{{ $isSuperAdmin ? 4 : 3 }}</span> Remarks / Notes
+            <span class="badge-num">4</span> Remarks / Notes
         </div>
         <textarea name="remarks" rows="3" class="f-control" placeholder="Transfer reason, instructions, or any internal notes…"></textarea>
     </div>
@@ -469,6 +477,13 @@ $(function () {
             return false;
         }
         @endif
+
+        if (!$('#transfer_date').val()) {
+            e.preventDefault();
+            alert('❌ Please select a transfer date.');
+            $('#transfer_date').focus();
+            return false;
+        }
 
         const toType = $('input[name="to_type"]:checked').val();
         const toWarehouse = $('#to_location_id').val();

@@ -319,7 +319,7 @@
                                     <tr>
                                         <td style="white-space: nowrap; font-size: 11.5px;">
                                             <i class="far fa-calendar-alt text-muted mr-1"></i>
-                                            {{ $transfer->created_at->format('d-M-Y H:i') }}
+                                            {{ \Carbon\Carbon::parse($transfer->transfer_date ?? $transfer->created_at)->format('d-M-Y H:i') }}
                                         </td>
                                         <td class="text-center">
                                             @if ($transfer->from_branch_id == $branch->id)

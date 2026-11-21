@@ -182,14 +182,14 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4);" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <button type="button" onclick="shareWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
                     <button type="button" onclick="showExportOptions()" class="btn btn-sm btn-light font-weight-bold text-dark border">
                         <i class="fas fa-download mr-1 text-primary"></i> Export
-                    </button>
-                    <button type="button" onclick="window.print()" class="btn btn-sm btn-outline-light font-weight-bold">
-                        <i class="fas fa-print mr-1"></i> Print
                     </button>
                 </div>
             </div>
@@ -414,6 +414,110 @@
                 </div>
             </div>
 
+            {{-- ── Formal Clean Print Document (Used for Preview & Print) ── --}}
+            <div id="formalPrintDoc" style="display:none;">
+                <div class="print-doc-header">
+                    <div class="print-company-title" id="p_branch_title">ALL BRANCHES</div>
+                    <div class="print-doc-title">Inventory On-Hand Report</div>
+                    <div class="print-doc-period" id="p_doc_period">Real-time Stock Availability Status</div>
+                    <div class="print-top-divider"></div>
+                </div>
+
+                <table class="print-tb-table">
+                    <colgroup>
+                        <col style="width: 3%;">
+                        <col style="width: 12%;">
+                        <col style="width: 25%;">
+                        <col style="width: 12%;">
+                        <col style="width: 11%;">
+                        <col style="width: 11%;">
+                        <col style="width: 7%;">
+                        <col style="width: 7%;">
+                        <col style="width: 12%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th style="text-align:center;">#</th>
+                            <th>Item Code</th>
+                            <th>Product Name</th>
+                            <th>Category</th>
+                            <th>Brand</th>
+                            <th>Model</th>
+                            <th style="text-align:center;">UOM</th>
+                            <th style="text-align:center;">Status</th>
+                            <th style="text-align:right;">On-Hand Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody id="p_onhand_tbody">
+                        @forelse($rows as $i => $r)
+                        @php
+                            $qty = (float)($r->onhand_qty ?? 0);
+                            $status = $r->is_part ? 'Part' : ($r->is_assembled ? 'Assembled' : 'Simple');
+                        @endphp
+                        <tr>
+                            <td style="text-align:center; color:#64748b;">{{ $i + 1 }}</td>
+                            <td style="font-weight:700; font-family:monospace; color:#1e3a5f;">{{ $r->item_code }}</td>
+                            <td style="font-weight:700; color:#0f172a;">{{ $r->item_name }}</td>
+                            <td>{{ $r->category_name ?: '—' }}</td>
+                            <td>{{ $r->brand_name ?: '—' }}</td>
+                            <td>{{ $r->model ?: '—' }}</td>
+                            <td style="text-align:center;">{{ $r->unit_name ?: 'Piece' }}</td>
+                            <td style="text-align:center;"><span style="font-size:8pt; font-weight:700; padding:1px 6px; border:1px solid #cbd5e1; border-radius:3px;">{{ $status }}</span></td>
+                            <td class="num-cell" style="font-weight:700; color: {{ $qty > 0 ? '#047857' : '#dc2626' }};">{{ number_format($qty, 2) }}</td>
+                        </tr>
+                        @empty
+                        <tr>
+                            <td colspan="9" style="text-align:center; padding:18px; color:#64748b;">No stock items found for selected filter criteria.</td>
+                        </tr>
+                        @endforelse
+                    </tbody>
+                    <tfoot>
+                        <tr class="p-tfoot">
+                            <td colspan="8" style="text-align:right; font-weight:800; padding-right:10px;">TOTAL ON-HAND:</td>
+                            <td class="num-cell" style="font-weight:800; color:#047857;" id="p_foot_total_qty">{{ number_format($totalQty, 2) }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="print-doc-footer">
+                    <div class="print-footer-info">
+                        <span>Printed on: <span id="p_print_time">{{ date('d M Y h:i A') }}</span></span>
+                        <span>Inventory Valuation &amp; Stock Availability</span>
+                        <span>ERP System &mdash; Financial &amp; Stock Report</span>
+                    </div>
+                    <div class="print-sign-row">
+                        <div class="print-sign-box">Prepared By</div>
+                        <div class="print-sign-box">Store In-Charge</div>
+                        <div class="print-sign-box">Approved By</div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ── Full-Page Clean Print Preview Modal ──── --}}
+            <div id="reportPreviewModal" class="report-preview-overlay" style="display:none;" onclick="if(event.target===this) closePrintPreview()">
+                <div class="report-preview-topbar">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge badge-light text-dark font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                            <i class="fas fa-eye mr-1 text-primary"></i> PREVIEW
+                        </span>
+                        <span style="font-weight:700; font-size:14px; letter-spacing:.02em;">Inventory On-Hand Report &mdash; Print Document Preview</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-light font-weight-bold text-dark" onclick="printFromPreview()">
+                            <i class="fas fa-print mr-1 text-primary"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light font-weight-bold" onclick="closePrintPreview()">
+                            <i class="fas fa-times mr-1"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="report-preview-body">
+                    <div class="report-preview-paper" id="previewPaperContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+
         </div>
     </div>
 </div>
@@ -422,12 +526,80 @@
 @section('css')
 <style>
     .lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
-    
+
+    /* ── Formal Print Document Styles ──── */
+    #formalPrintDoc {
+        display: none;
+        background: #fff;
+        color: #000;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .print-doc-header { margin-bottom: 8px; }
+    .print-company-title { font-size: 14pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+    .print-doc-title { font-size: 19pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+    .print-doc-period { font-size: 10pt; font-weight: 600; color: #1e293b; }
+    .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 10px; }
+
+    .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 9pt !important; margin-bottom: 12px !important; color: #000 !important; }
+    .print-tb-table thead { display: table-header-group !important; }
+    .print-tb-table th { border-top: 1.5px solid #000 !important; border-bottom: 1.5px solid #000 !important; padding: 6px 4px !important; background: #f8fafc !important; font-weight: 800 !important; color: #000 !important; font-size: 8pt !important; text-transform: uppercase !important; vertical-align: middle !important; }
+    .print-tb-table td { border-bottom: 1px solid #cbd5e1 !important; padding: 5px 4px !important; vertical-align: middle !important; color: #000 !important; font-size: 8.5pt !important; line-height: 1.25 !important; overflow: hidden; word-wrap: break-word; }
+    .print-tb-table tr { page-break-inside: avoid !important; }
+    .print-tb-table .num-cell { text-align: right !important; font-variant-numeric: tabular-nums !important; font-feature-settings: "tnum" !important; white-space: nowrap !important; font-size: 8.5pt !important; letter-spacing: -0.01em !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
+    .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000 !important; border-bottom: 3px double #000 !important; font-weight: 800 !important; padding: 7px 4px !important; background: #fff !important; font-size: 9pt !important; color: #000 !important; }
+
+    .print-doc-footer { margin-top: 22px; font-size: 8.5pt; color: #000; page-break-inside: avoid; }
+    .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 5px; margin-bottom: 36px; font-weight: 600; color: #000; font-size: 8pt; }
+    .print-sign-row { display: flex; justify-content: space-between; padding: 0 15px; }
+    .print-sign-box { border-top: 1.5px dashed #000; width: 140px; text-align: center; padding-top: 5px; font-size: 8.5pt; font-weight: 700; color: #000; }
+
+    /* ── Full-Page Clean Report Preview Overlay ──── */
+    .report-preview-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100vw; height: 100vh;
+        background: #f1f5f9;
+        z-index: 99999;
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+    .report-preview-topbar {
+        height: 52px; background: #0f1f38; color: #fff;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); flex-shrink: 0;
+    }
+    .report-preview-body {
+        flex: 1; overflow-y: auto; overflow-x: auto;
+        padding: 24px 20px 50px 20px;
+        display: flex; justify-content: center;
+    }
+    .report-preview-paper {
+        background: #ffffff;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 30px 32px;
+        width: 100%; max-width: 950px;
+        height: max-content; box-sizing: border-box;
+    }
+
     @media print {
-        #onhandFilterForm, .btn, .rpt-header-bar, .rpt-kpi-grid { display: none !important; }
-        .main-content { padding: 0 !important; margin-top:0 !important; }
-        .card { border: none !important; box-shadow: none !important; }
-        #reportContent { overflow: visible !important; }
+        @page {
+            size: A4 portrait;
+            margin: 6mm 6mm 6mm 6mm !important;
+        }
+        body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+        .main-content { padding: 0 !important; margin: 0 !important; }
+        .rpt-wrapper, .navbar, .sidebar, .rpt-header-bar, #onhandFilterForm, .rpt-kpi-grid, #reportContent, .no-print, .btn, .card {
+            display: none !important;
+        }
+        #formalPrintDoc {
+            display: block !important;
+            padding: 0 !important; margin: 0 !important;
+            width: 100% !important; max-width: 100% !important;
+        }
+        .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+        .print-tb-table th, .print-tb-table td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     }
 </style>
 @endsection
@@ -612,6 +784,9 @@
                 filterDesc.push('Status: ' + $('#filter_stock_status option:selected').text().trim());
             }
             $('#pdfFilterInfo').text(filterDesc.length > 0 ? filterDesc.join(' | ') : 'All Branches & Warehouses');
+
+            // Synchronize formal print document
+            renderFormalPrintDoc(data);
         }
         
         /* ---------- WhatsApp Share ---------- */
@@ -755,6 +930,257 @@
             a.click();
             document.body.removeChild(a);
         };
+    });
+
+    function renderFormalPrintDoc(data) {
+        const rows = data.rows || [];
+        const totalQty = parseFloat(data.totalQty || 0);
+
+        // Branch title
+        let branchName = 'ALL BRANCHES';
+        const branchSelect = document.getElementById('filter_branch');
+        if (branchSelect && branchSelect.tagName === 'SELECT' && branchSelect.value !== 'all' && branchSelect.selectedIndex >= 0) {
+            branchName = branchSelect.options[branchSelect.selectedIndex].text.trim();
+        }
+        const branchEl = document.getElementById('p_branch_title');
+        if (branchEl) branchEl.textContent = branchName.toUpperCase();
+
+        // Filters subtitle
+        let filterParts = [];
+        const whSelect = document.getElementById('filter_warehouse');
+        if (whSelect && whSelect.value !== 'all' && whSelect.selectedIndex >= 0) {
+            filterParts.push('Warehouse: ' + whSelect.options[whSelect.selectedIndex].text.trim());
+        }
+        const catSelect = document.getElementById('filter_category');
+        if (catSelect && catSelect.value !== 'all' && catSelect.selectedIndex >= 0) {
+            filterParts.push('Category: ' + catSelect.options[catSelect.selectedIndex].text.trim());
+        }
+        const brSelect = document.getElementById('filter_brand');
+        if (brSelect && brSelect.value !== 'all' && brSelect.selectedIndex >= 0) {
+            filterParts.push('Brand: ' + brSelect.options[brSelect.selectedIndex].text.trim());
+        }
+        const modSelect = document.getElementById('filter_model');
+        if (modSelect && modSelect.value !== 'all' && modSelect.selectedIndex >= 0) {
+            filterParts.push('Model: ' + modSelect.options[modSelect.selectedIndex].text.trim());
+        }
+        const prodSelect = document.getElementById('filter_product');
+        if (prodSelect && prodSelect.value !== 'all' && prodSelect.selectedIndex >= 0) {
+            filterParts.push('Product: ' + prodSelect.options[prodSelect.selectedIndex].text.trim());
+        }
+        const statusSelect = document.getElementById('filter_stock_status');
+        if (statusSelect && statusSelect.value !== 'in_stock' && statusSelect.selectedIndex >= 0) {
+            filterParts.push('Status: ' + statusSelect.options[statusSelect.selectedIndex].text.trim());
+        }
+
+        const periodEl = document.getElementById('p_doc_period');
+        if (periodEl) {
+            periodEl.textContent = 'Real-time Stock Availability' + (filterParts.length > 0 ? ' — ' + filterParts.join(' | ') : '');
+        }
+
+        // Print timestamp
+        const now = new Date();
+        const printTimeEl = document.getElementById('p_print_time');
+        if (printTimeEl) {
+            printTimeEl.textContent = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+        }
+
+        // Render Rows
+        const tbody = document.getElementById('p_onhand_tbody');
+        if (!tbody) return;
+
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; padding:18px; color:#64748b;">No stock items found for selected filter criteria.</td></tr>';
+        } else {
+            let html = '';
+            rows.forEach((r, idx) => {
+                const qty = parseFloat(r.onhand_qty) || 0;
+                const status = (r.is_part == 1) ? 'Part' : ((r.is_assembled == 1) ? 'Assembled' : 'Simple');
+                html += `<tr>
+                    <td style="text-align:center; color:#64748b;">${idx + 1}</td>
+                    <td style="font-weight:700; font-family:monospace; color:#1e3a5f;">${r.item_code || ''}</td>
+                    <td style="font-weight:700; color:#0f172a;">${r.item_name || ''}</td>
+                    <td>${r.category_name || '—'}</td>
+                    <td>${r.brand_name || '—'}</td>
+                    <td>${r.model || '—'}</td>
+                    <td style="text-align:center;">${r.unit_name || 'Piece'}</td>
+                    <td style="text-align:center;"><span style="font-size:8pt; font-weight:700; padding:1px 6px; border:1px solid #cbd5e1; border-radius:3px;">${status}</span></td>
+                    <td class="num-cell" style="font-weight:700; color:${qty > 0 ? '#047857' : '#dc2626'};">${qty.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // Update Footer
+        const footQty = document.getElementById('p_foot_total_qty');
+        if (footQty) {
+            footQty.textContent = totalQty.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // Live sync preview if modal open
+        const previewModal = document.getElementById('reportPreviewModal');
+        if (previewModal && previewModal.style.display === 'flex') {
+            const formalDoc = document.getElementById('formalPrintDoc');
+            const paper = document.getElementById('previewPaperContent');
+            if (formalDoc && paper) {
+                paper.innerHTML = formalDoc.innerHTML;
+            }
+        }
+    }
+
+    function openPrintPreview() {
+        const formalDoc = document.getElementById('formalPrintDoc');
+        if (!formalDoc) return;
+
+        const reportHtml = formalDoc.innerHTML;
+        const branchTitle = document.getElementById('p_branch_title')?.textContent || 'Company';
+        const docTitle = 'Inventory On-Hand Report';
+        const fullTitle = `${docTitle} - ${branchTitle}`;
+
+        // 1. Try opening as a clean, full normal page in a new tab
+        const win = window.open('', '_blank');
+        if (win) {
+            win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 950px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 15px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 950px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+            border: 1px solid #cbd5e1;
+            padding: 30px 32px;
+        }
+
+        .print-doc-header { margin-bottom: 8px; }
+        .print-company-title { font-size: 14pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+        .print-doc-title { font-size: 19pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+        .print-doc-period { font-size: 10pt; font-weight: 600; color: #1e293b; }
+        .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 10px; }
+
+        .print-tb-table { width: 100%; border-collapse: collapse; font-size: 9pt; margin-bottom: 12px; color: #000; table-layout: fixed; }
+        .print-tb-table thead { display: table-header-group; }
+        .print-tb-table th { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 6px 4px; background: #f8fafc; font-weight: 800; color: #000; font-size: 8pt; text-transform: uppercase; vertical-align: middle; }
+        .print-tb-table td { border-bottom: 1px solid #cbd5e1; padding: 5px 4px; vertical-align: middle; color: #000; font-size: 8.5pt; line-height: 1.25; overflow: hidden; word-wrap: break-word; }
+        .print-tb-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; white-space: nowrap; font-size: 8.5pt; letter-spacing: -0.01em; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000; border-bottom: 3px double #000; font-weight: 800; padding: 7px 4px; background: #fff; font-size: 9pt; color: #000; }
+
+        .print-doc-footer { margin-top: 22px; font-size: 8.5pt; color: #000; }
+        .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 5px; margin-bottom: 36px; font-weight: 600; color: #000; font-size: 8pt; }
+        .print-sign-row { display: flex; justify-content: space-between; padding: 0 15px; }
+        .print-sign-box { border-top: 1.5px dashed #000; width: 140px; text-align: center; padding-top: 5px; font-size: 8.5pt; font-weight: 700; color: #000; }
+
+        @media print {
+            @page {
+                size: A4 portrait;
+                margin: 6mm 6mm 6mm 6mm !important;
+            }
+            body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+            .action-toolbar, .no-print { display: none !important; }
+            .normal-page-card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 !important; }
+            .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+            .print-tb-table th, .print-tb-table td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-boxes"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        ${reportHtml}
+    </div>
+</body>
+</html>`);
+            win.document.close();
+            win.focus();
+            return;
+        }
+
+        // 2. Fallback if popups blocked
+        const paper = document.getElementById('previewPaperContent');
+        const modal = document.getElementById('reportPreviewModal');
+        if (paper && modal) {
+            paper.innerHTML = reportHtml;
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
+        }
+    }
+
+    function closePrintPreview() {
+        const modal = document.getElementById('reportPreviewModal');
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    }
+
+    function printFromPreview() {
+        window.print();
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closePrintPreview();
     });
 </script>
 @endsection

@@ -185,6 +185,159 @@
         color: #991b1b;
         border: 1px solid #fecaca;
     }
+
+    /* ── High-Contrast Dark Print Styles for Original Table ──── */
+    @media print {
+        @page {
+            size: auto;
+            margin: 0mm !important;
+        }
+
+        /* Hide screen & navigation UI */
+        #filterForm, .btn, .rpt-header-bar, .rpt-kpi-grid, #reportBox > .rpt-kpi-grid,
+        .action-col, #loader, .modal, .modal-backdrop, #reportPreviewModal,
+        .no-print, .main-footer, .footer, .rt_nav_header, .nav-bottom, .navbar, .header, .sidebar, .sidebar-menu, .header-area {
+            display: none !important;
+        }
+
+        body, html, .main-content, .rpt-wrapper, .container-fluid {
+            background: #fff !important;
+            color: #000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .main-content {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .card {
+            border: none !important;
+            box-shadow: none !important;
+        }
+
+        #reportContent {
+            overflow: visible !important;
+            display: block !important;
+            padding: 8mm 6mm !important;
+            border: none !important;
+        }
+
+        #reportContent .card-body {
+            padding: 0 !important;
+        }
+
+        /* DARK & CRISP ORIGINAL TABLE PRINT STYLES */
+        #reportTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+        }
+
+        #reportTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 11px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 8px 10px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.03em !important;
+        }
+
+        #reportTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            padding: 7px 10px !important;
+            font-size: 11.5px !important;
+            vertical-align: middle !important;
+        }
+
+        #reportTable tbody td .text-muted {
+            color: #1e293b !important;
+            font-weight: 600 !important;
+        }
+
+        #reportTable tbody td .font-monospace {
+            color: #000000 !important;
+            font-weight: 800 !important;
+        }
+
+        #reportTable tbody td .font-weight-bold.text-dark {
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 12px !important;
+        }
+
+        #reportTable tbody td .text-success {
+            color: #047857 !important;
+            font-weight: 800 !important;
+        }
+
+        #reportTable tbody td .text-danger {
+            color: #dc2626 !important;
+            font-weight: 800 !important;
+        }
+
+        /* Status Badges - Dark & Crisp */
+        .status-badge {
+            font-weight: 800 !important;
+            border-width: 1.5px !important;
+            padding: 3px 8px !important;
+            font-size: 11px !important;
+            border-radius: 4px !important;
+            display: inline-block !important;
+        }
+        .badge-paid {
+            background: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1.5px solid #059669 !important;
+        }
+        .badge-partial {
+            background: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1.5px solid #d97706 !important;
+        }
+        .badge-due {
+            background: #fee2e2 !important;
+            color: #991b1b !important;
+            border: 1.5px solid #dc2626 !important;
+        }
+
+        /* Grand Totals Footer - Dark & Bold */
+        #reportFooter {
+            display: table-footer-group !important;
+        }
+        #reportFooter tr {
+            border-top: 2px solid #000000 !important;
+            border-bottom: 3.5px double #000000 !important;
+            background: #f8fafc !important;
+        }
+        #reportFooter td {
+            border: 1.5px solid #000000 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 12.5px !important;
+            padding: 8px 10px !important;
+        }
+        #reportFooter #footerTotalNet {
+            color: #000000 !important;
+            font-weight: 900 !important;
+        }
+        #reportFooter #footerTotalPaid {
+            color: #047857 !important;
+            font-weight: 900 !important;
+        }
+        #reportFooter #footerTotalDue {
+            color: #dc2626 !important;
+            font-weight: 900 !important;
+        }
+    }
 </style>
 
 <div class="main-content">
@@ -205,6 +358,9 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold no-print" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <button type="button" id="waShareBtn" onclick="shareWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
@@ -365,7 +521,7 @@
                     </div>
                 </div>
 
-            </div>
+            </div>{{-- /#reportBox --}}
 
         </div>
     </div>
@@ -449,14 +605,6 @@
 @endsection
 
 @section('css')
-<style>
-    @media print {
-        #filterForm, .btn, .rpt-header-bar, .rpt-kpi-grid, .action-col { display: none !important; }
-        .main-content { padding: 0 !important; margin-top:0 !important; }
-        .card { border: none !important; box-shadow: none !important; }
-        #reportContent { overflow: visible !important; }
-    }
-</style>
 @endsection
 
 @section('js')
@@ -533,7 +681,7 @@ $(document).ready(function() {
             tbody.append('<tr><td colspan="8" class="text-center py-5 text-muted">No local purchases found for the selected criteria.</td></tr>');
             $('#reportFooter').hide();
         } else {
-            res.data.forEach(p => {
+            res.data.forEach((p, idx) => {
                 let statusClass = 'badge-due';
                 if (p.status === 'Paid') statusClass = 'badge-paid';
                 else if (p.status === 'Partial') statusClass = 'badge-partial';
@@ -913,6 +1061,302 @@ $(document).ready(function() {
         a.click();
         document.body.removeChild(a);
     };
+
+    /* ---------- Clean Full-Page Print Preview ---------- */
+    window.openPrintPreview = function() {
+        const reportBox = document.getElementById('reportContent');
+        if (!reportBox) return;
+
+        const tbody = reportBox.querySelector('#reportTableBody');
+        if (tbody && tbody.children.length === 0) {
+            alert('Report data is still loading or empty. Please wait a moment or click Apply Filters.');
+            return;
+        }
+
+        const clone = reportBox.cloneNode(true);
+        $(clone).find('.action-col').remove();
+        $(clone).find('#pdfHeader').remove();
+        const tableHtml = clone.innerHTML;
+
+        const branchTitle = $('#branch_id option:selected').text().trim() || 'All Branches';
+        const docTitle = 'Local Purchase & Market Report';
+        const fullTitle = `${docTitle} - ${branchTitle}`;
+        const sDate = $('#start_date').val();
+        const eDate = $('#end_date').val();
+        const shopText = $('#shop_name').val();
+        let periodStr = (sDate && eDate) ? `${sDate} to ${eDate}` : 'All Dates';
+        if (shopText && shopText !== '-- All Shops / Markets --') {
+            periodStr += ` | Shop: ${shopText}`;
+        }
+
+        // 1. Try opening as a clean, full normal page in a new tab
+        const win = window.open('', '_blank');
+        if (win) {
+            win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 1200px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            border: 1.5px solid #cbd5e1;
+            padding: 28px 34px;
+            box-sizing: border-box;
+        }
+
+        .preview-header { margin-bottom: 14px; }
+        .preview-company { font-size: 14pt; font-weight: 800; color: #000; text-transform: uppercase; margin-bottom: 2px; }
+        .preview-title { font-size: 18pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+        .preview-period { font-size: 10.5pt; font-weight: 700; color: #1e293b; }
+        .preview-divider { border-bottom: 2.5px solid #000; margin-top: 6px; margin-bottom: 14px; }
+
+        /* DARK & CRISP ORIGINAL TABLE STYLES IN PREVIEW */
+        #reportTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+            font-size: 12px;
+        }
+        #reportTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 11px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 8px 10px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.03em !important;
+        }
+        #reportTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            padding: 7px 10px !important;
+            font-size: 11.5px !important;
+            vertical-align: middle;
+        }
+        #reportTable tbody td .text-muted {
+            color: #1e293b !important;
+            font-weight: 600 !important;
+        }
+        #reportTable tbody td .font-monospace {
+            color: #000000 !important;
+            font-weight: 800 !important;
+        }
+        #reportTable tbody td .font-weight-bold.text-dark {
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 12px !important;
+        }
+        #reportTable tbody td .text-success {
+            color: #047857 !important;
+            font-weight: 800 !important;
+        }
+        #reportTable tbody td .text-danger {
+            color: #dc2626 !important;
+            font-weight: 800 !important;
+        }
+
+        .status-badge {
+            font-weight: 800 !important;
+            border-width: 1.5px !important;
+            padding: 3px 8px !important;
+            border-radius: 4px;
+            font-size: 11px !important;
+            display: inline-block;
+        }
+        .badge-paid {
+            background: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1.5px solid #059669 !important;
+        }
+        .badge-partial {
+            background: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1.5px solid #d97706 !important;
+        }
+        .badge-due {
+            background: #fee2e2 !important;
+            color: #991b1b !important;
+            border: 1.5px solid #dc2626 !important;
+        }
+
+        #reportFooter tr {
+            border-top: 2px solid #000000 !important;
+            border-bottom: 3.5px double #000000 !important;
+            background: #f8fafc !important;
+        }
+        #reportFooter td {
+            border: 1.5px solid #000000 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 12.5px !important;
+            padding: 8px 10px !important;
+        }
+        #reportFooter #footerTotalNet {
+            color: #000000 !important;
+            font-weight: 900 !important;
+        }
+        #reportFooter #footerTotalPaid {
+            color: #047857 !important;
+            font-weight: 900 !important;
+        }
+        #reportFooter #footerTotalDue {
+            color: #dc2626 !important;
+            font-weight: 900 !important;
+        }
+
+        @media print {
+            @page {
+                size: auto;
+                margin: 0mm !important;
+            }
+            html, body {
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .action-toolbar, .no-print {
+                display: none !important;
+            }
+            .normal-page-card {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 10mm 12mm 10mm 12mm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-store-alt"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="printDoc()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        <div class="preview-header">
+            <div class="preview-company">${branchTitle.toUpperCase()}</div>
+            <div class="preview-title">Local Purchase & Market Report</div>
+            <div class="preview-period">For The Period: ${periodStr}</div>
+            <div class="preview-divider"></div>
+        </div>
+        ${tableHtml}
+    </div>
+    <script>
+        function printDoc() {
+            document.title = '';
+            window.print();
+        }
+        window.addEventListener('beforeprint', function() {
+            document.title = '';
+        });
+        window.addEventListener('afterprint', function() {
+            document.title = '';
+        });
+    <\/script>
+</body>
+</html>`);
+            win.document.close();
+            win.focus();
+            return;
+        }
+
+        // 2. Fallback: direct window print
+        window.print();
+    };
+
+    window.closePrintPreview = function() {
+        const modal = document.getElementById('reportPreviewModal');
+        if (modal) {
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+        }
+    };
+
+    window.printFromPreview = function() {
+        window.print();
+    };
+
+    // Suppress browser header/footer title during direct print
+    window.addEventListener('beforeprint', function () {
+        window._savedDocTitle = document.title;
+        document.title = '';
+    });
+    window.addEventListener('afterprint', function () {
+        document.title = window._savedDocTitle || 'ERP System';
+    });
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            window.closePrintPreview();
+        }
+    });
 
     // Auto-search on start
     $('#btnSearch').trigger('click');

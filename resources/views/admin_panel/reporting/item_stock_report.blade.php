@@ -246,6 +246,85 @@
             font-size: 10px !important;
         }
     }
+
+    /* ── Formal Print Document Styles ──── */
+    #formalPrintDoc {
+        display: none;
+        background: #fff;
+        color: #000;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+    .print-doc-header { margin-bottom: 10px; }
+    .print-company-title { font-size: 15pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+    .print-doc-title { font-size: 21pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+    .print-doc-period { font-size: 11pt; font-weight: 600; color: #1e293b; }
+    .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 12px; }
+
+    .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; border-collapse: collapse !important; font-size: 10pt !important; margin-bottom: 14px !important; color: #000 !important; }
+    .print-tb-table thead { display: table-header-group !important; }
+    .print-tb-table th { border-top: 1.5px solid #000 !important; border-bottom: 1.5px solid #000 !important; padding: 8px 4px !important; background: #f8fafc !important; font-weight: 800 !important; color: #000 !important; font-size: 9pt !important; text-transform: uppercase !important; vertical-align: middle !important; line-height: 1.25 !important; }
+    .print-tb-table td { border-bottom: 1px solid #cbd5e1 !important; padding: 7px 4px !important; vertical-align: middle !important; color: #000 !important; font-size: 10pt !important; line-height: 1.3 !important; overflow: hidden; word-wrap: break-word; }
+    .print-tb-table tr { page-break-inside: avoid !important; }
+    .print-tb-table .num-cell { text-align: right !important; font-variant-numeric: tabular-nums !important; font-feature-settings: "tnum" !important; white-space: nowrap !important; font-size: 10pt !important; letter-spacing: -0.01em !important; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important; }
+    .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000 !important; border-bottom: 3px double #000 !important; font-weight: 800 !important; padding: 9px 4px !important; background: #fff !important; font-size: 10.5pt !important; color: #000 !important; }
+
+    .print-doc-footer { margin-top: 24px; font-size: 9.5pt; color: #000; page-break-inside: avoid; }
+    .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 38px; font-weight: 600; color: #000; font-size: 9pt; }
+    .print-sign-row { display: flex; justify-content: space-between; padding: 0 15px; }
+    .print-sign-box { border-top: 1.5px dashed #000; width: 140px; text-align: center; padding-top: 6px; font-size: 9.5pt; font-weight: 700; color: #000; }
+
+    /* ── Full-Page Clean Report Preview Overlay ──── */
+    .report-preview-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        width: 100vw; height: 100vh;
+        background: #f1f5f9;
+        z-index: 99999;
+        display: flex; flex-direction: column;
+        overflow: hidden;
+    }
+    .report-preview-topbar {
+        height: 52px; background: #0f1f38; color: #fff;
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 0 24px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); flex-shrink: 0;
+    }
+    .report-preview-body {
+        flex: 1; overflow-y: auto; overflow-x: auto;
+        padding: 24px 20px 50px 20px;
+        display: flex; justify-content: center;
+    }
+    .report-preview-paper {
+        background: #ffffff;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        padding: 32px 34px;
+        width: 100%; max-width: 1100px;
+        height: max-content; box-sizing: border-box;
+    }
+
+    @media print {
+        @page {
+            size: A4 landscape;
+            margin: 6mm 6mm 6mm 6mm !important;
+        }
+        body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+        .main-content { padding: 0 !important; margin: 0 !important; }
+        .rpt-wrapper, .navbar, .sidebar, .rpt-header-bar, #stockFilterForm, #kpiSummaryCards, #reportContent, .no-print, .btn, .card {
+            display: none !important;
+        }
+        #formalPrintDoc {
+            display: block !important;
+            padding: 0 !important; margin: 0 !important;
+            width: 100% !important; max-width: 100% !important;
+        }
+        .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+        .print-tb-table th { font-size: 8.5pt !important; padding: 6px 3px !important; }
+        .print-tb-table td { font-size: 9pt !important; padding: 5px 3px !important; }
+        .print-tb-table .num-cell { font-size: 9pt !important; }
+        .print-tb-table tr.p-tfoot td { font-size: 9.5pt !important; padding: 7px 3px !important; }
+        .print-tb-table th, .print-tb-table td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
 </style>
 
 <div class="main-content">
@@ -266,6 +345,9 @@
                     </div>
                 </div>
                 <div class="d-flex align-items-center gap-2">
+                    <button type="button" onclick="openPrintPreview()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(255,255,255,0.15); border-color: rgba(255,255,255,0.4);" title="Clean Full-Page Preview">
+                        <i class="fas fa-eye mr-1"></i> Preview
+                    </button>
                     <button type="button" id="waShareBtn" onclick="shareWhatsApp()" class="btn btn-sm btn-outline-light font-weight-bold" style="background: rgba(37, 211, 102, 0.2); border-color: #25D366; color: #25D366;">
                         <i class="fab fa-whatsapp mr-1"></i> WhatsApp
                     </button>
@@ -488,6 +570,104 @@
                     </div>
                 </div>
             </div>
+
+            {{-- ── Formal Clean Print Document (Used for Preview & Print) ── --}}
+            <div id="formalPrintDoc" style="display:none;">
+                <div class="print-doc-header">
+                    <div class="print-company-title" id="p_branch_title">ALL BRANCHES</div>
+                    <div class="print-doc-title">Item Stock Report</div>
+                    <div class="print-doc-period" id="p_doc_period">Track opening, purchased, sold, reserved &amp; balance</div>
+                    <div class="print-top-divider"></div>
+                </div>
+
+                <table class="print-tb-table">
+                    <colgroup>
+                        <col style="width: 3.5%;">
+                        <col style="width: 9.5%;">
+                        <col style="width: 20%;">
+                        <col style="width: 6.5%;">
+                        <col style="width: 6.5%;">
+                        <col style="width: 8%;">
+                        <col style="width: 7.5%;">
+                        <col style="width: 8.5%;">
+                        <col style="width: 7%;">
+                        <col style="width: 7%;">
+                        <col style="width: 7.5%;">
+                        <col style="width: 8.5%;">
+                    </colgroup>
+                    <thead>
+                        <tr>
+                            <th style="text-align:center;">#</th>
+                            <th>Item Code</th>
+                            <th>Item Name</th>
+                            <th style="text-align:right;">Opening</th>
+                            <th style="text-align:right;">Purchased</th>
+                            <th style="text-align:right;">Purch. Value</th>
+                            <th style="text-align:right;">Delivered</th>
+                            <th style="text-align:right;">Delivered Value</th>
+                            <th style="text-align:right;">Reserved</th>
+                            <th style="text-align:right;">Balance</th>
+                            <th style="text-align:right;">Price</th>
+                            <th style="text-align:right;">Stock Value</th>
+                        </tr>
+                    </thead>
+                    <tbody id="p_stock_tbody">
+                        <!-- Populated by JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="p-tfoot">
+                            <td colspan="3" style="text-align:right; font-weight:800; padding-right:10px;">TOTAL SUMMARY:</td>
+                            <td class="num-cell" style="font-weight:800;" id="p_foot_opening">0.00</td>
+                            <td class="num-cell" style="font-weight:800;" id="p_foot_purchased">0.00</td>
+                            <td class="num-cell" style="font-weight:800;" id="p_foot_purch_value">0.00</td>
+                            <td class="num-cell" style="font-weight:800; color:#047857;" id="p_foot_delivered">0.00</td>
+                            <td class="num-cell" style="font-weight:800;" id="p_foot_delivered_value">0.00</td>
+                            <td class="num-cell" style="font-weight:800; color:#b45309;" id="p_foot_reserved">0.00</td>
+                            <td class="num-cell" style="font-weight:800;" id="p_foot_balance">0.00</td>
+                            <td class="num-cell" style="text-align:center;">--</td>
+                            <td class="num-cell" style="font-weight:800; color:#047857;" id="p_foot_stock_value">0.00</td>
+                        </tr>
+                    </tfoot>
+                </table>
+
+                <div class="print-doc-footer">
+                    <div class="print-footer-info">
+                        <span>Printed on: <span id="p_print_time"></span></span>
+                        <span>Item Stock &amp; Valuation Summary</span>
+                        <span>ERP System &mdash; Stock Management Report</span>
+                    </div>
+                    <div class="print-sign-row">
+                        <div class="print-sign-box">Prepared By</div>
+                        <div class="print-sign-box">Store In-Charge</div>
+                        <div class="print-sign-box">Approved By</div>
+                    </div>
+                </div>
+            </div>
+
+            {{-- ── Full-Page Clean Print Preview Modal ──── --}}
+            <div id="reportPreviewModal" class="report-preview-overlay" style="display:none;" onclick="if(event.target===this) closePrintPreview()">
+                <div class="report-preview-topbar">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge badge-light text-dark font-weight-bold" style="font-size:11px; padding:4px 8px;">
+                            <i class="fas fa-eye mr-1 text-primary"></i> PREVIEW
+                        </span>
+                        <span style="font-weight:700; font-size:14px; letter-spacing:.02em;">Item Stock Report &mdash; Print Document Preview</span>
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <button type="button" class="btn btn-sm btn-light font-weight-bold text-dark" onclick="printFromPreview()">
+                            <i class="fas fa-print mr-1 text-primary"></i> Print
+                        </button>
+                        <button type="button" class="btn btn-sm btn-outline-light font-weight-bold" onclick="closePrintPreview()">
+                            <i class="fas fa-times mr-1"></i> Close
+                        </button>
+                    </div>
+                </div>
+                <div class="report-preview-body">
+                    <div class="report-preview-paper" id="previewPaperContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -539,6 +719,7 @@ $(document).ready(function() {
                     { orderable: false, targets: -1 }
                 ]
             });
+            renderFormalPrintDoc([], 0);
             return;
         }
 
@@ -700,6 +881,9 @@ $(document).ready(function() {
                 showWarehouseBreakdown(data.itemCode, data.itemName, data.warehouses, data.piece_per_pack || 1);
             }
         });
+
+        // Synchronize formal print document
+        renderFormalPrintDoc(rows, grandTotal);
     }
 
     // ============= SHOW WAREHOUSE BREAKDOWN MODAL =============
@@ -951,6 +1135,281 @@ $(document).ready(function() {
         a.download = 'item_stock_report_' + new Date().toISOString().slice(0,10) + '.csv';
         a.click();
     };
+});
+
+function renderFormalPrintDoc(rows, grandTotal) {
+    // Branch title
+    let branchName = 'ALL BRANCHES';
+    const branchSelect = document.getElementById('branch_id');
+    if (branchSelect && branchSelect.tagName === 'SELECT' && branchSelect.value !== 'all' && branchSelect.selectedIndex >= 0) {
+        branchName = branchSelect.options[branchSelect.selectedIndex].text.trim();
+    } else {
+        const branchText = document.querySelector('#stockFilterForm .bg-light');
+        if (branchText && branchText.textContent.trim()) {
+            branchName = branchText.textContent.trim();
+        }
+    }
+    const branchEl = document.getElementById('p_branch_title');
+    if (branchEl) branchEl.textContent = branchName.toUpperCase();
+
+    // Product subtitle
+    const prodSelect = document.getElementById('product_id');
+    let prodName = '';
+    if (prodSelect && prodSelect.value !== 'all' && prodSelect.selectedIndex >= 0) {
+        prodName = 'Product: ' + prodSelect.options[prodSelect.selectedIndex].text.trim();
+    }
+    const periodEl = document.getElementById('p_doc_period');
+    if (periodEl) {
+        periodEl.textContent = 'Track opening, purchased, sold, reserved & balance' + (prodName ? ' — ' + prodName : '');
+    }
+
+    // Print timestamp
+    const now = new Date();
+    const printTimeEl = document.getElementById('p_print_time');
+    if (printTimeEl) {
+        printTimeEl.textContent = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + ' ' + now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+    }
+
+    const tbody = document.getElementById('p_stock_tbody');
+    if (!tbody) return;
+
+    if (!rows || rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center; padding:18px; color:#64748b;">No stock items found for selected filter criteria.</td></tr>';
+        $('#p_foot_opening').text('0.00');
+        $('#p_foot_purchased').text('0.00');
+        $('#p_foot_purch_value').text('0.00');
+        $('#p_foot_delivered').text('0.00');
+        $('#p_foot_delivered_value').text('0.00');
+        $('#p_foot_reserved').text('0.00');
+        $('#p_foot_balance').text('0.00');
+        $('#p_foot_stock_value').text('0.00');
+        return;
+    }
+
+    let sumOpening = 0, sumPurchased = 0, sumPurchAmount = 0;
+    let sumDelivered = 0, sumDeliveredAmount = 0, sumReserved = 0;
+    let sumBalance = 0;
+    let html = '';
+
+    rows.forEach((r, idx) => {
+        let opening     = parseFloat(r.initial_stock || 0);
+        let purchased   = parseFloat(r.purchased || 0);
+        let purchAmt    = parseFloat(r.purchase_amount || 0);
+        let sold        = parseFloat(r.sold || 0);
+        let saleAmt     = parseFloat(r.sale_amount || 0);
+        let reserved    = parseFloat(r.reserved_qty || 0);
+        let balance     = parseFloat(r.balance || 0);
+        let price       = parseFloat(r.price || 0);
+        let stockValue  = parseFloat(r.stock_value || 0);
+
+        sumOpening += opening;
+        sumPurchased += purchased;
+        sumPurchAmount += purchAmt;
+        sumDelivered += sold;
+        sumDeliveredAmount += saleAmt;
+        sumReserved += reserved;
+        sumBalance += balance;
+
+        let isNeg = balance < 0;
+        let balColor = isNeg ? '#dc2626' : '#000';
+        let valColor = stockValue < 0 ? '#dc2626' : (stockValue > 0 ? '#047857' : '#000');
+
+        html += `<tr>
+            <td style="text-align:center; color:#64748b;">${idx + 1}</td>
+            <td style="font-weight:700; font-family:monospace; color:#1e3a5f;">${r.item_code || ''}</td>
+            <td style="font-weight:700; color:#0f172a;">${r.item_name || ''}</td>
+            <td class="num-cell">${opening.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell">${purchased.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell">${purchAmt.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell" style="font-weight:700; color:#047857;">${sold.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell">${saleAmt.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell" style="color:#b45309;">${reserved.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell" style="font-weight:800; color:${balColor};">${balance.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell" style="color:#1e3a5f; font-weight:600;">${price.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="num-cell" style="font-weight:800; color:${valColor};">${stockValue.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+
+    // Footer Totals
+    let grandTotalVal = parseFloat(grandTotal || 0);
+    $('#p_foot_opening').text(sumOpening.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_purchased').text(sumPurchased.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_purch_value').text(sumPurchAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_delivered').text(sumDelivered.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_delivered_value').text(sumDeliveredAmount.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_reserved').text(sumReserved.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_balance').text(sumBalance.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+    $('#p_foot_stock_value').text(grandTotalVal.toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}));
+
+    // Live sync preview if modal open
+    const previewModal = document.getElementById('reportPreviewModal');
+    if (previewModal && previewModal.style.display === 'flex') {
+        const formalDoc = document.getElementById('formalPrintDoc');
+        const paper = document.getElementById('previewPaperContent');
+        if (formalDoc && paper) {
+            paper.innerHTML = formalDoc.innerHTML;
+        }
+    }
+}
+
+function openPrintPreview() {
+    const formalDoc = document.getElementById('formalPrintDoc');
+    if (!formalDoc) return;
+
+    const reportHtml = formalDoc.innerHTML;
+    const branchTitle = document.getElementById('p_branch_title')?.textContent || 'Company';
+    const docTitle = 'Item Stock Report';
+    const fullTitle = `${docTitle} - ${branchTitle}`;
+
+    const win = window.open('', '_blank');
+    if (win) {
+        win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #0f172a;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 1100px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 15px;
+            font-size: 13px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 1100px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+            border: 1px solid #cbd5e1;
+            padding: 32px 34px;
+        }
+
+        .print-doc-header { margin-bottom: 10px; }
+        .print-company-title { font-size: 15pt; font-weight: 800; color: #000; margin-bottom: 2px; text-transform: uppercase; letter-spacing: .02em; }
+        .print-doc-title { font-size: 21pt; font-weight: 900; color: #000; margin-bottom: 2px; }
+        .print-doc-period { font-size: 11pt; font-weight: 600; color: #1e293b; }
+        .print-top-divider { border-bottom: 2px solid #000; margin-top: 6px; margin-bottom: 12px; }
+
+        .print-tb-table { width: 100%; border-collapse: collapse; font-size: 10pt; margin-bottom: 14px; color: #000; table-layout: fixed; }
+        .print-tb-table thead { display: table-header-group; }
+        .print-tb-table th { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; padding: 8px 4px; background: #f8fafc; font-weight: 800; color: #000; font-size: 9pt; text-transform: uppercase; vertical-align: middle; line-height: 1.25; }
+        .print-tb-table td { border-bottom: 1px solid #cbd5e1; padding: 7px 4px; vertical-align: middle; color: #000; font-size: 10pt; line-height: 1.3; overflow: hidden; word-wrap: break-word; }
+        .print-tb-table .num-cell { text-align: right; font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; white-space: nowrap; font-size: 10pt; letter-spacing: -0.01em; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        .print-tb-table tr.p-tfoot td { border-top: 1.5px solid #000; border-bottom: 3px double #000; font-weight: 800; padding: 9px 4px; background: #fff; font-size: 10.5pt; color: #000; }
+
+        .print-doc-footer { margin-top: 24px; font-size: 9.5pt; color: #000; }
+        .print-footer-info { display: flex; justify-content: space-between; border-top: 1px solid #000; padding-top: 6px; margin-bottom: 38px; font-weight: 600; color: #000; font-size: 9pt; }
+        .print-sign-row { display: flex; justify-content: space-between; padding: 0 15px; }
+        .print-sign-box { border-top: 1.5px dashed #000; width: 140px; text-align: center; padding-top: 6px; font-size: 9.5pt; font-weight: 700; color: #000; }
+
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 6mm 6mm 6mm 6mm !important;
+            }
+            body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
+            .action-toolbar, .no-print { display: none !important; }
+            .normal-page-card { border: none !important; box-shadow: none !important; padding: 0 !important; max-width: 100% !important; width: 100% !important; margin: 0 !important; }
+            .print-tb-table { width: 100% !important; max-width: 100% !important; table-layout: fixed !important; }
+            .print-tb-table th { font-size: 8.5pt !important; padding: 6px 3px !important; }
+            .print-tb-table td { font-size: 9pt !important; padding: 5px 3px !important; }
+            .print-tb-table .num-cell { font-size: 9pt !important; }
+            .print-tb-table tr.p-tfoot td { font-size: 9.5pt !important; padding: 7px 3px !important; }
+            .print-tb-table th, .print-tb-table td { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-boxes"></i>
+            <span>${fullTitle}</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        ${reportHtml}
+    </div>
+</body>
+</html>`);
+        win.document.close();
+        win.focus();
+        return;
+    }
+
+    const paper = document.getElementById('previewPaperContent');
+    const modal = document.getElementById('reportPreviewModal');
+    if (paper && modal) {
+        paper.innerHTML = reportHtml;
+        modal.style.display = 'flex';
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closePrintPreview() {
+    const modal = document.getElementById('reportPreviewModal');
+    if (modal) {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+function printFromPreview() {
+    window.print();
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') closePrintPreview();
 });
 </script>
 @endsection

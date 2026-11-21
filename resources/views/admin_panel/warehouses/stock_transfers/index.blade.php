@@ -316,8 +316,11 @@
                                         
                                         <!-- Date & Time -->
                                         <td style="padding: 12px 14px; vertical-align: middle;">
-                                            <div class="font-weight-bold text-dark">{{ $transfer->created_at->format('d M Y') }}</div>
-                                            <small class="text-muted">{{ $transfer->created_at->format('H:i') }}</small>
+                                            @php
+                                                $transferDisplayDate = \Carbon\Carbon::parse($transfer->transfer_date ?? $transfer->created_at);
+                                            @endphp
+                                            <div class="font-weight-bold text-dark">{{ $transferDisplayDate->format('d M Y') }}</div>
+                                            <small class="text-muted">{{ $transferDisplayDate->format('H:i') }}</small>
                                         </td>
                                         
                                         <td style="padding: 12px 14px; vertical-align: middle; text-align: center;">
@@ -388,7 +391,7 @@
                                                             <hr class="my-2">
                                                             <div class="row mb-2">
                                                                 <div class="col-sm-5 text-muted font-weight-bold small">Transfer Date:</div>
-                                                                <div class="col-sm-7 text-dark">{{ $transfer->created_at->format('d M Y, h:i A') }}</div>
+                                                                <div class="col-sm-7 text-dark">{{ \Carbon\Carbon::parse($transfer->transfer_date ?? $transfer->created_at)->format('d M Y, h:i A') }}</div>
                                                             </div>
                                                             @if($transfer->remarks)
                                                             <div class="row">

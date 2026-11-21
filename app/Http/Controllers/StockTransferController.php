@@ -101,6 +101,10 @@ class StockTransferController extends Controller
         $quantities    = $request->input('quantity', []);
         $fromLocations = $request->input('from_location', []);
         $remarks       = $request->input('remarks', '');
+        $transferDateInput = $request->input('transfer_date');
+        $transferDateTime  = $transferDateInput 
+            ? \Carbon\Carbon::parse($transferDateInput)->setTime(now()->hour, now()->minute, now()->second) 
+            : now();
 
         // Validate destination
         if (!$toShop && !$toWarehouseId) {
@@ -129,7 +133,7 @@ class StockTransferController extends Controller
         try {
             DB::transaction(function () use (
                 $products, $quantities, $fromLocations,
-                $toShop, $toWarehouseId, $branchId, $remarks
+                $toShop, $toWarehouseId, $branchId, $remarks, $transferDateTime
             ) {
                 foreach ($products as $index => $productId) {
                     if (!$productId) continue;
@@ -202,6 +206,8 @@ class StockTransferController extends Controller
                         'product_id'        => $productId,
                         'quantity'          => $qty,
                         'remarks'           => $remarks,
+                        'transfer_date'     => $transferDateTime,
+                        'created_at'        => $transferDateTime,
                     ]);
 
                     $sourceLabel = $fromType === 'warehouse'
@@ -218,6 +224,8 @@ class StockTransferController extends Controller
                         'ref_type'   => 'STOCK_TRANSFER',
                         'ref_id'     => $transfer->id,
                         'note'       => "Transfer OUT from {$sourceLabel} to {$destLabel}",
+                        'created_at' => $transferDateTime,
+                        'updated_at' => $transferDateTime,
                     ]);
 
                     StockMovement::create([
@@ -227,6 +235,8 @@ class StockTransferController extends Controller
                         'ref_type'   => 'STOCK_TRANSFER',
                         'ref_id'     => $transfer->id,
                         'note'       => "Transfer IN to {$destLabel} from {$sourceLabel}",
+                        'created_at' => $transferDateTime,
+                        'updated_at' => $transferDateTime,
                     ]);
                 }
             });
