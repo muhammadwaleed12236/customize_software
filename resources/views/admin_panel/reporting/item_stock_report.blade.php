@@ -380,7 +380,14 @@
                             <select name="product_id" id="product_id" class="form-control form-control-sm select2">
                                 <option value="all">-- All Products --</option>
                                 @foreach($products as $prod)
-                                    <option value="{{ $prod->id }}">{{ $prod->item_code }} - {{ $prod->item_name }}</option>
+                                    @if($prod->has_variants && $prod->variants && $prod->variants->isNotEmpty())
+                                        <option value="{{ $prod->id }}">{{ $prod->item_code }} - {{ $prod->item_name }} (All Variants)</option>
+                                        @foreach($prod->variants as $v)
+                                            <option value="{{ $prod->id }}:{{ $v->id }}">&nbsp;&nbsp;&nbsp;&nbsp;↳ {{ $prod->item_code }} - {{ $prod->item_name }} ({{ $v->color ?: $v->variant_name }})</option>
+                                        @endforeach
+                                    @else
+                                        <option value="{{ $prod->id }}">{{ $prod->item_code }} - {{ $prod->item_name }}</option>
+                                    @endif
                                 @endforeach
                             </select>
                         </div>
@@ -404,7 +411,14 @@
                             <select name="product_id" id="product_id" class="form-control form-control-sm select2">
                                 <option value="all">-- All Products --</option>
                                 @foreach($products as $prod)
-                                    <option value="{{ $prod->id }}">{{ $prod->item_code }} - {{ $prod->item_name }}</option>
+                                    @if($prod->has_variants && $prod->variants && $prod->variants->isNotEmpty())
+                                        <option value="{{ $prod->id }}">{{ $prod->item_code }} - {{ $prod->item_name }} (All Variants)</option>
+                                        @foreach($prod->variants as $v)
+                                            <option value="{{ $prod->id }}:{{ $v->id }}">&nbsp;&nbsp;&nbsp;&nbsp;↳ {{ $prod->item_code }} - {{ $prod->item_name }} ({{ $v->color ?: $v->variant_name }})</option>
+                                        @endforeach
+                                    @else
+                                        <option value="{{ $prod->id }}">{{ $prod->item_code }} - {{ $prod->item_name }}</option>
+                                    @endif
                                 @endforeach
                             </select>
                         </div>
@@ -732,7 +746,7 @@ $(document).ready(function() {
             let ppp = parseFloat(r.piece_per_pack) || 1;
 
             // ============= STORE WAREHOUSE DATA =============
-            let dataKey = 'product_' + r.id;
+            let dataKey = 'product_' + r.id + (r.variant_id ? ('_' + r.variant_id) : '');
             warehouseDataStore[dataKey] = {
                 itemCode: r.item_code,
                 itemName: r.item_name,
@@ -762,7 +776,7 @@ $(document).ready(function() {
             // ============= BUILD WAREHOUSE BREAKDOWN HTML =============
             let warehouseHtml = '';
             if (r.warehouse_breakdown && r.warehouse_breakdown.length > 0) {
-                warehouseHtml = `<button type="button" class="btn btn-sm btn-info warehouse-btn" data-product-id="${r.id}">
+                warehouseHtml = `<button type="button" class="btn btn-sm btn-info warehouse-btn" data-product-id="${r.id}" data-variant-id="${r.variant_id || ''}">
                     View <span class="badge badge-light">${r.warehouse_breakdown.length}</span>
                 </button>`;
             } else {
@@ -874,7 +888,8 @@ $(document).ready(function() {
         // ============= ATTACH CLICK HANDLERS TO WAREHOUSE BUTTONS =============
         $(document).on('click', '.warehouse-btn', function() {
             let productId = $(this).data('product-id');
-            let dataKey = 'product_' + productId;
+            let variantId = $(this).data('variant-id');
+            let dataKey = 'product_' + productId + (variantId ? ('_' + variantId) : '');
             
             if (warehouseDataStore[dataKey]) {
                 let data = warehouseDataStore[dataKey];

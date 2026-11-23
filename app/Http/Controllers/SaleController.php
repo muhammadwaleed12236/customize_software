@@ -128,6 +128,7 @@ class SaleController extends Controller
 
                         $items[] = (object) [
                             'product_id'       => $item->product_id,
+                            'variant_id'       => $item->variant_id ?? null,
                             'watt'             => (float) ($item->watt ?? 0),
                             'sales_qty'        => (float) $item->sales_qty,
                             'retail_price'     => (float) $item->retail_price,
@@ -176,6 +177,7 @@ class SaleController extends Controller
 
                     // Parse items from input arrays
                     $productIds = $request->input('product_id') ?? [];
+                    $variantIds = $request->input('variant_id') ?? [];
                     $salesQtys = $request->input('sales_qty') ?? [];
                     $retailPrices = $request->input('retail_price') ?? [];
                     $discPercents = $request->input('discount_percentage') ?? [];
@@ -186,9 +188,20 @@ class SaleController extends Controller
                     $globalWh = $request->input('global_warehouse_id');
                     $saleUnits = $request->input('sale_unit') ?? [];
 
-                    foreach ($productIds as $i => $pId) {
+                    foreach ($productIds as $i => $rawPId) {
                         $qty = (float) ($salesQtys[$i] ?? 0);
-                        if (!$pId || $qty <= 0) continue;
+                        if (!$rawPId || $qty <= 0) continue;
+
+                        $pId = (int) $rawPId;
+                        $vId = !empty($variantIds[$i]) ? (int) $variantIds[$i] : null;
+                        if (is_string($rawPId) && str_contains($rawPId, '_var_')) {
+                            [$pPart, $vPart] = explode('_var_', $rawPId);
+                            $pId = (int) $pPart;
+                            if (!$vId && !empty($vPart)) {
+                                $vId = (int) $vPart;
+                            }
+                        }
+                        if (!$pId) continue;
 
                         $rawWid = null;
                         if (is_array($whInputs)) {
@@ -214,7 +227,8 @@ class SaleController extends Controller
                         $sUnit = is_array($saleUnits) ? ($saleUnits[$i] ?? null) : null;
 
                         $items[] = (object) [
-                            'product_id'       => (int) $pId,
+                            'product_id'       => $pId,
+                            'variant_id'       => $vId,
                             'watt'             => (float) (is_array($watts) ? ($watts[$i] ?? 0) : 0),
                             'sales_qty'        => $qty,
                             'sale_unit'        => $sUnit,
@@ -372,6 +386,11 @@ class SaleController extends Controller
                     $warehousestock = WarehouseStock::lockForUpdate()
                         ->where('product_id', $it->product_id)
                         ->where('branch_id', $itemBranchId)
+                        ->when(!empty($it->variant_id), function($q) use ($it) {
+                            $q->where('variant_id', $it->variant_id);
+                        }, function($q) {
+                            $q->whereNull('variant_id');
+                        })
                         ->when(is_null($wid), function ($q) {
                             $q->whereNull('warehouse_id');
                         }, function ($q) use ($wid) {
@@ -382,11 +401,13 @@ class SaleController extends Controller
                     if (!$warehousestock) {
                         Log::info('Stock record not found, creating initial 0 stock row', [
                             'product_id' => $it->product_id,
+                            'variant_id' => $it->variant_id ?? null,
                             'branch_id' => $itemBranchId,
                             'warehouse_id' => $wid ?? 'NULL (branch stock)',
                         ]);
                         $warehousestock = WarehouseStock::create([
                             'product_id'   => $it->product_id,
+                            'variant_id'   => $it->variant_id ?? null,
                             'branch_id'    => $itemBranchId,
                             'warehouse_id' => $wid,
                             'quantity'     => 0,
@@ -417,11 +438,17 @@ class SaleController extends Controller
                     $stock = Stock::lockForUpdate()
                         ->where('product_id', $it->product_id)
                         ->where('branch_id', $itemBranchId)
+                        ->when(!empty($it->variant_id), function($q) use ($it) {
+                            $q->where('variant_id', $it->variant_id);
+                        }, function($q) {
+                            $q->whereNull('variant_id');
+                        })
                         ->first();
 
                     if (!$stock) {
                         $stock = Stock::create([
                             'product_id' => $it->product_id,
+                            'variant_id' => $it->variant_id ?? null,
                             'branch_id'  => $itemBranchId,
                             'qty'        => 0,
                         ]);
@@ -433,6 +460,7 @@ class SaleController extends Controller
                     
                     Log::info('Deducted from stocks (branch-level)', [
                         'product_id' => $it->product_id,
+                        'variant_id' => $it->variant_id ?? null,
                         'branch_id' => $itemBranchId,
                         'qty_before' => $stockBefore,
                         'qty_after' => $stock->qty,
@@ -446,6 +474,7 @@ class SaleController extends Controller
                         'sale_id'          => $sale->id,
                         'warehouse_id'     => $wid,
                         'product_id'       => $it->product_id,
+                        'variant_id'       => $it->variant_id ?? null,
                         'watt'             => (float) ($it->watt ?? 0),
                         'sales_qty'        => $it->sales_qty,
                         'sale_unit'        => $it->sale_unit ?? null,
@@ -460,6 +489,7 @@ class SaleController extends Controller
                     StockMovement::create([
                         'branch_id'     => $sale->branch_id ?? ($branchId ?? 1),
                         'product_id'    => $it->product_id,
+                        'variant_id'    => $it->variant_id ?? null,
                         'type'          => 'out',
                         'qty'           => $deductPieces,
                         'ref_type'      => 'SALE',
@@ -1836,11 +1866,23 @@ class SaleController extends Controller
 
             /* ================= SAVE ITEMS ================= */
             $totalQty = 0;
+            $variantIds = $request->input('variant_id') ?? [];
 
-            foreach ($request->product_id ?? [] as $i => $productId) {
+            foreach ($request->product_id ?? [] as $i => $rawPId) {
 
                 $qty = (float) ($request->sales_qty[$i] ?? 0);
-                if (!$productId || $qty <= 0) continue;
+                if (!$rawPId || $qty <= 0) continue;
+
+                $productId = (int) $rawPId;
+                $vId = !empty($variantIds[$i]) ? (int) $variantIds[$i] : null;
+                if (is_string($rawPId) && str_contains($rawPId, '_var_')) {
+                    [$pPart, $vPart] = explode('_var_', $rawPId);
+                    $productId = (int) $pPart;
+                    if (!$vId && !empty($vPart)) {
+                        $vId = (int) $vPart;
+                    }
+                }
+                if (!$productId) continue;
 
                 // Extract warehouse_id / location if provided
                 $rawWh = null;
@@ -1867,18 +1909,19 @@ class SaleController extends Controller
                 }
 
                 ProductBookingItem::create([
-                    'invoice_no' => $booking->invoice_no,
-                    'booking_id' => $booking->id,
-                    'branch_id'  => $branchId,
-                    'product_id' => $productId,
-                    'watt' => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
-                    'sales_qty' => $qty,
-                    'retail_price' => $request->retail_price[$i] ?? 0,
-                    'discount_amount' => $request->discount_amount[$i] ?? 0,
+                    'invoice_no'       => $booking->invoice_no,
+                    'booking_id'       => $booking->id,
+                    'branch_id'        => $branchId,
+                    'product_id'       => $productId,
+                    'variant_id'       => $vId,
+                    'watt'             => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
+                    'sales_qty'        => $qty,
+                    'retail_price'     => $request->retail_price[$i] ?? 0,
+                    'discount_amount'  => $request->discount_amount[$i] ?? 0,
                     'discount_percent' => $request->discount_percentage[$i] ?? 0,
-                    'discount_type' => $request->discount_type[$i] ?? 'percent',
-                    'amount' => $request->sales_amount[$i] ?? 0,
-                    'warehouse_id' => $warehouseId,
+                    'discount_type'    => $request->discount_type[$i] ?? 'percent',
+                    'amount'           => $request->sales_amount[$i] ?? 0,
+                    'warehouse_id'     => $warehouseId,
                 ]);
             }
 
@@ -2540,22 +2583,37 @@ public function finddc($invoice)
      */
     public function checkStock(Request $request)
     {
-        $productId = $request->get('product_id');
+        $rawPId = $request->get('product_id');
+        $variantId = $request->get('variant_id');
+        $productId = (int)$rawPId;
+        if (is_string($rawPId) && str_contains($rawPId, '_var_')) {
+            [$pPart, $vPart] = explode('_var_', $rawPId);
+            $productId = (int) $pPart;
+            if (!$variantId && !empty($vPart)) {
+                $variantId = (int) $vPart;
+            }
+        }
         $branchId  = $request->get('branch_id') ?: (Auth::check() ? (Auth::user()->branch_id ?? null) : null);
         $location  = $request->get('location_id') ?: $request->get('warehouse_id');
 
         // Overall stock across entire system
-        $overallStock = (float) WarehouseStock::where('product_id', $productId)->sum('quantity');
+        $overallStock = (float) WarehouseStock::where('product_id', $productId)
+            ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
+            ->sum('quantity');
         if ($overallStock == 0) {
-            $overallStock = (float) Stock::where('product_id', $productId)->sum('qty');
+            $overallStock = (float) Stock::where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
+                ->sum('qty');
         }
 
         // Branch total stock
         $branchTotalStock = (float) WarehouseStock::where('product_id', $productId)
+            ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
             ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->sum('quantity');
         if ($branchTotalStock == 0) {
             $branchTotalStock = (float) Stock::where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                 ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                 ->sum('qty');
         }
@@ -2566,27 +2624,32 @@ public function finddc($invoice)
             if (str_starts_with($location, 'branch_')) {
                 $targetBranch = (int) str_replace('branch_', '', $location);
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
+                    ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                     ->where('branch_id', $targetBranch)
                     ->whereNull('warehouse_id')
                     ->sum('quantity');
                 if ($locationStock == 0) {
                     $locationStock = (float) Stock::where('product_id', $productId)
+                        ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                         ->where('branch_id', $targetBranch)
                         ->sum('qty');
                 }
             } elseif ($location === 'branch' || $location === 'shop') {
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
+                    ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                     ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                     ->whereNull('warehouse_id')
                     ->sum('quantity');
                 if ($locationStock == 0) {
                     $locationStock = (float) Stock::where('product_id', $productId)
+                        ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                         ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
                         ->sum('qty');
                 }
             } else {
                 $whId = (int) str_replace('warehouse_', '', $location);
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
+                    ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                     ->where('warehouse_id', $whId)
                     ->sum('quantity');
             }
@@ -2596,6 +2659,7 @@ public function finddc($invoice)
         $locationBreakdown = [];
         if ($productId) {
             $bStocks = WarehouseStock::where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                 ->whereNull('warehouse_id')
                 ->select('branch_id', DB::raw('SUM(quantity) as total_qty'))
                 ->groupBy('branch_id')
@@ -2606,6 +2670,7 @@ public function finddc($invoice)
             }
 
             $wStocks = WarehouseStock::where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                 ->whereNotNull('warehouse_id')
                 ->select('warehouse_id', DB::raw('SUM(quantity) as total_qty'))
                 ->groupBy('warehouse_id')
@@ -2617,6 +2682,7 @@ public function finddc($invoice)
 
             // Also include branches from stocks table if not in warehouse_stocks
             $shopStocks = Stock::where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                 ->select('branch_id', DB::raw('SUM(qty) as total_qty'))
                 ->groupBy('branch_id')
                 ->pluck('total_qty', 'branch_id')
@@ -2629,6 +2695,10 @@ public function finddc($invoice)
         }
 
         $prod = Product::with('unit')->find($productId);
+        $variant = $variantId ? \App\Models\ProductVariant::find($variantId) : null;
+        $price = $variant && (float)$variant->retail_price > 0 
+            ? (float)$variant->retail_price 
+            : (float)($prod->retail_price ?? $prod->price ?? 0);
 
         return response()->json([
             'available'          => $overallStock,
@@ -2638,7 +2708,7 @@ public function finddc($invoice)
             'location_breakdown' => $locationBreakdown,
             'piece_per_pack'     => (float)($prod->piece_per_pack ?? 1),
             'unit_name'          => $prod->unit->name ?? 'Pcs',
-            'price'              => (float)($prod->retail_price ?? $prod->price ?? 0),
+            'price'              => $price,
         ]);
     }
 
@@ -2941,9 +3011,21 @@ public function finddc($invoice)
             if (!is_array($productsList)) {
                 $productsList = [];
             }
+            $variantIds = $request->input('variant_id') ?? [];
 
             foreach ($productsList as $i => $itemVal) {
-                $productId = is_numeric($itemVal) ? (int) $itemVal : ($request->product_id[$i] ?? $request->input("product_name.$i") ?? null);
+                $rawPId = is_numeric($itemVal) ? (int) $itemVal : ($request->product_id[$i] ?? $request->input("product_name.$i") ?? null);
+                if (!$rawPId) continue;
+
+                $productId = (int) $rawPId;
+                $vId = !empty($variantIds[$i]) ? (int) $variantIds[$i] : null;
+                if (is_string($rawPId) && str_contains($rawPId, '_var_')) {
+                    [$pPart, $vPart] = explode('_var_', $rawPId);
+                    $productId = (int) $pPart;
+                    if (!$vId && !empty($vPart)) {
+                        $vId = (int) $vPart;
+                    }
+                }
                 if (!$productId) continue;
 
                 $rawWid = null;
@@ -2987,7 +3069,12 @@ public function finddc($invoice)
 
                 // Per-location warehouse stock (allow negative)
                 $wsQuery = WarehouseStock::where('product_id', $productId)
-                    ->where('branch_id', $itemBranch);
+                    ->where('branch_id', $itemBranch)
+                    ->when($vId, function($q) use ($vId) {
+                        $q->where('variant_id', $vId);
+                    }, function($q) {
+                        $q->whereNull('variant_id');
+                    });
                 if ($cleanWhId) {
                     $wsQuery->where('warehouse_id', $cleanWhId);
                 } else {
@@ -3003,6 +3090,7 @@ public function finddc($invoice)
                         'branch_id'    => $itemBranch,
                         'warehouse_id' => $cleanWhId,
                         'product_id'   => $productId,
+                        'variant_id'   => $vId,
                         'quantity'     => -1 * $deductPieces,
                     ]);
                 }
@@ -3010,6 +3098,11 @@ public function finddc($invoice)
                 // Branch stock via Stock model (allow negative)
                 $stockRow = Stock::where('product_id', $productId)
                     ->where('branch_id', $itemBranch)
+                    ->when($vId, function($q) use ($vId) {
+                        $q->where('variant_id', $vId);
+                    }, function($q) {
+                        $q->whereNull('variant_id');
+                    })
                     ->first();
 
                 if ($stockRow) {
@@ -3017,9 +3110,10 @@ public function finddc($invoice)
                     $stockRow->save();
                 } else {
                     Stock::create([
-                        'branch_id' => $itemBranch,
-                        'product_id' => $productId,
-                        'qty' => -1 * $deductPieces,
+                        'branch_id'    => $itemBranch,
+                        'product_id'   => $productId,
+                        'variant_id'   => $vId,
+                        'qty'          => -1 * $deductPieces,
                         'reserved_qty' => 0,
                     ]);
                 }
@@ -3027,6 +3121,7 @@ public function finddc($invoice)
                 // Record stock movement for the sale
                 DB::table('stock_movements')->insert([
                     'product_id' => $productId,
+                    'variant_id' => $vId,
                     'branch_id'  => $itemBranch,
                     'type'       => 'out',
                     'qty'        => $deductPieces,
@@ -3043,21 +3138,22 @@ public function finddc($invoice)
                 $salesAmount = (float) ($request->sales_amount[$i] ?? $request->input("sales-amount.$i", 0));
 
                 SaleItem::create([
-                    'invoice_no' => $sale->invoice_no,
-                    'branch_id' => $sale->branch_id,
-                    'sale_id' => $sale->id,
-                    'warehouse_id' => $cleanWhId,
-                    'product_id' => $productId,
-                    'watt' => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
-                    'stock' => (float) ($request->stock[$i] ?? $request->input("stock.$i", 0)),
-                    'price_level' => (float) ($request->price[$i] ?? $request->input("price.$i", 0)),
-                    'sales_price' => $retailPrice,
-                    'sales_qty' => $saleQty,
-                    'sale_unit' => $sUnit,
-                    'retail_price' => $retailPrice,
+                    'invoice_no'       => $sale->invoice_no,
+                    'branch_id'        => $sale->branch_id,
+                    'sale_id'          => $sale->id,
+                    'warehouse_id'     => $cleanWhId,
+                    'product_id'       => $productId,
+                    'variant_id'       => $vId,
+                    'watt'             => (float) ($request->input("watt.$i", is_array($request->input('watt')) ? ($request->input('watt')[$i] ?? 0) : 0)),
+                    'stock'            => (float) ($request->stock[$i] ?? $request->input("stock.$i", 0)),
+                    'price_level'      => (float) ($request->price[$i] ?? $request->input("price.$i", 0)),
+                    'sales_price'      => $retailPrice,
+                    'sales_qty'        => $saleQty,
+                    'sale_unit'        => $sUnit,
+                    'retail_price'     => $retailPrice,
                     'discount_percent' => $discPercent,
-                    'discount_amount' => $discAmount,
-                    'amount' => $salesAmount,
+                    'discount_amount'  => $discAmount,
+                    'amount'           => $salesAmount,
                 ]);
             }
 
@@ -4560,7 +4656,12 @@ public function finddc($invoice)
                     // Restore warehouse_stocks (shop stock has warehouse_id = null)
                     $whStockQuery = WarehouseStock::lockForUpdate()
                         ->where('product_id', $oldItem->product_id)
-                        ->where('branch_id', $itemBranchId);
+                        ->where('branch_id', $itemBranchId)
+                        ->when(!empty($oldItem->variant_id), function($q) use ($oldItem) {
+                            $q->where('variant_id', $oldItem->variant_id);
+                        }, function($q) {
+                            $q->whereNull('variant_id');
+                        });
 
                     if ($oldWid) {
                         $whStockQuery->where('warehouse_id', $oldWid);
@@ -4582,6 +4683,7 @@ public function finddc($invoice)
                             'branch_id'    => $itemBranchId,
                             'warehouse_id' => $oldWid,
                             'product_id'   => $oldItem->product_id,
+                            'variant_id'   => $oldItem->variant_id ?? null,
                             'quantity'     => $restorePieces,
                         ]);
                     }
@@ -4590,6 +4692,11 @@ public function finddc($invoice)
                     $mainStock = Stock::lockForUpdate()
                         ->where('product_id', $oldItem->product_id)
                         ->where('branch_id', $itemBranchId)
+                        ->when(!empty($oldItem->variant_id), function($q) use ($oldItem) {
+                            $q->where('variant_id', $oldItem->variant_id);
+                        }, function($q) {
+                            $q->whereNull('variant_id');
+                        })
                         ->first();
                     if ($mainStock) {
                         $mainStock->qty += $restorePieces;
@@ -4598,6 +4705,7 @@ public function finddc($invoice)
                         Stock::create([
                             'branch_id'    => $itemBranchId,
                             'product_id'   => $oldItem->product_id,
+                            'variant_id'   => $oldItem->variant_id ?? null,
                             'qty'          => $restorePieces,
                             'reserved_qty' => 0,
                         ]);
@@ -4738,13 +4846,25 @@ public function finddc($invoice)
 
                     $sUnit = is_array($request->sale_unit ?? null) ? ($request->sale_unit[$i] ?? null) : null;
 
+                    $rawPId = $productId;
+                    $pId = (int) $rawPId;
+                    $vId = !empty($request->variant_id[$i] ?? null) ? (int)$request->variant_id[$i] : null;
+                    if (is_string($rawPId) && str_contains($rawPId, '_var_')) {
+                        [$pPart, $vPart] = explode('_var_', $rawPId);
+                        $pId = (int)$pPart;
+                        if (!$vId && !empty($vPart)) {
+                            $vId = (int)$vPart;
+                        }
+                    }
+
                     // Create new sale item
                     $itemData = [
                         'invoice_no'       => $sale->invoice_no,
                         'branch_id'        => $itemBranchId,
                         'sale_id'          => $sale->id,
                         'warehouse_id'     => $cleanWarehouseId, // Valid integer or NULL (never string like 'branch_12')
-                        'product_id'       => $productId,
+                        'product_id'       => $pId,
+                        'variant_id'       => $vId,
                         'watt'             => $watt,
                         'sales_qty'        => $qty,
                         'sale_unit'        => $sUnit,
@@ -4766,8 +4886,14 @@ public function finddc($invoice)
                     // If cleanWarehouseId is null -> deduct from branch/shop stock (warehouse_id IS NULL)
                     // If cleanWarehouseId is integer -> deduct from specific warehouse
                     $whStockQuery = WarehouseStock::lockForUpdate()
-                        ->where('product_id', $productId)
+                        ->where('product_id', $pId)
                         ->where('branch_id', $itemBranchId);
+
+                    if ($vId) {
+                        $whStockQuery->where('variant_id', $vId);
+                    } else {
+                        $whStockQuery->whereNull('variant_id');
+                    }
 
                     if ($cleanWarehouseId) {
                         $whStockQuery->where('warehouse_id', $cleanWarehouseId);
@@ -4775,7 +4901,7 @@ public function finddc($invoice)
                         $whStockQuery->whereNull('warehouse_id');
                     }
 
-                    $newProd = Product::find($productId);
+                    $newProd = Product::find($pId);
                     $isPiece = $sUnit && strtolower($sUnit) === 'pcs';
                     $newMultiplier = (!$isPiece && $newProd && $newProd->piece_per_pack > 1) ? (float)$newProd->piece_per_pack : 1;
                     $deductPieces = \App\Models\Product::parseCartonQtyToPieces($qty, (float)($newProd->piece_per_pack ?? 1), $sUnit);
@@ -4788,15 +4914,21 @@ public function finddc($invoice)
                         WarehouseStock::create([
                             'branch_id'    => $itemBranchId,
                             'warehouse_id' => $cleanWarehouseId,
-                            'product_id'   => $productId,
+                            'product_id'   => $pId,
+                            'variant_id'   => $vId,
                             'quantity'     => -$deductPieces,
                         ]);
                     }
 
                     // Deduct from main stock (branch-level overall)
                     $mainStock = Stock::lockForUpdate()
-                        ->where('product_id', $productId)
+                        ->where('product_id', $pId)
                         ->where('branch_id', $itemBranchId)
+                        ->when($vId, function($q) use ($vId) {
+                            $q->where('variant_id', $vId);
+                        }, function($q) {
+                            $q->whereNull('variant_id');
+                        })
                         ->first();
 
                     if ($mainStock) {
@@ -4805,7 +4937,8 @@ public function finddc($invoice)
                     } else {
                         Stock::create([
                             'branch_id'    => $itemBranchId,
-                            'product_id'   => $productId,
+                            'product_id'   => $pId,
+                            'variant_id'   => $vId,
                             'qty'          => -$deductPieces,
                             'reserved_qty' => 0,
                         ]);

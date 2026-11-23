@@ -18,6 +18,7 @@ class SaleItem extends Model
         'branch_id',
         'delivery_location_type',
         'product_id',
+        'variant_id',
         'watt',
         'stock',
         'price_level',
@@ -46,5 +47,10 @@ class SaleItem extends Model
     public function product()
     {
         return $this->belongsTo(\App\Models\Product::class, 'product_id');
+    }
+
+    public function variant()
+    {
+        return $this->belongsTo(\App\Models\ProductVariant::class, 'variant_id');
     }
 }

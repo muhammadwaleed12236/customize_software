@@ -103,7 +103,7 @@ class PurchaseController extends Controller
      * 1. Update warehouse_stocks: (product_id, branch_id, warehouse_id) += qty
      * 2. Update stocks (branch-level): (product_id, branch_id) += qty
      */
-    private function addPurchaseStock(int $productId, float $qty, int $branchId, int $warehouseId): void
+    private function addPurchaseStock(int $productId, float $qty, int $branchId, int $warehouseId, ?int $variantId = null): void
     {
         try {
             // ✅ STEP 1: UPDATE warehouse_stocks (WAREHOUSE-LEVEL DETAIL)
@@ -112,6 +112,11 @@ class PurchaseController extends Controller
                 ->where('product_id', $productId)
                 ->where('branch_id', $branchId)
                 ->where('warehouse_id', $warehouseId)
+                ->when($variantId, function($q) use ($variantId) {
+                    $q->where('variant_id', $variantId);
+                }, function($q) {
+                    $q->whereNull('variant_id');
+                })
                 ->first();
 
             if ($warehouseStock) {
@@ -121,6 +126,7 @@ class PurchaseController extends Controller
                 
                 Log::info('✅ Added to warehouse_stocks', [
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'branch_id' => $branchId,
                     'warehouse_id' => $warehouseId,
                     'qty_added' => $qty,
@@ -130,6 +136,7 @@ class PurchaseController extends Controller
                 // Entry doesn't exist - create new one
                 WarehouseStock::create([
                     'product_id' => $productId,
+                    'variant_id' => $variantId,
                     'branch_id' => $branchId,
                     'warehouse_id' => $warehouseId,
                     'quantity' => $qty,
@@ -333,6 +340,27 @@ class PurchaseController extends Controller
             }
         }
 
+        // Normalize composite product IDs (e.g. "415_var_3") before validation
+        if ($request->has('product_id') && is_array($request->product_id)) {
+            $cleanPids = [];
+            $cleanVids = $request->input('variant_id', []);
+            foreach ($request->product_id as $idx => $val) {
+                if (is_string($val) && str_contains($val, '_var_')) {
+                    $parts = explode('_var_', $val);
+                    $cleanPids[$idx] = (int)$parts[0];
+                    if (empty($cleanVids[$idx]) && !empty($parts[1])) {
+                        $cleanVids[$idx] = (int)$parts[1];
+                    }
+                } else {
+                    $cleanPids[$idx] = $val ? (int)$val : null;
+                }
+            }
+            $request->merge([
+                'product_id' => $cleanPids,
+                'variant_id' => $cleanVids,
+            ]);
+        }
+
         // (B) Validation (warehouse_id now OPTIONAL - each line specifies its own warehouse)
         $validated = $request->validate([
             'invoice_no'          => 'nullable|string',
@@ -445,6 +473,7 @@ class PurchaseController extends Controller
             $prices = $validated['price'] ?? [];
             $units = $validated['unit'] ?? [];
             $colors = $request->color ?? []; // ✅ Accept colors from request
+            $variantIds = $request->variant_id ?? [];
             $itemDiscs = $validated['item_discount'] ?? [];
             $lineWarehouseIds = $validated['line_warehouse_id'] ?? [];  // ✅ NEW: Per-line warehouse
 
@@ -456,6 +485,7 @@ class PurchaseController extends Controller
 
             foreach ($pids as $i => $pid) {
                 $pid = (int)($pid ?? 0);
+                $variantId = !empty($variantIds[$i]) ? (int)$variantIds[$i] : null;
                 $qty = (float)($qtys[$i] ?? 0);
                 $price = (float)($prices[$i] ?? 0);
                 if (!$pid || $qty <= 0 || $price < 0) continue;
@@ -463,6 +493,9 @@ class PurchaseController extends Controller
                 $disc = (float)($itemDiscs[$i] ?? 0);
                 $unit = $units[$i] ?? null;
                 $color = $colors[$i] ?? null; // ✅ Get color for this line
+                if (!$color && $variantId) {
+                    $color = \App\Models\ProductVariant::where('id', $variantId)->value('color');
+                }
 
                 $ipp = (float)($itemsPerPieces[$i] ?? 0);
                 if ($ipp <= 0) {
@@ -480,6 +513,7 @@ class PurchaseController extends Controller
                 PurchaseItem::create([
                     'purchase_id'   => $purchase->id,
                     'product_id'    => $pid,
+                    'variant_id'    => $variantId,
                     'color'         => $color, // ✅ Save color
                     'warehouse_id'  => $dbWarehouseId,  // ✅ Fixed: null instead of 0
                     'unit'          => $unit,
@@ -494,9 +528,6 @@ class PurchaseController extends Controller
                     'loose_piece'   => $loosePieces[$i] ?? null,
                 ]);
 
-                // ✅ ERP STANDARD: Initialize tracking for receiving (Vendor Remaining)
-                // If this bill is created FROM a gatepass OR is a Local Purchase, it means items are ALREADY received.
-                // Otherwise, they are pending physical receipt.
                 // ✅ ERP STANDARD: Initialize tracking for receiving (Vendor Remaining)
                 // If this bill is created FROM a gatepass OR is a Local Purchase, it means items are ALREADY received.
                 // Otherwise, they are pending physical receipt.
@@ -550,10 +581,11 @@ class PurchaseController extends Controller
                     $multiplier = $ipp > 1 ? $ipp : 1;
                     $stockDelta = \App\Models\Product::parseCartonQtyToPieces($qtys[$i] ?? $qty, $ipp);
 
-                    $this->upsertStocks($pid, +$stockDelta, $branchId, $itemWarehouse);
+                    $this->upsertStocks($pid, +$stockDelta, $branchId, $itemWarehouse, $variantId);
 
                     DB::table('stock_movements')->insert([
                         'product_id' => $pid,
+                        'variant_id' => $variantId,
                         'branch_id'  => $branchId,
                         'type'       => 'in',
                         'qty'        => $stockDelta,
@@ -1222,6 +1254,27 @@ class PurchaseController extends Controller
             }
         }
 
+        // Normalize composite product IDs (e.g. "415_var_3") before validation
+        if ($request->has('product_id') && is_array($request->product_id)) {
+            $cleanPids = [];
+            $cleanVids = $request->input('variant_id', []);
+            foreach ($request->product_id as $idx => $val) {
+                if (is_string($val) && str_contains($val, '_var_')) {
+                    $parts = explode('_var_', $val);
+                    $cleanPids[$idx] = (int)$parts[0];
+                    if (empty($cleanVids[$idx]) && !empty($parts[1])) {
+                        $cleanVids[$idx] = (int)$parts[1];
+                    }
+                } else {
+                    $cleanPids[$idx] = $val ? (int)$val : null;
+                }
+            }
+            $request->merge([
+                'product_id' => $cleanPids,
+                'variant_id' => $cleanVids,
+            ]);
+        }
+
         $validated = $request->validate([
             'invoice_no'        => 'nullable|string',
             'manual_invoice'    => 'nullable|string',
@@ -1305,10 +1358,11 @@ class PurchaseController extends Controller
                         $oldMult = $oldIpp > 1 ? $oldIpp : 1;
                         $oldStockDelta = \App\Models\Product::parseCartonQtyToPieces($oldItem->qty, $oldIpp);
 
-                        $this->upsertStocks((int)$oldItem->product_id, -$oldStockDelta, $oldBranchId, $oldItemWarehouse);
+                        $this->upsertStocks((int)$oldItem->product_id, -$oldStockDelta, $oldBranchId, $oldItemWarehouse, $oldItem->variant_id);
                         
                         DB::table('stock_movements')->insert([
                             'product_id' => (int)$oldItem->product_id,
+                            'variant_id' => $oldItem->variant_id,
                             'branch_id'  => $oldBranchId,
                             'type'       => 'out',
                             'qty'        => $oldStockDelta,
@@ -1332,6 +1386,7 @@ class PurchaseController extends Controller
                 $prices = $validated['price'] ?? [];
                 $units = $validated['unit'] ?? [];
                 $colors = $request->color ?? []; // ✅ Get colors from request
+                $variantIds = $request->variant_id ?? [];
                 $itemDiscs = $validated['item_discount'] ?? [];
                 $lineWarehouseIds = $validated['line_warehouse_id'] ?? [];
 
@@ -1343,6 +1398,7 @@ class PurchaseController extends Controller
 
                 foreach ($pids as $i => $pid) {
                     $pid = (int)($pid ?? 0);
+                    $variantId = !empty($variantIds[$i]) ? (int)$variantIds[$i] : null;
                     $qty = (float)($qtys[$i] ?? 0);
                     $price = (float)($prices[$i] ?? 0);
                     if (!$pid || $qty <= 0 || $price < 0) continue;
@@ -1358,6 +1414,9 @@ class PurchaseController extends Controller
                     $disc = (float)($itemDiscs[$i] ?? 0);
                     $unit = $units[$i] ?? null;
                     $color = $colors[$i] ?? null;
+                    if (!$color && $variantId) {
+                        $color = \App\Models\ProductVariant::where('id', $variantId)->value('color');
+                    }
 
                     $newIpp = (float)($itemsPerPieces[$i] ?? 0);
                     if ($newIpp <= 0) {
@@ -1373,6 +1432,7 @@ class PurchaseController extends Controller
                     PurchaseItem::create([
                         'purchase_id'   => $purchase->id,
                         'product_id'    => $pid,
+                        'variant_id'    => $variantId,
                         'color'         => $color, // ✅ Save color
                         'warehouse_id'  => $itemWarehouse ?: null,
                         'unit'          => $unit,
@@ -1397,10 +1457,11 @@ class PurchaseController extends Controller
                         $newMult = $newIpp > 1 ? $newIpp : 1;
                         $newStockDelta = \App\Models\Product::parseCartonQtyToPieces($qtys[$i] ?? $qty, $newIpp);
 
-                        $this->upsertStocks((int)$pid, +$newStockDelta, $branchId, (int)$itemWarehouse);
+                        $this->upsertStocks((int)$pid, +$newStockDelta, $branchId, (int)$itemWarehouse, $variantId);
                         
                         DB::table('stock_movements')->insert([
                             'product_id' => (int)$pid,
+                            'variant_id' => $variantId,
                             'branch_id'  => $branchId,
                             'type'       => 'in',
                             'qty'        => $newStockDelta,
@@ -1699,6 +1760,7 @@ class PurchaseController extends Controller
 
                     $movs[] = [
                         'product_id' => $pid,
+                        'variant_id' => $it->variant_id,
                         'branch_id'  => $branchId,
                         'type'       => 'out',
                         'qty'        => $itStockDelta,
@@ -1706,11 +1768,11 @@ class PurchaseController extends Controller
                         'ref_id'     => $purchase->id,
                         'note'       => 'Delete purchase (reverse)',
                         'created_at' => $now,
-                        'updated_at' => $now,
+                        'updated_at' => now(),
                     ];
 
                     // stocks rollback
-                    $this->upsertStocks($pid, -$itStockDelta, $branchId, (int)$itemWarehouse);
+                    $this->upsertStocks($pid, -$itStockDelta, $branchId, (int)$itemWarehouse, $it->variant_id);
                 }
 
                 if (!empty($movs)) {
@@ -2055,8 +2117,8 @@ class PurchaseController extends Controller
         $Vendor = $isSuperAdmin ? Vendor::orderBy('name')->get() : Vendor::where('branch_id', $currentBranch)->orderBy('name')->get();
         $Branch = Branch::all();
         // ✅ OPTIMIZED: Fetch products with only needed columns for view
-        $Products = Product::with('unit:id,name')
-            ->select('id', 'item_name', 'item_code', 'unit_id', 'piece_per_pack', 'pack_type', 'wholesale_price')
+        $Products = Product::with(['unit:id,name', 'variants'])
+            ->select('id', 'item_name', 'item_code', 'unit_id', 'piece_per_pack', 'pack_type', 'wholesale_price', 'has_variants')
             ->get();
 
         // ✅ OPTIMIZED: Single query for last purchase prices (replaces N+1 loop)
@@ -2066,10 +2128,26 @@ class PurchaseController extends Controller
                 ->groupBy('product_id');
         })->pluck('price', 'product_id');
 
+        $latestVariantPurchasePrices = \App\Models\PurchaseItem::whereNotNull('variant_id')
+            ->whereIn('id', function ($sub) {
+                $sub->selectRaw('MAX(id)')
+                    ->from('purchase_items')
+                    ->whereNotNull('variant_id')
+                    ->groupBy('variant_id');
+            })->pluck('price', 'variant_id');
+
         foreach ($Products as $product) {
             $product->last_purchase_price = isset($latestPurchasePrices[$product->id])
                 ? (float)$latestPurchasePrices[$product->id]
                 : (float)($product->wholesale_price ?? 0);
+
+            if ($product->relationLoaded('variants')) {
+                foreach ($product->variants as $variant) {
+                    $variant->last_purchase_price = isset($latestVariantPurchasePrices[$variant->id])
+                        ? (float)$latestVariantPurchasePrices[$variant->id]
+                        : (float)($variant->wholesale_price ?: $product->last_purchase_price);
+                }
+            }
         }
         
         // Fetch warehouses with branch info for better identification
@@ -2112,9 +2190,29 @@ class PurchaseController extends Controller
 
         // ✅ OPTIMIZED: Filter by branch and select only needed columns
         $warehouseStocks = \App\Models\WarehouseStock::where('branch_id', $currentBranch)
-            ->select('product_id', 'warehouse_id', 'quantity')
+            ->select('product_id', 'variant_id', 'warehouse_id', 'quantity')
             ->get()
             ->toArray();
+
+        $shopStocks = \App\Models\Stock::where('branch_id', $currentBranch)
+            ->select('product_id', 'variant_id', 'qty as quantity')
+            ->get();
+
+        $whStockKeys = [];
+        foreach ($warehouseStocks as $ws) {
+            $whStockKeys[$ws['product_id'] . '_' . ($ws['variant_id'] ?? 0) . '_' . ($ws['warehouse_id'] ?? 0)] = true;
+        }
+        foreach ($shopStocks as $ss) {
+            $key = $ss->product_id . '_' . ($ss->variant_id ?? 0) . '_0';
+            if (!isset($whStockKeys[$key])) {
+                $warehouseStocks[] = [
+                    'product_id'   => $ss->product_id,
+                    'variant_id'   => $ss->variant_id,
+                    'warehouse_id' => null,
+                    'quantity'     => (float)$ss->quantity,
+                ];
+            }
+        }
         $categories = \App\Models\Category::all();
         $brands = \App\Models\Brand::all();
 
@@ -2309,7 +2407,7 @@ class PurchaseController extends Controller
      * Update both warehouse_stocks and stocks tables (ERP standard - dual sync)
      * Handles nullable warehouse_id (Branch-level stock)
      */
-    private function upsertStocks(int $productId, float $qtyDelta, int $branchId, int $warehouseId): void
+    private function upsertStocks(int $productId, float $qtyDelta, int $branchId, int $warehouseId, ?int $variantId = null): void
     {
         $now = now();
         $whId = $warehouseId > 0 ? $warehouseId : null;
@@ -2319,6 +2417,12 @@ class PurchaseController extends Controller
             ->where('product_id', $productId)
             ->where('branch_id', $branchId);
         
+        if ($variantId) {
+            $query->where('variant_id', $variantId);
+        } else {
+            $query->whereNull('variant_id');
+        }
+
         if ($whId) {
             $query->where('warehouse_id', $whId);
         } else {
@@ -2326,7 +2430,7 @@ class PurchaseController extends Controller
         }
 
         $affectedWarehouse = $query->update([
-            'quantity'   => DB::raw('quantity + '.((int)$qtyDelta)),
+            'quantity'   => DB::raw('quantity + '.((float)$qtyDelta)),
             'updated_at' => $now,
         ]);
 
@@ -2335,7 +2439,8 @@ class PurchaseController extends Controller
                 'branch_id'    => $branchId,
                 'warehouse_id' => $whId,
                 'product_id'   => $productId,
-                'quantity'     => (int)$qtyDelta,
+                'variant_id'   => $variantId,
+                'quantity'     => (float)$qtyDelta,
                 'price'        => null,
                 'remarks'      => 'Direct purchase stock',
                 'created_at'   => $now,
@@ -2344,19 +2449,27 @@ class PurchaseController extends Controller
         }
 
         // STEP 2: Update stocks (summary table)
-        $affectedStocks = DB::table('stocks')
+        $stocksQuery = DB::table('stocks')
             ->where('product_id', $productId)
-            ->where('branch_id', $branchId)
-            ->update([
-                'qty'        => DB::raw('qty + '.((int)$qtyDelta)),
-                'updated_at' => $now,
-            ]);
+            ->where('branch_id', $branchId);
+
+        if ($variantId) {
+            $stocksQuery->where('variant_id', $variantId);
+        } else {
+            $stocksQuery->whereNull('variant_id');
+        }
+
+        $affectedStocks = $stocksQuery->update([
+            'qty'        => DB::raw('qty + '.((float)$qtyDelta)),
+            'updated_at' => $now,
+        ]);
 
         if ($affectedStocks === 0) {
             DB::table('stocks')->insert([
                 'branch_id'    => $branchId,
                 'product_id'   => $productId,
-                'qty'          => (int)$qtyDelta,
+                'variant_id'   => $variantId,
+                'qty'          => (float)$qtyDelta,
                 'reserved_qty' => 0,
                 'created_at'   => $now,
                 'updated_at'   => $now,

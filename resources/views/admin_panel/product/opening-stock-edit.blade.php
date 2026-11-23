@@ -865,7 +865,7 @@
                                             <select class="alloc-type-select" onchange="calcTotal()">
                                                 <option value="shop" {{ is_null($alloc->warehouse_id) ? 'selected' : '' }}>Branch / Shop Stock</option>
                                                 @if(count($warehouses) > 0)
-                                                    <optgroup label="â”€â”€ Warehouses â”€â”€">
+                                                    <optgroup label="── Warehouses ──">
                                                         @foreach($warehouses as $w)
                                                             <option value="wh_{{ $w->id }}" {{ (string)$alloc->warehouse_id === (string)$w->id ? 'selected' : '' }}>
                                                                 {{ $w->warehouse_name ?? $w->name }}
@@ -943,7 +943,7 @@
                                         <select class="alloc-type-select" onchange="calcTotal()">
                                             <option value="shop" selected>Branch / Shop Stock</option>
                                             @if(count($warehouses) > 0)
-                                                <optgroup label="â”€â”€ Warehouses â”€â”€">
+                                                <optgroup label="── Warehouses ──">
                                                     @foreach($warehouses as $w)
                                                         <option value="wh_{{ $w->id }}">{{ $w->warehouse_name ?? $w->name }}</option>
                                                     @endforeach
@@ -1093,9 +1093,9 @@
 <script>
 $(document).ready(function() {
 
-    var warehousesData = @json(collect($warehouses)->map(fn($w) => ['id' => $w->id, 'warehouse_name' => $w->warehouse_name ?? $w->name]));
-    var unitName       = "{{ $product->unit?->name ?? 'Carton' }}";
-    var liveStockVal   = parseFloat("{{ $currentStock }}") || 0;
+    var warehousesData  = @json(collect($warehouses)->map(fn($w) => ['id' => $w->id, 'warehouse_name' => $w->warehouse_name ?? $w->name]));
+    var unitName        = "{{ $product->unit?->name ?? 'Carton' }}";
+    var liveStockVal    = parseFloat("{{ $currentStock }}") || 0;
 
     // Switch Branch (Super Admin)
     window.switchBranch = function(branchId) {
@@ -1107,7 +1107,7 @@ $(document).ready(function() {
     function buildWarehouseOptions() {
         var opts = '<option value="shop">Branch / Shop Stock</option>';
         if (warehousesData.length > 0) {
-            opts += '<optgroup label="â”€â”€ Warehouses â”€â”€">';
+            opts += '<optgroup label="── Warehouses ──">';
             warehousesData.forEach(function(w) {
                 opts += '<option value="wh_' + w.id + '">' + (w.warehouse_name || 'Warehouse') + '</option>';
             });
@@ -1138,10 +1138,10 @@ $(document).ready(function() {
                     </div>
                     ${ppp > 1 ? '<div class="small text-muted font-weight-bold mt-1 alloc-pcs-preview" style="font-size: 11px;"></div>' : ''}
                 </td>
-                <td class="text-muted small text-center">â€”</td>
-                <td class="text-muted small text-center">â€”</td>
-                <td class="text-muted small text-center">â€”</td>
-                <td class="text-muted small text-center">â€”</td>
+                <td class="text-muted small text-center">—</td>
+                <td class="text-muted small text-center">—</td>
+                <td class="text-muted small text-center">—</td>
+                <td class="text-muted small text-center">—</td>
                 <td style="text-align: center;">
                     <span class="badge" style="background: #ecfdf5; color: #047857; font-weight: 800; padding: 4px 10px; border-radius: 6px;">Active</span>
                 </td>
@@ -1181,23 +1181,24 @@ $(document).ready(function() {
                 var retailVal    = $('#retail_price').val();
                 var alertVal     = $('#alert_qty').val();
                 var openingVal   = $('#opening_qty').val();
+                var baseIdx      = 3;
 
-                $nextRow.find('td').eq(3).html(`
+                $nextRow.find('td').eq(baseIdx).html(`
                     <div class="tbl-input-group">
                         <input type="number" step="0.01" min="0" id="wholesale_price" name="wholesale_price" class="text-end" value="${wholesaleVal}" placeholder="0" oninput="checkPriceWarning()">
                         <span class="tbl-addon">PKR</span>
                     </div>
                 `);
-                $nextRow.find('td').eq(4).html(`
+                $nextRow.find('td').eq(baseIdx + 1).html(`
                     <div class="tbl-input-group">
                         <input type="number" step="0.01" min="0" id="retail_price" name="retail_price" class="text-end" value="${retailVal}" placeholder="0" oninput="checkPriceWarning()">
                         <span class="tbl-addon">PKR</span>
                     </div>
                 `);
-                $nextRow.find('td').eq(5).html(`
+                $nextRow.find('td').eq(baseIdx + 2).html(`
                     <input type="number" step="0.01" min="0" id="alert_qty" name="alert_qty" class="tbl-input-clean text-center" value="${alertVal}" placeholder="0" oninput="updateSummaryCards()">
                 `);
-                $nextRow.find('td').eq(6).html(`
+                $nextRow.find('td').eq(baseIdx + 3).html(`
                     <input type="number" step="0.01" id="opening_qty" name="opening_qty" class="tbl-input-readonly text-end" value="${openingVal}" readonly>
                     <input type="hidden" id="carton_qty" name="carton_qty" value="${openingVal}">
                 `);
@@ -1244,11 +1245,16 @@ $(document).ready(function() {
             }
 
             if (type === 'shop') {
-                data.push({ location_type: 'shop', quantity: qty });
+                data.push({
+                    location_type: 'shop',
+                    quantity: qty,
+                    variant_id: null
+                });
             } else if (type && type.indexOf('wh_') === 0) {
                 data.push({
                     location_type: 'warehouse',
                     warehouse_id: parseInt(type.replace('wh_', '')),
+                    variant_id: null,
                     quantity: qty
                 });
             }

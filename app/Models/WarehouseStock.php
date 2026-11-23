@@ -13,6 +13,7 @@ class WarehouseStock extends Model
         'branch_id',
         'warehouse_id',
         'product_id',
+        'variant_id',
         'quantity',
         'price',
         'remarks'
@@ -43,6 +44,11 @@ class WarehouseStock extends Model
      public function product()
     {
         return $this->belongsTo(Product::class, 'product_id');
+    }
+
+    public function variant()
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 
 

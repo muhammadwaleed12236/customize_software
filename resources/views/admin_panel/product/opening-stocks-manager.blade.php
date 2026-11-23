@@ -578,6 +578,33 @@
     .select2-container--default .select2-selection--single .select2-selection__arrow {
         height: 36px !important;
     }
+
+    /* Select2 Dropdown Item Highlights */
+    .osm-select2-item {
+        padding: 3px 2px;
+    }
+    .osm-select2-title {
+        font-weight: 700;
+        color: #0f172a;
+        font-size: 13px;
+        line-height: 1.35;
+    }
+    .osm-select2-sub {
+        color: #64748b;
+        font-size: 11px;
+        margin-top: 2px;
+        font-weight: 500;
+    }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] .osm-select2-title,
+    .select2-container--default .select2-results__option--highlighted .osm-select2-title,
+    .select2-container--default .select2-results__option[aria-selected="true"] .osm-select2-title {
+        color: #ffffff !important;
+    }
+    .select2-container--default .select2-results__option--highlighted[aria-selected] .osm-select2-sub,
+    .select2-container--default .select2-results__option--highlighted .osm-select2-sub,
+    .select2-container--default .select2-results__option[aria-selected="true"] .osm-select2-sub {
+        color: rgba(255, 255, 255, 0.85) !important;
+    }
 </style>
 
 <div class="osm-container">
@@ -711,6 +738,8 @@ $(document).ready(function() {
     var warehouseUrl   = "{{ route('opening.stocks.warehouses') }}";
     var warehousesData = @json(collect($warehouses)->map(fn($w) => ['id' => $w->id, 'warehouse_name' => $w->warehouse_name, 'name' => $w->warehouse_name]));
     var rowCounter     = 0;
+    var rowProducts    = {}; // Store raw product data per row
+    var rowVariants    = {}; // Store variants per row: { idx: [variants] }
 
     /* Build Location options HTML */
     function buildLocOpts() {
@@ -725,7 +754,7 @@ $(document).ready(function() {
         return opts;
     }
 
-    /* Build one allocation sub-row */
+    /* Build one clean allocation sub-row (Location + Qty) */
     function buildAllocLine(idx) {
         var unitName = $('#unit_name_' + idx).text() || 'Pcs';
         return `
@@ -757,15 +786,24 @@ $(document).ready(function() {
         <tr class="osm-row" id="row_${idx}" data-row="${idx}">
             <td class="row-index-num">${idx}</td>
 
-            {{-- Product Selection --}}
+            {{-- Product Selection & Variant (Exact Match to User Reference) --}}
             <td>
                 <div class="product-cell-container">
                     <select class="product-sel" id="prod_${idx}" style="width:100%;"></select>
                     <input type="hidden" name="rows[${idx}][product_id]" id="prod_id_${idx}" value="">
+                    <input type="hidden" name="rows[${idx}][variant_id]" id="row_variant_id_${idx}" value="">
                     <input type="hidden" name="rows[${idx}][allocation_data]" id="alloc_data_${idx}" value="[]">
+
+                    {{-- Unit / Pack Badge Line (Shown after product picked) --}}
+                    <div class="prod-unit-line" id="unit_line_${idx}" style="display: none; align-items: center; gap: 6px; margin-top: 6px;">
+                        <span class="badge" style="background:#e0f2fe; color:#0284c7; border:1px solid #bae6fd; font-size:11px; font-weight:700; border-radius:4px; padding:2px 7px;">
+                            <i class="fas fa-check-circle mr-1"></i><span id="badge_unit_${idx}">Pieces</span>
+                        </span>
+                        <span class="font-weight-bold text-dark" style="font-size:11.5px;" id="badge_pack_desc_${idx}">Single Pcs</span>
+                    </div>
                     
                     {{-- Selected product preview card (hidden until product picked) --}}
-                    <div class="prod-selected-preview" id="preview_${idx}" style="display: none;">
+                    <div class="prod-selected-preview" id="preview_${idx}" style="display: none; margin-top: 8px;">
                         <div class="prod-preview-thumb" id="thumb_${idx}">
                             <i class="fas fa-cube"></i>
                         </div>
@@ -873,6 +911,8 @@ $(document).ready(function() {
             });
             return;
         }
+        delete rowVariants[idx];
+        delete rowProducts[idx];
         $('#row_' + idx).remove();
         renumberRows();
         calcGrandTotal();
@@ -891,6 +931,24 @@ $(document).ready(function() {
             allowClear: true,
             minimumInputLength: 0,
             width: '100%',
+            templateResult: function(item) {
+                if (!item.id) return item.text;
+                var title = item.display_title || item.text || '';
+                var code = item.item_code || '';
+                return $(`
+                    <div class="osm-select2-item">
+                        <div class="osm-select2-title">${title}</div>
+                        <div class="osm-select2-sub">SKU: ${code}</div>
+                    </div>
+                `);
+            },
+            templateSelection: function(item) {
+                if (!item.id) return item.text;
+                if (item.display_title && item.item_code) {
+                    return item.item_code + ' — ' + item.display_title;
+                }
+                return item.text;
+            },
             ajax: {
                 url: searchUrl,
                 dataType: 'json',
@@ -907,31 +965,40 @@ $(document).ready(function() {
                 }
             }
         }).on('select2:select', function(e) {
-            var d   = e.params.data;
+            var d = e.params.data;
             var row = $('#row_' + idx);
-            var selectedId = d.id;
+            var selectedProductId = d.product_id || d.id;
+            var selectedVariantId = d.variant_id || '';
 
-            // Set hidden product_id input value
-            $('#prod_id_' + idx).val(selectedId);
+            rowProducts[idx] = d;
+
+            // Set hidden product_id & variant_id
+            $('#prod_id_' + idx).val(selectedProductId);
+            $('#row_variant_id_' + idx).val(selectedVariantId);
 
             row.find('.price-wholesale').val(d.wholesale_price || '');
             row.find('.price-retail').val(d.retail_price || '');
             row.find('[name$="[alert_qty]"]').val(d.alert_quantity || '');
 
-            // Update Unit
-            var u = d.unit || d.unit_name || 'Pcs';
+            // Update Unit & Packaging badge
+            var u = d.unit || 'Pieces';
             $('#unit_name_' + idx).text(u);
             row.find('.alloc-unit-lbl').text(u);
+            $('#badge_unit_' + idx).text(u);
+
+            var ppp = parseFloat(d.piece_per_pack || 0);
+            var packDesc = (d.pack_type === 'Customize' || ppp > 1) ? (ppp + ' Pcs / Carton') : 'Single Pcs';
+            $('#badge_pack_desc_' + idx).text(packDesc);
+            $('#unit_line_' + idx).css('display', 'flex');
 
             // Populate Card Preview
-            $('#title_' + idx).text(d.text || d.item_name || 'Product');
+            $('#title_' + idx).text(d.display_title || d.item_name || 'Product');
             $('#code_' + idx).text(d.item_code || '');
-            
+
             var metaArr = [];
-            if (d.category_name) metaArr.push(d.category_name);
+            if (d.color) metaArr.push('🎨 Color: ' + d.color);
             if (u) metaArr.push(u);
-            if (d.brand_name) metaArr.push(d.brand_name);
-            $('#meta_' + idx).text(metaArr.join(' | ') + (d.item_name_urdu ? ('\n' + d.item_name_urdu) : ''));
+            $('#meta_' + idx).text(metaArr.join(' | '));
 
             if (d.image) {
                 $('#thumb_' + idx).html('<img src="' + d.image + '" alt="">');
@@ -940,15 +1007,24 @@ $(document).ready(function() {
             }
             $('#preview_' + idx).slideDown(150);
 
+            // Ensure single clean allocation row
+            if ($('#alloc_rows_' + idx + ' .alloc-single-row').length === 0) {
+                $('#alloc_rows_' + idx).append(buildAllocLine(idx));
+            }
+
+            calcTotal(idx);
             checkRowPriceWarning(idx);
 
-            // Automatically move focus to allocated qty input for fast data entry
             setTimeout(function() {
                 row.find('.alloc-qty').first().focus();
             }, 100);
         }).on('select2:clear', function() {
             $('#prod_id_' + idx).val('');
+            $('#row_variant_id_' + idx).val('');
             $('#preview_' + idx).slideUp(150);
+            $('#unit_line_' + idx).hide();
+            rowProducts[idx] = null;
+            calcTotal(idx);
         });
     }
 
@@ -973,6 +1049,7 @@ $(document).ready(function() {
     window.calcTotal = function(idx) {
         var total = 0;
         var data = [];
+        var vId = $('#row_variant_id_' + idx).val() || null;
 
         $('#alloc_rows_' + idx + ' .alloc-single-row').each(function() {
             var type = $(this).find('.alloc-type').val();
@@ -980,11 +1057,16 @@ $(document).ready(function() {
             total += qty;
 
             if (type === 'shop') {
-                data.push({ location_type: 'shop', quantity: qty });
+                data.push({
+                    location_type: 'shop',
+                    quantity: qty,
+                    variant_id: vId ? parseInt(vId) : null
+                });
             } else if (type && type.indexOf('wh_') === 0) {
                 data.push({
                     location_type: 'warehouse',
                     warehouse_id: parseInt(type.replace('wh_', '')),
+                    variant_id: vId ? parseInt(vId) : null,
                     quantity: qty
                 });
             }

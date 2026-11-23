@@ -1006,7 +1006,14 @@
                             <div class="cat-sub">{{ $product->sub_category_relation->name ?? '-' }}</div>
                         </td>
                         <td data-search="{{ $product->item_name }}">
-                            <div class="item-name-text">{{ $product->item_name }}</div>
+                            <div class="item-name-text">
+                                {{ $product->item_name }}
+                                @if($product->has_variants)
+                                    <span class="badge ml-1" style="font-size: 9.5px; font-weight: 700; background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; border-radius: 4px; padding: 2px 6px;">
+                                        <i class="fas fa-palette mr-0.5"></i> Variants
+                                    </span>
+                                @endif
+                            </div>
                             @if($product->branch)
                                 <div style="font-size: 11px; color: #64748b; opacity: 0.68; margin-top: 3px; font-weight: 500;">
                                     <i class="fas fa-store-alt mr-1" style="font-size: 9px;"></i>Origin: {{ $product->branch->name }}
@@ -1196,43 +1203,6 @@
                     </div>
                 </div>
 
-                {{-- 2. PRICING OVERVIEW ROW (2 Clean Full-Width Equal Cards) --}}
-                <div class="row no-gutters mb-2.5" style="margin-left: -4px; margin-right: -4px;">
-                    {{-- Wholesale / Purchase Price Card --}}
-                    <div class="col-6 px-1">
-                        <div class="card border-0 shadow-sm h-100" style="border-radius: 8px; border: 1.5px solid #e2e8f0 !important; background: #ffffff;">
-                            <div class="card-body p-2.5 d-flex align-items-center justify-content-between">
-                                <div>
-                                    <div class="text-uppercase font-weight-700 text-muted" style="font-size: 9.5px; letter-spacing: 0.4px;">
-                                        <i class="fas fa-truck-loading text-secondary mr-1"></i> Wholesale (Purchase)
-                                    </div>
-                                    <div class="font-weight-bold text-dark mt-1" style="font-size: 16px; font-family: 'JetBrains Mono', monospace;" id="pvm_wholesale">PKR 0</div>
-                                </div>
-                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px; background: #f1f5f9; color: #64748b;">
-                                    <i class="fas fa-boxes-stacked" style="font-size: 13px;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {{-- Retail / Sale Price Card --}}
-                    <div class="col-6 px-1">
-                        <div class="card border-0 shadow-sm h-100" style="border-radius: 8px; border: 1.5px solid #86efac !important; background: #f0fdf4;">
-                            <div class="card-body p-2.5 d-flex align-items-center justify-content-between">
-                                <div>
-                                    <div class="text-uppercase font-weight-700 text-success" style="font-size: 9.5px; letter-spacing: 0.4px;">
-                                        <i class="fas fa-tag mr-1"></i> Retail (Sale)
-                                    </div>
-                                    <div class="font-weight-bolder text-success mt-1" style="font-size: 16px; font-family: 'JetBrains Mono', monospace;" id="pvm_retail">PKR 0</div>
-                                </div>
-                                <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width: 34px; height: 34px; background: rgba(13,159,110,0.15); color: #0d9f6e;">
-                                    <i class="fas fa-cash-register" style="font-size: 13px;"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 {{-- 3. SPECIFICATIONS GRID ROW (Classification, Identification, Packaging) --}}
                 <div class="row no-gutters" style="margin-left: -4px; margin-right: -4px;">
                     {{-- 1. Classification & Hierarchy --}}
@@ -1291,11 +1261,11 @@
                         </div>
                     </div>
 
-                    {{-- 3. Packaging & Units --}}
+                    {{-- 3. Packaging & Pricing --}}
                     <div class="col-md-4 px-1">
                         <div class="pvm-section-box h-100 mb-0">
                             <div class="pvm-section-title">
-                                <i class="fas fa-box-open text-warning"></i> Packaging &amp; Units
+                                <i class="fas fa-box-open text-warning"></i> Packaging &amp; Pricing
                             </div>
                             <div class="d-flex flex-column" style="gap: 6px;">
                                 <div>
@@ -1306,11 +1276,51 @@
                                     <div class="pvm-label">Base Unit</div>
                                     <div class="pvm-value font-weight-bold text-dark" id="pvm_unit">-</div>
                                 </div>
+                                <div>
+                                    <div class="pvm-label">Wholesale Rate</div>
+                                    <div class="pvm-value font-weight-bold text-dark" id="pvm_wholesale">PKR 0</div>
+                                </div>
+                                <div>
+                                    <div class="pvm-label">Retail Rate</div>
+                                    <div class="pvm-value font-weight-bold text-success" id="pvm_retail">PKR 0</div>
+                                </div>
                                 <div class="customize-field">
                                     <div class="pvm-label">Pcs / Carton</div>
                                     <div class="pvm-value font-weight-bold text-success" id="pvm_piece_per_pack">-</div>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- 4. PRODUCT VARIANTS & COLOR-WISE STOCK BREAKDOWN (Shown if product has variants) --}}
+                <div class="mt-2.5" id="pvm_variants_container" style="display: none;">
+                    <div class="pvm-section-box mb-0 p-2.5" style="border: 1px solid #bae6fd; background: #f0f9ff; border-radius: 8px;">
+                        <div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-info">
+                            <span class="font-weight-bold text-dark" style="font-size: 12px;">
+                                <i class="fas fa-palette text-primary mr-1"></i> Color Variants &amp; Live Stock Breakdown
+                            </span>
+                            <span class="badge" id="pvm_variants_count" style="background: #0284c7; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;">
+                                0 Variants
+                            </span>
+                        </div>
+                        <div class="table-responsive bg-white rounded border">
+                            <table class="table table-bordered table-sm mb-0 text-center" style="font-size: 11.5px;">
+                                <thead class="bg-light text-secondary">
+                                    <tr>
+                                        <th style="width: 30px;">#</th>
+                                        <th class="text-left">Variant Name</th>
+                                        <th class="text-left">Color</th>
+                                        <th>Barcode</th>
+                                        <th>Wholesale</th>
+                                        <th>Retail Price</th>
+                                        <th>Live Stock Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pvm_variants_tbody">
+                                    <!-- Populated via AJAX -->
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -1658,6 +1668,14 @@ $(document).on('click', '.viewProductBtn', function () {
 
             // Stock
             var stock    = parseFloat(p.stock ? p.stock.qty : 0);
+            if (p.has_variants && p.variants && p.variants.length > 0) {
+                var vTotal = p.variants.reduce(function(sum, v) {
+                    return sum + parseFloat(v.stock_qty || 0);
+                }, 0);
+                if (vTotal > stock) {
+                    stock = vTotal;
+                }
+            }
             var alertQty = parseFloat(p.alert_quantity || 0);
             var ppp = parseFloat(p.piece_per_pack || 1);
             if (ppp > 1) {
@@ -1781,6 +1799,37 @@ $(document).on('click', '.viewProductBtn', function () {
                 $('#productViewModal .customize-field').addClass('d-show');
             } else {
                 $('#productViewModal .customize-field').removeClass('d-show');
+            }
+
+            // Variants & Color-wise Stock breakdown
+            if (p.has_variants && p.variants && p.variants.length > 0) {
+                $('#pvm_variants_container').show();
+                $('#pvm_variants_count').text(p.variants.length + ' Variants');
+                var vHtml = '';
+                p.variants.forEach(function(v, idx) {
+                    var stockQty = parseFloat(v.stock_qty || 0);
+                    var stockBadge = stockQty > 0 
+                        ? '<span class="badge" style="background:#dcfce7; color:#15803d; font-size:11px; font-weight:700; padding:3px 8px; border-radius:5px; border:1px solid #bbf7d0;"><i class="fas fa-check-circle mr-1"></i>' + stockQty + ' In Stock</span>'
+                        : '<span class="badge" style="background:#fee2e2; color:#b91c1c; font-size:11px; font-weight:700; padding:3px 8px; border-radius:5px; border:1px solid #fecaca;"><i class="fas fa-times-circle mr-1"></i>0 Sold Out</span>';
+
+                    var vWholesale = parseFloat(v.wholesale_price || p.wholesale_price || 0);
+                    var vPrice = parseFloat(v.retail_price || p.price || 0);
+
+                    var vVariantName = v.variant_name || v.color || '-';
+                    vHtml += '<tr>' +
+                        '<td class="text-muted">' + (idx + 1) + '</td>' +
+                        '<td class="text-left font-weight-bold text-dark">' + vVariantName + '</td>' +
+                        '<td class="text-left font-weight-bold text-secondary"><span class="color-badge" style="background:#f1f5f9; border-color:#cbd5e1;">' + (v.color || '-') + '</span></td>' +
+                        '<td class="font-weight-600 text-secondary">' + (v.barcode || '-') + '</td>' +
+                        '<td class="font-weight-bold text-dark">PKR ' + vWholesale.toLocaleString() + '</td>' +
+                        '<td class="font-weight-bold text-success">PKR ' + vPrice.toLocaleString() + '</td>' +
+                        '<td>' + stockBadge + '</td>' +
+                    '</tr>';
+                });
+                $('#pvm_variants_tbody').html(vHtml);
+            } else {
+                $('#pvm_variants_container').hide();
+                $('#pvm_variants_tbody').empty();
             }
 
             // Edit link — opens the Opening Stock Edit page for this product

@@ -216,7 +216,27 @@
                             </div>
                             <label class="field-label">Product Image</label>
                             <input type="file" id="imageInput" name="image" class="custom-input mb-2" accept="image/*">
-                            <p class="small text-muted mb-0">📌 Drag and drop or click to upload</p>
+                            <p class="small text-muted mb-2">📌 Drag and drop or click to upload</p>
+
+                            <!-- Product Type (Side Option) -->
+                            <div class="p-2 rounded mt-2" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+                                <label class="field-label mb-1 font-weight-bold" style="font-size: 11px; color: #1e293b;">
+                                    <i class="fas fa-layer-group text-primary me-1"></i> Product Type
+                                </label>
+                                <div class="form-check mb-1">
+                                    <input class="form-check-input product-type-radio" type="radio" name="has_variants" id="type_standard" value="0" checked style="cursor: pointer;">
+                                    <label class="form-check-label text-secondary" for="type_standard" style="cursor: pointer; font-size: 11.5px; font-weight: 500;">
+                                        Standard
+                                    </label>
+                                </div>
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input product-type-radio" type="radio" name="has_variants" id="type_variant" value="1" style="cursor: pointer;">
+                                    <label class="form-check-label text-primary" for="type_variant" style="cursor: pointer; font-size: 11.5px; font-weight: 600;">
+                                        Variant
+                                    </label>
+                                </div>
+                                <span id="product_type_hint" style="display: none;"></span>
+                            </div>
                         </div>
 
                         <!-- Right: Fields Area -->
@@ -296,7 +316,7 @@
                                     <input type="text" id="item_code" name="item_code" class="custom-input fw-bold text-primary" value="{{ $nextItemCode ?? '' }}" placeholder="Item Code (e.g. ITEM-0001)">
                                 </div>
 
-                                <div class="field-group">
+                                <div class="field-group" id="top_barcode_group">
                                     <label class="field-label">Barcode / SKU</label>
                                     <div class="d-flex align-items-center">
                                         <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $nextBarcode ?? '' }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
@@ -365,9 +385,41 @@
                                 </div>
                             </div>
 
-                            <!-- Row 4: Color & Inline Save Button -->
-                            <div class="field-row mt-2 align-items-end">
-                                <div class="field-group mb-0">
+                            <!-- Variants Configuration Section (Shown when Variant Product is chosen - ON TOP) -->
+                            <div id="variants_section" class="mt-2 mb-2 p-3 rounded" style="display: none; background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
+                                <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
+                                    <div>
+                                        <h6 class="m-0 fw-bold text-dark" style="font-size: 13px;">
+                                            <i class="fas fa-palette text-primary me-1"></i> Product Color Variants
+                                        </h6>
+                                        <small class="text-muted" style="font-size: 11px;">Select colors directly in the table below. Each color has its own SKU and Barcode.</small>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" id="btn_add_variant_row" style="font-size: 11px; padding: 3px 12px; font-weight: 600;">
+                                        <i class="fas fa-plus"></i> Add Color
+                                    </button>
+                                </div>
+
+                                <div class="table-responsive">
+                                    <table class="table table-bordered table-sm mb-0" id="variants_table" style="font-size: 12px;">
+                                        <thead class="bg-light text-secondary">
+                                            <tr>
+                                                <th style="width: 35px;" class="text-center">#</th>
+                                                <th>VARIANT NAME</th>
+                                                <th style="width: 240px;">COLOR</th>
+                                                <th style="width: 240px;">BARCODE</th>
+                                                <th style="width: 45px;" class="text-center">DEL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="variants_tbody">
+                                            <!-- Dynamically populated -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Single Product Color (Hidden when Variant Product is selected) -->
+                            <div class="field-row mt-2 align-items-end" id="single_color_row">
+                                <div class="field-group mb-0" id="single_color_group" style="grid-column: span 2;">
                                     <label class="field-label">Color</label>
                                     <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
                                         <option value="Black">Black</option>
@@ -378,12 +430,13 @@
                                         <option value="Golden">Golden</option>
                                     </select>
                                 </div>
+                            </div>
 
-                                <div class="field-group mb-0" style="grid-column: span 3;">
-                                    <button type="submit" class="btn-save-main w-100" style="height: 40px; padding: 0; line-height: 40px;">
-                                        <i class="fas fa-save me-2"></i> SAVE PRODUCT
-                                    </button>
-                                </div>
+                            <!-- Save Button Row (Always at the very BOTTOM) -->
+                            <div class="mt-3" id="save_btn_wrapper">
+                                <button type="submit" class="btn-save-main w-100" style="height: 42px; padding: 0; line-height: 42px; font-size: 14px;">
+                                    <i class="fas fa-save me-2"></i> SAVE PRODUCT
+                                </button>
                             </div>
 
                             {{-- Commented out Part / Assembly checkboxes as requested --}}
@@ -624,7 +677,7 @@
                 checkUnitPacking();
             }
 
-            // 4. Initialize Select2
+            // 4. Initialize Select2 & Variant Engine
             $(document).ready(function () {
                 $('#color-select').select2({
                     tags: true,
@@ -633,7 +686,196 @@
                     width: '100%'
                 });
                 $('[data-toggle="tooltip"]').tooltip();
+
+                // Toggle Variant Structure
+                function handleProductTypeToggle(isInitial) {
+                    const isVariant = $('#type_variant').is(':checked');
+                    if (isVariant) {
+                        $('#single_color_row').hide();
+                        $('#top_barcode_group').hide();
+                        if (isInitial) {
+                            $('#variants_section').show();
+                        } else {
+                            $('#variants_section').slideDown(200);
+                        }
+                        $('#product_type_hint').text('Variant Product: Each color has its own Barcode & Stock');
+                        if ($('#variants_tbody tr').length === 0) {
+                            addVariantRow('', '', '', '');
+                        }
+                    } else {
+                        $('#single_color_row').show();
+                        $('#top_barcode_group').show();
+                        if (isInitial) {
+                            $('#variants_section').hide();
+                        } else {
+                            $('#variants_section').slideUp(200);
+                        }
+                        $('#product_type_hint').text('Standard simple item without individual color stocks');
+                    }
+                }
+
+                // Remember Product Type (Default Standard, but persist user change until changed again)
+                const serverOld = "{{ old('has_variants', '') }}";
+                if (serverOld === '1') {
+                    $('#type_variant').prop('checked', true);
+                } else if (serverOld === '0') {
+                    $('#type_standard').prop('checked', true);
+                } else {
+                    const savedType = localStorage.getItem('last_product_structure_type');
+                    if (savedType === 'variant') {
+                        $('#type_variant').prop('checked', true);
+                    } else if (savedType === 'standard') {
+                        $('#type_standard').prop('checked', true);
+                    } else {
+                        // By default: Standard
+                        $('#type_standard').prop('checked', true);
+                    }
+                }
+
+                $('.product-type-radio').on('change', function() {
+                    const isVar = $('#type_variant').is(':checked');
+                    localStorage.setItem('last_product_structure_type', isVar ? 'variant' : 'standard');
+                    handleProductTypeToggle(false);
+                });
+                handleProductTypeToggle(true);
+
+                // Sync Item Description (English) -> Variant Name (unless user manually customized that row)
+                $('#product_name').on('input change', function() {
+                    const currentProductName = $(this).val().trim();
+                    $('#variants_tbody tr').each(function() {
+                        const $nameInput = $(this).find('.variant-name-input');
+                        if (!$nameInput.data('custom-edited')) {
+                            $nameInput.val(currentProductName);
+                        }
+                    });
+                });
+
+                // Sync when item code or barcode changes
+                $('#item_code, #barcodeInput').on('input change', function() {
+                    if ($('#type_variant').is(':checked')) {
+                        updateVariantCodesAndBarcodes();
+                    }
+                });
+
+                // Add manual variant row
+                $('#btn_add_variant_row').on('click', function() {
+                    addVariantRow('', '', '', '');
+                });
+
+                // Delete variant row
+                $(document).on('click', '.btn-del-variant', function() {
+                    if ($('#variants_tbody tr').length > 1) {
+                        $(this).closest('tr').remove();
+                        reindexVariantRows();
+                    } else {
+                        // Clear the only remaining row
+                        const tr = $(this).closest('tr');
+                        const baseProductName = $('#product_name').val() ? $('#product_name').val().trim() : '';
+                        tr.find('.variant-name-input').val(baseProductName).removeData('custom-edited');
+                        tr.find('.variant-color-input').val('');
+                        tr.find('.variant-code-input').val($('#item_code').val() || 'ITEM-0001');
+                    }
+                });
             });
+
+            const PREDEFINED_COLORS = [
+                'Black', 'White', 'Red', 'Blue', 'Silver', 'Golden',
+                'Grey', 'Brown', 'Green', 'Yellow', 'Orange', 'Purple',
+                'Maroon', 'Pink'
+            ];
+
+            function generateColorCode(color) {
+                if (!color) return 'VAR';
+                const clean = color.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                return clean.length >= 3 ? clean.substring(0, 3) : clean.padEnd(3, 'X');
+            }
+
+            function updateVariantCodesAndBarcodes() {
+                const baseItemCode = $('#item_code').val() || 'ITEM';
+                const baseBarcode = $('#barcodeInput').val() || '1000';
+
+                $('#variants_tbody tr').each(function(idx) {
+                    const col = $(this).find('.variant-color-input').val();
+                    const $codeInput = $(this).find('.variant-code-input');
+                    const $barInput = $(this).find('.variant-barcode-input');
+
+                    if (!$codeInput.data('custom-edited') && col) {
+                        $codeInput.val(baseItemCode + '-' + generateColorCode(col));
+                    }
+                    if (!$barInput.data('custom-edited')) {
+                        $barInput.val(baseBarcode + '-' + (idx + 1));
+                    }
+                });
+            }
+
+            function addVariantRow(color, code, barcode, variantName) {
+                const rowIdx = $('#variants_tbody tr').length;
+                const baseItemCode = $('#item_code').val() || 'ITEM';
+                const baseBarcode = $('#barcodeInput').val() || '1000';
+                const baseProductName = $('#product_name').val() ? $('#product_name').val().trim() : '';
+
+                const finalCode = code || (color ? (baseItemCode + '-' + generateColorCode(color)) : (baseItemCode + '-VAR' + (rowIdx + 1)));
+                const finalBarcode = barcode || (baseBarcode + '-' + (rowIdx + 1));
+                const finalVariantName = (typeof variantName !== 'undefined' && variantName !== '') ? variantName : baseProductName;
+
+                const tr = $(`
+                    <tr class="variant-row" data-idx="${rowIdx}">
+                        <td class="text-center align-middle font-weight-bold text-muted variant-row-num" style="font-size: 11px;">${rowIdx + 1}</td>
+                        <td style="vertical-align: middle;">
+                            <input type="text" name="variants[${rowIdx}][variant_name]" class="custom-input variant-name-input fw-bold text-dark" value="${finalVariantName}" placeholder="e.g. ${baseProductName || 'Variant Name'}" style="height: 33px; font-size: 12.5px;">
+                            <input type="hidden" name="variants[${rowIdx}][variant_code]" class="variant-code-input" value="${finalCode}">
+                        </td>
+                        <td style="vertical-align: middle;">
+                            <input type="text" name="variants[${rowIdx}][color]" class="custom-input variant-color-input fw-bold text-dark" value="${color || ''}" placeholder="Type color (e.g. Black, Red)..." style="height: 33px; font-size: 12.5px;" required>
+                        </td>
+                        <td style="vertical-align: middle;">
+                            <input type="text" name="variants[${rowIdx}][barcode]" class="custom-input variant-barcode-input" value="${finalBarcode}" placeholder="Barcode" style="height: 33px; font-size: 12.5px;">
+                        </td>
+                        <td class="text-center align-middle" style="vertical-align: middle;">
+                            <button type="button" class="btn btn-sm btn-outline-danger btn-del-variant p-0" style="width: 26px; height: 26px; line-height: 24px; border-radius: 4px;" title="Remove variant">&times;</button>
+                        </td>
+                    </tr>
+                `);
+
+                // Mark customized if user manually edits variant name
+                tr.find('.variant-name-input').on('input change', function() {
+                    $(this).data('custom-edited', true);
+                });
+
+                // Update variant code on color typing
+                tr.find('.variant-color-input').on('input change', function() {
+                    const colVal = $(this).val().trim();
+                    const $codeInput = tr.find('.variant-code-input');
+                    if (!$codeInput.data('custom-edited') && colVal) {
+                        const curBase = $('#item_code').val() || 'ITEM';
+                        $codeInput.val(curBase + '-' + generateColorCode(colVal));
+                    }
+                });
+
+                tr.find('.variant-code-input, .variant-barcode-input').on('change', function() {
+                    $(this).data('custom-edited', true);
+                });
+
+                $('#variants_tbody').append(tr);
+            }
+
+            function reindexVariantRows() {
+                const baseBarcode = $('#barcodeInput').val() || '1000';
+                $('#variants_tbody tr').each(function(idx) {
+                    $(this).attr('data-idx', idx);
+                    $(this).find('.variant-row-num').text(idx + 1);
+                    $(this).find('input').each(function() {
+                        const name = $(this).attr('name');
+                        if (name) {
+                            $(this).attr('name', name.replace(/variants\[\d+\]/, `variants[${idx}]`));
+                        }
+                    });
+                    const $barInput = $(this).find('.variant-barcode-input');
+                    if (!$barInput.data('custom-edited') && !$barInput.val()) {
+                        $barInput.val(baseBarcode + '-' + (idx + 1));
+                    }
+                });
+            }
 
             // 5. BOM (Bill of Materials) Logic
             let bomItems = [];
@@ -753,6 +995,26 @@
                     Swal.fire({ icon: 'warning', title: 'Missing Unit', text: 'Please select product unit.' });
                     return false;
                 }
+
+                if ($('#type_variant').is(':checked')) {
+                    const rows = $('#variants_tbody tr.variant-row');
+                    if (rows.length === 0) {
+                        Swal.fire({ icon: 'warning', title: 'Missing Variants', text: 'Please add at least one color variant.' });
+                        return false;
+                    }
+                    let hasEmptyColor = false;
+                    rows.each(function() {
+                        const col = $(this).find('.variant-color-input').val().trim();
+                        if (!col) {
+                            hasEmptyColor = true;
+                        }
+                    });
+                    if (hasEmptyColor) {
+                        Swal.fire({ icon: 'warning', title: 'Color Required', text: 'Please select or enter a color for every variant row.' });
+                        return false;
+                    }
+                }
+
                 this.submit();
             });
         </script>

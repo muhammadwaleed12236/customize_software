@@ -2877,13 +2877,13 @@ function computeRow($row, manualAmount = false, formatDiscount = true) {
                 let results = [];
                 if (Array.isArray(data)) {
                     results = data.map(function (p) {
-                        return { id: p.id, text: p.item_name, stock: p.stock, price: p.retail_price || p.price };
+                        return { id: p.id, text: p.text || p.display_title || p.item_name, stock: p.stock, price: p.retail_price || p.price };
                     });
                     return { results: results, pagination: { more: false } };
                 }
 
                 results = (data.products || []).map(function (p) {
-                    return { id: p.id, text: p.item_name, stock: p.stock, price: p.retail_price || p.price };
+                    return { id: p.id, text: p.text || p.display_title || p.item_name, stock: p.stock, price: p.retail_price || p.price };
                 });
 
                 return {

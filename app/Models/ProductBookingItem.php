@@ -14,6 +14,7 @@ class ProductBookingItem extends Model
         'branch_id',
         'warehouse_id',
         'product_id',
+        'variant_id',
         'watt',
         'stock',
         'price_level',
@@ -57,6 +58,11 @@ class ProductBookingItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function variant()
+    {
+        return $this->belongsTo(ProductVariant::class, 'variant_id');
     }
 
     public static function generateInvoiceNo()

@@ -76,9 +76,17 @@ class ReportingController extends Controller
             $modelName = $request->model;
         }
 
+        $productIdRaw = $request->get('product_id');
         $productId = null;
-        if ($request->filled('product_id') && $request->product_id !== 'all') {
-            $productId = (int)$request->product_id;
+        $variantId = null;
+        if (!empty($productIdRaw) && $productIdRaw !== 'all') {
+            if (strpos($productIdRaw, ':') !== false) {
+                [$productId, $variantId] = explode(':', $productIdRaw);
+                $productId = (int)$productId;
+                $variantId = (int)$variantId;
+            } else {
+                $productId = (int)$productIdRaw;
+            }
         }
 
         // Default to showing available stock only (> 0) unless specified otherwise
@@ -88,61 +96,80 @@ class ReportingController extends Controller
         $categories = Category::orderBy('name')->get(['id', 'name']);
         $brands = Brand::orderBy('name')->get(['id', 'name']);
         $models = Product::whereNotNull('model')->where('model', '!=', '')->distinct()->orderBy('model')->pluck('model');
-        $allProducts = Product::orderBy('item_name')->get(['id', 'item_name', 'item_code']);
+        $allProducts = Product::with('variants')->orderBy('item_name')->get(['id', 'item_name', 'item_code', 'has_variants']);
 
-        // Main Query
+        // Main Query - Supports Variant Products with Individual Variant Breakdown
         $query = Product::query()
             ->leftJoin('brands', 'brands.id', '=', 'products.brand_id')
             ->leftJoin('categories', 'categories.id', '=', 'products.category_id')
-            ->leftJoin('units', 'units.id', '=', 'products.unit_id');
-
-        if ($branchId || $warehouseId) {
-            $query->leftJoin('warehouse_stocks as ws', function($join) use ($branchId, $warehouseId) {
-                $join->on('ws.product_id', '=', 'products.id');
+            ->leftJoin('units', 'units.id', '=', 'products.unit_id')
+            ->leftJoin('product_variants as pv', function($join) {
+                $join->on('pv.product_id', '=', 'products.id')
+                     ->where('products.has_variants', '=', 1);
+            })
+            ->leftJoin('warehouse_stocks as ws', function($join) use ($branchId, $warehouseId) {
+                $join->on('ws.product_id', '=', 'products.id')
+                     ->where(function($w) {
+                         $w->where('products.has_variants', '=', 0)
+                           ->orWhereColumn('ws.variant_id', 'pv.id');
+                     });
                 if ($branchId) {
                     $join->where('ws.branch_id', '=', $branchId);
                 }
                 if ($warehouseId) {
                     $join->where('ws.warehouse_id', '=', $warehouseId);
                 }
-            })
-            ->selectRaw("
-                products.id,
-                products.item_code,
-                products.item_name,
-                products.model,
-                COALESCE(brands.name, '') as brand_name,
-                COALESCE(categories.name, '') as category_name,
-                COALESCE(units.name, '') as unit_name,
-                COALESCE(SUM(ws.quantity), 0) as onhand_qty,
-                products.is_part,
-                products.is_assembled
-            ")
-            ->groupBy(
-                'products.id',
-                'products.item_code',
-                'products.item_name',
-                'products.model',
-                'brands.name',
-                'categories.name',
-                'units.name',
-                'products.is_part',
-                'products.is_assembled'
-            );
+            });
+
+        if (!$branchId && !$warehouseId) {
+            $query->leftJoin('v_stock_onhand as soh', 'soh.product_id', '=', 'products.id');
+            $onhandExpr = "
+                CASE 
+                    WHEN products.has_variants = 1 THEN COALESCE(SUM(ws.quantity), 0)
+                    ELSE COALESCE(SUM(ws.quantity), soh.onhand_qty, 0)
+                END
+            ";
         } else {
-            $query->leftJoin('v_stock_onhand as soh', 'soh.product_id', '=', 'products.id')
-            ->selectRaw("
-                products.id,
-                products.item_code,
-                products.item_name,
-                products.model,
-                COALESCE(brands.name, '') as brand_name,
-                COALESCE(categories.name, '') as category_name,
-                COALESCE(units.name, '') as unit_name,
-                COALESCE(soh.onhand_qty, 0) as onhand_qty,
-                products.is_part,
-                products.is_assembled
-            ");
+            $onhandExpr = "COALESCE(SUM(ws.quantity), 0)";
+        }
+
+        $query->selectRaw("
+            products.id,
+            pv.id as variant_id,
+            products.item_code,
+            CASE 
+                WHEN products.has_variants = 1 AND pv.color IS NOT NULL AND pv.color != '' 
+                    THEN CONCAT(products.item_name, ' (', pv.color, ')')
+                WHEN products.has_variants = 1 AND pv.variant_name IS NOT NULL AND pv.variant_name != '' 
+                    THEN CONCAT(products.item_name, ' (', pv.variant_name, ')')
+                ELSE products.item_name 
+            END as item_name,
+            products.model,
+            COALESCE(brands.name, '') as brand_name,
+            COALESCE(categories.name, '') as category_name,
+            COALESCE(units.name, '') as unit_name,
+            {$onhandExpr} as onhand_qty,
+            products.is_part,
+            products.is_assembled
+        ")
+        ->groupBy(
+            'products.id',
+            'pv.id',
+            'products.item_code',
+            'products.item_name',
+            'pv.color',
+            'pv.variant_name',
+            'products.has_variants',
+            'products.model',
+            'brands.name',
+            'categories.name',
+            'units.name',
+            'products.is_part',
+            'products.is_assembled'
+        );
+
+        if (!$branchId && !$warehouseId) {
+            $query->groupBy('soh.onhand_qty');
         }
 
         if ($categoryId) {
@@ -159,23 +186,16 @@ class ReportingController extends Controller
 
         if ($productId) {
             $query->where('products.id', $productId);
+            if ($variantId) {
+                $query->where('pv.id', $variantId);
+            }
         }
 
         // Apply Stock Status Filter
         if ($stockStatus === 'in_stock') {
-            if ($branchId || $warehouseId) {
-                $query->havingRaw("COALESCE(SUM(ws.quantity), 0) > 0");
-            } else {
-                $query->where('soh.onhand_qty', '>', 0);
-            }
+            $query->havingRaw("{$onhandExpr} > 0");
         } elseif ($stockStatus === 'out_of_stock') {
-            if ($branchId || $warehouseId) {
-                $query->havingRaw("COALESCE(SUM(ws.quantity), 0) <= 0");
-            } else {
-                $query->where(function($q) {
-                    $q->whereNull('soh.onhand_qty')->orWhere('soh.onhand_qty', '<=', 0);
-                });
-            }
+            $query->havingRaw("{$onhandExpr} <= 0");
         }
 
         $rows = $query->orderBy('products.item_name')->get();
@@ -192,7 +212,7 @@ class ReportingController extends Controller
 
         return view('admin_panel.reporting.onhand', compact(
             'rows', 'branches', 'warehouses', 'categories', 'brands', 'models', 'allProducts',
-            'isSuper', 'branchId', 'warehouseId', 'categoryId', 'brandId', 'modelName', 'productId', 'stockStatus'
+            'isSuper', 'branchId', 'warehouseId', 'categoryId', 'brandId', 'modelName', 'productId', 'stockStatus', 'productIdRaw', 'variantId'
         ));
     }
     public function customer_ledger_new(){
@@ -2122,7 +2142,7 @@ class ReportingController extends Controller
         }
 
         // Fetch all products so user can filter by any product or view all
-        $products = Product::orderBy('item_name')->get();
+        $products = Product::with('variants')->orderBy('item_name')->get();
 
         return view('admin_panel.reporting.item_stock_report', [
             'products' => $products,
@@ -2133,19 +2153,29 @@ class ReportingController extends Controller
     }
 
     /**
-     * ✅ FETCH ITEM STOCK REPORT - Branch-Aware, ERP Standard
+     * ✅ FETCH ITEM STOCK REPORT - Branch-Aware & Variant-Aware, ERP Standard
      * 
      * Features:
      * 1. Super admin: Can view any branch
      * 2. Branch admin: Views only their branch
-     * 3. Simple user: Views only their branch
-     * 4. Shows warehouse-wise breakdown per branch
-     * 5. International ERP standards compliance
+     * 3. Variant products: Cleanly broken down into individual variant rows
      */
     public function fetchItemStock(Request $request)
     {
-        $productId = $request->product_id;
+        $productIdRaw = $request->product_id;
         $requestedBranchId = $request->branch_id;
+
+        $productId = null;
+        $variantId = null;
+        if (!empty($productIdRaw) && $productIdRaw !== 'all') {
+            if (strpos($productIdRaw, ':') !== false) {
+                [$productId, $variantId] = explode(':', $productIdRaw);
+                $productId = (int)$productId;
+                $variantId = (int)$variantId;
+            } else {
+                $productId = (int)$productIdRaw;
+            }
+        }
 
         // ================= BRANCH ACCESS CONTROL =================
         $user = Auth::user();
@@ -2160,28 +2190,32 @@ class ReportingController extends Controller
         }
 
         // ================= FETCH PRODUCTS =================
-        $productsQuery = Product::query();
-        if ($productId && $productId !== 'all') {
-            // Single product view - get that specific product
+        $productsQuery = Product::with(['unit', 'variants']);
+        if ($productId) {
             $productsQuery->where('id', $productId);
         }
         $products = $productsQuery->orderBy('item_name')->get();
 
         // ================= PRE-AGGREGATE DATA FOR ACCURACY & PERFORMANCE =================
         
-        // 1. Pre-calculate OPENING quantities from stock_movements (Branch-aware, matching Product Ledger)
+        // 1. Pre-calculate OPENING quantities from stock_movements (Branch & Variant aware)
         $openingQuery = DB::table('stock_movements')
             ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ']);
         if ($allowedBranchId && $allowedBranchId !== 'all') {
             $openingQuery->where('branch_id', $allowedBranchId);
         }
-        $openingQtyMap = $openingQuery
-            ->select('product_id', DB::raw('SUM(qty) as total_qty'))
-            ->groupBy('product_id')
-            ->pluck('total_qty', 'product_id')
-            ->toArray();
+        $openingQtyMap = [];
+        $variantOpeningQtyMap = [];
+        foreach ($openingQuery->select('product_id', 'variant_id', DB::raw('SUM(qty) as total_qty'))->groupBy('product_id', 'variant_id')->get() as $om) {
+            $pid = $om->product_id;
+            $vid = $om->variant_id;
+            $openingQtyMap[$pid] = ($openingQtyMap[$pid] ?? 0) + (float)$om->total_qty;
+            if ($vid) {
+                $variantOpeningQtyMap[$pid . '_' . $vid] = (float)$om->total_qty;
+            }
+        }
 
-        // 2. Pre-calculate PURCHASED quantities & amounts (Branch-aware, piece-accurate)
+        // 2. Pre-calculate PURCHASED quantities & amounts (Branch & Variant aware)
         $purchaseQuery = DB::table('purchase_items')
             ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
             ->whereNull('purchases.deleted_at');
@@ -2191,16 +2225,24 @@ class ReportingController extends Controller
         $productsPpp = $products->pluck('piece_per_pack', 'id')->toArray();
         $purchasePiecesMap = [];
         $purchaseAmountMap = [];
-        foreach ($purchaseQuery->select('purchase_items.product_id', 'purchase_items.qty', 'purchase_items.packing_qty', 'purchase_items.item_per_piece', 'purchase_items.line_total')->get() as $pItem) {
+        $variantPurchasePiecesMap = [];
+        $variantPurchaseAmountMap = [];
+        foreach ($purchaseQuery->select('purchase_items.product_id', 'purchase_items.variant_id', 'purchase_items.qty', 'purchase_items.packing_qty', 'purchase_items.item_per_piece', 'purchase_items.line_total')->get() as $pItem) {
             $pid = $pItem->product_id;
+            $vid = $pItem->variant_id;
             $pMult = (float)(($pItem->item_per_piece ?? 1) > 1 ? $pItem->item_per_piece : ($productsPpp[$pid] ?? 1));
             $effectiveItemQty = (!empty($pItem->packing_qty) && (float)$pItem->packing_qty > 0) ? $pItem->packing_qty : $pItem->qty;
             $pPieces = Product::parseCartonQtyToPieces($effectiveItemQty, $pMult, 'ctn');
             $purchasePiecesMap[$pid] = ($purchasePiecesMap[$pid] ?? 0) + $pPieces;
             $purchaseAmountMap[$pid] = ($purchaseAmountMap[$pid] ?? 0) + (float)$pItem->line_total;
+            if ($vid) {
+                $vKey = $pid . '_' . $vid;
+                $variantPurchasePiecesMap[$vKey] = ($variantPurchasePiecesMap[$vKey] ?? 0) + $pPieces;
+                $variantPurchaseAmountMap[$vKey] = ($variantPurchaseAmountMap[$vKey] ?? 0) + (float)$pItem->line_total;
+            }
         }
 
-        // 3. Pre-calculate DELIVERED / SOLD quantities & amounts (Direct Sales & Dispatched Orders, piece-accurate)
+        // 3. Pre-calculate DELIVERED / SOLD quantities & amounts (Branch & Variant aware)
         $salesQuery = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->where(function ($q) {
@@ -2211,26 +2253,39 @@ class ReportingController extends Controller
         }
         $salesPiecesMap = [];
         $salesAmountMap = [];
-        foreach ($salesQuery->select('sale_items.product_id', 'sale_items.sales_qty', 'sale_items.sale_unit', 'sale_items.amount')->get() as $sItem) {
+        $variantSalesPiecesMap = [];
+        $variantSalesAmountMap = [];
+        foreach ($salesQuery->select('sale_items.product_id', 'sale_items.variant_id', 'sale_items.sales_qty', 'sale_items.sale_unit', 'sale_items.amount')->get() as $sItem) {
             $pid = $sItem->product_id;
+            $vid = $sItem->variant_id;
             $sPpp = (float)($productsPpp[$pid] ?? 1);
             $sPieces = Product::parseCartonQtyToPieces($sItem->sales_qty, $sPpp, $sItem->sale_unit);
             $salesPiecesMap[$pid] = ($salesPiecesMap[$pid] ?? 0) + $sPieces;
             $salesAmountMap[$pid] = ($salesAmountMap[$pid] ?? 0) + (float)$sItem->amount;
+            if ($vid) {
+                $vKey = $pid . '_' . $vid;
+                $variantSalesPiecesMap[$vKey] = ($variantSalesPiecesMap[$vKey] ?? 0) + $sPieces;
+                $variantSalesAmountMap[$vKey] = ($variantSalesAmountMap[$vKey] ?? 0) + (float)$sItem->amount;
+            }
         }
 
-        // Pre-calculate SALE RETURNS from stock_movements (in base units / pieces)
+        // Pre-calculate SALE RETURNS from stock_movements
         $returnQuery = DB::table('stock_movements')
             ->where('ref_type', 'SALE_RETURN')
             ->where('type', 'in');
         if ($allowedBranchId && $allowedBranchId !== 'all') {
             $returnQuery->where('branch_id', $allowedBranchId);
         }
-        $returnQtyMap = $returnQuery
-            ->select('product_id', DB::raw('COALESCE(SUM(qty), 0) as total_qty'))
-            ->groupBy('product_id')
-            ->pluck('total_qty', 'product_id')
-            ->toArray();
+        $returnQtyMap = [];
+        $variantReturnQtyMap = [];
+        foreach ($returnQuery->select('product_id', 'variant_id', DB::raw('COALESCE(SUM(qty), 0) as total_qty'))->groupBy('product_id', 'variant_id')->get() as $rItem) {
+            $pid = $rItem->product_id;
+            $vid = $rItem->variant_id;
+            $returnQtyMap[$pid] = ($returnQtyMap[$pid] ?? 0) + (float)$rItem->total_qty;
+            if ($vid) {
+                $variantReturnQtyMap[$pid . '_' . $vid] = (float)$rItem->total_qty;
+            }
+        }
 
         // Check if there are any gatepasses with items
         $gpQuery = DB::table('outward_gatepasses')->whereNotNull('items');
@@ -2269,17 +2324,119 @@ class ReportingController extends Controller
                   ->orWhere('productbookings.branch_id', $allowedBranchId);
             });
         }
-        $reservedQtyMap = $pendingBookingsQuery
-            ->select('product_booking_items.product_id', DB::raw('COALESCE(SUM(product_booking_items.sales_qty), 0) as total_qty'))
-            ->groupBy('product_booking_items.product_id')
-            ->pluck('total_qty', 'product_id')
-            ->toArray();
+        $reservedQtyMap = [];
+        $variantReservedQtyMap = [];
+        foreach ($pendingBookingsQuery->select('product_booking_items.product_id', 'product_booking_items.variant_id', DB::raw('COALESCE(SUM(product_booking_items.sales_qty), 0) as total_qty'))->groupBy('product_booking_items.product_id', 'product_booking_items.variant_id')->get() as $bItem) {
+            $pid = $bItem->product_id;
+            $vid = $bItem->variant_id;
+            $reservedQtyMap[$pid] = ($reservedQtyMap[$pid] ?? 0) + (float)$bItem->total_qty;
+            if ($vid) {
+                $variantReservedQtyMap[$pid . '_' . $vid] = (float)$bItem->total_qty;
+            }
+        }
 
         $rows = [];
         $grandTotalValue = 0;
 
         foreach ($products as $product) {
-            // ================= CALCULATE TOTAL BALANCE FROM warehouse_stocks FOR THIS BRANCH (WITH STOCKS FALLBACK) =================
+            $isVariantProduct = $product->has_variants && $product->variants && $product->variants->isNotEmpty();
+
+            // Variant product: emit individual row per variant
+            if ($isVariantProduct) {
+                $variantsList = $product->variants;
+                if ($variantId) {
+                    $variantsList = $variantsList->where('id', $variantId);
+                }
+
+                foreach ($variantsList as $pv) {
+                    $vWsQuery = WarehouseStock::where('product_id', $product->id)
+                        ->where('variant_id', $pv->id);
+                    if ($allowedBranchId && $allowedBranchId !== 'all') {
+                        $vWsQuery->where('branch_id', $allowedBranchId);
+                    }
+                    $vWarehouseStocks = $vWsQuery->get();
+                    $vTotalBalance = floatval($vWarehouseStocks->sum('quantity') ?? 0);
+
+                    $vKey = $product->id . '_' . $pv->id;
+                    $vOpeningStock = floatval($variantOpeningQtyMap[$vKey] ?? 0);
+                    if ($vOpeningStock == 0 && empty($variantPurchasePiecesMap[$vKey])) {
+                        $vOpeningStock = $vTotalBalance;
+                    }
+
+                    $vPurchased = floatval($variantPurchasePiecesMap[$vKey] ?? 0);
+                    $vPurchaseAmount = floatval($variantPurchaseAmountMap[$vKey] ?? 0);
+
+                    $vRawSold = floatval($variantSalesPiecesMap[$vKey] ?? 0);
+                    $vRetQty = floatval($variantReturnQtyMap[$vKey] ?? 0);
+                    $vSold = max(0, $vRawSold - $vRetQty);
+                    $vSaleAmount = floatval($variantSalesAmountMap[$vKey] ?? 0);
+
+                    $vReservedQty = floatval($variantReservedQtyMap[$vKey] ?? 0);
+
+                    $vWarehouseBreakdown = $vWsQuery->with('warehouse')
+                        ->select('warehouse_id', 'quantity')
+                        ->get()
+                        ->filter(fn($s) => floatval($s->quantity) > 0)
+                        ->map(function ($stock) {
+                            $warehouseName = $stock->warehouse_id === null ? 'Shop/Branch' : ($stock->warehouse?->warehouse_name ?? "Warehouse #{$stock->warehouse_id}");
+                            $location = $stock->warehouse_id === null ? 'Main' : ($stock->warehouse?->location ?? '');
+                            return [
+                                'warehouse_id'   => $stock->warehouse_id,
+                                'warehouse_name' => $warehouseName,
+                                'location'       => $location,
+                                'qty'            => floatval($stock->quantity)
+                            ];
+                        })
+                        ->values()
+                        ->toArray();
+
+                    if (empty($vWarehouseBreakdown) && $vTotalBalance > 0) {
+                        $vWarehouseBreakdown[] = [
+                            'warehouse_id'   => null,
+                            'warehouse_name' => 'Shop/Branch',
+                            'location'       => 'Main',
+                            'qty'            => $vTotalBalance
+                        ];
+                    }
+
+                    $vWholesalePrice = floatval($pv->wholesale_price ?? 0);
+                    if ($vWholesalePrice <= 0) {
+                        $vWholesalePrice = floatval($pv->retail_price ?? 0);
+                    }
+                    if ($vWholesalePrice <= 0) {
+                        $vWholesalePrice = floatval($product->wholesale_price ?: ($product->price ?? 0));
+                    }
+                    $vStockValue = $vTotalBalance * $vWholesalePrice;
+                    $grandTotalValue += $vStockValue;
+
+                    $colorLabel = $pv->color ? " ({$pv->color})" : ($pv->variant_name ? " ({$pv->variant_name})" : '');
+                    $rowTitle = $product->item_name . $colorLabel;
+
+                    $rows[] = [
+                        'id'                 => $product->id,
+                        'variant_id'         => $pv->id,
+                        'item_code'          => $product->item_code,
+                        'item_name'          => $rowTitle,
+                        'unit'               => $product->unit?->name ?? 'Pcs',
+                        'piece_per_pack'     => (float)($product->piece_per_pack ?? 1),
+                        'pack_type'          => $product->pack_type ?? 'Standard',
+                        'initial_stock'      => $vOpeningStock,
+                        'purchased'          => $vPurchased,
+                        'purchase_amount'    => $vPurchaseAmount,
+                        'sold'               => $vSold,
+                        'sale_amount'        => $vSaleAmount,
+                        'reserved_qty'       => $vReservedQty,
+                        'balance'            => $vTotalBalance,
+                        'price'              => $vWholesalePrice,
+                        'stock_value'        => $vStockValue,
+                        'warehouse_breakdown'=> $vWarehouseBreakdown,
+                        'branch_id'          => $allowedBranchId
+                    ];
+                }
+                continue;
+            }
+
+            // Standard product (no variants)
             $wsQuery = WarehouseStock::where('product_id', $product->id);
             if ($allowedBranchId && $allowedBranchId !== 'all') {
                 $wsQuery->where('branch_id', $allowedBranchId);
@@ -2295,27 +2452,20 @@ class ReportingController extends Controller
                 $totalBalance = floatval($stQuery->sum('qty') ?? 0);
             }
 
-            // ================= GET OPENING STOCK (Matching Product Ledger) =================
             $openingStock = floatval($openingQtyMap[$product->id] ?? (($allowedBranchId === 'all' || $product->branch_id == $allowedBranchId) ? ($product->initial_stock ?? 0) : 0));
 
             $multiplier = (float)($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
 
-            // ================= GET PURCHASED QTY & AMOUNT =================
             $purchased = floatval($purchasePiecesMap[$product->id] ?? 0);
             $purchaseAmount = floatval($purchaseAmountMap[$product->id] ?? 0);
 
-            // ================= GET SOLD QTY & AMOUNT (DELIVERED) =================
-            // Physically Delivered / Invoiced Sales (with Gatepass fallback & Sale Returns netted)
             $rawSoldPieces = floatval($salesPiecesMap[$product->id] ?? ($gpDeliveredQty[$product->id] ?? 0));
             $retQtyPieces = floatval($returnQtyMap[$product->id] ?? 0);
             $sold = max(0, $rawSoldPieces - $retQtyPieces);
             $saleAmount = floatval($salesAmountMap[$product->id] ?? ($gpDeliveredAmount[$product->id] ?? 0));
 
-            // ================= GET RESERVED QTY (PENDING DELIVERY) =================
-            // Bookings pending delivery
             $reservedQty = floatval($reservedQtyMap[$product->id] ?? 0);
 
-            // ================= GET WAREHOUSE-WISE BREAKDOWN =================
             $wbQuery = WarehouseStock::where('product_id', $product->id);
             if ($allowedBranchId && $allowedBranchId !== 'all') {
                 $wbQuery->where('branch_id', $allowedBranchId);
@@ -2328,10 +2478,10 @@ class ReportingController extends Controller
                     $warehouseName = $stock->warehouse_id === null ? 'Shop/Branch' : ($stock->warehouse?->warehouse_name ?? "Warehouse #{$stock->warehouse_id}");
                     $location = $stock->warehouse_id === null ? 'Main' : ($stock->warehouse?->location ?? '');
                     return [
-                        'warehouse_id' => $stock->warehouse_id,
+                        'warehouse_id'   => $stock->warehouse_id,
                         'warehouse_name' => $warehouseName,
-                        'location' => $location,
-                        'qty' => floatval($stock->quantity)
+                        'location'       => $location,
+                        'qty'            => floatval($stock->quantity)
                     ];
                 })
                 ->values()
@@ -2339,14 +2489,13 @@ class ReportingController extends Controller
 
             if (empty($warehouseBreakdown) && $totalBalance > 0) {
                 $warehouseBreakdown[] = [
-                    'warehouse_id' => null,
+                    'warehouse_id'   => null,
                     'warehouse_name' => 'Shop/Branch',
-                    'location' => 'Main',
-                    'qty' => $totalBalance
+                    'location'       => 'Main',
+                    'qty'            => $totalBalance
                 ];
             }
 
-            // ================= CALCULATE STOCK VALUE =================
             $wholesalePrice = floatval($product->wholesale_price ?? 0);
             if ($wholesalePrice <= 0) {
                 $wholesalePrice = floatval($product->price ?? 0);
@@ -2361,25 +2510,24 @@ class ReportingController extends Controller
             $stockValue = $totalBalance * $wholesalePrice;
             $grandTotalValue += $stockValue;
 
-            // ================= BUILD RESPONSE ROW =================
             $rows[] = [
-                'id' => $product->id,
-                'item_code' => $product->item_code,
-                'item_name' => $product->item_name,
-                'unit' => $product->unit?->name ?? 'Pcs',
-                'piece_per_pack' => (float)($product->piece_per_pack ?? 1),
-                'pack_type' => $product->pack_type ?? 'Standard',
-                'initial_stock' => $openingStock,
-                'purchased' => $purchased,
-                'purchase_amount' => $purchaseAmount,
-                'sold' => $sold,
-                'sale_amount' => $saleAmount,
-                'reserved_qty' => $reservedQty, // ✅ Pending delivery
-                'balance' => $totalBalance,
-                'price' => $wholesalePrice,
-                'stock_value' => $stockValue,
-                'warehouse_breakdown' => $warehouseBreakdown,
-                'branch_id' => $allowedBranchId
+                'id'                 => $product->id,
+                'item_code'          => $product->item_code,
+                'item_name'          => $product->item_name,
+                'unit'               => $product->unit?->name ?? 'Pcs',
+                'piece_per_pack'     => (float)($product->piece_per_pack ?? 1),
+                'pack_type'          => $product->pack_type ?? 'Standard',
+                'initial_stock'      => $openingStock,
+                'purchased'          => $purchased,
+                'purchase_amount'    => $purchaseAmount,
+                'sold'               => $sold,
+                'sale_amount'        => $saleAmount,
+                'reserved_qty'       => $reservedQty,
+                'balance'            => $totalBalance,
+                'price'              => $wholesalePrice,
+                'stock_value'        => $stockValue,
+                'warehouse_breakdown'=> $warehouseBreakdown,
+                'branch_id'          => $allowedBranchId
             ];
         }
 
@@ -3680,10 +3828,10 @@ class ReportingController extends Controller
             $warehouses = Warehouse::orderBy('warehouse_name')->get();
         }
 
-        // Products for searchable dropdown
-        $products = Product::with(['unit', 'brand', 'category_relation'])
+        // Products for searchable dropdown with variants
+        $products = Product::with(['unit', 'brand', 'category_relation', 'variants'])
             ->orderBy('item_name')
-            ->get(['id', 'item_code', 'item_name', 'unit_id', 'brand_id', 'category_id', 'wholesale_price', 'price', 'initial_stock']);
+            ->get(['id', 'item_code', 'item_name', 'unit_id', 'brand_id', 'category_id', 'wholesale_price', 'price', 'initial_stock', 'has_variants']);
 
         return view('admin_panel.reporting.product_ledger', compact(
             'branches',
@@ -3703,7 +3851,18 @@ class ReportingController extends Controller
         $user = Auth::user();
         $isSuperAdmin = $user && $user->hasRole('super admin');
 
-        $productId   = (int) $request->input('product_id');
+        $productIdRaw = $request->input('product_id');
+        $productId    = null;
+        $variantId    = null;
+        if (!empty($productIdRaw)) {
+            if (strpos($productIdRaw, ':') !== false) {
+                [$productId, $variantId] = explode(':', $productIdRaw);
+                $productId = (int) $productId;
+                $variantId = (int) $variantId;
+            } else {
+                $productId = (int) $productIdRaw;
+            }
+        }
         $branchId    = $request->input('branch_id', 'all');
         $warehouseId = $request->input('warehouse_id', 'all');
         $startDate   = $request->input('start_date');
@@ -3722,13 +3881,18 @@ class ReportingController extends Controller
             $branchId = (int) $user->branch_id;
         }
 
-        $product = Product::with(['unit', 'brand', 'category_relation', 'sub_category_relation'])->find($productId);
+        $product = Product::with(['unit', 'brand', 'category_relation', 'sub_category_relation', 'variants'])->find($productId);
         if (!$product) {
             return response()->json(['error' => 'Product not found.'], 404);
         }
 
-        $costRate = (float) ($product->wholesale_price ?? 0);
-        $retailRate = (float) ($product->price ?? 0);
+        $variant = null;
+        if ($variantId && $product->has_variants && $product->variants) {
+            $variant = $product->variants->firstWhere('id', $variantId);
+        }
+
+        $costRate = (float) (($variant && (float)$variant->wholesale_price > 0) ? $variant->wholesale_price : ($product->wholesale_price ?? 0));
+        $retailRate = (float) (($variant && (float)$variant->retail_price > 0) ? $variant->retail_price : ($product->price ?? 0));
         $ppp = (float) ($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
         $isCartonProd = ($ppp > 1);
         $costPerPiece = $isCartonProd ? ($costRate / $ppp) : $costRate;
@@ -3745,17 +3909,33 @@ class ReportingController extends Controller
             ->where('product_id', $productId)
             ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
             ->where('created_at', '<', $startDt);
+        if ($variantId) {
+            $openQuery->where('variant_id', $variantId);
+        }
         if ($branchId !== 'all' && !empty($branchId)) {
             $openQuery->where('branch_id', $branchId);
         }
         $openingInitial = (float) $openQuery->sum('qty');
 
-        // Fallback: If no stock_movements exist at all, but product has initial_stock and created_at < startDt
+        // Fallback: If no stock_movements exist at all, check warehouse_stocks or initial_stock
         if ($openingInitial == 0) {
-            $hasAnyMovement = DB::table('stock_movements')->where('product_id', $productId)->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])->exists();
-            if (!$hasAnyMovement && (float)$product->initial_stock > 0 && $product->created_at < $startDt) {
-                if ($branchId === 'all' || empty($branchId) || $product->branch_id == $branchId) {
-                    $openingInitial = (float) $product->initial_stock;
+            $hasAnyMovement = DB::table('stock_movements')->where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
+                ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])->exists();
+            if (!$hasAnyMovement) {
+                if ($variantId) {
+                    $wsAlloc = DB::table('warehouse_stocks')
+                        ->where('product_id', $productId)
+                        ->where('variant_id', $variantId)
+                        ->when($branchId !== 'all' && !empty($branchId), fn($q) => $q->where('branch_id', $branchId))
+                        ->when($warehouseId !== 'all' && !empty($warehouseId), fn($q) => $q->where('warehouse_id', $warehouseId));
+                    if ($product->created_at < $startDt) {
+                        $openingInitial = (float) $wsAlloc->sum('quantity');
+                    }
+                } elseif ((float)$product->initial_stock > 0 && $product->created_at < $startDt) {
+                    if ($branchId === 'all' || empty($branchId) || $product->branch_id == $branchId) {
+                        $openingInitial = (float) $product->initial_stock;
+                    }
                 }
             }
         }
@@ -3766,6 +3946,9 @@ class ReportingController extends Controller
             ->where('purchase_items.product_id', $productId)
             ->whereNull('purchases.deleted_at')
             ->where('purchases.created_at', '<', $startDt);
+        if ($variantId) {
+            $purBeforeQuery->where('purchase_items.variant_id', $variantId);
+        }
         if ($branchId !== 'all' && !empty($branchId)) {
             $purBeforeQuery->where('purchases.branch_id', $branchId);
         }
@@ -3833,6 +4016,10 @@ class ReportingController extends Controller
             ->where('sales.status', '!=', 'cancelled')
             ->where('sales.created_at', '<', $startDt);
 
+        if ($variantId) {
+            $saleBeforeQuery->where('sale_items.variant_id', $variantId);
+        }
+
         if (!empty($dcSaleIds)) {
             $saleBeforeQuery->whereNotIn('sales.id', $dcSaleIds);
         }
@@ -3875,6 +4062,9 @@ class ReportingController extends Controller
             if (is_array($items)) {
                 foreach ($items as $it) {
                     if ((int)($it['product_id'] ?? 0) === $productId) {
+                        if ($variantId && !empty($it['variant_id']) && (int)$it['variant_id'] !== $variantId) {
+                            continue;
+                        }
                         $rawGQty = (float) ($it['qty'] ?? 0);
                         $isPcsGp = strtolower($it['sale_unit'] ?? ($it['unit'] ?? '')) === 'pcs';
                         $m = (!$isPcsGp && $isCartonProd) ? $ppp : 1;
@@ -3937,16 +4127,22 @@ class ReportingController extends Controller
 
         // A. Opening entries in date range
         $inRangeOpenQuery = DB::table('stock_movements')
-            ->where('product_id', $productId)
-            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ'])
-            ->whereBetween('created_at', [$startDt, $endDt]);
-        if ($branchId !== 'all' && !empty($branchId)) {
-            $inRangeOpenQuery->where('branch_id', $branchId);
+            ->leftJoin('product_variants as pv', 'stock_movements.variant_id', '=', 'pv.id')
+            ->where('stock_movements.product_id', $productId)
+            ->whereIn('stock_movements.ref_type', ['OPENING', 'OPENING_ADJ'])
+            ->whereBetween('stock_movements.created_at', [$startDt, $endDt]);
+        if ($variantId) {
+            $inRangeOpenQuery->where('stock_movements.variant_id', $variantId);
         }
+        if ($branchId !== 'all' && !empty($branchId)) {
+            $inRangeOpenQuery->where('stock_movements.branch_id', $branchId);
+        }
+        $inRangeOpenQuery->select('stock_movements.*', 'pv.color as variant_color', 'pv.variant_name');
         foreach ($inRangeOpenQuery->get() as $op) {
             $isOut    = ($op->type === 'out');
             $inQty    = $isOut ? 0 : (float) $op->qty;
             $outQty   = $isOut ? (float) $op->qty : 0;
+            $vColor   = $op->variant_color ?: $op->variant_name;
             $events[] = [
                 'datetime'      => $op->created_at,
                 'date'          => date('d-M-Y H:i', strtotime($op->created_at)),
@@ -3954,7 +4150,7 @@ class ReportingController extends Controller
                 'badge'         => 'badge-primary',
                 'icon'          => 'fa-hourglass-start',
                 'ref_no'        => 'OPENING',
-                'party'         => 'Opening Stock Allotment',
+                'party'         => 'Opening Stock Allotment' . ($vColor ? " ({$vColor})" : ''),
                 'warehouse'     => 'Main Store',
                 'in_qty'        => $inQty,
                 'in_price'      => $costPerPiece,
@@ -3962,7 +4158,7 @@ class ReportingController extends Controller
                 'out_qty'       => $outQty,
                 'out_price'     => $costPerPiece,
                 'out_total'     => $outQty * $costPerPiece,
-                'remarks'       => $op->note ?? 'Initial stock recorded',
+                'remarks'       => ($vColor ? "[Color: {$vColor}] " : '') . ($op->note ?? 'Initial stock recorded'),
             ];
         }
 
@@ -3971,9 +4167,13 @@ class ReportingController extends Controller
             ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
             ->leftJoin('vendors', 'purchases.vendor_id', '=', 'vendors.id')
             ->leftJoin('warehouses', 'purchase_items.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('product_variants as pv', 'purchase_items.variant_id', '=', 'pv.id')
             ->where('purchase_items.product_id', $productId)
             ->whereNull('purchases.deleted_at')
             ->whereBetween('purchases.created_at', [$startDt, $endDt]);
+        if ($variantId) {
+            $purRangeQuery->where('purchase_items.variant_id', $variantId);
+        }
         if ($branchId !== 'all' && !empty($branchId)) {
             $purRangeQuery->where('purchases.branch_id', $branchId);
         }
@@ -3994,10 +4194,13 @@ class ReportingController extends Controller
             'purchase_items.item_per_piece',
             'purchase_items.price',
             'purchase_items.line_total',
-            'purchases.note'
+            'purchases.note',
+            'pv.color as variant_color',
+            'pv.variant_name'
         );
         foreach ($purRangeQuery->get() as $pur) {
             $vName = !empty($pur->vendor_name) ? $pur->vendor_name : (!empty($pur->vendor_db_name) ? $pur->vendor_db_name : 'Supplier');
+            $vColor = $pur->variant_color ?: $pur->variant_name;
             $whName = !empty($pur->warehouse_name) ? $pur->warehouse_name : 'Main Store';
             $pMult = (float)(($pur->item_per_piece ?? 1) > 1 ? $pur->item_per_piece : ($isCartonProd ? $ppp : 1));
             $effectivePurQty = (!empty($pur->packing_qty) && (float)$pur->packing_qty > 0) ? $pur->packing_qty : $pur->qty;
@@ -4011,7 +4214,7 @@ class ReportingController extends Controller
                 'badge'         => 'badge-success',
                 'icon'          => 'fa-cart-plus',
                 'ref_no'        => $pur->invoice_no ?? 'PUR',
-                'party'         => $vName,
+                'party'         => $vName . ($vColor ? " ({$vColor})" : ''),
                 'warehouse'     => $whName,
                 'in_qty'        => $pQty,
                 'in_price'      => $pPrice,
@@ -4019,7 +4222,7 @@ class ReportingController extends Controller
                 'out_qty'       => 0,
                 'out_price'     => 0,
                 'out_total'     => 0,
-                'remarks'       => $pur->note ?? 'Received from Supplier',
+                'remarks'       => ($vColor ? "[{$vColor}] " : '') . ($pur->note ?? 'Received from Supplier'),
             ];
         }
 
@@ -4028,9 +4231,13 @@ class ReportingController extends Controller
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->leftJoin('customers', 'sales.customer_id', '=', 'customers.id')
             ->leftJoin('warehouses', 'sale_items.warehouse_id', '=', 'warehouses.id')
+            ->leftJoin('product_variants as pv', 'sale_items.variant_id', '=', 'pv.id')
             ->where('sale_items.product_id', $productId)
             ->where('sales.status', '!=', 'cancelled')
             ->whereBetween('sales.created_at', [$startDt, $endDt]);
+        if ($variantId) {
+            $saleRangeQuery->where('sale_items.variant_id', $variantId);
+        }
         if ($branchId !== 'all' && !empty($branchId)) {
             $saleRangeQuery->where('sales.branch_id', $branchId);
         }
@@ -4048,11 +4255,14 @@ class ReportingController extends Controller
             'sale_items.sales_price',
             'sale_items.retail_price',
             'sale_items.amount',
-            'sales.remarks'
+            'sales.remarks',
+            'pv.color as variant_color',
+            'pv.variant_name'
         );
         foreach ($saleRangeQuery->get() as $sale) {
             $isDcSale = in_array($sale->sale_id, $dcSaleIds);
             $cName = !empty($sale->customer_name) ? $sale->customer_name : 'Customer';
+            $vColor = $sale->variant_color ?: $sale->variant_name;
             $whName = !empty($sale->warehouse_name) ? $sale->warehouse_name : 'Main Store';
             $rawQty = (float) $sale->sales_qty;
             $isPcsSale = strtolower($sale->sale_unit ?? '') === 'pcs';
@@ -4069,7 +4279,7 @@ class ReportingController extends Controller
                     'badge'         => 'badge-info',
                     'icon'          => 'fa-calendar-check',
                     'ref_no'        => $sale->invoice_no ?? 'SALE',
-                    'party'         => $cName,
+                    'party'         => $cName . ($vColor ? " ({$vColor})" : ''),
                     'warehouse'     => $whName,
                     'in_qty'        => 0,
                     'in_price'      => 0,
@@ -4077,7 +4287,7 @@ class ReportingController extends Controller
                     'out_qty'       => 0, // No immediate stock reduction
                     'out_price'     => $sPrice,
                     'out_total'     => 0,
-                    'remarks'       => "Booking Order ({$sPieces} pcs booked - Dispatched via Gatepass)",
+                    'remarks'       => ($vColor ? "[Color: {$vColor}] " : '') . "Booking Order ({$sPieces} pcs booked - Dispatched via Gatepass)",
                 ];
             } else {
                 // Counter / Direct sale: Immediate stock reduction
@@ -4088,7 +4298,7 @@ class ReportingController extends Controller
                     'badge'         => 'badge-danger',
                     'icon'          => 'fa-file-invoice-dollar',
                     'ref_no'        => $sale->invoice_no ?? 'SALE',
-                    'party'         => $cName,
+                    'party'         => $cName . ($vColor ? " ({$vColor})" : ''),
                     'warehouse'     => $whName,
                     'in_qty'        => 0,
                     'in_price'      => 0,
@@ -4096,7 +4306,7 @@ class ReportingController extends Controller
                     'out_qty'       => $sPieces,
                     'out_price'     => $sPrice,
                     'out_total'     => $sTotal,
-                    'remarks'       => $sale->remarks ?? 'Sold to Customer',
+                    'remarks'       => ($vColor ? "[Color: {$vColor}] " : '') . ($sale->remarks ?? 'Sold to Customer'),
                 ];
             }
         }
@@ -4135,6 +4345,7 @@ class ReportingController extends Controller
 
             foreach ($items as $it) {
                 if ((int)($it['product_id'] ?? 0) !== $productId) continue;
+                if ($variantId && !empty($it['variant_id']) && (int)$it['variant_id'] !== $variantId) continue;
 
                 $rawGQty = (float)($it['qty'] ?? 0);
                 if ($rawGQty <= 0) continue;
@@ -4433,8 +4644,9 @@ class ReportingController extends Controller
             'success'   => true,
             'product'   => [
                 'id'                => $product->id,
+                'variant_id'        => $variantId,
                 'item_code'         => $product->item_code,
-                'item_name'         => $product->item_name,
+                'item_name'         => $variant ? ($product->item_name . ' (' . ($variant->color ?: $variant->variant_name) . ')') : ($product->has_variants ? ($product->item_name . ' (All Variants)') : $product->item_name),
                 'category'          => $product->category_relation->name ?? '-',
                 'subcategory'       => $product->sub_category_relation->name ?? '-',
                 'brand'             => $product->brand->name ?? '-',

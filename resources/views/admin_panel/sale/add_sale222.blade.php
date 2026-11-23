@@ -797,10 +797,11 @@
                                                     <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;">{{ $index + 1 }}</td>
                                                     <td class="col-product">
                                                         <select class="form-select product product-select" name="product_id[]" style="width:100%">
-                                                            <option value="{{ $item['product_id'] }}" selected>{{ $item['item_name'] }}</option>
+                                                            <option value="{{ !empty($item['variant_id']) ? ($item['product_id'] . '_var_' . $item['variant_id']) : $item['product_id'] }}" selected>{{ $item['item_name'] }}</option>
                                                         </select>
                                                         <input type="hidden" class="product-id-hidden" name="product_id_hidden[]" value="{{ $item['product_id'] }}">
-                                                        <input type="hidden" class="variant-data-hidden" name="color[]" value="">
+                                                        <input type="hidden" class="variant-id-hidden" name="variant_id[]" value="{{ $item['variant_id'] ?? '' }}">
+                                                        <input type="hidden" class="variant-data-hidden" name="color[]" value="{{ $item['color'] ?? '' }}">
                                                         <input type="hidden" class="item-code-display" value="{{ $item['item_code'] ?? '' }}">
                                                     </td>
 
@@ -1361,27 +1362,43 @@
 
             window.PRODUCT_LOCATION_STOCKS = {};
 
-            function getProductLocationStock(prodId, locKey) {
+            function getProductLocationStock(prodId, locKey, variantId) {
                 if (!prodId) return null;
-                const pIdStr = String(prodId);
-                if (window.PRODUCT_LOCATION_STOCKS[pIdStr] && window.PRODUCT_LOCATION_STOCKS[pIdStr][locKey] !== undefined) {
-                    return window.PRODUCT_LOCATION_STOCKS[pIdStr][locKey];
+                let pIdStr = String(prodId);
+                let vIdStr = variantId ? String(variantId) : '';
+                if (!vIdStr && pIdStr.includes('_var_')) {
+                    let parts = pIdStr.split('_var_');
+                    pIdStr = parts[0];
+                    vIdStr = parts[1];
+                }
+                const cacheKey = vIdStr ? (pIdStr + '_' + vIdStr) : pIdStr;
+                if (window.PRODUCT_LOCATION_STOCKS[cacheKey] && window.PRODUCT_LOCATION_STOCKS[cacheKey][locKey] !== undefined) {
+                    return window.PRODUCT_LOCATION_STOCKS[cacheKey][locKey];
                 }
                 if (window.WAREHOUSE_STOCKS && window.WAREHOUSE_STOCKS.length > 0) {
                     let total = 0;
-                    let pIdNum = parseInt(prodId);
+                    let pIdNum = parseInt(pIdStr);
+                    let vIdNum = vIdStr ? parseInt(vIdStr) : null;
                     if (locKey.startsWith('branch_')) {
                         let bIdNum = parseInt(locKey.replace('branch_', ''));
                         window.WAREHOUSE_STOCKS.forEach(function(ws) {
                             if (parseInt(ws.product_id) === pIdNum && parseInt(ws.branch_id) === bIdNum && (!ws.warehouse_id || parseInt(ws.warehouse_id) === 0)) {
-                                total += parseFloat(ws.quantity || 0);
+                                if (vIdNum) {
+                                    if (parseInt(ws.variant_id) === vIdNum) total += parseFloat(ws.quantity || 0);
+                                } else {
+                                    if (!ws.variant_id) total += parseFloat(ws.quantity || 0);
+                                }
                             }
                         });
                     } else if (locKey.startsWith('warehouse_')) {
                         let wIdNum = parseInt(locKey.replace('warehouse_', ''));
                         window.WAREHOUSE_STOCKS.forEach(function(ws) {
                             if (parseInt(ws.product_id) === pIdNum && parseInt(ws.warehouse_id) === wIdNum) {
-                                total += parseFloat(ws.quantity || 0);
+                                if (vIdNum) {
+                                    if (parseInt(ws.variant_id) === vIdNum) total += parseFloat(ws.quantity || 0);
+                                } else {
+                                    if (!ws.variant_id) total += parseFloat(ws.quantity || 0);
+                                }
                             }
                         });
                     }
@@ -1390,7 +1407,7 @@
                 return 0;
             }
 
-            function buildWarehouseOptionsHtml(selectedVal, prodId) {
+            function buildWarehouseOptionsHtml(selectedVal, prodId, variantId) {
                 let html = '';
                 let sVal = String(selectedVal || '');
                 let currentBranchId = $('#branch_id').val() || window.USER_BRANCH_ID || 1;
@@ -1403,7 +1420,7 @@
                 const isShopSel = (sVal === shopVal || sVal === String(currentBranchId)) ? 'selected' : '';
                 let shopStockBadge = '';
                 if (prodId) {
-                    let st = getProductLocationStock(prodId, shopVal);
+                    let st = getProductLocationStock(prodId, shopVal, variantId);
                     shopStockBadge = ` — [Stock: ${st !== null ? st : 0}]`;
                 }
                 html += `<option value="${shopVal}" ${isShopSel}>${branchName} (Shop)${shopStockBadge}</option>`;
@@ -1417,7 +1434,7 @@
                         const isSel = (sVal === val || sVal === String(w.id)) ? 'selected' : '';
                         let stockBadge = '';
                         if (prodId) {
-                            let st = getProductLocationStock(prodId, val);
+                            let st = getProductLocationStock(prodId, val, variantId);
                             stockBadge = ` — [Stock: ${st !== null ? st : 0}]`;
                         }
                         html += `<option value="${val}" ${isSel}>${w.warehouse_name || w.name}${stockBadge}</option>`;
@@ -1518,6 +1535,7 @@
                                 <option value=""></option>
                             </select>
                             <input type="hidden" class="product-id-hidden" name="product_id_hidden[]">
+                            <input type="hidden" class="variant-id-hidden" name="variant_id[]">
                             <input type="hidden" class="variant-data-hidden" name="color[]">
                             <input type="hidden" class="item-code-display">
                         </td>
@@ -1568,32 +1586,44 @@
             }
 
             // --- Helper: Fetch Live Stock for a Row ---
-            function fetchRowStock($row, prodId) {
+            function fetchRowStock($row, prodId, variantId) {
                 if (!prodId) return;
+                let actualPId = prodId;
+                let actualVId = variantId || $row.find('.variant-id-hidden').val() || $row.data('variant-id') || null;
+                if (!actualVId && typeof prodId === 'string' && prodId.includes('_var_')) {
+                    let parts = prodId.split('_var_');
+                    actualPId = parts[0];
+                    actualVId = parts[1];
+                }
                 let loc = $row.find('.warehouse-select, .warehouse').val() || $('#globalWarehouseSelect').val() || '';
                 let branchId = $('#branch_id').val() || '';
                 // Immediate synchronous stock set from local memory
-                let immediateStock = getProductLocationStock(prodId, loc);
+                let immediateStock = getProductLocationStock(actualPId, loc, actualVId);
                 if (immediateStock !== null && immediateStock !== undefined) {
                     $row.find('.stock').val(immediateStock);
                     $row.find('.stock').attr('title', 'Location Stock: ' + immediateStock);
                 }
 
-                $.get("{{ route('sale.check.stock', [], false) }}", { product_id: prodId, location_id: loc, branch_id: branchId }, function(res) {
+                $.get("{{ route('sale.check.stock', [], false) }}", { 
+                    product_id: actualPId, 
+                    variant_id: actualVId, 
+                    location_id: loc, 
+                    branch_id: branchId 
+                }, function(res) {
                     if (res) {
+                        const cacheKey = actualVId ? (String(actualPId) + '_' + String(actualVId)) : String(actualPId);
                         if (res.location_breakdown) {
-                            const pIdStr = String(prodId);
-                            if (!window.PRODUCT_LOCATION_STOCKS[pIdStr]) {
-                                window.PRODUCT_LOCATION_STOCKS[pIdStr] = {};
+                            if (!window.PRODUCT_LOCATION_STOCKS[cacheKey]) {
+                                window.PRODUCT_LOCATION_STOCKS[cacheKey] = {};
                             }
-                            Object.assign(window.PRODUCT_LOCATION_STOCKS[pIdStr], res.location_breakdown);
+                            Object.assign(window.PRODUCT_LOCATION_STOCKS[cacheKey], res.location_breakdown);
                         }
 
                         // Update warehouse options with fresh live stock labels for this row
                         const $whSelect = $row.find('.warehouse-select');
                         if ($whSelect.length) {
                             const currentWh = $whSelect.val() || loc;
-                            $whSelect.html(buildWarehouseOptionsHtml(currentWh, prodId));
+                            $whSelect.html(buildWarehouseOptionsHtml(currentWh, actualPId, actualVId));
                         }
 
                         let displayStock = (res.location_stock !== undefined && res.location_stock !== null) 
@@ -1654,8 +1684,9 @@
                     $('.warehouse').val(loc);
                     $('#salesTableBody tr').each(function() {
                         let pId = $(this).find('.product-select').val();
+                        let vId = $(this).find('.variant-id-hidden').val() || null;
                         if (pId) {
-                            fetchRowStock($(this), pId);
+                            fetchRowStock($(this), pId, vId);
                         }
                     });
                 }
@@ -1665,16 +1696,17 @@
             $(document).on('change input', '.warehouse-select', function() {
                 const $row = $(this).closest('tr');
                 const pId = $row.find('.product-select').val();
+                const vId = $row.find('.variant-id-hidden').val() || null;
                 const loc = $(this).val();
                 if (loc) {
                     lastSelectedWarehouse = loc;
                 }
                 if (pId) {
-                    let localStock = getProductLocationStock(pId, loc);
+                    let localStock = getProductLocationStock(pId, loc, vId);
                     if (localStock !== null && localStock !== undefined) {
                         $row.find('.stock').val(localStock);
                     }
-                    fetchRowStock($row, pId);
+                    fetchRowStock($row, pId, vId);
                 }
             });
 
@@ -1682,9 +1714,10 @@
             $(document).on('click mouseup', '.warehouse-select', function() {
                 const $row = $(this).closest('tr');
                 const pId = $row.find('.product-select').val();
+                const vId = $row.find('.variant-id-hidden').val() || null;
                 const loc = $(this).val();
                 if (pId && loc) {
-                    let localStock = getProductLocationStock(pId, loc);
+                    let localStock = getProductLocationStock(pId, loc, vId);
                     if (localStock !== null && localStock !== undefined) {
                         $row.find('.stock').val(localStock);
                     }
@@ -1726,9 +1759,13 @@
                             let results = [];
                             const mapProduct = function(p) {
                                 let stockVal = (p.stock !== undefined && p.stock !== null) ? p.stock : (p.overall_stock || 0);
+                                let selectId = p.select2_id || (p.variant_id ? (p.product_id + '_var_' + p.variant_id) : p.id);
+                                let codeStr = p.base_item_code || p.item_code;
+                                let nameStr = p.display_title || p.item_name || p.name || '';
+                                let displayText = p.text || ((codeStr ? codeStr + ' — ' : '') + nameStr + ' [Stock: ' + stockVal + ']');
                                 return {
-                                    id: p.id,
-                                    text: (p.item_code ? p.item_code + ' — ' : '') + (p.item_name || p.name || '') + ' [Stock: ' + stockVal + ']',
+                                    id: selectId,
+                                    text: displayText,
                                     product: p
                                 };
                             };
@@ -1747,22 +1784,32 @@
             // On Product Select
             $(document).on('change', '.product-select, .product', function() {
                 const $row = $(this).closest('tr');
-                const prodId = $(this).val();
-                if (!prodId) return;
+                const rawVal = $(this).val();
+                if (!rawVal) return;
 
                 const data = $(this).select2('data')[0];
                 const prod = data ? data.product : null;
 
                 if (prod) {
+                    const actualProductId = prod.product_id || (typeof rawVal === 'string' && rawVal.includes('_var_') ? rawVal.split('_var_')[0] : rawVal);
+                    const actualVariantId = prod.variant_id || (typeof rawVal === 'string' && rawVal.includes('_var_') ? rawVal.split('_var_')[1] : '') || '';
+
+                    $row.find('.product-id-hidden').val(actualProductId);
+                    $row.find('.variant-id-hidden').val(actualVariantId);
+                    $row.find('.variant-data-hidden').val(prod.color || prod.variant_name || '');
+                    $row.find('.item-code-display').val(prod.base_item_code || prod.item_code || '');
+
+                    $row.data('product-id', actualProductId);
+                    $row.data('variant-id', actualVariantId);
 
                     const $whSel = $row.find('.warehouse-select');
                     let currentLoc = $whSel.val() || $row.find('.warehouse').val() || $('#globalWarehouseSelect').val() || '';
                     if ($whSel.length) {
-                        $whSel.html(buildWarehouseOptionsHtml(currentLoc, prodId));
+                        $whSel.html(buildWarehouseOptionsHtml(currentLoc, actualProductId, actualVariantId));
                         currentLoc = $whSel.val() || currentLoc;
                     }
 
-                    let initialStock = getProductLocationStock(prodId, currentLoc);
+                    let initialStock = getProductLocationStock(actualProductId, currentLoc, actualVariantId);
                     if (initialStock === null || initialStock === undefined) {
                         initialStock = (prod.stock !== undefined && prod.stock !== null) ? prod.stock : (prod.overall_stock || 0);
                     }
@@ -1816,12 +1863,7 @@
                         }
                     }
 
-
-                    if ($whSel.length) {
-// warehouse html already updated above
-                    }
-
-                    fetchRowStock($row, prodId);
+                    fetchRowStock($row, actualProductId, actualVariantId);
                     computeRow($row);
                     updateGrandTotals();
                 }
@@ -3152,10 +3194,11 @@
                             <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;"></td>
                             <td class="col-product">
                                 <select class="form-select product product-select" name="product_id[]" style="width:100%">
-                                    <option value="${prodId}" selected>${prodName}</option>
+                                    <option value="${item.variant_id ? (prodId + '_var_' + item.variant_id) : prodId}" selected>${prodName}</option>
                                 </select>
                                 <input type="hidden" class="product-id-hidden" name="product_id_hidden[]" value="${prodId}">
-                                <input type="hidden" class="variant-data-hidden" name="color[]" value="">
+                                <input type="hidden" class="variant-id-hidden" name="variant_id[]" value="${item.variant_id || ''}">
+                                <input type="hidden" class="variant-data-hidden" name="color[]" value="${item.color || ''}">
                                 <input type="hidden" class="item-code-display" value="${item.item_code || ''}">
                             </td>
                             ${whCellHtml}
@@ -3421,6 +3464,7 @@
                             }
                             return {
                                 id: it.product_id,
+                                variant_id: it.variant_id || null,
                                 item_name: it.item_name,
                                 item_code: it.item_code,
                                 price: parseFloat(it.retail_price || it.sales_price || it.price || 0),
@@ -3499,7 +3543,8 @@
                         }
                         return {
                             id: it.product_id,
-                            item_name: it.product ? it.product.item_name : (it.item_name || ''),
+                            variant_id: it.variant_id || null,
+                            item_name: it.product ? (it.variant ? (it.product.item_name + ' (' + (it.variant.variant_name || it.variant.color) + ')') : it.product.item_name) : (it.item_name || ''),
                             item_code: it.product ? it.product.item_code : (it.item_code || ''),
                             price: parseFloat(it.retail_price || it.sales_price || it.price || 0),
                             qty: parseFloat(it.sales_qty || it.qty || 1),

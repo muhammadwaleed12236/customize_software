@@ -14,6 +14,22 @@ class Product extends Model
 {
     use HasFactory, SoftDeletes;
     protected $guarded = [];
+
+    /**
+     * Relationship to product variants (colors/sizes)
+     */
+    public function variants()
+    {
+        return $this->hasMany(ProductVariant::class, 'product_id');
+    }
+
+    /**
+     * Check if this product has variants
+     */
+    public function isVariantProduct(): bool
+    {
+        return (bool) $this->has_variants;
+    }
     // protected $fillable = [
     //     'creater_id', 'category_id', 'sub_category_id', 'item_code', 'item_name', 'size',
     //     'opening_carton_quantity', 'carton_quantity', 'loose_pieces', 'pcs_in_carton',

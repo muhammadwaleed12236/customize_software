@@ -267,9 +267,20 @@
                             <select id="filter_product" name="product_id" class="form-control form-control-sm select2">
                                 <option value="all">-- All Products --</option>
                                 @foreach($allProducts as $p)
-                                    <option value="{{ $p->id }}" {{ (isset($productId) && $productId == $p->id) ? 'selected' : '' }}>
-                                        {{ $p->item_name }} ({{ $p->item_code }})
-                                    </option>
+                                    @if($p->has_variants && $p->variants && $p->variants->isNotEmpty())
+                                        <option value="{{ $p->id }}" {{ (isset($productIdRaw) && $productIdRaw == $p->id) ? 'selected' : '' }}>
+                                            {{ $p->item_name }} (All Variants) ({{ $p->item_code }})
+                                        </option>
+                                        @foreach($p->variants as $v)
+                                            <option value="{{ $p->id }}:{{ $v->id }}" {{ (isset($productIdRaw) && $productIdRaw == ($p->id . ':' . $v->id)) ? 'selected' : '' }}>
+                                                &nbsp;&nbsp;&nbsp;&nbsp;↳ {{ $p->item_name }} ({{ $v->color ?: $v->variant_name }}) ({{ $p->item_code }})
+                                            </option>
+                                        @endforeach
+                                    @else
+                                        <option value="{{ $p->id }}" {{ (isset($productIdRaw) && $productIdRaw == $p->id) ? 'selected' : '' }}>
+                                            {{ $p->item_name }} ({{ $p->item_code }})
+                                        </option>
+                                    @endif
                                 @endforeach
                             </select>
                         </div>

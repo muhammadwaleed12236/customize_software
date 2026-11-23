@@ -871,18 +871,41 @@
                                         <td class="text-center fw-bold text-muted row-index" style="vertical-align:middle; font-size:0.75rem;">1</td>
                                         <td class="col-product">
                                             <select name="product_id[]" class="form-select product-select select2" required style="width: 100%;">
-                                                <option value="">Select Product...</option>
+                                                <option value="">Select Product / Model...</option>
                                                 @foreach($Products as $p)
-                                                    <option value="{{ $p->id }}" 
-                                                        data-price="{{ $p->last_purchase_price }}" 
-                                                        data-unit="{{ $p->unit->name ?? 'unit' }}" 
-                                                        data-code="{{ $p->item_code }}"
-                                                        data-piece-per-pack="{{ (float)($p->piece_per_pack ?? 1) }}"
-                                                        data-pack-type="{{ $p->pack_type ?? 'Standard' }}">
-                                                        {{ $p->item_name }} {{ $p->item_code ? '('.$p->item_code.')' : '' }}
-                                                    </option>
+                                                    @if(!empty($p->has_variants) && isset($p->variants) && $p->variants->isNotEmpty())
+                                                        @foreach($p->variants as $v)
+                                                            @php
+                                                                $vPrice = (float)($v->last_purchase_price ?? ($v->wholesale_price ?: $p->last_purchase_price));
+                                                            @endphp
+                                                            <option value="{{ $p->id }}_var_{{ $v->id }}" 
+                                                                data-product-id="{{ $p->id }}"
+                                                                data-variant-id="{{ $v->id }}"
+                                                                data-color="{{ $v->color }}"
+                                                                data-price="{{ $vPrice }}" 
+                                                                data-unit="{{ $p->unit->name ?? 'unit' }}" 
+                                                                data-code="{{ $p->item_code }}"
+                                                                data-piece-per-pack="{{ (float)($p->piece_per_pack ?? 1) }}"
+                                                                data-pack-type="{{ $p->pack_type ?? 'Standard' }}">
+                                                                {{ $p->item_name }} ({{ $v->color }}) {{ $p->item_code ? '('.$p->item_code.')' : '' }}
+                                                            </option>
+                                                        @endforeach
+                                                    @else
+                                                        <option value="{{ $p->id }}" 
+                                                            data-product-id="{{ $p->id }}"
+                                                            data-variant-id=""
+                                                            data-color=""
+                                                            data-price="{{ $p->last_purchase_price }}" 
+                                                            data-unit="{{ $p->unit->name ?? 'unit' }}" 
+                                                            data-code="{{ $p->item_code }}"
+                                                            data-piece-per-pack="{{ (float)($p->piece_per_pack ?? 1) }}"
+                                                            data-pack-type="{{ $p->pack_type ?? 'Standard' }}">
+                                                            {{ $p->item_name }} {{ $p->item_code ? '('.$p->item_code.')' : '' }}
+                                                        </option>
+                                                    @endif
                                                 @endforeach
                                             </select>
+                                            <input type="hidden" name="variant_id[]" class="variant-id-input" value="">
                                             <input type="hidden" name="unit[]" class="unit-input" value="unit">
                                             <input type="hidden" name="color[]" class="color-input" value="">
                                             <input type="hidden" name="packing_type[]" class="packing-type-input" value="Standard">
@@ -1234,7 +1257,8 @@ $(document).ready(function() {
                     var term = params.term.toLowerCase();
                     var text = data.text.toLowerCase();
                     var code = $(data.element).data('code') ? $(data.element).data('code').toString().toLowerCase() : '';
-                    if (text.indexOf(term) > -1 || code.indexOf(term) > -1) return data;
+                    var color = $(data.element).data('color') ? $(data.element).data('color').toString().toLowerCase() : '';
+                    if (text.indexOf(term) > -1 || code.indexOf(term) > -1 || color.indexOf(term) > -1) return data;
                     return null;
                 }
             });
@@ -1401,19 +1425,27 @@ $(document).ready(function() {
 
     // Update row stock
     function updateRowStock($row) {
-        var pid = $row.find('.product-select').val();
+        var opt = $row.find('.product-select option:selected');
+        var rawVal = $row.find('.product-select').val();
+        var pid = opt.data('product-id') || rawVal;
+        if (pid && typeof pid === 'string' && pid.indexOf('_var_') !== -1) {
+            pid = pid.split('_var_')[0];
+        }
+        var vid = opt.data('variant-id') || $row.find('.variant-id-input').val() || '';
         var wid = $row.find('.line-warehouse-select').val();
         var stock = 0;
 
         if (pid && window.WAREHOUSE_STOCKS && window.WAREHOUSE_STOCKS.length > 0) {
-            var item = window.WAREHOUSE_STOCKS.find(function(s) {
-                if (wid) {
-                    return String(s.product_id) === String(pid) && String(s.warehouse_id) === String(wid);
-                } else {
-                    return String(s.product_id) === String(pid);
-                }
+            var matchingStocks = window.WAREHOUSE_STOCKS.filter(function(s) {
+                var matchP = String(s.product_id) === String(pid);
+                var matchV = vid ? String(s.variant_id) === String(vid) : (!s.variant_id || s.variant_id == 0);
+                var matchW = wid ? String(s.warehouse_id) === String(wid) : (!s.warehouse_id || s.warehouse_id == 0);
+                return matchP && matchV && matchW;
             });
-            if (item) stock = parseFloat(item.quantity) || 0;
+
+            if (matchingStocks.length > 0) {
+                stock = matchingStocks.reduce(function(acc, s) { return acc + (parseFloat(s.quantity) || 0); }, 0);
+            }
         }
         $row.find('.stock').val(stock);
     }
@@ -1470,11 +1502,15 @@ $(document).ready(function() {
         var opt = $(this).find(':selected');
         var price = opt.data('price') || 0;
         var unit = opt.data('unit') || 'Piece';
+        var color = opt.data('color') || '';
+        var variantId = opt.data('variant-id') || '';
         var $row = $(this).closest('tr');
 
         $row.find('.price-input').val(parseFloat(price).toFixed(2));
         $row.find('.unit-input').val(unit);
         $row.find('.unit-display').val(unit);
+        $row.find('.color-input').val(color);
+        $row.find('.variant-id-input').val(variantId);
         updateRowStock($row);
         updatePackingInfo($row);
         recalc();
@@ -1497,6 +1533,8 @@ $(document).ready(function() {
         newRow.find('.stock').val('0');
         newRow.find('.unit-input').val('Piece');
         newRow.find('.unit-display').val('Piece');
+        newRow.find('.color-input').val('');
+        newRow.find('.variant-id-input').val('');
         newRow.find('.packing-type-input').val('Standard');
         newRow.find('.pack-qty-input, .ipp-input, .loose-pcs-input').val('0');
         newRow.find('.total-pieces-input').val('1');
