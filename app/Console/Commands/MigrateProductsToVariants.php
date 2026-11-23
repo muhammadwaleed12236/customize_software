@@ -15,7 +15,8 @@ class MigrateProductsToVariants extends Command
      * @var string
      */
     protected $signature = 'migrate:products-to-variants 
-                            {--product-id= : Specific product ID to migrate}
+                            {--product-id= : Specific product ID to migrate (e.g. 47)}
+                            {--force : Force re-migration even if product already has variants}
                             {--dry-run : Run in preview mode without saving changes}';
 
     /**
@@ -32,6 +33,7 @@ class MigrateProductsToVariants extends Command
     {
         $isDryRun = $this->option('dry-run');
         $targetId = $this->option('product-id');
+        $isForce  = $this->option('force');
 
         $this->info("====================================================================");
         $this->info("   PRODUCT COLOR -> VARIANT MIGRATION TOOL (100% STOCK SAFE)");
@@ -41,14 +43,24 @@ class MigrateProductsToVariants extends Command
             $this->warn("⚠️  DRY RUN MODE ENABLED - No changes will be written to database.\n");
         }
 
-        $query = Product::where('has_variants', 0)
-            ->whereNotNull('color')
-            ->where('color', '!=', '')
-            ->where('color', '!=', '[]')
-            ->where('color', '!=', 'null');
-
         if ($targetId) {
-            $query->where('id', $targetId);
+            $query = Product::where('id', $targetId);
+            if (!$isForce) {
+                // If not forcing, check if it was already migrated
+                $existingProduct = Product::find($targetId);
+                if ($existingProduct && $existingProduct->has_variants && ProductVariant::where('product_id', $targetId)->exists()) {
+                    $this->warn("Product ID {$targetId} is already marked as a variant product.");
+                    $this->info("To re-split and re-migrate this product cleanly, add the --force flag:");
+                    $this->line("php artisan migrate:products-to-variants --product-id={$targetId} --force\n");
+                    return 0;
+                }
+            }
+        } else {
+            $query = Product::where('has_variants', 0)
+                ->whereNotNull('color')
+                ->where('color', '!=', '')
+                ->where('color', '!=', '[]')
+                ->where('color', '!=', 'null');
         }
 
         $products = $query->orderBy('id')->get();
@@ -109,6 +121,10 @@ class MigrateProductsToVariants extends Command
 
                 $firstVariantId = null;
 
+                if (!$isDryRun && $isForce) {
+                    DB::table('product_variants')->where('product_id', $p->id)->delete();
+                }
+
                 foreach ($colors as $idx => $color) {
                     $cleanColor = preg_replace('/[^a-zA-Z0-9]/', '', $color);
                     $colorCode = strlen($cleanColor) >= 3 ? strtoupper(substr($cleanColor, 0, 3)) : strtoupper(str_pad($cleanColor, 3, 'X'));
@@ -163,10 +179,13 @@ class MigrateProductsToVariants extends Command
                         ->whereNull('variant_id')
                         ->update(['variant_id' => $firstVariantId]);
 
-                    // Update product has_variants = 1
+                    // Update product has_variants = 1 and clean color JSON
                     DB::table('products')
                         ->where('id', $p->id)
-                        ->update(['has_variants' => 1]);
+                        ->update([
+                            'has_variants' => 1,
+                            'color'        => json_encode($colors)
+                        ]);
 
                     // Verify stock equality
                     $afterWsStock = (float) DB::table('warehouse_stocks')->where('product_id', $p->id)->sum('quantity');
