@@ -68,20 +68,33 @@ class MigrateProductsToVariants extends Command
 
         try {
             foreach ($products as $p) {
-                // Parse colors
-                $colors = [];
+                // Parse and split colors (splits "Cream & Black", "White/Black", etc. into separate variants)
+                $rawItems = [];
                 if (is_array($p->color)) {
-                    $colors = $p->color;
+                    $rawItems = $p->color;
                 } elseif (is_string($p->color)) {
                     $decoded = json_decode($p->color, true);
                     if (is_array($decoded)) {
-                        $colors = $decoded;
+                        $rawItems = $decoded;
                     } else {
-                        $colors = array_map('trim', explode(',', $p->color));
+                        $rawItems = [$p->color];
                     }
                 }
 
-                $colors = array_values(array_filter(array_unique(array_map('trim', $colors))));
+                $colors = [];
+                foreach ($rawItems as $rawItem) {
+                    $normalized = str_ireplace([' & ', ' and ', '/', ',', '&'], '|', (string)$rawItem);
+                    $parts = explode('|', $normalized);
+                    foreach ($parts as $part) {
+                        $trimmed = trim($part);
+                        if ($trimmed !== '') {
+                            $formatted = ucwords(strtolower($trimmed));
+                            if (!in_array($formatted, $colors)) {
+                                $colors[] = $formatted;
+                            }
+                        }
+                    }
+                }
 
                 if (empty($colors)) {
                     continue;
