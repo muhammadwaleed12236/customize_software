@@ -889,9 +889,10 @@ public function searchProductsForSalebypagination(Request $request)
         $categories = Category::get();
         // supply branch list for add modal & filter (super admin can choose branch)
         $branchesList = Branch::orderBy('name')->get();
+        $brands = Brand::orderBy('name')->get();
         
         // pass userBranch, isSuperAdmin, selectedBranchIds, and allowedBranchIds to view
-        return view('admin_panel.product.index', compact('products', 'categories', 'allowedBranchIds', 'branchesList', 'userBranch', 'isSuperAdmin', 'selectedBranchIds'));
+        return view('admin_panel.product.index', compact('products', 'categories', 'allowedBranchIds', 'branchesList', 'userBranch', 'isSuperAdmin', 'selectedBranchIds', 'brands'));
     }
 
  public function productview($id)
@@ -2997,18 +2998,127 @@ public function searchProductsForSalebypagination(Request $request)
     }
 
     /**
+     * Calculate net non-opening movements (purchases, sales, returns, transfers, damaged)
+     * specifically for a warehouse (or shop if null) and optional variant.
+     */
+    private function getWarehouseNonOpeningDelta(int $productId, int $branchId, ?int $warehouseId, ?int $variantId = null): float
+    {
+        $product = Product::find($productId);
+        $ppp = (float) (($product && $product->piece_per_pack > 1) ? $product->piece_per_pack : 1);
+        $isCartonProd = ($ppp > 1);
+
+        // 1. Purchases
+        $purQ = DB::table('purchase_items')
+            ->join('purchases', 'purchase_items.purchase_id', '=', 'purchases.id')
+            ->where('purchase_items.product_id', $productId)
+            ->where('purchases.branch_id', $branchId)
+            ->whereNull('purchases.deleted_at')
+            ->when($variantId !== null, fn($q) => $q->where('purchase_items.variant_id', $variantId));
+
+        if ($warehouseId !== null) {
+            $purQ->where(function ($q) use ($warehouseId) {
+                $q->where('purchase_items.warehouse_id', $warehouseId)
+                  ->orWhere(function ($sq) use ($warehouseId) {
+                      $sq->whereNull('purchase_items.warehouse_id')->where('purchases.warehouse_id', $warehouseId);
+                  });
+            });
+        } else {
+            $purQ->whereNull('purchase_items.warehouse_id')->whereNull('purchases.warehouse_id');
+        }
+
+        $purchases = 0.0;
+        foreach ($purQ->select('purchase_items.qty', 'purchase_items.packing_qty', 'purchase_items.item_per_piece')->get() as $pb) {
+            $m = (float)($pb->item_per_piece > 1 ? $pb->item_per_piece : ($isCartonProd ? $ppp : 1));
+            $effectivePbQty = (!empty($pb->packing_qty) && (float)$pb->packing_qty > 0) ? $pb->packing_qty : $pb->qty;
+            $purchases += $isCartonProd ? Product::parseCartonQtyToPieces($effectivePbQty, $m, 'ctn') : ((float)$effectivePbQty * $m);
+        }
+
+        // 2. Sales Out
+        $saleQ = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->where('sale_items.product_id', $productId)
+            ->where('sales.branch_id', $branchId)
+            ->where('sales.status', '!=', 'cancelled')
+            ->when($variantId !== null, fn($q) => $q->where('sale_items.variant_id', $variantId));
+
+        if ($warehouseId !== null) {
+            $saleQ->where('sale_items.warehouse_id', $warehouseId);
+        } else {
+            $saleQ->whereNull('sale_items.warehouse_id');
+        }
+
+        $sales = 0.0;
+        foreach ($saleQ->select('sale_items.sales_qty', 'sale_items.sale_unit')->get() as $sb) {
+            $isPcsSale = strtolower($sb->sale_unit ?? '') === 'pcs';
+            $sales += Product::parseCartonQtyToPieces($sb->sales_qty, $ppp, $isPcsSale ? 'pcs' : 'ctn');
+        }
+
+        // 3. Sales Returns
+        $saleReturns = 0.0;
+        if (\Illuminate\Support\Facades\Schema::hasTable('sales_returns') && $product) {
+            $srQ = DB::table('sales_returns')
+                ->where('product_code', $product->item_code)
+                ->whereExists(function ($sub) use ($branchId) {
+                    $sub->select(DB::raw(1))
+                        ->from('sales')
+                        ->whereColumn('sales.id', 'sales_returns.sale_id')
+                        ->where('sales.branch_id', $branchId);
+                });
+            foreach ($srQ->select('sales_returns.qty', 'sales_returns.sale_id')->get() as $srb) {
+                $origSaleItem = DB::table('sale_items')
+                    ->where('sale_id', $srb->sale_id)
+                    ->where('product_id', $productId)
+                    ->when($variantId !== null, fn($q) => $q->where('variant_id', $variantId))
+                    ->first();
+                $origWh = $origSaleItem ? $origSaleItem->warehouse_id : null;
+                if ($origWh == $warehouseId) {
+                    $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
+                    $saleReturns += Product::parseCartonQtyToPieces($srb->qty, $ppp, $isPcsReturn ? 'pcs' : 'ctn');
+                }
+            }
+        }
+
+        // 4. Stock Transfers
+        $transfersIn = 0.0;
+        $transfersOut = 0.0;
+        if ($warehouseId !== null && \Illuminate\Support\Facades\Schema::hasTable('stock_transfers')) {
+            $transfersIn = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('to_warehouse_id', $warehouseId)
+                ->where('status', 'approved')
+                ->sum('quantity');
+
+            $transfersOut = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('from_warehouse_id', $warehouseId)
+                ->where('status', 'approved')
+                ->sum('quantity');
+        }
+
+        // 5. Damaged Stocks
+        $damaged = 0.0;
+        if (\Illuminate\Support\Facades\Schema::hasTable('damaged_stocks')) {
+            $dmgQ = DB::table('damaged_stocks')
+                ->where('product_id', $productId)
+                ->where('branch_id', $branchId)
+                ->when($variantId !== null, fn($q) => $q->where('variant_id', $variantId));
+            if ($warehouseId !== null) {
+                $dmgQ->where('warehouse_id', $warehouseId);
+            } else {
+                $dmgQ->whereNull('warehouse_id');
+            }
+            $damaged = (float) $dmgQ->sum('quantity');
+        }
+
+        return ($purchases + $saleReturns + $transfersIn) - ($sales + $transfersOut + $damaged);
+    }
+
+    /**
      * Helper: Apply warehouse allocation data
      */
     private function applyWarehouseAllocation(int $productId, int $branchId, float $price, array $allocData, float $totalQty): void
     {
         $now = now();
-
-        // Check if there are non-opening transactions for this product in this branch
-        $hasTransactions = DB::table('stock_movements')
-            ->where('product_id', $productId)
-            ->where('branch_id', $branchId)
-            ->whereNotIn('ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
-            ->exists();
 
         // Group allocations by location and variant to aggregate duplicate entries cleanly
         $grouped = [];
@@ -3037,22 +3147,18 @@ public function searchProductsForSalebypagination(Request $request)
             ];
         }
 
+        $savedIds = [];
+
         foreach ($grouped as $group) {
             $whId = $group['warehouse_id'];
             $vId  = $group['variant_id'] ?? null;
             $targetQty = (float) $group['quantity'];
 
-            // Calculate net non-opening movements (sales, purchases, etc.) for this branch and variant
-            $netNonOpening = (float) (DB::table('stock_movements')
-                ->where('product_id', $productId)
-                ->where('branch_id', $branchId)
-                ->when($vId !== null, fn($q) => $q->where('variant_id', $vId), fn($q) => $q->whereNull('variant_id'))
-                ->whereNotIn('ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
-                ->selectRaw("SUM(CASE WHEN type = 'in' THEN qty ELSE -qty END) as net")
-                ->value('net') ?? 0);
+            // Calculate location-specific non-opening delta (sales, purchases, returns, transfers)
+            $locationDelta = $this->getWarehouseNonOpeningDelta($productId, $branchId, $whId, $vId);
 
-            // Live warehouse quantity = Target Opening + Non-Opening transactions
-            $liveQty = max(0, $targetQty + $netNonOpening);
+            // Live warehouse quantity = Target Allocated Opening + Non-Opening transactions for this specific location
+            $liveQty = max(0, $targetQty + $locationDelta);
 
             $q = DB::table('warehouse_stocks')
                 ->where('branch_id', $branchId)
@@ -3076,8 +3182,9 @@ public function searchProductsForSalebypagination(Request $request)
                         'price'      => $price,
                         'updated_at' => $now,
                     ]);
+                $savedIds[] = $existing->id;
             } else {
-                DB::table('warehouse_stocks')->insert([
+                $newId = DB::table('warehouse_stocks')->insertGetId([
                     'branch_id'    => $branchId,
                     'warehouse_id' => $whId,
                     'product_id'   => $productId,
@@ -3087,8 +3194,56 @@ public function searchProductsForSalebypagination(Request $request)
                     'created_at'   => $now,
                     'updated_at'   => $now,
                 ]);
+                $savedIds[] = $newId;
             }
         }
+
+        // ══════════════════════════════════════════════════════════════
+        // Ensure Total Synchronization between stocks and warehouse_stocks
+        // ══════════════════════════════════════════════════════════════
+        // warehouse_stocks is the detail table calculated from specific transactions.
+        // Update stocks (summary table) so branch live stock equals the sum of warehouse live stocks.
+        $hasVariantAllocations = DB::table('warehouse_stocks')
+            ->where('product_id', $productId)
+            ->where('branch_id', $branchId)
+            ->whereIn('id', $savedIds)
+            ->whereNotNull('variant_id')
+            ->exists();
+
+        if ($hasVariantAllocations) {
+            $variantSums = DB::table('warehouse_stocks')
+                ->where('product_id', $productId)
+                ->where('branch_id', $branchId)
+                ->whereIn('id', $savedIds)
+                ->groupBy('variant_id')
+                ->select('variant_id', DB::raw('SUM(quantity) as total_qty'))
+                ->get();
+
+            foreach ($variantSums as $vs) {
+                Stock::updateOrCreate(
+                    ['product_id' => $productId, 'branch_id' => $branchId, 'variant_id' => $vs->variant_id],
+                    ['qty' => max(0, (float)$vs->total_qty), 'reserved_qty' => 0]
+                );
+            }
+        } else {
+            $totalWhLive = (float) DB::table('warehouse_stocks')
+                ->where('product_id', $productId)
+                ->where('branch_id', $branchId)
+                ->whereIn('id', $savedIds)
+                ->sum('quantity');
+
+            Stock::updateOrCreate(
+                ['product_id' => $productId, 'branch_id' => $branchId, 'variant_id' => null],
+                ['qty' => max(0, $totalWhLive), 'reserved_qty' => 0]
+            );
+        }
+
+        // Delete any warehouse_stocks for this product and branch that were removed by the user
+        DB::table('warehouse_stocks')
+            ->where('product_id', $productId)
+            ->where('branch_id', $branchId)
+            ->whereNotIn('id', $savedIds)
+            ->delete();
     }
 
     /**

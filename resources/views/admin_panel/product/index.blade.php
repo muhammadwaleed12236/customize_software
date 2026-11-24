@@ -183,17 +183,41 @@
         font-size: 13px !important;
         font-family: 'Inter', sans-serif !important;
     }
+    div.dataTables_wrapper div.dataTables_filter {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: flex-end !important;
+        gap: 8px !important;
+        flex-wrap: wrap !important;
+        float: right !important;
+    }
+    div.dataTables_wrapper div.dataTables_filter label {
+        margin-bottom: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+    }
     div.dataTables_wrapper div.dataTables_filter input {
-        border: 1.5px solid #e2e8f0 !important;
+        border: 1.5px solid #cbd5e1 !important;
         border-radius: 6px !important;
         padding: 6px 12px !important;
         font-size: 13px !important;
         font-family: 'Inter', sans-serif !important;
+        height: 38px !important;
+        min-width: 220px !important;
     }
     div.dataTables_wrapper div.dataTables_filter input:focus {
         border-color: #1e3a5f !important;
         box-shadow: 0 0 0 3px rgba(30,58,95,0.08) !important;
         outline: none !important;
+    }
+    .brand-filter-box {
+        display: inline-flex;
+        align-items: center;
+        margin-right: 6px;
+    }
+    .brand-filter-box select:focus {
+        border-color: #1e3a5f !important;
+        box-shadow: 0 0 0 3px rgba(30,58,95,0.08) !important;
     }
     div.dataTables_wrapper div.dataTables_info {
         font-size: 12px !important;
@@ -709,9 +733,27 @@
             border: none !important;
         }
         div.dataTables_wrapper div.dataTables_filter {
+            display: flex !important;
+            flex-direction: column !important;
             width: 100% !important;
+            float: none !important;
             text-align: left !important;
             margin-bottom: 12px !important;
+            gap: 8px !important;
+        }
+        .brand-filter-box {
+            width: 100% !important;
+            margin-right: 0 !important;
+        }
+        .brand-filter-box > div {
+            width: 100% !important;
+        }
+        .brand-filter-box select {
+            width: 100% !important;
+            max-width: 100% !important;
+            height: 42px !important;
+            border-radius: 10px !important;
+            font-size: 14px !important;
         }
         div.dataTables_wrapper div.dataTables_filter input {
             width: 100% !important;
@@ -989,6 +1031,29 @@
     </div>
     @endif
 
+    @php
+        $brands = isset($brands) ? $brands : \App\Models\Brand::orderBy('name')->get();
+    @endphp
+
+    {{-- Brand Filter Component (injected dynamically next to DataTables search bar) --}}
+    <div id="brandFilterContainer" style="display:none;" class="brand-filter-box">
+        <div style="position: relative; display: inline-flex; align-items: center;">
+            <i class="fas fa-tag" style="position: absolute; left: 11px; font-size: 11px; pointer-events: none; color: #64748b; z-index: 2;"></i>
+            <select id="brandFilterSelect" class="form-control" style="height: 38px; min-width: 175px; max-width: 240px; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 4px 26px 4px 28px; font-size: 13px; font-weight: 500; font-family: 'Inter', sans-serif; color: #1e293b; background-color: #ffffff; cursor: pointer; outline: none; box-shadow: 0 1px 2px rgba(0,0,0,0.04);">
+                <option value="">🏷️ All Brands</option>
+                <option value="__NO_BRAND__">-- Unbranded / None --</option>
+                @foreach($brands as $b)
+                    @if(!empty($b->name))
+                        <option value="{{ $b->name }}" data-brand-id="{{ $b->id }}">{{ $b->name }}</option>
+                    @endif
+                @endforeach
+            </select>
+            <button type="button" id="clearBrandFilterBtn" title="Clear Brand Filter" style="display: none; position: absolute; right: 8px; background: none; border: none; padding: 0; color: #94a3b8; cursor: pointer; font-size: 12px; z-index: 2;">
+                <i class="fas fa-times-circle"></i>
+            </button>
+        </div>
+    </div>
+
     <div class="table-responsive" style="overflow-x: auto;">
         <table id="productTable" class="table" style="width:100%">
             <thead>
@@ -1114,7 +1179,7 @@
                         <td data-search="{{ $product->model ?? '' }}" style="color:#64748b; font-size:12.5px;">{{ $product->model ?? '-' }}</td>
                         <td class="price-cell"><span class="currency-label">PKR</span>{{ number_format($product->price) }}</td>
                         <td style="color:#64748b; font-weight:600; font-size:13px; text-align:center;">{{ $product->alert_quantity }}</td>
-                        <td data-search="{{ $product->brand->name ?? '' }}" style="font-size:12.5px; font-weight:500; color:#475569;">{{ $product->brand->name ?? '-' }}</td>
+                        <td data-search="{{ $product->brand->name ?? '' }}" data-brand="{{ strtolower($product->brand->name ?? '') }}" data-brand-id="{{ $product->brand_id ?? '' }}" style="font-size:12.5px; font-weight:500; color:#475569;">{{ $product->brand->name ?? '-' }}</td>
                         <td class="action-cell" style="text-align:center; white-space:nowrap;">
                             <div style="display:inline-flex; align-items:center; gap:6px;">
                                 <button type="button" class="btn-view-product viewProductBtn" data-id="{{ $product->id }}">
@@ -1451,6 +1516,7 @@ $(document).ready(function () {
     // ===== DataTable =====
     if ($.fn.DataTable) {
         var productSearchTerm = '';
+        var selectedBrand = '';
 
         function escapeRegex(str) {
             return (str + '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -1468,23 +1534,28 @@ $(document).ready(function () {
                     var el = cells[idx];
                     return el ? ((el.getAttribute('data-search') || el.textContent || '') + '').toLowerCase().trim() : '';
                 };
+                var bEl = cells[11];
+                var bVal = bEl ? ((bEl.getAttribute('data-brand') !== null ? bEl.getAttribute('data-brand') : (bEl.getAttribute('data-search') || bEl.textContent || '')) + '').toLowerCase().trim() : '';
+                if (bVal === '-') bVal = '';
                 row._cleanSearchFields = {
                     itemName: getVal(7),
                     itemCode: getVal(2),
                     category: getVal(6),
                     model:    getVal(8),
-                    brand:    getVal(11)
+                    brand:    bVal
                 };
                 return row._cleanSearchFields;
             }
             if (tr) {
                 var $tds = $(tr).children('td');
+                var bVal = ($tds.eq(11).attr('data-brand') !== undefined ? $tds.eq(11).attr('data-brand') : ($tds.eq(11).attr('data-search') || $tds.eq(11).text())).toLowerCase().trim();
+                if (bVal === '-') bVal = '';
                 row._cleanSearchFields = {
                     itemName: ($tds.eq(7).attr('data-search') || $tds.eq(7).text()).toLowerCase().trim(),
                     itemCode: ($tds.eq(2).attr('data-search') || $tds.eq(2).text()).toLowerCase().trim(),
                     category: ($tds.eq(6).attr('data-search') || $tds.eq(6).text()).toLowerCase().trim(),
                     model:    ($tds.eq(8).attr('data-search') || $tds.eq(8).text()).toLowerCase().trim(),
-                    brand:    ($tds.eq(11).attr('data-search') || $tds.eq(11).text()).toLowerCase().trim()
+                    brand:    bVal
                 };
                 return row._cleanSearchFields;
             }
@@ -1492,12 +1563,14 @@ $(document).ready(function () {
             var strip = function (val) {
                 return ((val || '') + '').replace(/<[^>]+>/g, '').toLowerCase().trim();
             };
+            var bVal = strip(d[11]);
+            if (bVal === '-') bVal = '';
             row._cleanSearchFields = {
                 itemName: strip(d[7]),
                 itemCode: strip(d[2]),
                 category: strip(d[6]),
                 model:    strip(d[8]),
-                brand:    strip(d[11])
+                brand:    bVal
             };
             return row._cleanSearchFields;
         }
@@ -1548,6 +1621,24 @@ $(document).ready(function () {
         // Custom search extension for #productTable
         $.fn.dataTable.ext.search.push(function (settings, data, dataIndex) {
             if (settings.nTable.id !== 'productTable') return true;
+
+            // 1. Brand filter
+            if (selectedBrand) {
+                var rowObj = settings.aoData[dataIndex];
+                var fields = getRowSearchFields(rowObj);
+                var rowBrand = fields ? (fields.brand || '') : ((data[11] || '').toLowerCase().trim());
+                if (rowBrand === '-') rowBrand = '';
+
+                if (selectedBrand === '__NO_BRAND__') {
+                    if (rowBrand !== '') return false;
+                } else {
+                    if (rowBrand.toLowerCase() !== selectedBrand.toLowerCase()) {
+                        return false;
+                    }
+                }
+            }
+
+            // 2. Keyword search
             if (!productSearchTerm) return true;
 
             var rawCode = (data[2] || '').toLowerCase();
@@ -1603,6 +1694,66 @@ $(document).ready(function () {
                               productTable.order([[1, 'asc']]).draw();
                           }
                       });
+
+        // Move Brand Filter next to DataTables search input
+        if ($('#brandFilterContainer').length && $('#productTable_filter').length) {
+            $('#productTable_filter').addClass('d-flex align-items-center justify-content-end flex-wrap');
+            $('#productTable_filter').prepend($('#brandFilterContainer').show());
+        }
+
+        // Brand filter change handler
+        $('#brandFilterSelect').on('change', function () {
+            selectedBrand = ($(this).val() || '').trim();
+            if (selectedBrand) {
+                $('#clearBrandFilterBtn').show();
+                $(this).css({
+                    'border-color': '#1e3a5f',
+                    'background-color': '#f8fafc',
+                    'color': '#0f172a',
+                    'font-weight': '600'
+                });
+            } else {
+                $('#clearBrandFilterBtn').hide();
+                $(this).css({
+                    'border-color': '#cbd5e1',
+                    'background-color': '#ffffff',
+                    'color': '#1e293b',
+                    'font-weight': '500'
+                });
+            }
+            productTable.draw();
+        });
+
+        // Clear Brand filter button
+        $('#clearBrandFilterBtn').on('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $('#brandFilterSelect').val('').trigger('change');
+        });
+
+        // URL query parameter support for brand & brand_id
+        var urlParams = new URLSearchParams(window.location.search);
+        var urlBrand = urlParams.get('brand');
+        var urlBrandId = urlParams.get('brand_id');
+
+        if (urlBrand) {
+            var matched = false;
+            $('#brandFilterSelect option').each(function () {
+                if ($(this).val().toLowerCase() === urlBrand.toLowerCase()) {
+                    $('#brandFilterSelect').val($(this).val()).trigger('change');
+                    matched = true;
+                    return false;
+                }
+            });
+            if (!matched) {
+                $('#brandFilterSelect').val(urlBrand).trigger('change');
+            }
+        } else if (urlBrandId) {
+            var $opt = $('#brandFilterSelect option[data-brand-id="' + urlBrandId + '"]');
+            if ($opt.length) {
+                $('#brandFilterSelect').val($opt.val()).trigger('change');
+            }
+        }
     }
 
     // ===== Select All =====
@@ -2212,7 +2363,9 @@ window.openProductPreview = function() {
     });
 
     var fullTitle = 'Product Catalog & Inventory List';
-    var periodStr = `Generated On: ${dateStr} | Branch: ${branchStr}` + (searchTerm ? ` | Filter: "${searchTerm}"` : '');
+    var brandName = $('#brandFilterSelect').val();
+    if (brandName === '__NO_BRAND__') brandName = 'Unbranded';
+    var periodStr = `Generated On: ${dateStr} | Branch: ${branchStr}` + (brandName ? ` | Brand: ${brandName}` : '') + (searchTerm ? ` | Filter: "${searchTerm}"` : '');
 
     var summaryHtml = `
         <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:16px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; padding:10px 16px;">
