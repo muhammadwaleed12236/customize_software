@@ -654,9 +654,10 @@
 <script>
 var cachedCustomers = null;
 
-function formatNum(n) {
+window.formatNum = function(n) {
     return parseFloat(n || 0).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+};
+var formatNum = window.formatNum;
 
 function onSingleCustomerChange(el) {
     var $el = $(el);
@@ -716,7 +717,7 @@ function onSingleCustomerChange(el) {
 }
 
 $(document).ready(function () {
-
+    var formatNum = window.formatNum;
     var isSingleMode = {{ ($receiptVoucherMode ?? 'standard') === 'single_table' ? 'true' : 'false' }};
 
     if (isSingleMode) {
@@ -792,7 +793,7 @@ $(document).ready(function () {
         });
 
         // Amount input -> sync party amount & recalculate total
-        $(document).on('input', '.singleAmount', function () {
+        $(document).on('input keyup change paste blur', '.singleAmount', function () {
             var val = parseFloat($(this).val()) || 0;
             $(this).closest('.single-row').find('.singlePartyAmount').val(val > 0 ? val.toFixed(2) : '0');
             calculateSingleTotal();
@@ -1164,10 +1165,6 @@ $(document).ready(function () {
         });
         $('#totalAmount').val(total.toFixed(2));
         $('#totalAmountDisplay').text(formatNum(total));
-    }
-
-    function formatNum(n) {
-        return parseFloat(n).toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
     // Modal Narration

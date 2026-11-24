@@ -202,7 +202,7 @@
                     <script>Swal.fire({ icon: 'error', title: 'Error', text: "{{ session('swal_error') }}" });</script>
                 @endif
 
-                <form id="productForm" action="{{ route('store-product') }}" method="POST" enctype="multipart/form-data">
+                <form id="productForm" action="{{ route('store-product') }}" method="POST" enctype="multipart/form-data" novalidate>
                     @csrf
                     <input type="hidden" name="phase" value="phase1">
                     <input type="hidden" name="packing_type" value="Standard">
@@ -693,6 +693,7 @@
                     if (isVariant) {
                         $('#single_color_row').hide();
                         $('#top_barcode_group').hide();
+                        $('#variants_section').find('input, select').prop('disabled', false);
                         if (isInitial) {
                             $('#variants_section').show();
                         } else {
@@ -705,6 +706,7 @@
                     } else {
                         $('#single_color_row').show();
                         $('#top_barcode_group').show();
+                        $('#variants_section').find('input, select').prop('disabled', true);
                         if (isInitial) {
                             $('#variants_section').hide();
                         } else {
@@ -826,7 +828,7 @@
                             <input type="hidden" name="variants[${rowIdx}][variant_code]" class="variant-code-input" value="${finalCode}">
                         </td>
                         <td style="vertical-align: middle;">
-                            <input type="text" name="variants[${rowIdx}][color]" class="custom-input variant-color-input fw-bold text-dark" value="${color || ''}" placeholder="Type color (e.g. Black, Red)..." style="height: 33px; font-size: 12.5px;" required>
+                            <input type="text" name="variants[${rowIdx}][color]" class="custom-input variant-color-input fw-bold text-dark" value="${color || ''}" placeholder="Type color (e.g. Black, Red)..." style="height: 33px; font-size: 12.5px;">
                         </td>
                         <td style="vertical-align: middle;">
                             <input type="text" name="variants[${rowIdx}][barcode]" class="custom-input variant-barcode-input" value="${finalBarcode}" placeholder="Barcode" style="height: 33px; font-size: 12.5px;">
@@ -978,7 +980,7 @@
             // 6. Form Submission Validation
             $('#productForm').on('submit', function (e) {
                 e.preventDefault();
-                const name = $('#product_name').val().trim();
+                const name = $('#product_name').val() ? $('#product_name').val().trim() : '';
                 const cat = $('#category-dropdown').val();
                 const model = $('#model').val() ? $('#model').val().trim() : '';
                 const hsCode = $('#hs_code').val() ? $('#hs_code').val().trim() : '';
@@ -997,6 +999,7 @@
                 }
 
                 if ($('#type_variant').is(':checked')) {
+                    $('#variants_section').find('input, select').prop('disabled', false);
                     const rows = $('#variants_tbody tr.variant-row');
                     if (rows.length === 0) {
                         Swal.fire({ icon: 'warning', title: 'Missing Variants', text: 'Please add at least one color variant.' });
@@ -1013,8 +1016,11 @@
                         Swal.fire({ icon: 'warning', title: 'Color Required', text: 'Please select or enter a color for every variant row.' });
                         return false;
                     }
+                } else {
+                    $('#variants_section').find('input, select').prop('disabled', true);
                 }
 
+                $('#save_btn_wrapper button').prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-2"></i> SAVING...');
                 this.submit();
             });
         </script>
