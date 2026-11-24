@@ -756,17 +756,24 @@ class AccountsHeadController extends Controller
             $rowAmt = $getAccountAmount($rv->row_account_id, $rv->amount, $rv->total_amount, $accountId);
             if ($rowAmt > 0) {
                 $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where('voucher_type', 'receipt')
                     ->where(function($q) use ($rv) {
-                        $q->where('voucher_id', $rv->id);
+                        $conditions = [];
                         if (!empty($rv->rvid)) {
-                            $q->orWhere('voucher_no', $rv->rvid);
+                            $conditions[] = $rv->rvid;
                         }
                         $cleanRefs = \App\Services\VoucherService::safeDecodeArray($rv->reference_no);
                         foreach ($cleanRefs as $ref) {
                             $refStr = trim((string)$ref);
                             if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
-                                $q->orWhere('voucher_no', $refStr);
+                                $conditions[] = $refStr;
                             }
+                        }
+                        $conditions = array_unique($conditions);
+                        if (!empty($conditions)) {
+                            $q->whereIn('voucher_no', $conditions);
+                        } else {
+                            $q->where('voucher_id', $rv->id);
                         }
                     })
                     ->where('debit', '>', 0)
@@ -784,17 +791,24 @@ class AccountsHeadController extends Controller
             $partyAmt = $getPartyAccountAmount($rv, $accountId);
             if ($partyAmt > 0) {
                 $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where('voucher_type', 'receipt')
                     ->where(function($q) use ($rv) {
-                        $q->where('voucher_id', $rv->id);
+                        $conditions = [];
                         if (!empty($rv->rvid)) {
-                            $q->orWhere('voucher_no', $rv->rvid);
+                            $conditions[] = $rv->rvid;
                         }
                         $cleanRefs = \App\Services\VoucherService::safeDecodeArray($rv->reference_no);
                         foreach ($cleanRefs as $ref) {
                             $refStr = trim((string)$ref);
                             if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
-                                $q->orWhere('voucher_no', $refStr);
+                                $conditions[] = $refStr;
                             }
+                        }
+                        $conditions = array_unique($conditions);
+                        if (!empty($conditions)) {
+                            $q->whereIn('voucher_no', $conditions);
+                        } else {
+                            $q->where('voucher_id', $rv->id);
                         }
                     })
                     ->where('credit', '>', 0)
@@ -869,17 +883,24 @@ class AccountsHeadController extends Controller
             $rowAmt = $getAccountAmount($pv->row_account_id, $pv->amount, $pv->total_amount, $accountId);
             if ($rowAmt > 0) {
                 $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where('voucher_type', 'payment')
                     ->where(function($q) use ($pv) {
-                        $q->where('voucher_id', $pv->id);
+                        $conditions = [];
                         if (!empty($pv->pvid)) {
-                            $q->orWhere('voucher_no', $pv->pvid);
+                            $conditions[] = $pv->pvid;
                         }
                         $cleanRefs = \App\Services\VoucherService::safeDecodeArray($pv->reference_no);
                         foreach ($cleanRefs as $ref) {
                             $refStr = trim((string)$ref);
                             if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
-                                $q->orWhere('voucher_no', $refStr);
+                                $conditions[] = $refStr;
                             }
+                        }
+                        $conditions = array_unique($conditions);
+                        if (!empty($conditions)) {
+                            $q->whereIn('voucher_no', $conditions);
+                        } else {
+                            $q->where('voucher_id', $pv->id);
                         }
                     })
                     ->where('credit', '>', 0)
@@ -897,17 +918,24 @@ class AccountsHeadController extends Controller
             $partyAmt = $getPartyAccountAmount($pv, $accountId);
             if ($partyAmt > 0) {
                 $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where('voucher_type', 'payment')
                     ->where(function($q) use ($pv) {
-                        $q->where('voucher_id', $pv->id);
+                        $conditions = [];
                         if (!empty($pv->pvid)) {
-                            $q->orWhere('voucher_no', $pv->pvid);
+                            $conditions[] = $pv->pvid;
                         }
                         $cleanRefs = \App\Services\VoucherService::safeDecodeArray($pv->reference_no);
                         foreach ($cleanRefs as $ref) {
                             $refStr = trim((string)$ref);
                             if (!empty($refStr) && !in_array($refStr, ['[""]', '""', 'null', '[null]'])) {
-                                $q->orWhere('voucher_no', $refStr);
+                                $conditions[] = $refStr;
                             }
+                        }
+                        $conditions = array_unique($conditions);
+                        if (!empty($conditions)) {
+                            $q->whereIn('voucher_no', $conditions);
+                        } else {
+                            $q->where('voucher_id', $pv->id);
                         }
                     })
                     ->where('debit', '>', 0)
@@ -960,11 +988,15 @@ class AccountsHeadController extends Controller
         foreach ($evs as $ev) {
             $rowAmt = $getAccountAmount($ev->row_account_id, $ev->amount, $ev->total_amount, $accountId);
             if ($rowAmt > 0) {
-                // ✅ Fixed: Check for ANY existing entry with this voucher to prevent duplicates
+                // ✅ Fixed: Match by voucher_type and specific voucher_no to avoid cross-table ID collisions
                 $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where('voucher_type', 'expense')
                     ->where(function($q) use ($ev) {
-                        $q->where('voucher_id', $ev->id)
-                          ->orWhere('voucher_no', $ev->evid);
+                        if (!empty($ev->evid)) {
+                            $q->where('voucher_no', $ev->evid);
+                        } else {
+                            $q->where('voucher_id', $ev->id);
+                        }
                     })
                     ->exists();
 
@@ -979,11 +1011,15 @@ class AccountsHeadController extends Controller
 
             $partyAmt = $getPartyAccountAmount($ev, $accountId);
             if ($partyAmt > 0) {
-                // ✅ Fixed: Check for ANY existing entry with this voucher (not just "Party Side" description)
+                // ✅ Fixed: Match by voucher_type and specific voucher_no to avoid cross-table ID collisions
                 $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where('voucher_type', 'expense')
                     ->where(function($q) use ($ev) {
-                        $q->where('voucher_id', $ev->id)
-                          ->orWhere('voucher_no', $ev->evid);
+                        if (!empty($ev->evid)) {
+                            $q->where('voucher_no', $ev->evid);
+                        } else {
+                            $q->where('voucher_id', $ev->id);
+                        }
                     })
                     ->exists();
 

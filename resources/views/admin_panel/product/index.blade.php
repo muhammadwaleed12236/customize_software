@@ -83,6 +83,93 @@
         text-decoration: none;
     }
 
+    /* ─── Preview Product Button ─── */
+    .btn-preview-product {
+        font-family: 'Inter', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        padding: 9px 18px;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #1e3a5f;
+        border: 1.5px solid #cbd5e1;
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        text-decoration: none;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .btn-preview-product:hover {
+        background: #f8fafc;
+        border-color: #1e3a5f;
+        color: #1e3a5f;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 10px rgba(30,58,95,0.12);
+        text-decoration: none;
+    }
+
+    /* ─── High-Contrast Direct Print Styles ─── */
+    @media print {
+        @page {
+            size: auto;
+            margin: 0mm !important;
+        }
+
+        .product-card-header, .dataTables_length, .dataTables_filter, .dataTables_info, .dataTables_paginate,
+        .btn, .action-cell, th:last-child, td:last-child, th:first-child, td:first-child,
+        .no-print, .main-footer, .footer, .rt_nav_header, .nav-bottom, .navbar, .header, .sidebar, .sidebar-menu, .header-area {
+            display: none !important;
+        }
+
+        body, html, .main-content, .product-page-wrap, .container-fluid {
+            background: #fff !important;
+            color: #000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        .product-card {
+            border: none !important;
+            box-shadow: none !important;
+            overflow: visible !important;
+        }
+
+        .dataTables_wrapper {
+            padding: 0 !important;
+        }
+
+        #productTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+        }
+
+        #productTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 11px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 8px 10px !important;
+            text-transform: uppercase !important;
+        }
+
+        #productTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            font-size: 11px !important;
+            padding: 7px 10px !important;
+            vertical-align: middle !important;
+            background: #ffffff !important;
+        }
+    }
+
     /* ─── DataTable Wrapper Padding ─── */
     .product-card .dataTables_wrapper {
         padding: 16px 24px 20px;
@@ -879,6 +966,10 @@
                 @endif
             </div>
             @endif
+
+            <button type="button" onclick="openProductPreview()" class="btn-preview-product" title="Open Clean Product Preview & Export">
+                <i class="fas fa-eye text-primary"></i> Preview
+            </button>
 
             <a href="{{ url('create_prodcut') }}" class="btn-add-product">
                 <i class="fas fa-plus"></i> Add Product
@@ -2020,5 +2111,416 @@ $(document).on('click', '.btn-delete-product', function(e) {
         }
     }
 });
+
+/* ─── Clean Full-Page Product Catalog Preview & Excel Export ─── */
+window.openProductPreview = function() {
+    var dt = $.fn.dataTable.isDataTable('#productTable') ? $('#productTable').DataTable() : null;
+    var rowNodes = dt ? dt.rows({ search: 'applied' }).nodes() : $('#productTable tbody tr');
+
+    if (!rowNodes || rowNodes.length === 0) {
+        alert('No products found to preview.');
+        return;
+    }
+
+    // Determine current branch text
+    var branchNames = [];
+    if ($('#branchFilter').length && $('#branchFilter').val() && $('#branchFilter').val().length) {
+        $('#branchFilter option:selected').each(function() {
+            branchNames.push($(this).text().trim());
+        });
+    }
+    var branchStr = branchNames.length ? branchNames.join(', ') : 'All Branches';
+    var searchTerm = dt ? dt.search() : '';
+    var dateStr = new Date().toLocaleDateString('en-PK', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+    var previewRowsHtml = '';
+    var exportData = [];
+    var inStockCount = 0;
+    var outOfStockCount = 0;
+    var totalProducts = 0;
+
+    $(rowNodes).each(function() {
+        var $tr = $(this);
+        var cells = $tr.children('td');
+        if (cells.length < 10) return; // skip empty placeholder rows
+
+        totalProducts++;
+        var code = $tr.find('.item-code-pill').text().trim() || cells.eq(2).text().trim();
+        
+        // Stock cell
+        var stockClone = cells.eq(3).clone();
+        stockClone.find('.stock-location-badge').removeAttr('data-product-id').css('cursor', 'default');
+        var stockHtml = stockClone.html().trim();
+        var stockText = stockClone.text().replace(/\s+/g, ' ').trim();
+
+        // Status cell
+        var statusClone = cells.eq(4).clone();
+        var statusHtml = statusClone.html().trim();
+        var statusText = statusClone.text().replace(/\s+/g, ' ').trim();
+        if (statusText.toLowerCase().includes('in stock') || statusText.toLowerCase().includes('primary')) {
+            inStockCount++;
+        } else {
+            outOfStockCount++;
+        }
+
+        // Category
+        var catMain = $tr.find('.cat-main').text().trim() || cells.eq(6).find('.cat-main').text().trim() || '-';
+        var catSub = $tr.find('.cat-sub').text().trim() || cells.eq(6).find('.cat-sub').text().trim() || '-';
+        var catText = (catSub && catSub !== '-') ? (catMain + ' / ' + catSub) : catMain;
+
+        // Item Name & Origin
+        var itemName = $tr.find('.item-name-text').clone().children().remove().end().text().trim() || cells.eq(7).find('.item-name-text').text().trim() || cells.eq(7).text().trim();
+        var hasVariants = $tr.find('.item-name-text').find('.fa-palette').length > 0;
+        var originBranch = cells.eq(7).find('div').filter(function() { return $(this).text().includes('Origin:'); }).text().trim();
+
+        var model = cells.eq(8).text().trim() || '-';
+        var price = $tr.find('.price-cell').text().trim() || cells.eq(9).text().trim();
+        var alertQty = cells.eq(10).text().trim() || '0';
+        var brand = cells.eq(11).text().trim() || '-';
+
+        previewRowsHtml += `
+            <tr>
+                <td style="text-align:center; font-weight:700; color:#475569;">${totalProducts}</td>
+                <td style="font-family:monospace; font-weight:800; color:#000000; white-space:nowrap;">${code}</td>
+                <td>
+                    <div style="font-weight:800; color:#000000; font-size:12px;">${itemName} ${hasVariants ? '<span style="font-size:9.5px; font-weight:700; background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; border-radius:4px; padding:1px 5px; margin-left:4px;">Variants</span>' : ''}</div>
+                    ${originBranch ? `<div style="color:#64748b; font-size:10px; margin-top:2px;">${originBranch}</div>` : ''}
+                </td>
+                <td style="font-size:11px; color:#1e293b;">${catText}</td>
+                <td style="font-size:11px; color:#1e293b; font-weight:600;">${brand}</td>
+                <td style="font-size:11px; color:#475569;">${model}</td>
+                <td style="font-size:11px;">${stockHtml}</td>
+                <td style="text-align:center;">${statusHtml}</td>
+                <td style="text-align:right; font-family:monospace; font-weight:800; color:#000000; font-size:12px; white-space:nowrap;">${price}</td>
+                <td style="text-align:center; font-weight:700; color:#475569;">${alertQty}</td>
+            </tr>
+        `;
+
+        exportData.push({
+            index: totalProducts,
+            code: code,
+            name: itemName + (hasVariants ? ' (Variants)' : ''),
+            category: catMain,
+            subCategory: catSub,
+            brand: brand,
+            model: model,
+            stock: stockText,
+            status: statusText,
+            price: price.replace(/[^0-9.]/g, ''),
+            alertQty: alertQty
+        });
+    });
+
+    var fullTitle = 'Product Catalog & Inventory List';
+    var periodStr = `Generated On: ${dateStr} | Branch: ${branchStr}` + (searchTerm ? ` | Filter: "${searchTerm}"` : '');
+
+    var summaryHtml = `
+        <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:16px; background:#f8fafc; border:1.5px solid #cbd5e1; border-radius:6px; padding:10px 16px;">
+            <div>
+                <span style="font-size:10.5px; font-weight:700; color:#64748b; text-transform:uppercase;">Total Products:</span>
+                <span style="font-size:14px; font-weight:800; color:#0f172a; margin-left:6px;">${totalProducts}</span>
+            </div>
+            <div>
+                <span style="font-size:10.5px; font-weight:700; color:#047857; text-transform:uppercase;">In-Stock Items:</span>
+                <span style="font-size:14px; font-weight:800; color:#047857; margin-left:6px;">${inStockCount}</span>
+            </div>
+            <div>
+                <span style="font-size:10.5px; font-weight:700; color:#dc2626; text-transform:uppercase;">No/Out Stock:</span>
+                <span style="font-size:14px; font-weight:800; color:#dc2626; margin-left:6px;">${outOfStockCount}</span>
+            </div>
+        </div>
+    `;
+
+    var tableHtml = `
+        <table id="previewTable">
+            <thead>
+                <tr>
+                    <th style="width:35px; text-align:center;">#</th>
+                    <th style="width:105px;">Item Code</th>
+                    <th>Product / Item Details</th>
+                    <th style="width:140px;">Category</th>
+                    <th style="width:100px;">Brand</th>
+                    <th style="width:90px;">Model</th>
+                    <th style="width:140px;">Stock</th>
+                    <th style="width:95px; text-align:center;">Status</th>
+                    <th style="width:105px; text-align:right;">Price</th>
+                    <th style="width:65px; text-align:center;">Alert</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${previewRowsHtml}
+            </tbody>
+        </table>
+    `;
+
+    var win = window.open('', '_blank');
+    if (win) {
+        win.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fullTitle}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 24px 20px 60px 20px;
+            background: #f8fafc;
+            color: #000;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+        .action-toolbar {
+            max-width: 1400px;
+            margin: 0 auto 14px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .report-badge {
+            font-size: 13.5px;
+            font-weight: 700;
+            color: #1e3a5f;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-action {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 15px;
+            font-size: 12.5px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 1px solid #cbd5e1;
+            background: #ffffff;
+            color: #1e293b;
+            text-decoration: none;
+            transition: all 0.15s ease;
+        }
+        .btn-action:hover { background: #f1f5f9; }
+        .btn-excel-action {
+            background: #ecfdf5;
+            color: #065f46;
+            border-color: #a7f3d0;
+        }
+        .btn-excel-action:hover {
+            background: #d1fae5;
+            border-color: #059669;
+        }
+        .btn-primary-action { background: #1e3a5f; color: #fff; border-color: #1e3a5f; }
+        .btn-primary-action:hover { background: #0f1f38; }
+
+        .normal-page-card {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+            padding: 28px 32px;
+            box-sizing: border-box;
+        }
+
+        .preview-header {
+            margin-bottom: 16px;
+        }
+        .preview-company {
+            font-size: 15px;
+            font-weight: 900;
+            letter-spacing: 0.04em;
+            color: #000000;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        .preview-title {
+            font-size: 22px;
+            font-weight: 900;
+            color: #000000;
+            margin-bottom: 3px;
+            letter-spacing: -0.01em;
+        }
+        .preview-period {
+            font-size: 12px;
+            color: #1e293b;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        .preview-divider {
+            border-bottom: 2.5px solid #000000;
+            margin-bottom: 14px;
+        }
+
+        #previewTable {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            border: 2px solid #000000 !important;
+            color: #000000 !important;
+            font-size: 11.5px !important;
+        }
+        #previewTable thead th {
+            background: #f1f5f9 !important;
+            color: #000000 !important;
+            font-weight: 800 !important;
+            font-size: 11px !important;
+            border: 1.5px solid #000000 !important;
+            padding: 8px 10px !important;
+            text-transform: uppercase !important;
+        }
+        #previewTable tbody td {
+            border: 1.5px solid #334155 !important;
+            color: #000000 !important;
+            font-weight: 600 !important;
+            padding: 7px 10px !important;
+            vertical-align: middle !important;
+        }
+
+        .badge-in-stock, .badge-primary-role {
+            font-family: inherit;
+            font-size: 10px; font-weight: 800;
+            padding: 3px 7px; border-radius: 4px;
+            background: #d1fae5 !important;
+            color: #065f46 !important;
+            border: 1.5px solid #059669 !important;
+            display: inline-block;
+        }
+        .badge-no-stock, .badge-secondary-role {
+            font-family: inherit;
+            font-size: 10px; font-weight: 800;
+            padding: 3px 7px; border-radius: 4px;
+            background: #fef3c7 !important;
+            color: #92400e !important;
+            border: 1.5px solid #d97706 !important;
+            display: inline-block;
+        }
+        .badge-qty {
+            font-size: 11px; font-weight: 700;
+            padding: 2px 7px; border-radius: 4px;
+            background: #f1f5f9; color: #0f172a;
+            border: 1px solid #cbd5e1;
+            display: inline-block;
+        }
+        .badge-no-qty {
+            font-size: 10px; font-weight: 700;
+            padding: 2px 7px; border-radius: 4px;
+            background: #fee2e2; color: #991b1b;
+            border: 1px solid #fca5a5;
+            display: inline-block;
+        }
+        .branch-stock-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 6px;
+            margin-bottom: 2px;
+            font-size: 10.5px;
+        }
+        .branch-stock-name {
+            font-weight: 700;
+            color: #334155;
+        }
+
+        @media print {
+            @page {
+                size: auto;
+                margin: 0mm !important;
+            }
+            html, body {
+                background: #fff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                width: 100% !important;
+            }
+            .action-toolbar, .no-print {
+                display: none !important;
+            }
+            .normal-page-card {
+                border: none !important;
+                box-shadow: none !important;
+                padding: 10mm 12mm 10mm 12mm !important;
+                max-width: 100% !important;
+                width: 100% !important;
+                margin: 0 !important;
+                box-sizing: border-box !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="action-toolbar no-print">
+        <div class="report-badge">
+            <i class="fas fa-boxes"></i>
+            <span>${fullTitle} (${totalProducts} Products)</span>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button id="btnExportExcel" class="btn-action btn-excel-action" title="Download Excel (CSV)">
+                <i class="fas fa-file-excel text-success"></i> Export Excel
+            </button>
+            <button class="btn-action btn-primary-action" onclick="window.print()">
+                <i class="fas fa-print"></i> Print
+            </button>
+            <button class="btn-action" onclick="window.close()">
+                <i class="fas fa-times"></i> Close Tab
+            </button>
+        </div>
+    </div>
+    <div class="normal-page-card">
+        <div class="preview-header">
+            <div class="preview-company">AMEEN & SONS CORPORATE ERP</div>
+            <div class="preview-title">Product Catalog & Inventory List</div>
+            <div class="preview-period">${periodStr}</div>
+            <div class="preview-divider"></div>
+        </div>
+        ${summaryHtml}
+        ${tableHtml}
+    </div>
+</body>
+</html>`);
+        win.document.close();
+
+        // Attach Export to Excel cleanly via injected script
+        var s = win.document.createElement('script');
+        s.textContent = `
+            var exportRows = ${JSON.stringify(exportData)};
+            document.getElementById('btnExportExcel').addEventListener('click', function() {
+                var headers = ["#", "Item Code", "Item Name", "Category", "Sub Category", "Brand", "Model", "Stock", "Status", "Price (PKR)", "Alert Qty"];
+                var csvLines = [headers.join(',')];
+                exportRows.forEach(function(r) {
+                    var line = [
+                        r.index,
+                        '"' + (r.code || '').replace(/"/g, '""') + '"',
+                        '"' + (r.name || '').replace(/"/g, '""') + '"',
+                        '"' + (r.category || '').replace(/"/g, '""') + '"',
+                        '"' + (r.subCategory || '').replace(/"/g, '""') + '"',
+                        '"' + (r.brand || '').replace(/"/g, '""') + '"',
+                        '"' + (r.model || '').replace(/"/g, '""') + '"',
+                        '"' + (r.stock || '').replace(/"/g, '""') + '"',
+                        '"' + (r.status || '').replace(/"/g, '""') + '"',
+                        '"' + (r.price || '').replace(/"/g, '""') + '"',
+                        '"' + (r.alertQty || '').replace(/"/g, '""') + '"'
+                    ];
+                    csvLines.push(line.join(','));
+                });
+                var csvBlob = new Blob(["\\uFEFF" + csvLines.join('\\r\\n')], { type: 'text/csv;charset=utf-8;' });
+                var url = URL.createObjectURL(csvBlob);
+                var link = document.createElement('a');
+                link.href = url;
+                link.download = 'Product_Catalog_' + new Date().toISOString().slice(0, 10) + '.csv';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        `;
+        win.document.body.appendChild(s);
+        win.focus();
+        return;
+    }
+    window.print();
+};
 </script>
 @endsection
