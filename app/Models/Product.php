@@ -94,10 +94,40 @@ class Product extends Model
     }
 
     /**
+     * Check if unit name represents a carton or packaging unit
+     */
+    public static function isCartonUnit(?string $unitName): bool
+    {
+        $u = strtolower(trim($unitName ?? ''));
+        if ($u === 'pcs' || $u === 'set' || $u === 'meter' || $u === 'ltr' || $u === 'kg' || empty($u)) {
+            return false;
+        }
+        return str_contains($u, 'crtn') || 
+               str_contains($u, 'carton') || 
+               str_contains($u, 'box') || 
+               str_contains($u, 'pack') || 
+               str_contains($u, 'pkt') || 
+               str_contains($u, 'bundle') || 
+               str_contains($u, 'ctn');
+    }
+
+    /**
+     * Check if product is actually a carton product (unit is carton/box AND piece_per_pack > 1)
+     */
+    public function isCartonProduct(): bool
+    {
+        $unitName = $this->unit?->name ?? '';
+        return self::isCartonUnit($unitName) && ((float) ($this->piece_per_pack ?? 0) > 1);
+    }
+
+    /**
      * Get Packing Multiplier (Pcs per Carton/Pack)
      */
     public function getPackingMultiplier(): float
     {
+        if (!$this->isCartonProduct()) {
+            return 1.0;
+        }
         $ppp = (float) ($this->piece_per_pack ?? 0);
         return $ppp > 1 ? $ppp : 1.0;
     }
@@ -107,7 +137,7 @@ class Product extends Model
      */
     public function hasPacking(): bool
     {
-        return (float) ($this->piece_per_pack ?? 0) > 1;
+        return $this->isCartonProduct();
     }
 
     /**
@@ -131,7 +161,8 @@ class Product extends Model
      */
     public static function formatCartonPieces(float $qty, float $ppp = 1, string $unitName = 'Ctn'): string
     {
-        if ($ppp <= 1) {
+        $unitClean = trim($unitName ?: 'Ctn');
+        if ($ppp <= 1 || !self::isCartonUnit($unitClean)) {
             return number_format($qty, 2);
         }
 
@@ -169,8 +200,8 @@ class Product extends Model
      */
     public static function parseCartonQtyToPieces($qty, float $ppp = 1, ?string $unit = 'ctn'): float
     {
-        $isPiece = $unit && strtolower($unit) === 'pcs';
-        if ($isPiece || $ppp <= 1) {
+        $isCarton = self::isCartonUnit($unit);
+        if (!$isCarton || $ppp <= 1) {
             return (float) $qty;
         }
 
@@ -208,8 +239,8 @@ class Product extends Model
      */
     public static function calculateCartonLineTotal($qty, float $price, float $ppp = 1, ?string $unit = 'ctn'): float
     {
-        $isPiece = $unit && strtolower($unit) === 'pcs';
-        if ($isPiece || $ppp <= 1) {
+        $isCarton = self::isCartonUnit($unit);
+        if (!$isCarton || $ppp <= 1) {
             return ((float) $qty) * $price;
         }
 

@@ -770,6 +770,9 @@
                                     @can('unit.view')
                                     <li><a href="{{route('Unit.home')}}"><i class="fas fa-balance-scale"></i> Units</a></li>
                                     @endcan
+                                    @if(Auth::user()->canAny(['product.view', 'product.create']) || Auth::user()->hasRole('super admin'))
+                                    <li><a href="{{route('product.settings')}}"><i class="fas fa-cog"></i> Product Settings</a></li>
+                                    @endif
                                 </ul>
                             </div>
                         </li>

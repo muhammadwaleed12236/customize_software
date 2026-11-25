@@ -997,7 +997,8 @@ public function searchProductsForSalebypagination(Request $request)
             $branches = $branches->where('id', $userBranchId);
         }
 
-        $ppp = (float)($product->piece_per_pack ?? 1);
+        $isCarton = $product->isCartonProduct();
+        $ppp = $isCarton ? (float)($product->piece_per_pack ?? 1) : 1;
         $unitName = $product->unit?->name ?? 'Pcs';
 
         $locations = [];
@@ -1149,10 +1150,11 @@ public function searchProductsForSalebypagination(Request $request)
         // Prefix with '100' and pad to 5 digits (e.g., 10000001, 10000002)
         $nextBarcode = '100' . str_pad($maxId + 1, 5, '0', STR_PAD_LEFT);
         $nextItemCode = 'ITEM-' . str_pad($maxId + 1, 4, '0', STR_PAD_LEFT);
+        $productSettings = \App\Models\ProductSetting::getSettings();
         
         return view('admin_panel.product.create', compact(
             'categories', 'units', 'brands', 'types', 'branches', 'warehouses',
-            'isSuperAdmin', 'user', 'nextBarcode', 'nextItemCode'
+            'isSuperAdmin', 'user', 'nextBarcode', 'nextItemCode', 'productSettings'
         ));
     }
 
@@ -1838,7 +1840,9 @@ public function searchProductsForSalebypagination(Request $request)
         $units         = Unit::select('id', 'name')->get();
         $types         = \App\Models\ProductType::all();
 
-        return view('admin_panel.product.edit', compact('product', 'categories', 'subcategories', 'brands', 'units', 'types', 'branches', 'isSuperAdmin', 'user'));
+        $productSettings = \App\Models\ProductSetting::getSettings();
+
+        return view('admin_panel.product.edit', compact('product', 'categories', 'subcategories', 'brands', 'units', 'types', 'branches', 'isSuperAdmin', 'user', 'productSettings'));
     }
 
     // ===== Barcode view =====
@@ -2566,7 +2570,8 @@ public function searchProductsForSalebypagination(Request $request)
                     $retail    = $group['retail_price'];
 
                     // Convert carton to base pieces if carton product
-                    $ppp = (float)($product->piece_per_pack ?? 1);
+                    $isCarton = $product->isCartonProduct();
+                    $ppp = $isCarton ? (float)($product->piece_per_pack ?? 1) : 1;
                     $multiplier = $ppp > 1 ? $ppp : 1;
                     $openingPieces = $opening * $multiplier;
 
@@ -2978,7 +2983,8 @@ public function searchProductsForSalebypagination(Request $request)
         }
 
         // Convert input qty to base pieces if carton product
-        $ppp = (float)($product->piece_per_pack ?? 1);
+        $isCarton = $product->isCartonProduct();
+        $ppp = $isCarton ? (float)($product->piece_per_pack ?? 1) : 1;
         $multiplier = $ppp > 1 ? $ppp : 1;
         $newPieces = $newQty * $multiplier;
 
@@ -3206,8 +3212,8 @@ public function searchProductsForSalebypagination(Request $request)
     private function getWarehouseNonOpeningDelta(int $productId, int $branchId, ?int $warehouseId, ?int $variantId = null): float
     {
         $product = Product::find($productId);
-        $ppp = (float) (($product && $product->piece_per_pack > 1) ? $product->piece_per_pack : 1);
-        $isCartonProd = ($ppp > 1);
+        $isCartonProd = ($product && $product->isCartonProduct());
+        $ppp = $isCartonProd ? (float)$product->piece_per_pack : 1;
 
         // 1. Purchases
         $purQ = DB::table('purchase_items')

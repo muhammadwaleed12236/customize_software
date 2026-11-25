@@ -228,8 +228,16 @@
 
                         <!-- Right: Fields Area -->
                         <div class="fields-col">
+                            @php
+                                $productSettings = $productSettings ?? \App\Models\ProductSetting::getSettings();
+                                $row1_cols = 3 + ($productSettings->show_type ? 1 : 0);
+                                $row2_cols = 3 + ($productSettings->show_brand ? 1 : 0);
+                                $row3_cols = 1 + ($productSettings->show_item_name_urdu ? 1 : 0) + ($productSettings->show_model ? 1 : 0) + ($productSettings->show_hs_code ? 1 : 0);
+                                $row4_cols = max(1, ($productSettings->show_tracking_type ? 1 : 0) + ($productSettings->show_color ? 1 : 0) + ($productSettings->show_packaging_type ? 1 : 0));
+                            @endphp
+
                             <!-- Row 1: Branch, Category, SubCategory, Type -->
-                            <div class="field-row">
+                            <div class="field-row" style="grid-template-columns: repeat({{ $row1_cols }}, 1fr);">
                                 <div class="field-group">
                                     <label class="field-label">🏢 Branch</label>
                                     @if($isSuperAdmin)
@@ -272,6 +280,7 @@
                                     </div>
                                 </div>
 
+                                @if($productSettings->show_type)
                                 <div class="field-group">
                                     <label class="field-label">Type</label>
                                     <div class="d-flex align-items-center">
@@ -284,10 +293,12 @@
                                         <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#typeModal" title="Add Type">+</button>
                                     </div>
                                 </div>
+                                @endif
                             </div>
 
                             <!-- Row 2: Brand, Item Code, Unit, Product Tracking Nature -->
-                            <div class="field-row mt-2">
+                            <div class="field-row mt-2" style="grid-template-columns: repeat({{ $row2_cols }}, 1fr);">
+                                @if($productSettings->show_brand)
                                 <div class="field-group">
                                     <label class="field-label">Brand</label>
                                     <div class="d-flex align-items-center">
@@ -300,6 +311,7 @@
                                         <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#brandcategoryModal" title="Add Brand">+</button>
                                     </div>
                                 </div>
+                                @endif
 
                                 <div class="field-group">
                                     <label class="field-label">🏷️ Item Code</label>
@@ -319,36 +331,42 @@
                                     </div>
                                 </div>
 
-                                <div class="field-group">
-                                    <label class="field-label">Product Tracking Nature</label>
-                                    <select name="tracking_type" id="tracking_type" class="custom-select">
-                                        <option value="standard" {{ old('tracking_type', $product->tracking_type ?? 'standard') == 'standard' ? 'selected' : '' }}>Standard</option>
-                                        <option value="serial" {{ old('tracking_type', $product->tracking_type ?? '') == 'serial' ? 'selected' : '' }}>Serial</option>
-                                    </select>
+                                <div class="field-group" id="top_barcode_group">
+                                    <label class="field-label">Barcode / SKU</label>
+                                    <div class="d-flex align-items-center">
+                                        <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $product->barcode_path }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
+                                        <button class="btn-gen" type="button" id="generateBarcodeBtn" title="Generate Custom SKU">Gen</button>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- Row 3: Item Description, Item Name (Urdu), Model, HS Code -->
-                            <div class="field-row mt-2">
+                            <div class="field-row mt-2" style="grid-template-columns: repeat({{ $row3_cols }}, 1fr);">
                                 <div class="field-group">
                                     <label class="field-label">Item Description (English)</label>
                                     <input type="text" id="product_name" name="product_name" class="custom-input" value="{{ $product->item_name }}" placeholder="Product Name" required>
                                 </div>
 
+                                @if($productSettings->show_item_name_urdu)
                                 <div class="field-group">
                                     <label class="field-label">Item Name (Urdu) / <span class="urdu-label">اردو نام</span></label>
                                     <input type="text" id="item_name_urdu" name="item_name_urdu" class="custom-input urdu-input" value="{{ $product->item_name_urdu ?? $product->urdu_name ?? '' }}" placeholder="مثلاً: سولر سسٹم 2 کلو واٹ">
                                 </div>
+                                @endif
 
+                                @if($productSettings->show_model)
                                 <div class="field-group">
                                     <label class="field-label">Model</label>
                                     <input type="text" id="model" name="model" class="custom-input" value="{{ $product->model }}" placeholder="Model No.">
                                 </div>
+                                @endif
 
+                                @if($productSettings->show_hs_code)
                                 <div class="field-group">
                                     <label class="field-label">HS Code <span class="text-muted fw-normal" style="font-size: 11px;">(Optional)</span></label>
                                     <input type="text" id="hs_code" name="hs_code" class="custom-input" value="{{ $product->hs_code }}" placeholder="HS Code (Optional)">
                                 </div>
+                                @endif
                             </div>
 
                             <!-- Row 4: Color & Inline Save Button -->
@@ -370,16 +388,21 @@
                                 }
                             @endphp
 
-                            <!-- Row 4: Barcode / SKU, Color & Packaging Type (All 3 together) -->
+                            <!-- Row 4: Product Tracking Nature, Color & Packaging Type (All 3 together) -->
                             <div class="field-row mt-2 align-items-end" id="single_color_row" style="grid-template-columns: repeat(3, 1fr);">
-                                <div class="field-group mb-0" id="top_barcode_group">
-                                    <label class="field-label">Barcode / SKU</label>
-                                    <div class="d-flex align-items-center">
-                                        <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $product->barcode_path }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
-                                        <button class="btn-gen" type="button" id="generateBarcodeBtn" title="Generate Custom SKU">Gen</button>
-                                    </div>
+                                @if($productSettings->show_tracking_type)
+                                <div class="field-group mb-0" id="tracking_type_group">
+                                    <label class="field-label">Product Tracking Nature</label>
+                                    <select name="tracking_type" id="tracking_type" class="custom-select">
+                                        <option value="standard" {{ old('tracking_type', $product->tracking_type ?? 'standard') == 'standard' ? 'selected' : '' }}>Standard</option>
+                                        <option value="serial" {{ old('tracking_type', $product->tracking_type ?? '') == 'serial' ? 'selected' : '' }}>Serial</option>
+                                    </select>
                                 </div>
+                                @else
+                                <input type="hidden" name="tracking_type" id="tracking_type" value="{{ $product->tracking_type ?? 'standard' }}">
+                                @endif
 
+                                @if($productSettings->show_color)
                                 <div class="field-group mb-0" id="single_color_group">
                                     <label class="field-label">Color</label>
                                     <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
@@ -393,7 +416,9 @@
                                         @endforeach
                                     </select>
                                 </div>
+                                @endif
 
+                                @if($productSettings->show_packaging_type)
                                 <div class="field-group mb-0" id="packaging_type_group">
                                     <label class="field-label">Packaging Type</label>
                                     <select name="packing_type" id="packing_type" class="custom-select">
@@ -402,8 +427,15 @@
                                         <option value="Customize" {{ $isCustomize ? 'selected' : '' }}>Customize</option>
                                     </select>
                                 </div>
+                                @else
+                                <input type="hidden" name="packing_type" id="packing_type" value="{{ $product->pack_type ?? 'Standard' }}">
+                                <input type="hidden" name="pack_qty" value="{{ $product->pack_qty ?? 0 }}">
+                                <input type="hidden" name="piece_per_pack" value="{{ $product->piece_per_pack ?? 0 }}">
+                                <input type="hidden" name="loose_piece" value="{{ $product->loose_piece ?? 0 }}">
+                                @endif
                             </div>
 
+                            @if($productSettings->show_packaging_type)
                             <!-- 3 Custom Packaging Fields (Shown when Customize is selected) -->
                             <div id="customize_packaging_fields" class="mt-2" style="{{ $isCustomize ? '' : 'display: none;' }}">
                                 <div class="custom-packing-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px;">
@@ -421,6 +453,7 @@
                                     </div>
                                 </div>
                             </div>
+                            @endif
                             <!-- Variants Configuration Section (Shown when Variant Product is chosen - ON TOP) -->
                             <div id="variants_section" class="mt-2 mb-2 p-3 rounded" style="{{ $product->has_variants ? '' : 'display: none;' }} background: #ffffff; border: 1px solid #cbd5e1; box-shadow: 0 1px 4px rgba(0,0,0,0.04);">
                                 <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
@@ -656,26 +689,6 @@
                 togglePackagingFields();
             });
 
-            function checkUnitPacking() {
-                var selectedText = $('#unit_select option:selected').text().toLowerCase().trim();
-                var isCartonUnit = selectedText.includes('crtn') || 
-                                   selectedText.includes('carton') || 
-                                   selectedText.includes('box') || 
-                                   selectedText.includes('pack') || 
-                                   selectedText.includes('pkt') || 
-                                   selectedText.includes('bundle') || 
-                                   selectedText.includes('ctn');
-
-                if (isCartonUnit && !$('#packing_type').data('manually-selected')) {
-                    $('#packing_type').val('Customize');
-                    togglePackagingFields();
-                }
-            }
-
-            $('#unit_select').on('change', checkUnitPacking);
-            if ($('#unit_select').val() && !$('#packing_type').val()) {
-                checkUnitPacking();
-            }
             togglePackagingFields();
 
             // 4. Initialize Select2 & Variant Engine

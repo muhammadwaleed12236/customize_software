@@ -777,8 +777,11 @@
                                 </span>
                             </button>
                         </td>
+                        @php
+                            $isCartonItem = \App\Models\Product::isCartonUnit($item->unit_name) && (($item->piece_per_pack ?? 1) > 1);
+                        @endphp
                         <td style="text-align: right;">
-                            @if(($item->piece_per_pack ?? 1) > 1)
+                            @if($isCartonItem)
                                 <div style="font-weight: 700; color: #1e40af; font-size: 13px;">
                                     {{ \App\Models\Product::formatCartonPieces($item->opening_qty, $item->piece_per_pack, $item->unit_name) }}
                                 </div>
@@ -792,7 +795,7 @@
                             @endif
                         </td>
                         <td style="text-align: right;">
-                            @if(($item->piece_per_pack ?? 1) > 1)
+                            @if($isCartonItem)
                                 <div style="font-weight: 700; color: {{ $item->current_stock > 0 ? '#15803d' : ($item->current_stock < 0 ? '#b91c1c' : '#64748b') }}; font-size: 13px;">
                                     {{ \App\Models\Product::formatCartonPieces($item->current_stock, $item->piece_per_pack, $item->unit_name) }}
                                 </div>

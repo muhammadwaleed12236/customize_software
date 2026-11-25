@@ -199,6 +199,8 @@ Route::get('/check-product-name', [ProductController::class, 'checkProductName']
 //////////////////////////////////////////////////////////////////////////////////////////////
     //////////
     Route::get('/create_prodcut', [ProductController::class, 'view_store'])->middleware('permission:product.create')->name('store');
+    Route::get('/product/settings', [\App\Http\Controllers\ProductSettingController::class, 'index'])->name('product.settings');
+    Route::post('/product/settings', [\App\Http\Controllers\ProductSettingController::class, 'update'])->name('product.settings.update');
     Route::post('/store-product', [ProductController::class, 'store_product'])->middleware('permission:product.create|product.edit')->name('store-product');
 //  Route::post('/store-product', function (Request $request) {
 //     echo "<pre>";

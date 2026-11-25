@@ -759,7 +759,8 @@
 
     {{-- â”€â”€ 2. Top Info Row (Product + Branch + Live Stock) â”€â”€ --}}
     @php
-    $ppp = (float)($product->piece_per_pack ?? 1);
+    $isCarton = $product->isCartonProduct();
+    $ppp = $isCarton ? (float)($product->piece_per_pack ?? 1) : 1;
     $displayCurrentStock = ($ppp > 1) ? ($currentStock / $ppp) : $currentStock;
 @endphp
 <div class="ose-top-grid">
@@ -1256,7 +1257,7 @@ $(document).ready(function() {
     var unitName        = "{{ $product->unit?->name ?? 'Carton' }}";
     var liveStockVal    = parseFloat("{{ $currentStock }}") || 0;
     var isSerialProduct = {{ $product->isSerial() ? 'true' : 'false' }};
-    var ppp             = {{ (float)($product->piece_per_pack ?? 1) }};
+    var ppp             = {{ $product->isCartonProduct() ? (float)($product->piece_per_pack ?? 1) : 1 }};
 
     var currentActiveAllocRow  = null;
     var currentTargetQty       = 0;
