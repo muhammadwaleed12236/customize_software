@@ -1033,9 +1033,49 @@ class AccountsHeadController extends Controller
             }
         }
 
+        // 4. Gather all active sale returns with cash refunds for this cash account
+        $unrecordedSaleReturns = [];
+        $headName = strtolower($account->head?->name ?? '');
+        $isCashAccount = (int)($account->head_id ?? 0) === 1 || str_contains($headName, 'cash') || str_contains(strtolower($account->title ?? ''), 'cash in hand');
+
+        if ($isCashAccount) {
+            $branchId = (int) ($account->branch_id ?? 0);
+            $saleReturns = DB::table('sales_returns')
+                ->join('sales', 'sales_returns.sale_id', '=', 'sales.id')
+                ->where('sales.branch_id', $branchId)
+                ->where(function($q) {
+                    $q->where('sales_returns.cash', '>', 0)
+                      ->orWhere(function($sq) {
+                          $sq->whereNull('sales_returns.customer')->where('sales_returns.total_net', '>', 0);
+                      });
+                })
+                ->select('sales_returns.*', 'sales.invoice_no as s_invoice_no')
+                ->get();
+
+            foreach ($saleReturns as $sr) {
+                $refNo = $sr->reference ?? ('RET-' . $sr->id);
+                $alreadyRecorded = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                    ->where(function($q) use ($sr, $refNo) {
+                        $q->where('voucher_no', $refNo)
+                          ->orWhere('voucher_no', 'RET-' . $sr->id);
+                    })
+                    ->exists();
+
+                if (!$alreadyRecorded) {
+                    $amt = (float)($sr->cash > 0 ? $sr->cash : $sr->total_net);
+                    if ($amt > 0) {
+                        $unrecordedSaleReturns[] = [
+                            'sr'     => $sr,
+                            'amount' => $amt,
+                        ];
+                    }
+                }
+            }
+        }
+
         // If nothing unrecorded and an OB entry exists, no action needed
         $hasAnyEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->exists();
-        if ($hasAnyEntry && empty($unrecordedReceipts) && empty($unrecordedPayments) && empty($unrecordedExpenses)) {
+        if ($hasAnyEntry && empty($unrecordedReceipts) && empty($unrecordedPayments) && empty($unrecordedExpenses) && empty($unrecordedSaleReturns)) {
             return;
         }
 
@@ -1183,6 +1223,30 @@ class AccountsHeadController extends Controller
                 'description'       => $desc,
                 'debit'             => $debit,
                 'credit'            => $credit,
+                'running_balance'   => 0, // Recalculated immediately below
+                'created_by'        => auth()->id() ?? 1,
+            ]);
+        }
+
+        // Post unrecorded sale returns with cash refunds
+        foreach ($unrecordedSaleReturns as $item) {
+            $sr   = $item['sr'];
+            $amt  = $item['amount'];
+            $date = $sr->created_at ? date('Y-m-d', strtotime($sr->created_at)) : now()->toDateString();
+            $refNo = $sr->reference ?? ('RET-' . $sr->id);
+            $desc = 'Sale Return Cash Refund — ' . $refNo . ($sr->s_invoice_no ? ' — Invoice #' . $sr->s_invoice_no : '');
+
+            \App\Models\AccountLedgerEntry::create([
+                'account_id'        => $accountId,
+                'branch_id'         => $account->branch_id ?? 0,
+                'voucher_type'      => 'payment',
+                'voucher_no'        => $refNo,
+                'voucher_id'        => $sr->id,
+                'entry_no'          => \App\Models\AccountLedgerEntry::generateEntryNo($accountId, 'payment'),
+                'transaction_date'  => $date,
+                'description'       => $desc,
+                'debit'             => 0,
+                'credit'            => $amt,
                 'running_balance'   => 0, // Recalculated immediately below
                 'created_by'        => auth()->id() ?? 1,
             ]);
