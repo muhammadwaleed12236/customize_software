@@ -510,7 +510,23 @@ class PurchaseController extends Controller
                 $itemWarehouse = ($lineWarehouse > 0) ? $lineWarehouse : $warehouseId;
                 $dbWarehouseId = ($itemWarehouse > 0) ? $itemWarehouse : null;
 
-                PurchaseItem::create([
+                // Extract serial numbers for this line
+                $rawSerials = is_array($request->item_serials) ? ($request->item_serials[$i] ?? null) : null;
+                $chosenSerials = [];
+                if (!empty($rawSerials)) {
+                    if (is_array($rawSerials)) {
+                        $chosenSerials = $rawSerials;
+                    } elseif (is_string($rawSerials)) {
+                        $decoded = json_decode($rawSerials, true);
+                        if (is_array($decoded)) {
+                            $chosenSerials = $decoded;
+                        } else {
+                            $chosenSerials = array_filter(array_map('trim', explode(',', $rawSerials)));
+                        }
+                    }
+                }
+
+                $purchaseItem = PurchaseItem::create([
                     'purchase_id'   => $purchase->id,
                     'product_id'    => $pid,
                     'variant_id'    => $variantId,
@@ -526,7 +542,30 @@ class PurchaseController extends Controller
                     'packing_qty'   => $packingQtys[$i] ?? null,
                     'item_per_piece'=> $itemsPerPieces[$i] ?? null,
                     'loose_piece'   => $loosePieces[$i] ?? null,
+                    'serial_numbers'=> !empty($chosenSerials) ? implode(', ', $chosenSerials) : null,
                 ]);
+
+                // Create ProductSerial records for serial tracking
+                if (!empty($chosenSerials)) {
+                    foreach ($chosenSerials as $sn) {
+                        $sn = trim((string)$sn);
+                        if ($sn === '') continue;
+
+                        \App\Models\ProductSerial::create([
+                            'product_id'     => $pid,
+                            'variant_id'     => $variantId,
+                            'branch_id'      => $branchId,
+                            'warehouse_id'   => $dbWarehouseId,
+                            'serial_number'  => $sn,
+                            'status'         => 'available',
+                            'source_type'    => 'PURCHASE',
+                            'source_id'      => $purchase->id,
+                            'purchase_price' => $price,
+                            'sale_price'     => null,
+                            'notes'          => 'Purchased via Bill #' . ($purchase->invoice_no ?? $purchase->id),
+                        ]);
+                    }
+                }
 
                 // ✅ ERP STANDARD: Initialize tracking for receiving (Vendor Remaining)
                 // If this bill is created FROM a gatepass OR is a Local Purchase, it means items are ALREADY received.
@@ -2118,7 +2157,7 @@ class PurchaseController extends Controller
         $Branch = Branch::all();
         // ✅ OPTIMIZED: Fetch products with only needed columns for view
         $Products = Product::with(['unit:id,name', 'variants'])
-            ->select('id', 'item_name', 'item_code', 'unit_id', 'piece_per_pack', 'pack_type', 'wholesale_price', 'has_variants')
+            ->select('id', 'item_name', 'item_code', 'unit_id', 'piece_per_pack', 'pack_type', 'wholesale_price', 'has_variants', 'tracking_type')
             ->get();
 
         // ✅ OPTIMIZED: Single query for last purchase prices (replaces N+1 loop)

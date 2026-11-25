@@ -1169,6 +1169,11 @@
                                         <i class="fas fa-palette mr-0.5"></i> Variants
                                     </span>
                                 @endif
+                                @if(isset($product->tracking_type) && strtolower($product->tracking_type) === 'serial')
+                                    <span class="badge ml-1" style="font-size: 9.5px; font-weight: 700; background: #fef3c7; color: #b45309; border: 1px solid #fde68a; border-radius: 4px; padding: 2px 6px;" title="Serial / IMEI Tracked">
+                                        <i class="fas fa-barcode mr-0.5"></i> Serial
+                                    </span>
+                                @endif
                             </div>
                             @if($product->branch)
                                 <div style="font-size: 11px; color: #64748b; opacity: 0.68; margin-top: 3px; font-weight: 500;">
@@ -1340,8 +1345,22 @@
                             </div>
                         </div>
 
-                        {{-- Right: Live Stock Counter --}}
+                        {{-- Right: Pricing Card & Live Stock Counter --}}
                         <div class="d-flex align-items-center" style="gap: 10px;">
+                            <div class="p-2 px-3 rounded-lg text-right" style="background: #f8fafc; border: 1.5px solid #cbd5e1; min-width: 140px; border-radius: 8px;">
+                                <div class="text-secondary font-weight-700" style="font-size: 9px; letter-spacing: 0.5px; text-transform: uppercase;">
+                                    <i class="fas fa-tag text-primary mr-1"></i> RATES / PRICING
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-0.5" style="font-size: 11px;">
+                                    <span class="text-muted font-weight-600">Retail:</span>
+                                    <span class="font-weight-bold text-success ml-2" id="pvm_retail">PKR 0</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center" style="font-size: 10.5px;">
+                                    <span class="text-muted font-weight-600">Wholesale:</span>
+                                    <span class="font-weight-bold text-dark ml-2" id="pvm_wholesale">PKR 0</span>
+                                </div>
+                            </div>
+
                             <div class="p-2 px-3 rounded-lg text-right" style="background: #f0fdf4; border: 1.5px solid #86efac; min-width: 130px; border-radius: 8px;">
                                 <div class="text-success font-weight-700" style="font-size: 9.5px; letter-spacing: 0.5px; text-transform: uppercase;">
                                     <i class="fas fa-cubes mr-1"></i> CURRENT STOCK
@@ -1417,11 +1436,11 @@
                         </div>
                     </div>
 
-                    {{-- 3. Packaging & Pricing --}}
+                    {{-- 3. Packaging Details --}}
                     <div class="col-md-4 px-1">
                         <div class="pvm-section-box h-100 mb-0">
                             <div class="pvm-section-title">
-                                <i class="fas fa-box-open text-warning"></i> Packaging &amp; Pricing
+                                <i class="fas fa-box-open text-warning"></i> Packaging Details
                             </div>
                             <div class="d-flex flex-column" style="gap: 6px;">
                                 <div>
@@ -1432,17 +1451,17 @@
                                     <div class="pvm-label">Base Unit</div>
                                     <div class="pvm-value font-weight-bold text-dark" id="pvm_unit">-</div>
                                 </div>
-                                <div>
-                                    <div class="pvm-label">Wholesale Rate</div>
-                                    <div class="pvm-value font-weight-bold text-dark" id="pvm_wholesale">PKR 0</div>
-                                </div>
-                                <div>
-                                    <div class="pvm-label">Retail Rate</div>
-                                    <div class="pvm-value font-weight-bold text-success" id="pvm_retail">PKR 0</div>
+                                <div class="customize-field">
+                                    <div class="pvm-label">Pack Qty</div>
+                                    <div class="pvm-value font-weight-bold text-primary" id="pvm_pack_qty">-</div>
                                 </div>
                                 <div class="customize-field">
-                                    <div class="pvm-label">Pcs / Carton</div>
+                                    <div class="pvm-label">Unit/Pack</div>
                                     <div class="pvm-value font-weight-bold text-success" id="pvm_piece_per_pack">-</div>
+                                </div>
+                                <div class="customize-field">
+                                    <div class="pvm-label">Loose Pcs</div>
+                                    <div class="pvm-value font-weight-bold text-dark" id="pvm_loose_piece">-</div>
                                 </div>
                             </div>
                         </div>
@@ -2032,14 +2051,29 @@ $(document).on('click', '.viewProductBtn', function () {
             }
 
             // Packaging
-            $('#pvm_pack_type').text(p.pack_type || 'Standard');
+            var rawPackType = (p.pack_type && p.pack_type.trim() !== '') ? p.pack_type.trim() : 'Standard';
+            var isCustomize = rawPackType.toLowerCase() === 'customize';
+            $('#pvm_pack_type').text(isCustomize ? 'Customize' : 'Standard');
+            if (isCustomize) {
+                $('#pvm_pack_type').removeClass('badge-info').addClass('badge-primary');
+            } else {
+                $('#pvm_pack_type').removeClass('badge-primary').addClass('badge-info');
+            }
             $('#pvm_unit').text(p.unit ? p.unit.name : '-');
             
+            var packQty = parseFloat(p.pack_qty || 0);
             var ppp = parseFloat(p.piece_per_pack || 0);
-            if (p.pack_type === 'Customize' || ppp > 0) {
-                $('#pvm_piece_per_pack').text(ppp > 0 ? (ppp + ' Pcs') : '-');
+            var loosePcs = parseFloat(p.loose_piece || 0);
+
+            if (isCustomize || ppp > 0 || packQty > 0 || loosePcs > 0) {
+                $('#pvm_pack_qty').text(packQty > 0 ? (packQty % 1 === 0 ? packQty : packQty.toFixed(2)) : '-');
+                $('#pvm_piece_per_pack').text(ppp > 0 ? (ppp % 1 === 0 ? ppp : ppp.toFixed(2)) + ' Pcs' : '-');
+                $('#pvm_loose_piece').text(loosePcs > 0 ? (loosePcs % 1 === 0 ? loosePcs : loosePcs.toFixed(2)) + ' Pcs' : '-');
                 $('#productViewModal .customize-field').addClass('d-show');
             } else {
+                $('#pvm_pack_qty').text('-');
+                $('#pvm_piece_per_pack').text('-');
+                $('#pvm_loose_piece').text('-');
                 $('#productViewModal .customize-field').removeClass('d-show');
             }
 

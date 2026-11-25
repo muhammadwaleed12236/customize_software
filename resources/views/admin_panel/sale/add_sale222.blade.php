@@ -803,6 +803,25 @@
                                                         <input type="hidden" class="variant-id-hidden" name="variant_id[]" value="{{ $item['variant_id'] ?? '' }}">
                                                         <input type="hidden" class="variant-data-hidden" name="color[]" value="{{ $item['color'] ?? '' }}">
                                                         <input type="hidden" class="item-code-display" value="{{ $item['item_code'] ?? '' }}">
+                                                        @php
+                                                            $isItemSerial = false;
+                                                            if ($pObj && method_exists($pObj, 'isSerial')) {
+                                                                $isItemSerial = $pObj->isSerial();
+                                                            } elseif ($pObj && ($pObj->tracking_type ?? '') === 'serial') {
+                                                                $isItemSerial = true;
+                                                            }
+                                                            $itemSerialVal = $item['serial_numbers'] ?? '';
+                                                            if (is_array($itemSerialVal)) {
+                                                                $itemSerialVal = json_encode($itemSerialVal);
+                                                            }
+                                                        @endphp
+                                                        <input type="hidden" class="is-serial-hidden" name="is_serial[]" value="{{ $isItemSerial ? '1' : '0' }}">
+                                                        <input type="hidden" class="item-serials-input" name="item_serials[]" value="{{ $itemSerialVal }}">
+                                                        <div class="serial-badge-container mt-1 {{ $isItemSerial ? '' : 'd-none' }}">
+                                                            <button type="button" class="btn btn-xs py-0 px-1 btn-manage-serials" style="font-size:0.68rem; border-radius:3px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">
+                                                                <i class="fas fa-barcode me-1"></i><span class="serial-btn-text">Select Serials</span>
+                                                            </button>
+                                                        </div>
                                                     </td>
 
                                                     @if(isset($saleSettings) && $saleSettings->warehouse_mode === 'product_wise')
@@ -1301,6 +1320,70 @@
             </div>
         </div>
     </div>
+
+    <!-- SERIAL / IMEI SELECTION MODAL -->
+    <div class="modal fade" id="saleSerialModal" tabindex="-1" aria-labelledby="saleSerialModalLabel" aria-hidden="true" data-bs-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-md">
+            <div class="modal-content border-0 shadow-lg rounded-3">
+                <div class="modal-header text-white py-2 px-3" style="background:#2563eb;">
+                    <h6 class="modal-title d-flex align-items-center gap-2 fw-bold mb-0" id="saleSerialModalLabel" style="font-size:0.92rem;">
+                        <i class="fas fa-barcode"></i>
+                        <span>Select Serial / IMEI Numbers for Sale</span>
+                    </h6>
+                    <button type="button" class="btn-close btn-close-white shadow-none" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Product Info Header Card -->
+                    <div class="p-2.5 rounded-3 mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2" style="background: #f8fafc; border: 1px solid #e2e8f0;">
+                        <div>
+                            <div class="fw-bold text-dark fs-6" id="modalSerialProductName">-</div>
+                            <div class="text-muted small mt-0.5" id="modalSerialProductCode">-</div>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge py-1.5 px-2.5 fw-semibold" id="modalSerialWarehouseBadge" style="background:#e2e8f0; color:#334155;">Location</span>
+                            <span class="badge py-1.5 px-2.5 fw-bold" id="modalSerialQtyBadge" style="background:#dbeafe; color:#1d4ed8;">Target: 1</span>
+                            <span class="badge py-1.5 px-2.5 fw-bold" id="modalSerialSelectedBadge" style="background:#e2e8f0; color:#475569;">0 Selected</span>
+                        </div>
+                    </div>
+
+                    <!-- Search Input Toolbar -->
+                    <div class="mb-3">
+                        <div class="input-group">
+                            <span class="input-group-text bg-white border-end-0 text-muted"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control border-start-0 shadow-none ps-0" id="serialSearchInput" placeholder="Search available serial / IMEI numbers...">
+                        </div>
+                    </div>
+
+                    <!-- Serials Container (Grid of available serial badges/checkboxes) -->
+                    <div id="modalSerialListLoading" class="text-center py-4 d-none">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span class="ms-2 text-muted small">Loading available serial numbers from stock...</span>
+                    </div>
+
+                    <div id="modalSerialEmptyMessage" class="alert alert-warning py-2 px-3 small d-none mb-0">
+                        <i class="fas fa-exclamation-triangle me-1"></i> No available serial numbers found in stock for this product/location.
+                    </div>
+
+                    <div id="modalSerialListContainer" style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                        <div class="row g-2" id="modalSerialListGrid">
+                            <!-- Injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light py-2 px-3 d-flex justify-content-between align-items-center">
+                    <div class="small text-muted" id="modalSerialSelectionFeedback">
+                        Select the serial number(s) you wish to allocate to this sale item.
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary btn-sm px-3 fw-bold" id="btnApplySerials">
+                            <i class="fas fa-check-circle me-1"></i> Apply Serials
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 @endsection
 
 @section('js')
@@ -1538,6 +1621,13 @@
                             <input type="hidden" class="variant-id-hidden" name="variant_id[]">
                             <input type="hidden" class="variant-data-hidden" name="color[]">
                             <input type="hidden" class="item-code-display">
+                            <input type="hidden" class="is-serial-hidden" name="is_serial[]" value="0">
+                            <input type="hidden" class="item-serials-input" name="item_serials[]" value="">
+                            <div class="serial-badge-container mt-1 d-none">
+                                <button type="button" class="btn btn-xs py-0 px-1 btn-manage-serials" style="font-size:0.68rem; border-radius:3px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">
+                                    <i class="fas fa-barcode me-1"></i><span class="serial-btn-text">Select Serials</span>
+                                </button>
+                            </div>
                         </td>
                         ${whCellHtml}
                         ${stockCellHtml}
@@ -1586,7 +1676,7 @@
             }
 
             // --- Helper: Fetch Live Stock for a Row ---
-            function fetchRowStock($row, prodId, variantId) {
+            function fetchRowStock($row, prodId, variantId, onComplete) {
                 if (!prodId) return;
                 let actualPId = prodId;
                 let actualVId = variantId || $row.find('.variant-id-hidden').val() || $row.data('variant-id') || null;
@@ -1619,18 +1709,25 @@
                             Object.assign(window.PRODUCT_LOCATION_STOCKS[cacheKey], res.location_breakdown);
                         }
 
-                        // Update warehouse options with fresh live stock labels for this row
+                                                // Update warehouse options with fresh live stock labels for this row
                         const $whSelect = $row.find('.warehouse-select');
-                        if ($whSelect.length) {
-                            const currentWh = $whSelect.val() || loc;
-                            $whSelect.html(buildWarehouseOptionsHtml(currentWh, actualPId, actualVId));
+                        let currentWh = $whSelect.length ? ($whSelect.val() || loc) : loc;
+                        let displayStock = 0;
+                        if (res.location_breakdown && res.location_breakdown[currentWh] !== undefined) {
+                            displayStock = parseFloat(res.location_breakdown[currentWh]);
+                        } else if (res.location_stock !== undefined && res.location_stock !== null) {
+                            displayStock = parseFloat(res.location_stock);
+                        } else if (res.branch_stock !== undefined && res.branch_stock !== null) {
+                            displayStock = parseFloat(res.branch_stock);
+                        } else {
+                            displayStock = parseFloat(res.stock || res.available || 0);
                         }
 
-                        let displayStock = (res.location_stock !== undefined && res.location_stock !== null) 
-                            ? res.location_stock 
-                            : ((res.branch_stock !== undefined && res.branch_stock !== null) 
-                                ? res.branch_stock 
-                                : ((res.overall_stock !== undefined) ? res.overall_stock : (res.stock || res.available || 0)));
+                        if ($whSelect.length) {
+                            $whSelect.html(buildWarehouseOptionsHtml(currentWh, actualPId, actualVId));
+                            $whSelect.val(currentWh);
+                        }
+
                         $row.find('.stock').val(displayStock);
 
                         if (res.piece_per_pack !== undefined) {
@@ -1670,6 +1767,21 @@
                             $pSelect.trigger('change.select2');
                         }
                         $row.find('.stock').attr('title', `Location Stock: ${res.location_stock} | Branch Stock: ${res.branch_stock} | Overall Stock: ${res.overall_stock}`);
+
+                        if (res.is_serial !== undefined) {
+                            if (res.is_serial) {
+                                $row.find('.is-serial-hidden').val('1');
+                                $row.find('.serial-badge-container').removeClass('d-none').show();
+                                updateRowSerialButton($row);
+                            } else {
+                                $row.find('.is-serial-hidden').val('0');
+                                $row.find('.serial-badge-container').addClass('d-none').hide();
+                            }
+                        }
+
+                        if (typeof onComplete === 'function') {
+                            onComplete(res);
+                        }
                     }
                 });
             }
@@ -1863,7 +1975,37 @@
                         }
                     }
 
-                    fetchRowStock($row, actualProductId, actualVariantId);
+                    let isSerial = false;
+                    if (prod.is_serial !== undefined) {
+                        isSerial = !!prod.is_serial;
+                    } else if (prod.tracking_type) {
+                        isSerial = (prod.tracking_type === 'serial');
+                    }
+                    if (!isSerial && window.AVAILABLE_PRODUCTS) {
+                        let found = window.AVAILABLE_PRODUCTS.find(p => p.id == actualProductId);
+                        if (found && (found.tracking_type === 'serial' || found.is_serial)) {
+                            isSerial = true;
+                        }
+                    }
+
+                    $row.find('.is-serial-hidden').val(isSerial ? '1' : '0');
+                    if (isSerial) {
+                        $row.find('.serial-badge-container').removeClass('d-none').show();
+                        updateRowSerialButton($row);
+                    } else {
+                        $row.find('.serial-badge-container').addClass('d-none').hide();
+                        $row.find('.item-serials-input').val('');
+                    }
+
+                    fetchRowStock($row, actualProductId, actualVariantId, function(res) {
+                        let finalIsSerial = isSerial;
+                        if (res && res.is_serial !== undefined) {
+                            finalIsSerial = !!res.is_serial;
+                        }
+                        if (finalIsSerial) {
+                            openSerialModalForRow($row);
+                        }
+                    });
                     computeRow($row);
                     updateGrandTotals();
                 }
@@ -1928,6 +2070,10 @@
                 $row.find('.sales-qty-mirror').val(rawQty);
                 $row.find('.discount-amount').val(discAmt.toFixed(2));
                 $row.find('.sales-amount').val(net.toFixed(2));
+
+                if ($row.find('.is-serial-hidden').val() === '1') {
+                    updateRowSerialButton($row);
+                }
             }
 
             // --- Update Grand Totals & Summary Strip ---
@@ -2475,6 +2621,37 @@
                 });
                 if (!hasProducts) {
                     showAlert('error', 'Please add at least one product with quantity > 0.');
+                    return;
+                }
+
+                // Validation for serial-tracked products
+                let missingSerialRow = null;
+                $('#salesTableBody tr').each(function() {
+                    let $r = $(this);
+                    let pId = $r.find('.product-select').val();
+                    let qty = Math.round(toNum($r.find('.sales-qty').val()));
+                    let isSerial = $r.find('.is-serial-hidden').val() === '1';
+                    if (pId && qty > 0 && isSerial) {
+                        let serials = getRowSerials($r);
+                        if (serials.length !== qty) {
+                            missingSerialRow = $r;
+                            return false; // break each loop
+                        }
+                    }
+                });
+
+                if (missingSerialRow) {
+                    let pName = missingSerialRow.find('.product-select option:selected').text() || 'Product';
+                    let qty = Math.round(toNum(missingSerialRow.find('.sales-qty').val()));
+                    let serials = getRowSerials(missingSerialRow);
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Serial Numbers Required',
+                        html: `Please select <b>${qty}</b> serial number(s) for <b>${pName}</b>.<br><small class="text-muted">(Currently selected: ${serials.length} of ${qty})</small>`,
+                        confirmButtonText: '<i class="fas fa-barcode me-1"></i> Select Serials Now'
+                    }).then(() => {
+                        openSerialModalForRow(missingSerialRow);
+                    });
                     return;
                 }
 
@@ -3200,6 +3377,13 @@
                                 <input type="hidden" class="variant-id-hidden" name="variant_id[]" value="${item.variant_id || ''}">
                                 <input type="hidden" class="variant-data-hidden" name="color[]" value="${item.color || ''}">
                                 <input type="hidden" class="item-code-display" value="${item.item_code || ''}">
+                                <input type="hidden" class="is-serial-hidden" name="is_serial[]" value="${item.is_serial ? '1' : '0'}">
+                                <input type="hidden" class="item-serials-input" name="item_serials[]" value="${item.serial_numbers || ''}">
+                                <div class="serial-badge-container mt-1 ${item.is_serial ? '' : 'd-none'}">
+                                    <button type="button" class="btn btn-xs py-0 px-1 btn-manage-serials" style="font-size:0.68rem; border-radius:3px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">
+                                        <i class="fas fa-barcode me-1"></i><span class="serial-btn-text">Select Serials</span>
+                                    </button>
+                                </div>
                             </td>
                             ${whCellHtml}
                             ${stockCellHtml}
@@ -3570,6 +3754,14 @@
                 } else if ($('#salesTableBody tr').length === 0) {
                     addNewRow();
                 }
+
+                // Initialize serial buttons for any prefilled rows
+                $('#salesTableBody tr').each(function() {
+                    let isSerial = $(this).find('.is-serial-hidden').val() === '1';
+                    if (isSerial) {
+                        updateRowSerialButton($(this));
+                    }
+                });
             } catch (err) {
                 console.error('Error during edit mode initialization:', err);
             } finally {
@@ -3577,6 +3769,275 @@
                 updateGrandTotals();
                 $('#pageLoader').addClass('d-none').css('display', 'none');
             }
+
+            // ==========================================
+            // SERIAL / IMEI TRACKING LOGIC FOR SALES
+            // ==========================================
+            window.ACTIVE_SERIAL_ROW = null;
+            window.MODAL_AVAILABLE_SERIALS = [];
+
+            function getRowSerials($row) {
+                let val = $row.find('.item-serials-input').val();
+                if (!val) return [];
+                if (typeof val === 'object' && Array.isArray(val)) return val;
+                val = String(val).trim();
+                if (!val) return [];
+                if (val.startsWith('[') && val.endsWith(']')) {
+                    try {
+                        let parsed = JSON.parse(val);
+                        if (Array.isArray(parsed)) return parsed.map(s => String(s).trim()).filter(Boolean);
+                    } catch(e) {}
+                }
+                return val.split(',').map(s => s.trim()).filter(Boolean);
+            }
+
+            function updateRowSerialButton($row) {
+                let isSerial = $row.find('.is-serial-hidden').val() === '1';
+                if (!isSerial) {
+                    $row.find('.serial-badge-container').addClass('d-none').hide();
+                    return;
+                }
+                $row.find('.serial-badge-container').removeClass('d-none').show();
+                let qty = Math.round(toNum($row.find('.sales-qty').val())) || 1;
+                let serials = getRowSerials($row);
+                let $btn = $row.find('.btn-manage-serials');
+                let $text = $btn.find('.serial-btn-text');
+
+                if (serials.length === qty && qty > 0) {
+                    $btn.css({ background: '#ecfdf5', borderColor: '#a7f3d0', color: '#059669' });
+                    $text.html('<i class="fas fa-check-circle text-success me-1"></i>' + serials.length + ' Serial' + (serials.length > 1 ? 's' : '') + ' Selected');
+                    $btn.attr('title', 'Selected Serials: ' + serials.join(', '));
+                } else if (serials.length > 0) {
+                    $btn.css({ background: '#fffbeb', borderColor: '#fde68a', color: '#d97706' });
+                    $text.html('<i class="fas fa-exclamation-triangle text-warning me-1"></i>' + serials.length + '/' + qty + ' Serials');
+                    $btn.attr('title', 'Required: ' + qty + ' | Selected: ' + serials.join(', '));
+                } else {
+                    $btn.css({ background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626' });
+                    $text.html('<i class="fas fa-barcode me-1"></i>Select Serials (' + serials.length + '/' + qty + ')');
+                    $btn.attr('title', 'Click to select serial numbers');
+                }
+            }
+
+            function openSerialModalForRow($row) {
+                window.ACTIVE_SERIAL_ROW = $row;
+                let pId = $row.find('.product-id-hidden').val() || $row.find('.product-select').val();
+                let vId = $row.find('.variant-id-hidden').val() || $row.data('variant-id') || '';
+                if (!vId && typeof pId === 'string' && pId.includes('_var_')) {
+                    let parts = pId.split('_var_');
+                    pId = parts[0];
+                    vId = parts[1];
+                }
+                let warehouse = $row.find('.warehouse-select, .warehouse').val() || $('#globalWarehouseSelect').val() || '';
+                let branchId = $('#branch_id').val() || $('[name="branch_id"]').val() || '';
+                let qty = Math.round(toNum($row.find('.sales-qty').val())) || 1;
+
+                if (!pId) return;
+
+                let pSelectData = $row.find('.product-select').select2('data')[0];
+                let pName = pSelectData ? (pSelectData.text || pSelectData.display_title || pSelectData.item_name) : ($row.find('.product-select option:selected').text() || 'Product');
+                let itemCode = $row.find('.item-code-display').val() || (pSelectData ? (pSelectData.item_code || pSelectData.base_item_code) : '');
+
+                let whName = $row.find('.warehouse-select option:selected').text() || $('#globalWarehouseSelect option:selected').text() || 'Branch Stock';
+                whName = whName.split('—')[0].split('[')[0].trim();
+
+                $('#modalSerialProductName').text(pName);
+                $('#modalSerialProductCode').text(itemCode ? ('SKU: ' + itemCode) : '');
+                $('#modalSerialWarehouseBadge').text(whName);
+                $('#modalSerialQtyBadge').text('Target: ' + qty);
+
+                $('#serialSearchInput').val('');
+                $('#modalSerialListGrid').empty();
+                $('#modalSerialListLoading').removeClass('d-none').show();
+                $('#modalSerialEmptyMessage').addClass('d-none').hide();
+
+                let currentSelected = getRowSerials($row);
+                $('#modalSerialSelectedBadge').text(currentSelected.length + ' Selected');
+
+                $('#saleSerialModal').modal('show');
+
+                $.ajax({
+                    url: "{{ route('sale.available-serials', [], false) }}",
+                    type: 'GET',
+                    data: {
+                        product_id: pId,
+                        variant_id: vId,
+                        warehouse_id: warehouse,
+                        branch_id: branchId
+                    },
+                    dataType: 'json',
+                    success: function(res) {
+                        $('#modalSerialListLoading').addClass('d-none').hide();
+                        let serials = (res && res.serials) ? res.serials : [];
+                        window.MODAL_AVAILABLE_SERIALS = serials;
+                        // Warehouse badge strictly reflects row's selected warehouse
+                        renderModalSerials(serials, currentSelected, qty);
+                    },
+                    error: function() {
+                        $('#modalSerialListLoading').addClass('d-none').hide();
+                        showAlert('error', 'Failed to load available serial numbers.');
+                    }
+                });
+            }
+
+            function renderModalSerials(serials, selectedSerials, requiredQty) {
+                let $grid = $('#modalSerialListGrid');
+                $grid.empty();
+
+                if (!serials || serials.length === 0) {
+                    $('#modalSerialEmptyMessage').removeClass('d-none').show();
+                    $('#modalSerialSelectedBadge').text('0 Selected').css({ background: '#e2e8f0', color: '#475569' });
+                    return;
+                }
+                $('#modalSerialEmptyMessage').addClass('d-none').hide();
+
+                let selectedCount = 0;
+                serials.forEach(function(s, idx) {
+                    let isChecked = selectedSerials.includes(String(s.serial_number)) || selectedSerials.includes(String(s.id));
+                    if (isChecked) selectedCount++;
+
+                    let borderStyle = isChecked ? 'border: 1.5px solid #2563eb !important; background: #eff6ff !important;' : 'border: 1.5px solid #e2e8f0 !important; background: #ffffff !important;';
+
+                    let whBadge = s.warehouse_name ? `<span class="badge border px-2 py-0.5 ms-2" style="background:#f1f5f9; color:#475569; font-size:0.75rem;"><i class="fas fa-warehouse me-1 text-muted"></i>${s.warehouse_name}</span>` : '';
+
+                    let cardHtml = `
+                        <div class="col-12 serial-card-item" data-serial="${s.serial_number}">
+                            <div class="card p-2.5 serial-card cursor-pointer shadow-none mb-1" 
+                                 style="border-radius: 8px; ${borderStyle} transition: all 0.15s ease-in-out; cursor: pointer; user-select: none;">
+                                <div class="d-flex align-items-center justify-content-between" style="width: 100%;">
+                                    <div class="d-flex align-items-center" style="gap: 12px; min-width: 0; flex: 1;">
+                                        <input type="checkbox" 
+                                               class="serial-checkbox cursor-pointer" 
+                                               value="${s.serial_number}" 
+                                               data-warehouse-id="${s.warehouse_id || ''}" 
+                                               ${isChecked ? 'checked' : ''} 
+                                               style="position: static !important; float: none !important; margin: 0 !important; width: 18px !important; height: 18px !important; min-width: 18px !important; cursor: pointer; accent-color: #2563eb;">
+                                        <span class="fw-bold font-monospace text-dark serial-text" 
+                                              style="font-size: 0.95rem; letter-spacing: 0.5px; word-break: break-all;">
+                                            ${s.serial_number}
+                                        </span>
+                                        ${whBadge}
+                                    </div>
+                                    <div class="serial-check-icon ${isChecked ? '' : 'd-none'}">
+                                        <i class="fas fa-check text-primary fw-bold ms-2"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    $grid.append(cardHtml);
+                });
+
+                updateModalSelectionCounter(requiredQty);
+                setTimeout(() => { $('#serialSearchInput').focus(); }, 150);
+            }
+
+            function updateModalSelectionCounter(requiredQty) {
+                let count = $('.serial-checkbox:checked').length;
+                let target = requiredQty || (window.ACTIVE_SERIAL_ROW ? (Math.round(toNum(window.ACTIVE_SERIAL_ROW.find('.sales-qty').val())) || 1) : 1);
+
+                if (count === target) {
+                    $('#modalSerialSelectedBadge').text(count + ' / ' + target + ' Selected').css({ background: '#dcfce7', color: '#15803d' });
+                    $('#modalSerialSelectionFeedback').html('<span class="text-success fw-bold"><i class="fas fa-check-circle me-1"></i> Exactly ' + count + ' serial number(s) selected.</span>');
+                } else if (count < target) {
+                    $('#modalSerialSelectedBadge').text(count + ' / ' + target + ' Selected').css({ background: '#fef3c7', color: '#b45309' });
+                    $('#modalSerialSelectionFeedback').html('<span class="text-muted">Please select <b>' + (target - count) + '</b> more serial number(s).</span>');
+                } else {
+                    $('#modalSerialSelectedBadge').text(count + ' / ' + target + ' Selected').css({ background: '#dbeafe', color: '#1d4ed8' });
+                    $('#modalSerialSelectionFeedback').html('<span class="text-primary fw-bold"><i class="fas fa-info-circle me-1"></i> ' + count + ' serials selected. Applying will set line Qty to ' + count + '.</span>');
+                }
+            }
+
+            // Click card to toggle checkbox
+            $(document).on('click', '.serial-card', function(e) {
+                if ($(e.target).is('input[type="checkbox"]')) {
+                    return; // let native checkbox click handle it
+                }
+                let $cb = $(this).find('.serial-checkbox');
+                $cb.prop('checked', !$cb.is(':checked')).trigger('change');
+            });
+
+            // Checkbox change event
+            $(document).on('change', '.serial-checkbox', function() {
+                let $card = $(this).closest('.serial-card');
+                let isChecked = $(this).is(':checked');
+                if (isChecked) {
+                    $card.css({
+                        'border-color': '#2563eb',
+                        'background': '#eff6ff'
+                    });
+                    $card.find('.serial-check-icon').removeClass('d-none');
+                } else {
+                    $card.css({
+                        'border-color': '#e2e8f0',
+                        'background': '#ffffff'
+                    });
+                    $card.find('.serial-check-icon').addClass('d-none');
+                }
+                updateModalSelectionCounter();
+            });
+
+            // Live search filter in modal
+            $(document).on('input', '#serialSearchInput', function() {
+                let q = $(this).val().toLowerCase().trim();
+                $('.serial-card-item').each(function() {
+                    let sVal = String($(this).data('serial') || '').toLowerCase();
+                    if (!q || sVal.includes(q)) {
+                        $(this).show();
+                    } else {
+                        $(this).hide();
+                    }
+                });
+            });
+
+            // Apply selected serials to active row
+            $(document).on('click', '#btnApplySerials', function() {
+                if (!window.ACTIVE_SERIAL_ROW) return;
+
+                let chosen = [];
+                let chosenWarehouseId = null;
+                $('.serial-checkbox:checked').each(function() {
+                    let val = $(this).val();
+                    let wid = $(this).data('warehouse-id');
+                    if (wid && !chosenWarehouseId) {
+                        chosenWarehouseId = wid;
+                    }
+                    if (val) chosen.push(String(val).trim());
+                });
+
+                if (chosen.length === 0) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'No Serial Selected',
+                        text: 'Please select at least 1 serial number for this product.'
+                    });
+                    return;
+                }
+
+                let currentQty = Math.round(toNum(window.ACTIVE_SERIAL_ROW.find('.sales-qty').val())) || 1;
+                if (chosen.length !== currentQty) {
+                    // Auto-adjust row quantity to match chosen serial count!
+                    window.ACTIVE_SERIAL_ROW.find('.sales-qty').val(chosen.length);
+                    computeRow(window.ACTIVE_SERIAL_ROW);
+                    updateGrandTotals();
+                }
+
+                // Row warehouse remains strictly as selected by user
+
+                window.ACTIVE_SERIAL_ROW.find('.item-serials-input').val(JSON.stringify(chosen));
+                updateRowSerialButton(window.ACTIVE_SERIAL_ROW);
+
+                $('#saleSerialModal').modal('hide');
+
+                setTimeout(() => {
+                    window.ACTIVE_SERIAL_ROW.find('.retail-price').focus().select();
+                }, 200);
+            });
+
+            // Open modal when clicking row's serial badge button
+            $(document).on('click', '.btn-manage-serials', function() {
+                let $r = $(this).closest('tr');
+                openSerialModalForRow($r);
+            });
         });
     </script>
 @endsection

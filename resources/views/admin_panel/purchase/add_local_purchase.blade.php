@@ -467,6 +467,19 @@
         transform: translateY(-1px);
     }
 
+    .btn-manage-serials {
+        cursor: pointer !important;
+        transition: transform 0.1s ease, box-shadow 0.1s ease !important;
+    }
+    .btn-manage-serials:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 5px rgba(0,0,0,0.15) !important;
+    }
+    .serial-badge-container {
+        cursor: pointer !important;
+        display: inline-block;
+    }
+
     /* Unified Vendor Input Group */
     #vendorInputWrapper {
         display: flex !important;
@@ -886,7 +899,9 @@
                                                                 data-unit="{{ $p->unit->name ?? 'unit' }}" 
                                                                 data-code="{{ $p->item_code }}"
                                                                 data-piece-per-pack="{{ (float)($p->piece_per_pack ?? 1) }}"
-                                                                data-pack-type="{{ $p->pack_type ?? 'Standard' }}">
+                                                                data-pack-type="{{ $p->pack_type ?? 'Standard' }}"
+                                                                data-is-serial="{{ $p->isSerial() ? '1' : '0' }}"
+                                                                data-tracking-type="{{ $p->tracking_type ?? 'standard' }}">
                                                                 {{ $p->item_name }} ({{ $v->color }}) {{ $p->item_code ? '('.$p->item_code.')' : '' }}
                                                             </option>
                                                         @endforeach
@@ -899,7 +914,9 @@
                                                             data-unit="{{ $p->unit->name ?? 'unit' }}" 
                                                             data-code="{{ $p->item_code }}"
                                                             data-piece-per-pack="{{ (float)($p->piece_per_pack ?? 1) }}"
-                                                            data-pack-type="{{ $p->pack_type ?? 'Standard' }}">
+                                                            data-pack-type="{{ $p->pack_type ?? 'Standard' }}"
+                                                            data-is-serial="{{ $p->isSerial() ? '1' : '0' }}"
+                                                            data-tracking-type="{{ $p->tracking_type ?? 'standard' }}">
                                                             {{ $p->item_name }} {{ $p->item_code ? '('.$p->item_code.')' : '' }}
                                                         </option>
                                                     @endif
@@ -913,6 +930,13 @@
                                             <input type="hidden" name="item_per_piece[]" class="ipp-input" value="0">
                                             <input type="hidden" name="loose_piece[]" class="loose-pcs-input" value="0">
                                             <input type="hidden" name="total_pieces[]" class="total-pieces-input" value="1">
+                                            <input type="hidden" name="is_serial[]" class="is-serial-input" value="0">
+                                            <input type="hidden" name="item_serials[]" class="item-serials-input" value="">
+                                            <div class="serial-badge-container mt-1 d-none">
+                                                <button type="button" class="btn btn-xs py-0 px-1 btn-manage-serials" style="font-size:0.68rem; border-radius:3px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">
+                                                    <i class="fas fa-barcode me-1"></i><span class="serial-btn-text">Add Serials (0/1)</span>
+                                                </button>
+                                            </div>
                                         </td>
 
                                         <td class="col-warehouse">
@@ -1196,6 +1220,97 @@
         </div>
     </div>
 </div>
+
+<!-- PURCHASE SERIAL / IMEI MODAL -->
+<div class="modal fade" id="purchaseSerialModal" tabindex="-1" role="dialog" aria-labelledby="purchaseSerialModalLabel" aria-hidden="true" data-backdrop="static" data-bs-backdrop="static">
+    <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+        <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 15px 35px rgba(0,0,0,0.2); overflow: hidden;">
+            <div class="modal-header py-2 px-3" style="background: #1e3a5f; color: #fff; border-bottom: 2px solid #0284c7;">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-barcode me-2 mr-2" style="font-size: 18px; color: #38bdf8;"></i>
+                    <div>
+                        <h6 class="modal-title m-0 font-weight-bold" id="purchaseSerialModalLabel" style="font-size: 14px; letter-spacing: 0.3px;">
+                            Add Serial / IMEI Numbers
+                        </h6>
+                        <small style="color: #94a3b8; font-size: 11px;">Enter or scan serial numbers for each purchased unit</small>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white close text-white shadow-none" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="opacity: 0.85; outline: none;">
+                    <span aria-hidden="true" class="d-none">&times;</span>
+                </button>
+            </div>
+
+            <div class="modal-body p-3" style="background: #f8fafc;">
+                <!-- Product & Location Summary Banner -->
+                <div class="d-flex justify-content-between align-items-center p-2 mb-3 rounded" style="background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                    <div>
+                        <div class="font-weight-bold text-dark" id="psm_product_name" style="font-size: 13.5px;">Product Name</div>
+                        <div class="text-muted small" style="font-size: 11px;">
+                            <span id="psm_product_code" class="font-weight-bold text-secondary">SKU: ITEM-0000</span> &bull; 
+                            Location: <span class="font-weight-bold text-primary" id="psm_location_name">Branch / Shop Stock</span>
+                        </div>
+                    </div>
+                    <div class="text-end text-right">
+                        <span class="badge bg-primary text-white px-2 py-1" style="font-size: 12px; font-weight: 700;" id="psm_qty_badge">
+                            Total Serials / Qty: <span id="psm_serials_qty_display">0</span>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Toolbar & Modes -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex align-items-center gap-2">
+                        <span id="psm_count_label" class="badge bg-success text-white font-weight-bold px-2 py-1" style="font-size: 11.5px;">
+                            0 Serials Entered
+                        </span>
+                        <button type="button" class="btn btn-sm btn-outline-primary font-weight-bold py-0 px-2" id="btn_psm_add_slot" style="font-size: 11px; height: 26px;">
+                            <i class="fas fa-plus me-1"></i> Add Slot
+                        </button>
+                    </div>
+                    <div class="btn-group btn-group-sm">
+                        <button type="button" class="btn btn-secondary active font-weight-bold" id="btn_psm_slots" style="font-size: 11px;">
+                            <i class="fas fa-list-ol me-1 mr-1"></i> Slots
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary font-weight-bold" id="btn_psm_bulk" style="font-size: 11px;">
+                            <i class="fas fa-paste me-1 mr-1"></i> Quick Paste / Scan
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Alert message for duplicates -->
+                <div id="psm_alert" class="alert alert-danger py-1 px-2 small mb-2" style="display:none;"></div>
+
+                <!-- View 1: Slots (1 to N) -->
+                <div id="psm_slots_container" style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                    <!-- Dynamically generated input fields -->
+                </div>
+
+                <!-- View 2: Quick Bulk Paste / Scan Textarea (Hidden by default) -->
+                <div id="psm_bulk_container" style="display: none;">
+                    <p class="small text-muted mb-1">
+                        <i class="fas fa-info-circle me-1 mr-1 text-primary"></i> Paste serial numbers separated by newlines, commas, or scan continuously with a barcode gun:
+                    </p>
+                    <textarea class="form-control font-monospace" id="psm_bulk_input" rows="8" placeholder="PASTE OR SCAN SERIALS HERE:&#10;SN0001&#10;SN0002&#10;SN0003..." style="font-size:12px; line-height:1.6;"></textarea>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="text-muted" id="psm_bulk_parsed_count">0 serials detected in text</small>
+                        <button type="button" class="btn btn-sm btn-info text-white font-weight-bold py-1 px-3" id="btn_psm_parse_bulk" style="font-size:11.5px;">
+                            <i class="fas fa-arrow-down me-1 mr-1"></i> Load into Slots
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer py-2 px-3" style="background: #f1f5f9; border-top: 1px solid #e2e8f0;">
+                <button type="button" class="btn btn-secondary btn-sm font-weight-bold px-3" data-bs-dismiss="modal" data-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-primary btn-sm font-weight-bold px-4" id="btn_save_purchase_serials" style="background:#1e3a5f; border-color:#1e3a5f;">
+                    <i class="fas fa-check-circle me-1 mr-1"></i> Save Serials
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 @endsection
 
 @section('js')
@@ -1206,27 +1321,58 @@
 <script>
 $(document).ready(function() {
     function showModal(selector) {
-        var el = document.querySelector(selector);
+        var $el = $(selector);
+        if (!$el.length) return;
+        var el = $el[0];
+
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            var inst = bootstrap.Modal.getOrCreateInstance(el);
-            inst.show();
-        } else if ($(selector).modal) {
-            $(selector).modal('show');
+            try {
+                var inst = bootstrap.Modal.getOrCreateInstance(el, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+                inst.show();
+                return;
+            } catch(e) {
+                console.warn('BS5 showModal error:', e);
+            }
+        }
+        if ($el.modal) {
+            $el.modal('show');
         }
     }
 
     function hideModal(selector) {
-        var el = document.querySelector(selector);
+        var $el = $(selector);
+        if (!$el.length) return;
+        var el = $el[0];
+
         if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
-            var inst = bootstrap.Modal.getInstance(el);
-            if (inst) inst.hide();
+            try {
+                var inst = bootstrap.Modal.getOrCreateInstance(el);
+                inst.hide();
+                return;
+            } catch(e) {
+                console.warn('BS5 hideModal error:', e);
+            }
         }
-        if ($(selector).modal) {
-            $(selector).modal('hide');
+        if ($el.modal) {
+            $el.modal('hide');
         }
-        $('.modal-backdrop').remove();
-        $('body').removeClass('modal-open').css('padding-right', '');
     }
+
+    // Ensure backdrop cleanup on modal hide
+    $('#purchaseSerialModal').on('hidden.bs.modal', function() {
+        if (!$('.modal.show').length) {
+            $('.modal-backdrop').remove();
+            $('body').removeClass('modal-open').css('padding-right', '');
+        }
+    });
+
+    $(document).on('click', '#purchaseSerialModal [data-bs-dismiss="modal"], #purchaseSerialModal [data-dismiss="modal"], #purchaseSerialModal .btn-close, #purchaseSerialModal .close', function(e) {
+        e.preventDefault();
+        hideModal('#purchaseSerialModal');
+    });
 
     $(document).on('click', '#btnAddNewVendorModal', function(e) {
         e.preventDefault();
@@ -1331,9 +1477,20 @@ $(document).ready(function() {
 
     $(document).on('select2:select', '.product-select', function() {
         var $row = $(this).closest('tr.item-row');
-        setTimeout(function() {
-            $row.find('.qty-input').focus().select();
-        }, 80);
+        var opt = $(this).find(':selected');
+        var isSerial = (opt.data('is-serial') == 1 || opt.attr('data-is-serial') == '1' || opt.data('tracking-type') === 'serial' || opt.attr('data-tracking-type') === 'serial');
+        if (!isSerial) {
+            setTimeout(function() {
+                $row.find('.qty-input').focus().select();
+            }, 80);
+        }
+    });
+
+    $(document).on('select2:clear select2:unselect', '.product-select', function() {
+        var $row = $(this).closest('tr.item-row');
+        $row.find('.is-serial-input').val('0');
+        $row.find('.item-serials-input').val('');
+        $row.find('.serial-badge-container').addClass('d-none');
     });
 
     // Party Selection Logic (Vendor vs Customer)
@@ -1500,6 +1657,7 @@ $(document).ready(function() {
     // Product Selection -> Auto Cost Price & Unit
     $(document).on('change', '.product-select', function() {
         var opt = $(this).find(':selected');
+        var val = $(this).val();
         var price = opt.data('price') || 0;
         var unit = opt.data('unit') || 'Piece';
         var color = opt.data('color') || '';
@@ -1513,12 +1671,35 @@ $(document).ready(function() {
         $row.find('.variant-id-input').val(variantId);
         updateRowStock($row);
         updatePackingInfo($row);
+
+        if (!val) {
+            $row.find('.is-serial-input').val('0');
+            $row.find('.item-serials-input').val('');
+            $row.find('.serial-badge-container').addClass('d-none');
+        } else {
+            var isSerial = (opt.data('is-serial') == 1 || opt.attr('data-is-serial') == '1' || opt.data('tracking-type') === 'serial' || opt.attr('data-tracking-type') === 'serial');
+            $row.find('.is-serial-input').val(isSerial ? '1' : '0');
+            if (!isSerial) {
+                $row.find('.item-serials-input').val('');
+                $row.find('.serial-badge-container').addClass('d-none');
+            } else {
+                updateRowSerialBadge($row);
+                setTimeout(function() {
+                    openPurchaseSerialModalForRow($row);
+                }, 180);
+            }
+        }
+
         recalc();
     });
 
     // Update packing on qty input change
-    $(document).on('input', '.qty-input', function() {
-        updatePackingInfo($(this).closest('tr'));
+    $(document).on('input change', '.qty-input', function() {
+        var $row = $(this).closest('tr');
+        updatePackingInfo($row);
+        if ($row.find('.is-serial-input').val() === '1') {
+            updateRowSerialBadge($row);
+        }
     });
 
     // Add New Row
@@ -1539,6 +1720,10 @@ $(document).ready(function() {
         newRow.find('.pack-qty-input, .ipp-input, .loose-pcs-input').val('0');
         newRow.find('.total-pieces-input').val('1');
         newRow.find('.packing-preview-badge').hide().empty();
+        newRow.find('.is-serial-input').val('0');
+        newRow.find('.item-serials-input').val('');
+        newRow.find('.serial-badge-container').addClass('d-none');
+        newRow.find('.serial-btn-text').text('Add Serials (0/1)');
 
         var toggleBtn = newRow.find('.disc-type-toggle');
         toggleBtn.attr('data-type', 'amount').text('Rs');
@@ -1615,13 +1800,7 @@ $(document).ready(function() {
         }
     });
 
-    // Auto focus Qty when Product selected
-    $(document).on('select2:select', '.product-select', function() {
-        var $row = $(this).closest('tr.item-row');
-        setTimeout(function() {
-            $row.find('.qty-input').focus().select();
-        }, 80);
-    });
+
 
     // Discount Toggle (Rs / %)
     $(document).on('click', '.disc-type-toggle', function() {
@@ -1896,6 +2075,325 @@ $(document).ready(function() {
         }
     });
 
+    // ==========================================
+    // PURCHASE SERIAL / IMEI TRACKING MODAL LOGIC
+    // ==========================================
+    window.activePurchaseSerialRow = null;
+
+    function getPurchaseRowSerials($row) {
+        if (!$row || !$row.length) return [];
+        var raw = $row.find('.item-serials-input').val() || '';
+        if (!raw || !raw.trim()) return [];
+        raw = raw.trim();
+        if (raw.charAt(0) === '[' && raw.charAt(raw.length - 1) === ']') {
+            try {
+                var parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed.map(function(s) { return String(s).trim(); }).filter(function(s) { return s.length > 0; });
+                }
+            } catch(e) {}
+        }
+        return raw.split(',').map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+    }
+
+    function updateRowSerialBadge($row) {
+        if (!$row || !$row.length) return;
+        var isSerial = $row.find('.is-serial-input').val() === '1';
+        var $badgeContainer = $row.find('.serial-badge-container');
+        var $btn = $row.find('.btn-manage-serials');
+        var $btnText = $row.find('.serial-btn-text');
+
+        if (!isSerial) {
+            $badgeContainer.addClass('d-none');
+            return;
+        }
+
+        $badgeContainer.removeClass('d-none');
+        var qty = Math.floor(parseFloat($row.find('.qty-input').val()) || 0);
+        var serials = getPurchaseRowSerials($row);
+
+        if (serials.length > 0 && serials.length === qty) {
+            $btn.css({
+                'background': '#ecfdf5',
+                'color': '#059669',
+                'border': '1px solid #a7f3d0',
+                'cursor': 'pointer'
+            }).attr('title', 'Click to view or edit serial numbers (' + serials.length + ' saved)');
+            $btnText.text('Serials Added (' + serials.length + '/' + qty + ')');
+        } else {
+            $btn.css({
+                'background': '#fffbeb',
+                'color': '#d97706',
+                'border': '1px solid #fde68a',
+                'cursor': 'pointer'
+            }).attr('title', 'Click to add serial numbers (' + serials.length + '/' + qty + ')');
+            $btnText.text('Add Serials (' + serials.length + '/' + qty + ')');
+        }
+    }
+
+    $(document).on('click', '.btn-manage-serials, .serial-badge-container', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var $row = $(this).closest('tr.item-row');
+        if (!$row.length) {
+            $row = $(this).closest('tr');
+        }
+        openPurchaseSerialModalForRow($row);
+    });
+
+    function openPurchaseSerialModalForRow($row) {
+        window.activePurchaseSerialRow = $row;
+        var opt = $row.find('.product-select option:selected');
+        var productName = opt.text() || 'Product';
+        var productCode = opt.data('code') || '';
+        var whName = $row.find('.line-warehouse-select option:selected').text() || 'Shop Stock';
+        var rowQty = Math.max(1, Math.floor(parseFloat($row.find('.qty-input').val()) || 1));
+        var existingSerials = getPurchaseRowSerials($row);
+
+        $('#psm_product_name').text(productName.trim());
+        $('#psm_product_code').text('SKU: ' + (productCode || 'N/A'));
+        $('#psm_location_name').text(whName.trim());
+
+        var slotsCount = Math.max(rowQty, existingSerials.length, 1);
+        renderPurchaseSerialSlots(slotsCount, existingSerials);
+
+        // Reset to slots view
+        $('#btn_psm_slots').addClass('btn-secondary active').removeClass('btn-outline-secondary');
+        $('#btn_psm_bulk').removeClass('btn-secondary active').addClass('btn-outline-secondary');
+        $('#psm_slots_container').show();
+        $('#psm_bulk_container').hide();
+        $('#psm_bulk_input').val('');
+        $('#psm_alert').hide().empty();
+
+        showModal('#purchaseSerialModal');
+
+        setTimeout(function() {
+            var $firstEmpty = $('#psm_slots_container input.psm-slot-input').filter(function() { return !$(this).val(); }).first();
+            if ($firstEmpty.length) {
+                $firstEmpty.focus();
+            } else {
+                $('#psm_slots_container input.psm-slot-input:first').focus();
+            }
+        }, 250);
+    }
+
+    function renumberSlots() {
+        $('#psm_slots_grid .psm-slot-item').each(function(idx) {
+            $(this).find('.psm-slot-num').text('#' + (idx + 1));
+        });
+    }
+
+    function renderPurchaseSerialSlots(count, existingValues) {
+        var $container = $('#psm_slots_container');
+        $container.empty();
+
+        var html = '<div class="row g-2" id="psm_slots_grid">';
+        for (var i = 1; i <= count; i++) {
+            var val = (existingValues && existingValues[i - 1]) ? existingValues[i - 1] : '';
+            var safeVal = $('<div>').text(val).html();
+            html += '<div class="col-12 col-md-6 mb-2 psm-slot-item">' +
+                        '<div class="input-group input-group-sm">' +
+                            '<span class="input-group-text font-weight-bold psm-slot-num" style="background:#e2e8f0; color:#475569; width:44px; justify-content:center; font-size:11px;">#' + i + '</span>' +
+                            '<input type="text" class="form-control font-monospace psm-slot-input" value="' + safeVal + '" placeholder="Serial / IMEI number..." style="font-size:12px; font-weight:600; letter-spacing:0.3px;">' +
+                            '<button type="button" class="btn btn-outline-danger btn-remove-psm-slot" style="padding:0 8px; font-size:13px;" title="Remove slot">&times;</button>' +
+                        '</div>' +
+                    '</div>';
+        }
+        html += '</div>';
+        $container.html(html);
+
+        renumberSlots();
+        updatePurchaseModalCounter();
+    }
+
+    // Add new slot button in modal
+    $('#btn_psm_add_slot').on('click', function() {
+        var currentCount = $('#psm_slots_grid .psm-slot-item').length;
+        var nextNum = currentCount + 1;
+        var html = '<div class="col-12 col-md-6 mb-2 psm-slot-item">' +
+                        '<div class="input-group input-group-sm">' +
+                            '<span class="input-group-text font-weight-bold psm-slot-num" style="background:#e2e8f0; color:#475569; width:44px; justify-content:center; font-size:11px;">#' + nextNum + '</span>' +
+                            '<input type="text" class="form-control font-monospace psm-slot-input" value="" placeholder="Serial / IMEI number..." style="font-size:12px; font-weight:600; letter-spacing:0.3px;">' +
+                            '<button type="button" class="btn btn-outline-danger btn-remove-psm-slot" style="padding:0 8px; font-size:13px;" title="Remove slot">&times;</button>' +
+                        '</div>' +
+                    '</div>';
+        $('#psm_slots_grid').append(html);
+        renumberSlots();
+        updatePurchaseModalCounter();
+        $('#psm_slots_grid .psm-slot-item:last input.psm-slot-input').focus();
+    });
+
+    // Remove slot button
+    $(document).on('click', '.btn-remove-psm-slot', function() {
+        var total = $('#psm_slots_grid .psm-slot-item').length;
+        if (total > 1) {
+            $(this).closest('.psm-slot-item').remove();
+            renumberSlots();
+            updatePurchaseModalCounter();
+        } else {
+            $(this).closest('.psm-slot-item').find('input.psm-slot-input').val('');
+            updatePurchaseModalCounter();
+        }
+    });
+
+    function updatePurchaseModalCounter() {
+        var $inputs = $('#psm_slots_container input.psm-slot-input');
+        var values = [];
+        var hasDuplicates = false;
+        var dupMap = {};
+
+        $inputs.each(function() {
+            var v = $(this).val().trim();
+            if (v) {
+                if (dupMap[v.toLowerCase()]) {
+                    hasDuplicates = true;
+                }
+                dupMap[v.toLowerCase()] = true;
+                values.push(v);
+            }
+        });
+
+        var enteredCount = values.length;
+        $('#psm_serials_qty_display').text(enteredCount);
+        var $label = $('#psm_count_label');
+
+        if (hasDuplicates) {
+            $label.removeClass('bg-warning text-dark bg-success text-white').addClass('bg-danger text-white');
+            $label.text(enteredCount + ' Serials (Duplicate Detected)');
+            $('#psm_alert').html('<i class="fas fa-exclamation-triangle me-1"></i> Duplicate serial numbers detected in list. Har serial number unique hona chahiye.').show();
+        } else {
+            $label.removeClass('bg-danger text-white bg-warning text-dark').addClass('bg-success text-white');
+            $label.text(enteredCount + ' Serials Entered');
+            $('#psm_alert').hide().empty();
+        }
+    }
+
+    $(document).on('input', '#psm_slots_container input.psm-slot-input', function() {
+        updatePurchaseModalCounter();
+    });
+
+    // Enter key navigation and auto-add slot on last slot
+    $(document).on('keydown', '#psm_slots_container input.psm-slot-input', function(e) {
+        if (e.key === 'Enter' || e.keyCode === 13) {
+            e.preventDefault();
+            var $allInputs = $('#psm_slots_container input.psm-slot-input');
+            var currentIndex = $allInputs.index(this);
+            if (currentIndex < $allInputs.length - 1) {
+                $allInputs.eq(currentIndex + 1).focus().select();
+            } else {
+                // If on last slot and it has text, auto add next slot for continuous scanning
+                if ($(this).val().trim() !== '') {
+                    $('#btn_psm_add_slot').trigger('click');
+                } else {
+                    $('#btn_save_purchase_serials').focus();
+                }
+            }
+        }
+    });
+
+    // Tab buttons in Purchase Serial Modal
+    $('#btn_psm_slots').on('click', function() {
+        $(this).addClass('btn-secondary active').removeClass('btn-outline-secondary');
+        $('#btn_psm_bulk').removeClass('btn-secondary active').addClass('btn-outline-secondary');
+        $('#psm_slots_container').show();
+        $('#psm_bulk_container').hide();
+    });
+
+    $('#btn_psm_bulk').on('click', function() {
+        $(this).addClass('btn-secondary active').removeClass('btn-outline-secondary');
+        $('#btn_psm_slots').removeClass('btn-secondary active').addClass('btn-outline-secondary');
+        $('#psm_slots_container').hide();
+        $('#psm_bulk_container').show();
+
+        // Collect current values from slots to bulk textarea
+        var currentVals = [];
+        $('#psm_slots_container input.psm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) currentVals.push(v);
+        });
+        if (currentVals.length) {
+            $('#psm_bulk_input').val(currentVals.join('\n'));
+            $('#psm_bulk_parsed_count').text(currentVals.length + ' serials detected');
+        }
+        $('#psm_bulk_input').focus();
+    });
+
+    $('#psm_bulk_input').on('input', function() {
+        var text = $(this).val();
+        var lines = text.split(/[\r\n,]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+        $('#psm_bulk_parsed_count').text(lines.length + ' serials detected in text');
+    });
+
+    $('#btn_psm_parse_bulk').on('click', function() {
+        var text = $('#psm_bulk_input').val();
+        var lines = text.split(/[\r\n,]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+        if (!lines.length) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Empty Input',
+                text: 'Textarea mein serial numbers paste ya scan karein.'
+            });
+            return;
+        }
+
+        renderPurchaseSerialSlots(lines.length, lines);
+        $('#btn_psm_slots').trigger('click');
+        updatePurchaseModalCounter();
+    });
+
+    // Save serials in modal -> AUTO UPDATES ROW QTY TO MATCH SERIALS COUNT!
+    $('#btn_save_purchase_serials').on('click', function() {
+        if (!window.activePurchaseSerialRow) {
+            hideModal('#purchaseSerialModal');
+            return;
+        }
+
+        var $row = window.activePurchaseSerialRow;
+        var $inputs = $('#psm_slots_container input.psm-slot-input');
+        var serials = [];
+        var hasDuplicates = false;
+        var dupMap = {};
+
+        $inputs.each(function() {
+            var v = $(this).val().trim();
+            if (v) {
+                if (dupMap[v.toLowerCase()]) {
+                    hasDuplicates = true;
+                }
+                dupMap[v.toLowerCase()] = true;
+                serials.push(v);
+            }
+        });
+
+        if (hasDuplicates) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Duplicate Serials!',
+                text: 'Aik hi serial number do dafa enter nahi ho sakta. Unique serials enter karein.'
+            });
+            return;
+        }
+
+        if (serials.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Serials Entered',
+                text: 'Kam se kam aik serial number enter karein ya cancel karein.'
+            });
+            return;
+        }
+
+        // Exact requirement: "jitni serial add karo utni hi Qty ho jay"
+        var newQty = serials.length;
+        $row.find('.qty-input').val(newQty);
+        $row.find('.item-serials-input').val(serials.join(', '));
+        updatePackingInfo($row);
+        updateRowSerialBadge($row);
+        recalc();
+
+        hideModal('#purchaseSerialModal');
+    });
+
     // Form submit validation
     $('#purchaseForm').on('submit', function(e) {
         var hasProduct = false;
@@ -1910,6 +2408,35 @@ $(document).ready(function() {
                 title: 'No Product Selected!',
                 text: 'Kam se kam aik product select karna lazmi hai.'
             });
+            return false;
+        }
+
+        // Check serial products have entered all serials
+        var serialValidationFailed = false;
+        $('.item-row').each(function() {
+            var $row = $(this);
+            var prodVal = $row.find('.product-select').val();
+            if (prodVal && $row.find('.is-serial-input').val() === '1') {
+                var qty = Math.floor(parseFloat($row.find('.qty-input').val()) || 0);
+                var serials = getPurchaseRowSerials($row);
+                if (serials.length === 0 || serials.length !== qty) {
+                    var prodName = $row.find('.product-select option:selected').text();
+                    serialValidationFailed = true;
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Serial Numbers Required!',
+                        text: prodName + ' ke liye ' + qty + ' serial numbers required hain, lekin ' + serials.length + ' enter kiye gaye hain. Barah-e-karam pehle serials add karein.',
+                        confirmButtonText: 'Add Serials Now'
+                    }).then(function() {
+                        openPurchaseSerialModalForRow($row);
+                    });
+                    return false; // break each loop
+                }
+            }
+        });
+
+        if (serialValidationFailed) {
             return false;
         }
 

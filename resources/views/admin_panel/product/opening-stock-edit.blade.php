@@ -529,6 +529,36 @@
         font-family: monospace;
     }
 
+    .btn-open-serials {
+        display: none;
+        align-items: center;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        border: 1px solid #f59e0b;
+        background: #fef3c7;
+        color: #b45309;
+        white-space: nowrap;
+        height: 26px;
+        outline: none;
+    }
+    .btn-open-serials:hover {
+        background: #fde68a;
+        color: #92400e;
+    }
+    .btn-open-serials.serials-completed {
+        border-color: #86efac;
+        background: #dcfce7;
+        color: #15803d;
+    }
+    .btn-open-serials.serials-completed:hover {
+        background: #bbf7d0;
+        color: #166534;
+    }
+
     .btn-trash-action {
         width: 32px;
         height: 32px;
@@ -746,7 +776,15 @@
             <div class="ose-prod-details">
                 <div class="ose-prod-title-wrap">
                     <span class="ose-prod-name" title="{{ $product->item_name }}">{{ $product->item_name }}</span>
-                    <span class="badge-sku-pill">{{ $product->item_code }}</span>
+                    @if(!empty($selectedVariant))
+                        <span class="badge" style="background: #eff6ff; color: #1d4ed8; border: 1.5px solid #bfdbfe; font-size: 11.5px; font-weight: 800; border-radius: 6px; padding: 2px 9px; margin-left: 6px;">
+                            <i class="fas fa-palette mr-1"></i>{{ $selectedVariant->color ?: $selectedVariant->variant_name }}
+                        </span>
+                    @endif
+                    <span class="badge-sku-pill">{{ $selectedVariant?->barcode ?: $product->item_code }}</span>
+                    @if($product->isSerial())
+                        <span class="serial-badge-pill" style="display:inline-flex; align-items:center; gap:4px; font-size:10.5px; font-weight:800; color:#d97706; background:#fef3c7; border:1px solid #fde68a; border-radius:12px; padding:2px 8px; margin-left:6px;"><i class="fas fa-barcode"></i> Serial Tracked</span>
+                    @endif
                 </div>
                 <div class="ose-prod-meta-grid">
                     <div>Category: <strong>{{ $product->category_relation?->name ?? 'General' }}</strong></div>
@@ -812,6 +850,7 @@
     <form id="oseEditForm" method="POST" action="{{ route('opening.stocks.update', $product->id) }}">
         @csrf
         <input type="hidden" name="branch_id" id="form_branch_id" value="{{ $selectedBranchId }}">
+        <input type="hidden" name="variant_id" id="form_variant_id" value="{{ $selectedVariant?->id ?? '' }}">
         <input type="hidden" name="allocation_data" id="allocation_data" value="[]">
 
         {{-- â”€â”€ 3. Opening Stock Details Table Card â”€â”€ --}}
@@ -882,10 +921,22 @@
                                             @php
                                                 $val = (float)$alloc->quantity;
                                                 $displayQty = ($ppp > 1) ? ($val / $ppp) : $val;
+                                                $locKey = $alloc->warehouse_id ? ('wh_' . $alloc->warehouse_id) : 'shop';
+                                                $locSerials = $existingSerials[$locKey] ?? [];
+                                                $intQty = (int)$displayQty;
+                                                $enteredCount = count($locSerials);
                                             @endphp
-                                            <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ $displayQty > 0 ? (float)$displayQty : '' }}" oninput="calcTotal()">
+                                            <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ $displayQty > 0 ? (float)$displayQty : '' }}" oninput="handleQtyInput(this)">
                                             <span class="tbl-addon">{{ $product->unit?->name ?? 'Carton' }}</span>
                                         </div>
+                                        @if($product->isSerial())
+                                            <div class="mt-1">
+                                                <button type="button" class="btn-open-serials {{ ($enteredCount === $intQty && $intQty > 0) ? 'serials-completed' : '' }}" onclick="triggerSerialModalForLine(this)" style="{{ $intQty > 0 ? 'display:inline-flex;' : 'display:none;' }}" title="Add or View Serial Numbers">
+                                                    <i class="fas {{ ($enteredCount === $intQty && $intQty > 0) ? 'fa-check-circle' : 'fa-barcode' }} mr-1"></i>Serials (<span class="serials-entered-count">{{ $enteredCount }}</span>/<span class="serials-required-count">{{ $intQty }}</span>)
+                                                </button>
+                                                <input type="hidden" class="alloc-serials-json" value="{{ json_encode(array_values($locSerials)) }}">
+                                            </div>
+                                        @endif
                                         @if($ppp > 1)
                                             <div class="small text-muted font-weight-bold mt-1 alloc-pcs-preview" style="font-size: 11px;">
                                                 @if($val > 0)
@@ -955,9 +1006,22 @@
                                 </td>
                                 <td>
                                     <div class="tbl-input-group">
-                                        <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ ((float)($product->piece_per_pack ?? 1) > 1 ? ($currentStock / (float)$product->piece_per_pack) : $currentStock) > 0 ? (float)((float)($product->piece_per_pack ?? 1) > 1 ? ($currentStock / (float)$product->piece_per_pack) : $currentStock) : '' }}" oninput="calcTotal()">
+                                        @php
+                                            $fallbackSerials = $existingSerials['shop'] ?? [];
+                                            $fallbackIntQty = (int)$displayCurrentStock;
+                                            $fallbackEnteredCount = count($fallbackSerials);
+                                        @endphp
+                                        <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="{{ ((float)($product->piece_per_pack ?? 1) > 1 ? ($currentStock / (float)$product->piece_per_pack) : $currentStock) > 0 ? (float)((float)($product->piece_per_pack ?? 1) > 1 ? ($currentStock / (float)$product->piece_per_pack) : $currentStock) : '' }}" oninput="handleQtyInput(this)">
                                         <span class="tbl-addon">{{ $product->unit?->name ?? 'Carton' }}</span>
                                     </div>
+                                    @if($product->isSerial())
+                                        <div class="mt-1">
+                                            <button type="button" class="btn-open-serials {{ ($fallbackEnteredCount === $fallbackIntQty && $fallbackIntQty > 0) ? 'serials-completed' : '' }}" onclick="triggerSerialModalForLine(this)" style="{{ $fallbackIntQty > 0 ? 'display:inline-flex;' : 'display:none;' }}" title="Add or View Serial Numbers">
+                                                <i class="fas {{ ($fallbackEnteredCount === $fallbackIntQty && $fallbackIntQty > 0) ? 'fa-check-circle' : 'fa-barcode' }} mr-1"></i>Serials (<span class="serials-entered-count">{{ $fallbackEnteredCount }}</span>/<span class="serials-required-count">{{ $fallbackIntQty }}</span>)
+                                            </button>
+                                            <input type="hidden" class="alloc-serials-json" value="{{ json_encode(array_values($fallbackSerials)) }}">
+                                        </div>
+                                    @endif
                                 </td>
                                 <td>
                                     <div class="tbl-input-group">
@@ -1081,6 +1145,101 @@
 
     </form>
 
+    {{-- ── Serial / IMEI Numbers Entry Modal ── --}}
+    <div class="modal fade" id="serialModal" tabindex="-1" role="dialog" aria-labelledby="serialModalLabel" aria-hidden="true" data-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 15px 35px rgba(0,0,0,0.2); overflow: hidden;">
+                <div class="modal-header py-2 px-3" style="background: #1e3a5f; color: #fff; border-bottom: 2px solid #0284c7;">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-barcode mr-2" style="font-size: 18px; color: #38bdf8;"></i>
+                        <div>
+                            <h6 class="modal-title m-0 font-weight-bold" id="serialModalLabel" style="font-size: 14px; letter-spacing: 0.3px;">
+                                Add Serial / IMEI Numbers
+                            </h6>
+                            <small style="color: #94a3b8; font-size: 11px;">Enter or scan serial numbers for each allocated unit</small>
+                        </div>
+                    </div>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="opacity: 0.85; outline: none; background: none; border: none; font-size: 20px;">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="modal-body p-3" style="background: #f8fafc;">
+                    <!-- Product & Location Summary Banner -->
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-3 rounded" style="background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                        <div>
+                            <div class="font-weight-bold text-dark" id="sm_product_name" style="font-size: 13.5px;">
+                                {{ $product->item_name }}
+                                @if(!empty($selectedVariant))
+                                    <span class="badge badge-info ml-1" style="font-size: 11px;">{{ $selectedVariant->color ?: $selectedVariant->variant_name }}</span>
+                                @endif
+                            </div>
+                            <div class="text-muted small" style="font-size: 11px;">
+                                <span id="sm_product_code" class="font-weight-bold text-secondary">SKU: {{ $selectedVariant?->barcode ?: $product->item_code }}</span> &bull; 
+                                Location: <span class="font-weight-bold text-primary" id="sm_location_name">Branch / Shop Stock</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="badge badge-primary px-2 py-1" style="font-size: 12px; font-weight: 700; background: #0284c7;" id="sm_qty_badge">
+                                Target: 0 Serials
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar & Modes (Slots & Quick Paste / Scan) -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small font-weight-bold">
+                            <span id="sm_count_label" class="badge badge-warning text-dark font-weight-bold px-2 py-1" style="font-size: 11.5px;">
+                                0 / 0 Entered
+                            </span>
+                        </span>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-secondary active font-weight-bold" id="btn_mode_slots" style="font-size: 11px;">
+                                <i class="fas fa-list-ol mr-1"></i> Slots
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary font-weight-bold" id="btn_mode_bulk" style="font-size: 11px;">
+                                <i class="fas fa-paste mr-1"></i> Quick Paste / Scan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- View 1: Slots (1 to N) -->
+                    <div id="sm_slots_container" style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                        <!-- Dynamically generated input fields -->
+                    </div>
+
+                    <!-- View 2: Quick Bulk Paste / Scan Textarea (Hidden by default) -->
+                    <div id="sm_bulk_container" style="display: none;">
+                        <p class="small text-muted mb-1">
+                            <i class="fas fa-info-circle mr-1 text-primary"></i> Paste serial numbers separated by newlines, commas, or scan continuously with a barcode gun:
+                        </p>
+                        <textarea id="sm_bulk_textarea" class="form-control font-monospace" rows="7" placeholder="Scan or paste serial numbers here...
+SN-1001
+SN-1002
+SN-1003" style="font-size: 12px; line-height: 1.5;"></textarea>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button type="button" class="btn btn-sm btn-primary" id="btn_apply_bulk_serials" style="font-size: 11.5px; font-weight: 700; background: #0284c7; border-color: #0284c7;">
+                                <i class="fas fa-check mr-1"></i> Apply to Slots
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Duplicate or Error Alert -->
+                    <div id="sm_alert" class="alert alert-danger py-2 px-3 mt-2 mb-0 small" style="display: none; font-size: 11.5px; font-weight: 600;"></div>
+                </div>
+
+                <div class="modal-footer py-2 px-3" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-sm btn-light border text-secondary font-weight-bold px-3" data-dismiss="modal" style="font-size: 12px;">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary px-3 font-weight-bold" id="btn_save_serials" style="font-size: 12px; background: #0284c7; border-color: #0284c7;">
+                        <i class="fas fa-check-circle mr-1"></i> Save Serials
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 @else
@@ -1096,11 +1255,20 @@ $(document).ready(function() {
     var warehousesData  = @json(collect($warehouses)->map(fn($w) => ['id' => $w->id, 'warehouse_name' => $w->warehouse_name ?? $w->name]));
     var unitName        = "{{ $product->unit?->name ?? 'Carton' }}";
     var liveStockVal    = parseFloat("{{ $currentStock }}") || 0;
+    var isSerialProduct = {{ $product->isSerial() ? 'true' : 'false' }};
+    var ppp             = {{ (float)($product->piece_per_pack ?? 1) }};
+
+    var currentActiveAllocRow  = null;
+    var currentTargetQty       = 0;
+    var qtySerialDebounceTimer = null;
 
     // Switch Branch (Super Admin)
     window.switchBranch = function(branchId) {
         if (!branchId) return;
-        window.location.href = "{{ route('opening.stocks.edit', $product->id) }}?branch_id=" + branchId;
+        var url = "{{ route('opening.stocks.edit', $product->id) }}?branch_id=" + branchId;
+        var vId = $('#form_variant_id').val();
+        if (vId) url += '&variant_id=' + vId;
+        window.location.href = url;
     };
 
     // Build Location Options HTML
@@ -1119,6 +1287,18 @@ $(document).ready(function() {
     // Add New Location Row
     window.addNewLocationRow = function() {
         var rowCount = $('#alloc_rows_body tr').length + 1;
+        var serialBtnHtml = '';
+        if (isSerialProduct) {
+            serialBtnHtml = `
+                <div class="mt-1">
+                    <button type="button" class="btn-open-serials" onclick="triggerSerialModalForLine(this)" style="display:none;" title="Add or View Serial Numbers">
+                        <i class="fas fa-barcode mr-1"></i>Serials (<span class="serials-entered-count">0</span>/<span class="serials-required-count">0</span>)
+                    </button>
+                    <input type="hidden" class="alloc-serials-json" value="[]">
+                </div>
+            `;
+        }
+
         var newRowHtml = `
             <tr class="alloc-table-row">
                 <td style="text-align: center; color: #94a3b8; font-weight: 700;" class="row-num-cell">${rowCount}</td>
@@ -1133,9 +1313,10 @@ $(document).ready(function() {
                 </td>
                 <td>
                     <div class="tbl-input-group">
-                        <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="0.00" oninput="calcTotal()">
+                        <input type="number" class="alloc-qty-input text-end" step="0.01" min="0" placeholder="0.00" value="0.00" oninput="handleQtyInput(this)">
                         <span class="tbl-addon">${unitName}</span>
                     </div>
+                    ${serialBtnHtml}
                     ${ppp > 1 ? '<div class="small text-muted font-weight-bold mt-1 alloc-pcs-preview" style="font-size: 11px;"></div>' : ''}
                 </td>
                 <td class="text-muted small text-center">—</td>
@@ -1220,12 +1401,20 @@ $(document).ready(function() {
     window.calcTotal = function() {
         var total = 0;
         var data = [];
-        var ppp = {{ (float)($product->piece_per_pack ?? 1) }};
+
+        var variantId = $('#form_variant_id').val() ? parseInt($('#form_variant_id').val()) : null;
 
         $('#alloc_rows_body tr').each(function() {
             var type = $(this).find('.alloc-type-select').val();
             var qty  = parseFloat($(this).find('.alloc-qty-input').val()) || 0;
             total += qty;
+
+            var serials = [];
+            if (isSerialProduct) {
+                try {
+                    serials = JSON.parse($(this).find('.alloc-serials-json').val() || '[]');
+                } catch(e) {}
+            }
 
             if (ppp > 1) {
                 var pieceCount = qty * ppp;
@@ -1248,14 +1437,16 @@ $(document).ready(function() {
                 data.push({
                     location_type: 'shop',
                     quantity: qty,
-                    variant_id: null
+                    variant_id: variantId,
+                    serials: serials
                 });
             } else if (type && type.indexOf('wh_') === 0) {
                 data.push({
                     location_type: 'warehouse',
                     warehouse_id: parseInt(type.replace('wh_', '')),
-                    variant_id: null,
-                    quantity: qty
+                    variant_id: variantId,
+                    quantity: qty,
+                    serials: serials
                 });
             }
         });
@@ -1290,6 +1481,292 @@ $(document).ready(function() {
         }
     };
 
+    /* Update Serials button appearance & counts on allocation lines */
+    window.updateAllocSerialButtons = function() {
+        if (!isSerialProduct) return;
+        $('#alloc_rows_body tr').each(function() {
+            var $row = $(this);
+            var $btn = $row.find('.btn-open-serials');
+            var qty = parseInt($row.find('.alloc-qty-input').val()) || 0;
+            if (qty <= 0) {
+                $btn.hide();
+                return;
+            }
+            var serials = [];
+            try {
+                serials = JSON.parse($row.find('.alloc-serials-json').val() || '[]');
+            } catch(e) {}
+            var enteredCount = serials.filter(function(s) { return String(s).trim().length > 0; }).length;
+
+            $btn.find('.serials-entered-count').text(enteredCount);
+            $btn.find('.serials-required-count').text(qty);
+
+            if (enteredCount === qty && qty > 0) {
+                $btn.addClass('serials-completed').html('<i class="fas fa-check-circle mr-1"></i>Serials (' + enteredCount + '/' + qty + ')');
+            } else {
+                $btn.removeClass('serials-completed').html('<i class="fas fa-barcode mr-1"></i>Serials (' + enteredCount + '/' + qty + ')');
+            }
+            $btn.css('display', 'inline-flex');
+        });
+    };
+
+    /* Handle Qty typing / change on allocation row */
+    window.handleQtyInput = function(input) {
+        calcTotal();
+        if (!isSerialProduct) return;
+
+        var $row = $(input).closest('tr');
+        var qty = parseInt($(input).val()) || 0;
+        updateAllocSerialButtons();
+
+        if (qty > 0) {
+            clearTimeout(qtySerialDebounceTimer);
+            qtySerialDebounceTimer = setTimeout(function() {
+                if ($('#serialModal').hasClass('show')) return;
+                var currentSerials = [];
+                try {
+                    currentSerials = JSON.parse($row.find('.alloc-serials-json').val() || '[]');
+                } catch(e) {}
+                var validCount = currentSerials.filter(function(s) { return String(s).trim().length > 0; }).length;
+                if (validCount !== qty) {
+                    openSerialModal($row, qty);
+                }
+            }, 600);
+        }
+    };
+
+    /* Trigger Serial Modal for Line */
+    window.triggerSerialModalForLine = function(btn) {
+        var $row = $(btn).closest('tr');
+        var qty = parseInt($row.find('.alloc-qty-input').val()) || 0;
+        if (qty <= 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Quantity Needed',
+                text: 'Please enter a quantity first before adding serial numbers.',
+                confirmButtonColor: '#0284c7'
+            });
+            $row.find('.alloc-qty-input').focus();
+            return;
+        }
+        openSerialModal($row, qty);
+    };
+
+    /* Open Serial Modal */
+    window.openSerialModal = function($row, qty) {
+        currentActiveAllocRow  = $row;
+        currentTargetQty       = parseInt(qty) || 0;
+
+        var locSelect = $row.find('.alloc-type-select');
+        var locName   = locSelect.find('option:selected').text() || 'Branch / Shop Stock';
+
+        $('#sm_location_name').text(locName.trim());
+        $('#sm_qty_badge').text('Target: ' + currentTargetQty + ' Serials');
+
+        var existing = [];
+        try {
+            existing = JSON.parse($row.find('.alloc-serials-json').val() || '[]');
+        } catch(e) {}
+
+        renderSerialSlots(currentTargetQty, existing);
+
+        // Switch to Slots tab by default
+        $('#sm_slots_container').show();
+        $('#sm_bulk_container').hide();
+        $('#btn_mode_slots').addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        $('#btn_mode_bulk').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+        $('#sm_alert').hide().text('');
+
+        $('#serialModal').modal('show');
+        setTimeout(function() {
+            var firstEmpty = $('#sm_slots_container input.sm-slot-input').filter(function() { return !$(this).val(); }).first();
+            if (firstEmpty.length) {
+                firstEmpty.focus();
+            } else {
+                $('#sm_slots_container input.sm-slot-input').first().focus();
+            }
+        }, 400);
+    };
+
+    /* Render Slot inputs for N serials */
+    function renderSerialSlots(qty, existingValues) {
+        var html = '<div class="row g-2">';
+        existingValues = existingValues || [];
+        for (var i = 0; i < qty; i++) {
+            var val = (existingValues[i] !== undefined && existingValues[i] !== null) ? existingValues[i] : '';
+            html += `
+                <div class="col-md-6 mb-2">
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text font-weight-bold" style="background:#f1f5f9; color:#475569; font-size:11.5px; width:40px; justify-content:center;">#${i + 1}</span>
+                        </div>
+                        <input type="text" class="form-control sm-slot-input font-monospace" data-slot="${i}" value="${val}" placeholder="Serial / IMEI #${i + 1}" style="font-size:12px; height:32px;">
+                    </div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        $('#sm_slots_container').html(html);
+        updateModalCounter();
+    }
+
+    /* Modal counter & duplicate validation */
+    function updateModalCounter() {
+        var entered = 0;
+        var seen = {};
+        var hasDup = false;
+        $('.sm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) {
+                entered++;
+                if (seen[v.toLowerCase()]) {
+                    hasDup = true;
+                    $(this).css('border-color', '#ef4444');
+                } else {
+                    seen[v.toLowerCase()] = true;
+                    $(this).css('border-color', '');
+                }
+            } else {
+                $(this).css('border-color', '');
+            }
+        });
+
+        var $badge = $('#sm_count_label');
+        $badge.text(entered + ' / ' + currentTargetQty + ' Entered');
+
+        if (hasDup) {
+            $('#sm_alert').show().text('Duplicate serial numbers detected! Each serial number must be unique.');
+            $badge.removeClass('badge-success badge-warning').addClass('badge-danger');
+        } else {
+            $('#sm_alert').hide().text('');
+            if (entered >= currentTargetQty && currentTargetQty > 0) {
+                $badge.removeClass('badge-danger badge-warning').addClass('badge-success');
+            } else {
+                $badge.removeClass('badge-danger badge-success').addClass('badge-warning');
+            }
+        }
+    }
+
+    $(document).on('input', '.sm-slot-input', function() {
+        updateModalCounter();
+    });
+
+    /* Enter key in slot jumps to next slot */
+    $(document).on('keydown', '.sm-slot-input', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var nextSlot = $(this).closest('.col-md-6').next().find('.sm-slot-input');
+            if (nextSlot.length) {
+                nextSlot.focus();
+            } else {
+                $('#btn_save_serials').focus();
+            }
+        }
+    });
+
+    /* Paste multi-line text into a slot auto-distributes */
+    $(document).on('paste', '.sm-slot-input', function(e) {
+        var clipboardData = e.originalEvent.clipboardData || window.clipboardData;
+        var pastedData = clipboardData ? clipboardData.getData('text') : '';
+        if (pastedData && (pastedData.indexOf('\n') !== -1 || pastedData.indexOf('\r') !== -1 || pastedData.indexOf('\t') !== -1)) {
+            e.preventDefault();
+            var lines = pastedData.split(/[\r\n\t]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+            var startSlot = parseInt($(this).data('slot')) || 0;
+            var $slots = $('.sm-slot-input');
+            for (var i = 0; i < lines.length && (startSlot + i) < $slots.length; i++) {
+                $slots.eq(startSlot + i).val(lines[i]);
+            }
+            updateModalCounter();
+        }
+    });
+
+    /* Tab switching: Slots vs Bulk */
+    $('#btn_mode_slots').on('click', function() {
+        $('#sm_slots_container').show();
+        $('#sm_bulk_container').hide();
+        $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        $('#btn_mode_bulk').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+    });
+
+    $('#btn_mode_bulk').on('click', function() {
+        var lines = [];
+        $('.sm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) lines.push(v);
+        });
+        $('#sm_bulk_textarea').val(lines.join('\n'));
+
+        $('#sm_slots_container').hide();
+        $('#sm_bulk_container').show();
+        $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        $('#btn_mode_slots').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+        $('#sm_bulk_textarea').focus();
+    });
+
+    $('#btn_apply_bulk_serials').on('click', function() {
+        var text = $('#sm_bulk_textarea').val() || '';
+        var lines = text.split(/[\r\n,]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+        var $slots = $('.sm-slot-input');
+        $slots.val('');
+        for (var i = 0; i < lines.length && i < $slots.length; i++) {
+            $slots.eq(i).val(lines[i]);
+        }
+        $('#btn_mode_slots').trigger('click');
+        updateModalCounter();
+    });
+
+    /* Save serials from modal */
+    $('#btn_save_serials').on('click', function() {
+        var serials = [];
+        var duplicates = [];
+        var seen = {};
+
+        $('.sm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) {
+                if (seen[v.toLowerCase()]) {
+                    duplicates.push(v);
+                } else {
+                    seen[v.toLowerCase()] = true;
+                }
+                serials.push(v);
+            }
+        });
+
+        if (duplicates.length > 0) {
+            $('#sm_alert').show().text('Duplicate serial numbers detected: ' + duplicates.join(', ') + '. Each serial number must be unique.');
+            return;
+        }
+
+        if (serials.length < currentTargetQty) {
+            Swal.fire({
+                title: 'Incomplete Serials',
+                text: 'You have entered ' + serials.length + ' of ' + currentTargetQty + ' serial numbers. Save anyway?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#0284c7',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, Save',
+                cancelButtonText: 'Back to Edit'
+            }).then(function(res) {
+                if (res.isConfirmed) {
+                    commitSerials(serials);
+                }
+            });
+        } else {
+            commitSerials(serials);
+        }
+    });
+
+    function commitSerials(serials) {
+        if (currentActiveAllocRow) {
+            currentActiveAllocRow.find('.alloc-serials-json').val(JSON.stringify(serials));
+            updateAllocSerialButtons();
+            calcTotal();
+        }
+        $('#serialModal').modal('hide');
+    }
+
     // AJAX Form Submit
     $('#oseEditForm').on('submit', function(e) {
         e.preventDefault();
@@ -1308,8 +1785,38 @@ $(document).ready(function() {
             return;
         }
 
+        // Validate serials if serial product
+        if (isSerialProduct) {
+            var serialError = null;
+            $('#alloc_rows_body tr').each(function() {
+                var qty = parseInt($(this).find('.alloc-qty-input').val()) || 0;
+                if (qty > 0) {
+                    var serials = [];
+                    try {
+                        serials = JSON.parse($(this).find('.alloc-serials-json').val() || '[]');
+                    } catch(e) {}
+                    var validCount = serials.filter(function(s) { return String(s).trim().length > 0; }).length;
+                    if (validCount !== qty) {
+                        var locName = $(this).find('.alloc-type-select option:selected').text().trim();
+                        serialError = 'Location "' + locName + '" requires ' + qty + ' serial numbers, but only ' + validCount + ' were provided.';
+                        return false;
+                    }
+                }
+            });
+
+            if (serialError) {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Incomplete Serial Numbers',
+                    text: serialError,
+                    confirmButtonColor: '#0284c7'
+                });
+                return;
+            }
+        }
+
         var $btn = $('#btn_submit_ose');
-        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Updating Stockâ€¦');
+        $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Updating Stock…');
 
         $.ajax({
             url: $(this).attr('action'),
@@ -1353,6 +1860,7 @@ $(document).ready(function() {
 
     // Initial Trigger
     calcTotal();
+    updateAllocSerialButtons();
     updateSummaryCards();
 });
 </script>

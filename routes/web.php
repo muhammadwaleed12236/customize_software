@@ -514,6 +514,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('/products/search', [SaleController::class, 'searchProducts'])->middleware('permission:product.view')->name('products.search');
     Route::get('/search-product-name', [SaleController::class, 'searchpname'])->middleware('permission:product.view')->name('search-product-name');
     Route::get('/sale/check-stock', [SaleController::class, 'checkStock'])->middleware('permission:product.view')->name('sale.check.stock');
+    Route::get('/sale/available-serials', [SaleController::class, 'getAvailableSerials'])->name('sale.available-serials');
     Route::get('/get-branch-salesmen/{branchId}', [SaleController::class, 'getBranchSalesmen'])->name('branch.salesmen');
     Route::get('/sale/get-branch-salesmen/{branchId}', [SaleController::class, 'getBranchSalesmen']);
     Route::get('/get-branch-accounts/{branchId}', [SaleController::class, 'getBranchAccounts'])->name('branch.accounts.json');
@@ -787,6 +788,7 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::get('report/salesman-performance', [ReportingController::class, 'salesman_performance_report'])->middleware('permission:report.sale.view')->name('report.salesman.performance');
     Route::get('report/salesman-performance/fetch', [ReportingController::class, 'fetch_salesman_performance'])->middleware('permission:report.sale.view')->name('report.salesman.performance.fetch');
     Route::get('report/salesman-ledger/fetch', [ReportingController::class, 'fetch_salesman_ledger'])->middleware('permission:report.sale.view')->name('report.salesman.ledger.fetch');
+    Route::get('report/salesman-items/fetch', [ReportingController::class, 'fetch_salesman_items'])->middleware('permission:report.sale.view')->name('report.salesman.items.fetch');
     Route::get('report/salesmen-by-branch', [ReportingController::class, 'salesmenByBranch'])->middleware('permission:report.sale.view')->name('report.salesmen.byBranch');
 
     Route::get('report/vendor-ledger-new', [ReportingController::class, 'vendor_ledger_new'])->middleware('permission:report.vendor.ledger.view|vendor.ledger')->name('report.vendor.ledger.new');

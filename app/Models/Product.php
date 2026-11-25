@@ -30,6 +30,22 @@ class Product extends Model
     {
         return (bool) $this->has_variants;
     }
+
+    /**
+     * Check if product tracking nature is serial / IMEI-wise
+     */
+    public function isSerial(): bool
+    {
+        return strtolower($this->tracking_type ?? '') === 'serial';
+    }
+
+    /**
+     * Serial numbers relationship
+     */
+    public function serials()
+    {
+        return $this->hasMany(ProductSerial::class, 'product_id');
+    }
     // protected $fillable = [
     //     'creater_id', 'category_id', 'sub_category_id', 'item_code', 'item_name', 'size',
     //     'opening_carton_quantity', 'carton_quantity', 'loose_pieces', 'pcs_in_carton',

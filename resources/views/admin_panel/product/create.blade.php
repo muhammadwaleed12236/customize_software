@@ -175,6 +175,7 @@
                 .image-box { height: 160px; }
                 .fields-col { width: 100%; min-width: 100%; }
                 .field-row { grid-template-columns: 1fr; gap: 10px; }
+                .custom-packing-grid { grid-template-columns: 1fr !important; }
                 .btn-save-main { width: 100%; height: 38px !important; }
                 .check-row { flex-wrap: wrap; gap: 8px; }
                 .btn-bom { margin-left: 0; width: 100%; margin-top: 5px; }
@@ -205,7 +206,6 @@
                 <form id="productForm" action="{{ route('store-product') }}" method="POST" enctype="multipart/form-data" novalidate>
                     @csrf
                     <input type="hidden" name="phase" value="phase1">
-                    <input type="hidden" name="packing_type" value="Standard">
 
                     <div class="form-section">
                         <!-- Left: Image Area -->
@@ -296,7 +296,7 @@
                                 </div>
                             </div>
 
-                            <!-- Row 2: Brand, Item Code, Barcode / SKU, Unit -->
+                            <!-- Row 2: Brand, Item Code, Unit, Product Tracking Nature -->
                             <div class="field-row mt-2">
                                 <div class="field-group">
                                     <label class="field-label">Brand</label>
@@ -316,14 +316,6 @@
                                     <input type="text" id="item_code" name="item_code" class="custom-input fw-bold text-primary" value="{{ $nextItemCode ?? '' }}" placeholder="Item Code (e.g. ITEM-0001)">
                                 </div>
 
-                                <div class="field-group" id="top_barcode_group">
-                                    <label class="field-label">Barcode / SKU</label>
-                                    <div class="d-flex align-items-center">
-                                        <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $nextBarcode ?? '' }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
-                                        <button class="btn-gen" type="button" id="generateBarcodeBtn" title="Generate Custom SKU">Gen</button>
-                                    </div>
-                                </div>
-
                                 <div class="field-group">
                                     <label class="field-label">Unit</label>
                                     <div class="d-flex align-items-center">
@@ -336,29 +328,13 @@
                                         <button type="button" class="btn-plus-inline" data-toggle="modal" data-target="#unitModal" title="Add Unit">+</button>
                                     </div>
                                 </div>
-                            </div>
 
-                            <!-- Carton / Pack Packing Details Box (Dynamically shown when Crtn/Carton/Box unit selected) -->
-                            <div id="packingDetailsBox" class="card p-2 px-3 my-2 shadow-none" style="display: none; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px;">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <h6 class="font-weight-bold text-success m-0" style="font-size: 12.5px;">
-                                        <i class="fas fa-box-open mr-1"></i> 📦 Carton Packing Details (کارٹن / پیکنگ تفصیلات)
-                                    </h6>
-                                    <span class="badge badge-success px-2 py-1" style="font-size: 10px;">Carton Unit Enabled</span>
-                                </div>
-                                <div class="field-row" style="grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                                    <div class="field-group mb-0">
-                                        <label class="field-label text-dark">Packing Type</label>
-                                        <select name="packing_type" id="packing_type" class="custom-select">
-                                            <option value="Customize" selected>Carton / Custom Packing</option>
-                                            <option value="Standard">Standard Unit Only</option>
-                                        </select>
-                                    </div>
-
-                                    <div class="field-group mb-0">
-                                        <label class="field-label text-dark">Pcs per Carton / Pack (پیکنگ کوانٹیٹی / 1 کارٹن میں پیس)</label>
-                                        <input type="number" step="0.01" min="0" id="piece_per_pack" name="piece_per_pack" class="custom-input fw-bold text-success" placeholder="e.g. 20 (Pcs per Crtn)">
-                                    </div>
+                                <div class="field-group">
+                                    <label class="field-label">Product Tracking Nature</label>
+                                    <select name="tracking_type" id="tracking_type" class="custom-select">
+                                        <option value="standard" {{ old('tracking_type', 'standard') == 'standard' ? 'selected' : '' }}>Standard</option>
+                                        <option value="serial" {{ old('tracking_type') == 'serial' ? 'selected' : '' }}>Serial</option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -382,6 +358,56 @@
                                 <div class="field-group">
                                     <label class="field-label">HS Code <span class="text-muted fw-normal" style="font-size: 11px;">(Optional)</span></label>
                                     <input type="text" id="hs_code" name="hs_code" class="custom-input" placeholder="HS Code (Optional)">
+                                </div>
+                            </div>
+
+                            <!-- Row 4: Barcode / SKU, Color & Packaging Type (All 3 together) -->
+                            <div class="field-row mt-2 align-items-end" id="single_color_row" style="grid-template-columns: repeat(3, 1fr);">
+                                <div class="field-group mb-0" id="top_barcode_group">
+                                    <label class="field-label">Barcode / SKU</label>
+                                    <div class="d-flex align-items-center">
+                                        <input type="text" id="barcodeInput" name="barcode_path" class="custom-input" value="{{ $nextBarcode ?? '' }}" placeholder="Barcode / SKU" style="border-radius: 4px 0 0 4px !important;">
+                                        <button class="btn-gen" type="button" id="generateBarcodeBtn" title="Generate Custom SKU">Gen</button>
+                                    </div>
+                                </div>
+
+                                <div class="field-group mb-0" id="single_color_group">
+                                    <label class="field-label">Color</label>
+                                    <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
+                                        <option value="Black">Black</option>
+                                        <option value="White">White</option>
+                                        <option value="Red">Red</option>
+                                        <option value="Blue">Blue</option>
+                                        <option value="Silver">Silver</option>
+                                        <option value="Golden">Golden</option>
+                                    </select>
+                                </div>
+
+                                <div class="field-group mb-0" id="packaging_type_group">
+                                    <label class="field-label">Packaging Type</label>
+                                    <select name="packing_type" id="packing_type" class="custom-select">
+                                        <option value="">Select Packaging Type</option>
+                                        <option value="Standard" {{ old('packing_type') == 'Standard' ? 'selected' : '' }}>Standard</option>
+                                        <option value="Customize" {{ old('packing_type') == 'Customize' ? 'selected' : '' }}>Customize</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <!-- 3 Custom Packaging Fields (Shown when Customize is selected) -->
+                            <div id="customize_packaging_fields" class="mt-2" style="{{ old('packing_type') == 'Customize' ? '' : 'display: none;' }}">
+                                <div class="custom-packing-grid" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px;">
+                                    <div class="field-group">
+                                        <label class="field-label">Pack Qty</label>
+                                        <input type="number" step="any" min="0" id="pack_qty" name="pack_qty" class="custom-input" placeholder="" value="{{ old('pack_qty') }}">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label">Unit/Pack</label>
+                                        <input type="number" step="any" min="0" id="piece_per_pack" name="piece_per_pack" class="custom-input" placeholder="" value="{{ old('piece_per_pack') }}">
+                                    </div>
+                                    <div class="field-group">
+                                        <label class="field-label">Loose Pcs</label>
+                                        <input type="number" step="any" min="0" id="loose_piece" name="loose_piece" class="custom-input" placeholder="" value="{{ old('loose_piece') }}">
+                                    </div>
                                 </div>
                             </div>
 
@@ -414,21 +440,6 @@
                                             <!-- Dynamically populated -->
                                         </tbody>
                                     </table>
-                                </div>
-                            </div>
-
-                            <!-- Row 4: Single Product Color (Hidden when Variant Product is selected) -->
-                            <div class="field-row mt-2 align-items-end" id="single_color_row">
-                                <div class="field-group mb-0" id="single_color_group" style="grid-column: span 2;">
-                                    <label class="field-label">Color</label>
-                                    <select name="color[]" id="color-select" class="custom-select" multiple="multiple">
-                                        <option value="Black">Black</option>
-                                        <option value="White">White</option>
-                                        <option value="Red">Red</option>
-                                        <option value="Blue">Blue</option>
-                                        <option value="Silver">Silver</option>
-                                        <option value="Golden">Golden</option>
-                                    </select>
                                 </div>
                             </div>
 
@@ -650,7 +661,21 @@
                 }
             });
 
-            // 3b. Dynamic Unit Change -> Toggle Carton Packing Details Box
+            // 3b. Packaging Type toggle logic
+            function togglePackagingFields() {
+                var val = $('#packing_type').val();
+                if (val === 'Customize') {
+                    $('#customize_packaging_fields').slideDown(200);
+                } else {
+                    $('#customize_packaging_fields').slideUp(200);
+                }
+            }
+
+            $('#packing_type').on('change', function () {
+                $(this).data('manually-selected', true);
+                togglePackagingFields();
+            });
+
             function checkUnitPacking() {
                 var selectedText = $('#unit_select option:selected').text().toLowerCase().trim();
                 var isCartonUnit = selectedText.includes('crtn') || 
@@ -661,14 +686,9 @@
                                    selectedText.includes('bundle') || 
                                    selectedText.includes('ctn');
 
-                if (isCartonUnit) {
-                    $('#packingDetailsBox').slideDown(250);
+                if (isCartonUnit && !$('#packing_type').data('manually-selected')) {
                     $('#packing_type').val('Customize');
-                } else {
-                    if (!$('#piece_per_pack').val() || parseFloat($('#piece_per_pack').val()) <= 0) {
-                        $('#packingDetailsBox').slideUp(200);
-                        $('#packing_type').val('Standard');
-                    }
+                    togglePackagingFields();
                 }
             }
 
@@ -676,6 +696,7 @@
             if ($('#unit_select').val()) {
                 checkUnitPacking();
             }
+            togglePackagingFields();
 
             // 4. Initialize Select2 & Variant Engine
             $(document).ready(function () {
@@ -691,7 +712,7 @@
                 function handleProductTypeToggle(isInitial) {
                     const isVariant = $('#type_variant').is(':checked');
                     if (isVariant) {
-                        $('#single_color_row').hide();
+                        $('#single_color_group').hide();
                         $('#top_barcode_group').hide();
                         $('#variants_section').find('input, select').prop('disabled', false);
                         if (isInitial) {
@@ -704,7 +725,7 @@
                             addVariantRow('', '', '', '');
                         }
                     } else {
-                        $('#single_color_row').show();
+                        $('#single_color_group').show();
                         $('#top_barcode_group').show();
                         $('#variants_section').find('input, select').prop('disabled', true);
                         if (isInitial) {

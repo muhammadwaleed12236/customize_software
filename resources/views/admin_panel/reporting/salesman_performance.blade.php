@@ -114,7 +114,7 @@
                 <div class="card-body p-3">
                     <form id="performanceFilterForm" class="row g-2 align-items-end mb-0">
                         @if($isSuper)
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <label class="f-label">Select Branch</label>
                             <select name="branch_id" id="branch_id" class="form-control form-control-sm select2 branch-trigger">
                                 <option value="">-- All Branches --</option>
@@ -127,7 +127,7 @@
                         <input type="hidden" name="branch_id" id="branch_id" value="{{ $userBranchId }}">
                         @endif
 
-                        <div class="col-md-{{ $isSuper ? '3' : '4' }}">
+                        <div class="col-md-{{ $isSuper ? '3' : '3' }}">
                             <label class="f-label">Select Salesman</label>
                             <select name="salesman_id" id="salesman_id" class="form-control form-control-sm select2">
                                 <option value="">-- All (Summary) --</option>
@@ -135,6 +135,14 @@
                                 @foreach($salesmen as $sm)
                                     <option value="{{ $sm->id }}">{{ $sm->name }}</option>
                                 @endforeach
+                            </select>
+                        </div>
+
+                        <div class="col-md-2">
+                            <label class="f-label">Report View / Mode</label>
+                            <select name="report_type" id="report_type" class="form-control form-control-sm select2">
+                                <option value="invoice_wise" selected>Invoice Wise</option>
+                                <option value="item_wise">Item Wise (Product Detail)</option>
                             </select>
                         </div>
 
@@ -147,7 +155,7 @@
                             <input type="date" name="end_date" id="end_date" class="form-control form-control-sm" value="{{ date('Y-m-d') }}" style="height: 38px; border-radius: 6px; border: 1.5px solid #cbd5e1;">
                         </div>
 
-                        <div class="col-md-2">
+                        <div class="col-md-{{ $isSuper ? '1' : '1' }}">
                             <button type="button" id="btnSearch" class="btn btn-sm btn-primary w-100 font-weight-bold" style="height: 38px; border-radius: 6px; background: var(--coa-navy); border-color: var(--coa-navy);">
                                 <i class="fas fa-search mr-1"></i> Analyze
                             </button>
@@ -229,6 +237,51 @@
                                 <tr class="font-weight-bold bg-light" style="font-family: monospace; font-size: 13px;">
                                     <td colspan="4" class="text-end font-weight-bold" style="font-family: sans-serif;">Total Amount:</td>
                                     <td class="text-end text-success font-weight-bold" id="ledgerTotal">0.00</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            {{-- 5. ITEM-WISE SALES & PROFIT SECTION (Image 2 style) --}}
+            <div class="card shadow-sm border-0 mt-3 d-none" style="border-radius: 9px; border: 1px solid var(--coa-border) !important;" id="itemContent">
+                <div class="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
+                    <h6 class="mb-0 font-weight-bold" style="color: var(--coa-navy);">
+                        <i class="fas fa-boxes mr-1" style="color: var(--coa-gold);"></i>
+                        Item-wise Sales &amp; Profit Report: <span id="itemSalesmanName" class="text-dark">All Salesmen</span>
+                    </h6>
+                    <span class="badge badge-light border text-dark font-weight-bold" id="itemCountBadge">0 Products</span>
+                </div>
+                <div class="card-body p-3">
+                    <div id="itemLoader" style="display:none;text-align:center;padding:25px;">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="text-muted mt-2 small font-weight-bold">Loading item-wise product sales &amp; profit...</p>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table id="itemTable" class="table table-hover table-bordered mb-0" style="font-size:12px; border-collapse:collapse;">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th class="text-center" style="width: 4%;">#</th>
+                                    <th style="width: 14%;">Item Code</th>
+                                    <th>Item Name</th>
+                                    <th class="text-end" style="width: 10%;">Quantity</th>
+                                    <th class="text-end" style="width: 14%;">Sale Price</th>
+                                    <th class="text-end" style="width: 14%;">Purchasing Rate</th>
+                                    <th class="text-end" style="width: 14%;">Total</th>
+                                    <th class="text-end" style="width: 14%;">Net Profit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="itemBody"></tbody>
+                            <tfoot id="itemFooter" style="display:none;">
+                                <tr class="font-weight-bold bg-light" style="font-family: monospace; font-size: 13px;">
+                                    <td colspan="3" class="text-end font-weight-bold" style="font-family: sans-serif;">Totals:</td>
+                                    <td class="text-end font-weight-bold text-dark" id="itemTotalQty">0</td>
+                                    <td class="text-end font-weight-bold text-primary" id="itemTotalSalePrice">0.00</td>
+                                    <td class="text-end text-muted">-</td>
+                                    <td class="text-end font-weight-bold text-secondary" id="itemTotalCost">0.00</td>
+                                    <td class="text-end font-weight-bold" id="itemTotalProfit">0.00</td>
                                 </tr>
                             </tfoot>
                         </table>
@@ -376,7 +429,7 @@
         }
         body { background: #fff !important; padding: 0 !important; margin: 0 !important; }
         .main-content { padding: 0 !important; margin: 0 !important; }
-        .rpt-wrapper, .navbar, .sidebar, .rpt-header-bar, #performanceFilterForm, #reportContent, #ledgerContent, .no-print, .btn, .card {
+        .rpt-wrapper, .navbar, .sidebar, .rpt-header-bar, #performanceFilterForm, #reportContent, #ledgerContent, #itemContent, .no-print, .btn, .card {
             display: none !important;
         }
         #formalPrintDoc {
@@ -403,6 +456,11 @@
 
         window.currentSummaryData = [];
         window.currentLedgerData = [];
+        window.currentItemData = [];
+
+        $('#report_type').on('change', function() {
+            fetchReport();
+        });
 
         function renderRows(rows) {
             window.currentSummaryData = rows || [];
@@ -452,6 +510,7 @@
             var end_date = $('#end_date').val();
             var branch_id = $('#branch_id').val() || '';
             var salesman_id = $('#salesman_id').val() || '';
+            var report_type = $('#report_type').val() || 'invoice_wise';
 
             // Update PDF Header Info for Export
             let periodText = start_date + ' to ' + end_date;
@@ -459,6 +518,18 @@
                 periodText += ' | Branch: ' + $('#branch_id option:selected').text();
             }
             $('#pdfPeriod').text(periodText);
+
+            // ── MODE 1: ITEM WISE (Product Breakdown with Sale Price, Purchase Rate & Net Profit) ──
+            if (report_type === 'item_wise') {
+                $('#reportContent').hide();
+                $('#ledgerContent').hide();
+                $('#itemContent').removeClass('d-none').show();
+                fetchSalesmanItems(salesman_id, start_date, end_date, branch_id);
+                return;
+            }
+
+            // ── MODE 2: INVOICE WISE (Ledger or Summary) ──
+            $('#itemContent').hide();
 
             // If a specific salesman is selected, show their ledger instead of the summary
             if (salesman_id) {
@@ -541,6 +612,88 @@
             });
         }
 
+        function fetchSalesmanItems(salesman_id, start_date, end_date, branch_id) {
+            let smName = $('#salesman_id').val() ? $('#salesman_id option:selected').text() : 'All Salesmen';
+            $('#itemSalesmanName').text(smName);
+            $('#itemLoader').show();
+            $('#itemBody').empty();
+            $('#itemFooter').hide();
+
+            $.ajax({
+                url: "{{ route('report.salesman.items.fetch') }}",
+                type: "GET",
+                data: {
+                    salesman_id: salesman_id,
+                    start_date: start_date,
+                    end_date: end_date,
+                    branch_id: branch_id
+                },
+                success: function(response) {
+                    $('#itemLoader').hide();
+                    window.currentItemData = response || [];
+                    let html = '';
+                    let grandQty = 0;
+                    let grandSalePrice = 0;
+                    let grandCost = 0;
+                    let grandProfit = 0;
+
+                    if (!response || response.length === 0) {
+                        html = '<tr><td colspan="8" class="text-center py-4 text-muted">No item sales found for this criteria</td></tr>';
+                        $('#itemCountBadge').text('0 Products');
+                        $('#itemFooter').hide();
+                    } else {
+                        $('#itemCountBadge').text(response.length + ' Products');
+                        response.forEach(function(item, idx) {
+                            let qty = n(item.quantity);
+                            let salePrice = n(item.sale_price);
+                            let purchRate = n(item.purchasing_rate);
+                            let totalCost = n(item.total_cost);
+                            let netProfit = n(item.net_profit);
+
+                            grandQty += qty;
+                            grandSalePrice += salePrice;
+                            grandCost += totalCost;
+                            grandProfit += netProfit;
+
+                            let profitClass = netProfit >= 0 ? 'text-success' : 'text-danger';
+                            let profitBg = netProfit >= 0 ? '#f0fff4' : '#fff5f5';
+                            let profitFormatted = (netProfit < 0 ? '-' : '') + fmt(Math.abs(netProfit));
+
+                            let unitSubtext = qty > 1 ? `<div class="small text-muted" style="font-size:10px; font-weight:normal;">@ ${fmt(salePrice / qty)} / unit</div>` : '';
+
+                            html += `<tr>
+                                <td class="text-center text-muted">${idx + 1}</td>
+                                <td class="fw-bold">${item.item_code || '-'}</td>
+                                <td class="fw-bold text-dark">${item.item_name || 'N/A'}</td>
+                                <td class="text-end fw-bold">${fmt(qty).replace('.00', '')}</td>
+                                <td class="text-end fw-bold text-primary">${fmt(salePrice)}${unitSubtext}</td>
+                                <td class="text-end">${fmt(purchRate)}</td>
+                                <td class="text-end fw-bold text-secondary">${fmt(totalCost)}</td>
+                                <td class="text-end fw-bold ${profitClass}" style="background:${profitBg}; font-size:13px;">${profitFormatted}</td>
+                            </tr>`;
+                        });
+
+                        $('#itemTotalQty').text(fmt(grandQty).replace('.00', ''));
+                        $('#itemTotalSalePrice').text(fmt(grandSalePrice));
+                        $('#itemTotalCost').text(fmt(grandCost));
+
+                        let totalProfitFormatted = (grandProfit < 0 ? '-' : '') + fmt(Math.abs(grandProfit));
+                        let totalProfitClass = grandProfit >= 0 ? 'text-success' : 'text-danger';
+                        $('#itemTotalProfit').text(totalProfitFormatted).removeClass('text-success text-danger').addClass(totalProfitClass);
+
+                        $('#itemFooter').show();
+                    }
+
+                    $('#itemBody').html(html);
+                    if (typeof renderFormalPrintDoc === 'function') renderFormalPrintDoc();
+                },
+                error: function(xhr) {
+                    $('#itemLoader').hide();
+                    alert('Error fetching item-wise salesman performance');
+                }
+            });
+        }
+
         // ✅ NEW: Branch Change Trigger for Salesman Filtering
         $(document).on('change', '.branch-trigger', function() {
             const branchId = $(this).val();
@@ -594,18 +747,30 @@
                 didOpen: () => { Swal.showLoading(); }
             });
 
+            const reportType = $('#report_type').val() || 'invoice_wise';
             const isLedger = !$('#ledgerContent').hasClass('d-none');
-            const element = isLedger ? document.getElementById('ledgerContent') : document.getElementById('reportContent');
+            let element;
+            let filePrefix = 'Salesman_Performance_';
+
+            if (reportType === 'item_wise') {
+                element = document.getElementById('itemContent');
+                filePrefix = 'Salesman_Item_Profit_';
+            } else if (isLedger) {
+                element = document.getElementById('ledgerContent');
+                filePrefix = 'Salesman_Ledger_';
+            } else {
+                element = document.getElementById('reportContent');
+            }
             
-            // Temporarily show PDF header if needed (though card-header might be enough)
+            // Temporarily show PDF header if needed
             $('#pdfHeader').show(); 
 
             var opt = {
                 margin:       0.2,
-                filename:     (isLedger ? 'Salesman_Ledger_' : 'Salesman_Performance_') + new Date().toISOString().slice(0,10) + '.pdf',
+                filename:     filePrefix + new Date().toISOString().slice(0,10) + '.pdf',
                 image:        { type: 'jpeg', quality: 0.98 },
                 html2canvas:  { scale: 2, useCORS: true },
-                jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+                jsPDF:        { unit: 'in', format: 'a4', orientation: reportType === 'item_wise' ? 'landscape' : 'portrait' }
             };
 
             html2pdf().set(opt).from(element).save().then(function() {
@@ -618,9 +783,18 @@
             let csv = [];
             let headers = [];
             
-            // Determine which table to export
+            const reportType = $('#report_type').val() || 'invoice_wise';
             const isLedger = !$('#ledgerContent').hasClass('d-none');
-            const tableSelector = isLedger ? "#ledgerTable" : "#performanceTable";
+            let tableSelector = "#performanceTable";
+            let filePrefix = "salesman_performance_";
+
+            if (reportType === 'item_wise') {
+                tableSelector = "#itemTable";
+                filePrefix = "salesman_item_profit_";
+            } else if (isLedger) {
+                tableSelector = "#ledgerTable";
+                filePrefix = "salesman_ledger_";
+            }
             
             $(tableSelector + " thead th").each(function() {
                 headers.push('"' + $(this).text().trim() + '"');
@@ -641,15 +815,16 @@
             let url = URL.createObjectURL(blob);
             let a = document.createElement("a");
             a.href = url;
-            a.download = (isLedger ? "salesman_ledger_" : "salesman_performance_") + new Date().toISOString().slice(0,10) + ".csv";
+            a.download = filePrefix + new Date().toISOString().slice(0,10) + ".csv";
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
         };
 
         window.shareOnWhatsApp = function() {
+            const reportType = $('#report_type').val() || 'invoice_wise';
             const isLedger = !$('#ledgerContent').hasClass('d-none');
-            const salesman = isLedger ? $('#selectedSalesmanName').text() : 'All Salesmen';
+            const salesman = $('#salesman_id').val() ? $('#salesman_id option:selected').text() : 'All Salesmen';
             const period = $('#start_date').val() + ' to ' + $('#end_date').val();
             
             let text = `📊 *Salesman Performance Report*\n`;
@@ -657,7 +832,22 @@
             text += `📅 *Period:* ${period}\n`;
             text += `━━━━━━━━━━━━━━━━━━━━\n`;
 
-            if (isLedger) {
+            if (reportType === 'item_wise') {
+                text += `📦 *Total Qty Sold:* ${$('#itemTotalQty').text()}\n`;
+                text += `💰 *Total Sales:* ${$('#itemTotalSalePrice').text()}\n`;
+                text += `🏷️ *Total Cost:* ${$('#itemTotalCost').text()}\n`;
+                text += `📈 *Net Profit:* ${$('#itemTotalProfit').text()}\n`;
+                text += `━━━━━━━━━━━━━━━━━━━━\n`;
+                text += `*Top Sold Products:*\n`;
+                $('#itemBody tr').slice(0, 5).each(function() {
+                    const code = $(this).find('td:eq(1)').text();
+                    const name = $(this).find('td:eq(2)').text();
+                    const qty = $(this).find('td:eq(3)').text();
+                    const sale = $(this).find('td:eq(4)').text();
+                    const profit = $(this).find('td:eq(7)').text();
+                    text += `• ${name} (${code}): Qty ${qty} | Sale: ${sale} | Profit: ${profit}\n`;
+                });
+            } else if (isLedger) {
                 text += `💰 *Total Sales:* ${$('#ledgerTotal').text()}\n`;
                 text += `📄 _Details shared below_\n`;
                 // Add a few recent invoices if any
@@ -687,6 +877,7 @@
     });
 
 function renderFormalPrintDoc() {
+    const reportType = $('#report_type').val() || 'invoice_wise';
     const isLedger = !!$('#salesman_id').val();
     const branchName = $('#branch_id option:selected').val() ? $('#branch_id option:selected').text().toUpperCase() : 'ALL BRANCHES';
     const startDate = $('#start_date').val() || '';
@@ -710,7 +901,80 @@ function renderFormalPrintDoc() {
     function n(v) { return parseFloat(v) || 0; }
     function fmt(v) { return n(v).toLocaleString('en-PK', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
-    if (isLedger) {
+    if (reportType === 'item_wise') {
+        const salesmanName = $('#salesman_id').val() ? $('#salesman_id option:selected').text() : 'All Salesmen';
+        if (pDocTitle) pDocTitle.textContent = 'Salesman Item-Wise Sales & Profit Report';
+        if (pDocPeriod) pDocPeriod.textContent = `Salesman: ${salesmanName} | ${periodText}`;
+        if (pFooterDesc) pFooterDesc.textContent = `Salesman Item-Wise Performance & Profitability Analysis — ${salesmanName}`;
+
+        const data = window.currentItemData || [];
+        let grandQty = 0;
+        let grandSale = 0;
+        let grandCost = 0;
+        let grandProfit = 0;
+        let tbodyHtml = '';
+
+        if (data.length === 0) {
+            tbodyHtml = '<tr><td colspan="8" style="text-align:center; padding:18px; color:#64748b; font-style:italic;">No item sales found for this criteria</td></tr>';
+        } else {
+            data.forEach(function(item, idx) {
+                const qty = n(item.quantity);
+                const sale = n(item.sale_price);
+                const rate = n(item.purchasing_rate);
+                const cost = n(item.total_cost);
+                const profit = n(item.net_profit);
+
+                grandQty += qty;
+                grandSale += sale;
+                grandCost += cost;
+                grandProfit += profit;
+
+                tbodyHtml += `
+                <tr>
+                    <td style="text-align:center;">${idx + 1}</td>
+                    <td style="font-weight:700;">${item.item_code || '-'}</td>
+                    <td>${item.item_name || '-'}</td>
+                    <td class="num-cell">${fmt(qty).replace('.00', '')}</td>
+                    <td class="num-cell" style="font-weight:700;">${fmt(sale)}</td>
+                    <td class="num-cell">${fmt(rate)}</td>
+                    <td class="num-cell">${fmt(cost)}</td>
+                    <td class="num-cell" style="font-weight:700; color:${profit >= 0 ? '#047857' : '#b91c1c'};">${profit < 0 ? '-' : ''}${fmt(Math.abs(profit))}</td>
+                </tr>`;
+            });
+        }
+
+        const tableHtml = `
+        <table class="print-tb-table">
+            <thead>
+                <tr>
+                    <th style="width: 4%; text-align: center;">#</th>
+                    <th style="width: 14%;">ITEM CODE</th>
+                    <th style="width: 28%;">ITEM NAME</th>
+                    <th style="width: 8%; text-align: right;">QUANTITY</th>
+                    <th style="width: 12%; text-align: right;">SALE PRICE</th>
+                    <th style="width: 11%; text-align: right;">PURCHASING RATE</th>
+                    <th style="width: 11%; text-align: right;">TOTAL</th>
+                    <th style="width: 12%; text-align: right;">NET PROFIT</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tbodyHtml}
+            </tbody>
+            <tfoot>
+                <tr class="p-tfoot">
+                    <td colspan="3" style="text-align: right; font-weight: 800;">GRAND TOTAL:</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 10.5pt;">${fmt(grandQty).replace('.00', '')}</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 10.5pt;">${fmt(grandSale)}</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 10.5pt;">-</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 10.5pt;">${fmt(grandCost)}</td>
+                    <td class="num-cell" style="font-weight: 800; font-size: 10.5pt; color:${grandProfit >= 0 ? '#047857' : '#b91c1c'};">${grandProfit < 0 ? '-' : ''}${fmt(Math.abs(grandProfit))}</td>
+                </tr>
+            </tfoot>
+        </table>`;
+
+        if (pTableContainer) pTableContainer.innerHTML = tableHtml;
+
+    } else if (isLedger) {
         const salesmanName = $('#salesman_id option:selected').text();
         if (pDocTitle) pDocTitle.textContent = 'Salesman Detailed Sales Ledger';
         if (pDocPeriod) pDocPeriod.textContent = `Salesman: ${salesmanName} | ${periodText}`;
@@ -829,8 +1093,14 @@ function openPrintPreview() {
     if (!docElem) return;
 
     const reportHtml = docElem.innerHTML;
+    const reportType = $('#report_type').val() || 'invoice_wise';
     const isLedger = !!$('#salesman_id').val();
-    const fullTitle = isLedger ? 'Salesman Detailed Sales Ledger' : 'Salesman Performance Report';
+    let fullTitle = 'Salesman Performance Report';
+    if (reportType === 'item_wise') {
+        fullTitle = 'Salesman Item-Wise Sales & Profit Report';
+    } else if (isLedger) {
+        fullTitle = 'Salesman Detailed Sales Ledger';
+    }
 
     const win = window.open('', '_blank');
     if (win) {

@@ -415,12 +415,9 @@
                                 <option value="">-- Choose Product --</option>
                                 @foreach($products as $prod)
                                     @if($prod->has_variants && $prod->variants && $prod->variants->isNotEmpty())
-                                        <option value="{{ $prod->id }}" data-code="{{ $prod->item_code }}" data-cost="{{ $prod->wholesale_price }}" data-retail="{{ $prod->price }}">
-                                            {{ $prod->item_code ? '[' . $prod->item_code . '] ' : '' }}{{ $prod->item_name }} (All Variants)
-                                        </option>
                                         @foreach($prod->variants as $v)
                                             <option value="{{ $prod->id }}:{{ $v->id }}" data-code="{{ $prod->item_code }}" data-cost="{{ $v->wholesale_price ?: $prod->wholesale_price }}" data-retail="{{ $v->retail_price ?: $prod->price }}">
-                                                &nbsp;&nbsp;&nbsp;&nbsp;↳ {{ $prod->item_code ? '[' . $prod->item_code . '] ' : '' }}{{ $prod->item_name }} ({{ $v->color ?: $v->variant_name }})
+                                                {{ $prod->item_code ? '[' . $prod->item_code . '] ' : '' }}{{ $prod->item_name }} ({{ $v->color ?: $v->variant_name }})
                                             </option>
                                         @endforeach
                                     @else

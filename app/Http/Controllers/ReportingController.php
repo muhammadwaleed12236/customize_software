@@ -3659,6 +3659,124 @@ class ReportingController extends Controller
     }
 
     /**
+     * ✅ Fetch Item-wise Salesman Performance / Sales & Profit Breakdown
+     */
+    public function fetch_salesman_items(Request $request)
+    {
+        $user = Auth::user();
+        $isSuper = $user->hasRole('super admin');
+        $branchId = $isSuper ? $request->branch_id : $user->branch_id;
+
+        $salesmanId = $request->salesman_id;
+        $start = $request->start_date ? $request->start_date . ' 00:00:00' : now()->startOfMonth();
+        $end = $request->end_date ? $request->end_date . ' 23:59:59' : now()->endOfMonth();
+
+        try {
+            $query = DB::table('sale_items')
+                ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+                ->leftJoin('products', 'sale_items.product_id', '=', 'products.id')
+                ->leftJoin('product_variants as pv', 'sale_items.variant_id', '=', 'pv.id')
+                ->whereBetween('sales.created_at', [$start, $end])
+                ->where(function ($q) {
+                    $q->whereNull('sales.status')->orWhere('sales.status', '!=', 'cancelled');
+                });
+
+            if ($branchId) {
+                $query->where('sales.branch_id', $branchId);
+            }
+
+            if ($salesmanId === 'direct') {
+                $query->whereNull('sales.salesman_id');
+            } elseif ($salesmanId) {
+                $query->where('sales.salesman_id', $salesmanId);
+            }
+
+            $items = $query->select(
+                'products.id as product_id',
+                'products.item_code',
+                'products.item_name',
+                'products.wholesale_price',
+                'products.price as product_price',
+                'sale_items.variant_id',
+                'pv.variant_name',
+                'pv.color as variant_color',
+                'pv.wholesale_price as variant_wholesale_price',
+                DB::raw('SUM(sale_items.sales_qty) as total_qty'),
+                DB::raw('SUM(sale_items.amount) as total_sale_amount')
+            )
+            ->groupBy(
+                'products.id',
+                'products.item_code',
+                'products.item_name',
+                'products.wholesale_price',
+                'products.price',
+                'sale_items.variant_id',
+                'pv.variant_name',
+                'pv.color',
+                'pv.wholesale_price'
+            )
+            ->orderBy('total_sale_amount', 'DESC')
+            ->get();
+
+            $productIds = $items->pluck('product_id')->filter()->unique()->toArray();
+
+            // Fetch latest purchase prices
+            $purchasePrices = [];
+            if (!empty($productIds)) {
+                $purchasePrices = DB::table('purchase_items')
+                    ->whereIn('product_id', $productIds)
+                    ->where('price', '>', 0)
+                    ->orderBy('id', 'desc')
+                    ->get()
+                    ->unique('product_id')
+                    ->pluck('price', 'product_id')
+                    ->toArray();
+            }
+
+            $formatted = $items->map(function ($it) use ($purchasePrices) {
+                $qty = (float) $it->total_qty;
+                $saleAmount = (float) $it->total_sale_amount;
+
+                // Purchasing Rate determination
+                $purchasingRate = 0.0;
+                if (!empty($it->variant_id) && !empty($it->variant_wholesale_price) && (float)$it->variant_wholesale_price > 0) {
+                    $purchasingRate = (float) $it->variant_wholesale_price;
+                } elseif (!empty($it->product_id) && isset($purchasePrices[$it->product_id])) {
+                    $purchasingRate = (float) $purchasePrices[$it->product_id];
+                } elseif (!empty($it->wholesale_price) && (float)$it->wholesale_price > 0) {
+                    $purchasingRate = (float) $it->wholesale_price;
+                } elseif (!empty($it->product_price) && (float)$it->product_price > 0) {
+                    $purchasingRate = (float) $it->product_price;
+                }
+
+                $totalCost = round($qty * $purchasingRate, 2);
+                $netProfit = round($saleAmount - $totalCost, 2);
+
+                $itemName = $it->item_name ?? 'N/A';
+                if (!empty($it->variant_color)) {
+                    $itemName .= " ({$it->variant_color})";
+                } elseif (!empty($it->variant_name)) {
+                    $itemName .= " ({$it->variant_name})";
+                }
+
+                return [
+                    'item_code'       => $it->item_code ?? '-',
+                    'item_name'       => $itemName,
+                    'quantity'        => $qty,
+                    'sale_price'      => $saleAmount,
+                    'purchasing_rate' => $purchasingRate,
+                    'total_cost'      => $totalCost,
+                    'net_profit'      => $netProfit,
+                ];
+            });
+
+            return response()->json($formatted);
+        } catch (\Exception $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * ✅ NEW: Local Purchase Report View
      */
     public function local_purchase_report()

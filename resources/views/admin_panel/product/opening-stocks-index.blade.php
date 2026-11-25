@@ -751,6 +751,7 @@
                         <td style="text-align: center;">
                             <button type="button" class="btn-location-view btn-view-allocations"
                                     data-id="{{ $item->id }}"
+                                    data-variant-id="{{ $item->variant_id ?? '' }}"
                                     data-name="{{ $item->item_name }}"
                                     data-code="{{ $item->item_code ?? 'ITEM-' . $item->id }}"
                                     data-unit="{{ $item->unit_name }}"
@@ -821,6 +822,7 @@
                                 {{-- View Locations Breakdown Modal --}}
                                 <button type="button" class="btn-action btn-action-view btn-view-allocations"
                                         data-id="{{ $item->id }}"
+                                        data-variant-id="{{ $item->variant_id ?? '' }}"
                                         data-name="{{ $item->item_name }}"
                                         data-code="{{ $item->item_code ?? 'ITEM-' . $item->id }}"
                                         data-unit="{{ $item->unit_name }}"
@@ -840,7 +842,7 @@
                                 </button>
 
                                 {{-- Edit Opening Stock & Pricing --}}
-                                <a href="{{ route('opening.stocks.edit', $item->id) }}?branch_id={{ $item->branch_id }}"
+                                <a href="{{ route('opening.stocks.edit', $item->id) }}?branch_id={{ $item->branch_id }}{{ !empty($item->variant_id) ? '&variant_id=' . $item->variant_id : '' }}"
                                    class="btn-action btn-action-edit"
                                    title="Edit Stock &amp; Pricing">
                                     <i class="fas fa-edit"></i>
@@ -849,6 +851,7 @@
                                 {{-- Delete / Reset Opening Stock --}}
                                 <button type="button" class="btn-action btn-action-delete btn-delete-stock"
                                         data-id="{{ $item->id }}"
+                                        data-variant-id="{{ $item->variant_id ?? '' }}"
                                         data-branch-id="{{ $item->branch_id }}"
                                         data-name="{{ $item->item_name }}"
                                         data-qty="{{ $item->opening_qty }}"
@@ -1065,7 +1068,10 @@ $(document).ready(function() {
         $('#locModalWholesale').text('₨ ' + wholesale.toLocaleString('en-US', {minimumFractionDigits: 2}));
         $('#locModalRetail').text('₨ ' + retail.toLocaleString('en-US', {minimumFractionDigits: 2}));
 
-        $('#locModalEditBtn').attr('href', '{{ url("opening-stocks") }}/' + id + '/edit?branch_id=' + (branchId || ''));
+        var variantId = $(this).data('variant-id');
+        var editUrl = '{{ url("opening-stocks") }}/' + id + '/edit?branch_id=' + (branchId || '');
+        if (variantId) editUrl += '&variant_id=' + variantId;
+        $('#locModalEditBtn').attr('href', editUrl);
 
         var rowsHtml = '';
         if (allocations && allocations.length > 0) {
@@ -1168,7 +1174,8 @@ $(document).ready(function() {
                     data: {
                         _method: 'DELETE',
                         _token: '{{ csrf_token() }}',
-                        branch_id: branchId
+                        branch_id: branchId,
+                        variant_id: btn.data('variant-id') || ''
                     },
                     success: function(response) {
                         Swal.fire({

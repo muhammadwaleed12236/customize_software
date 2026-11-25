@@ -379,6 +379,36 @@
         transition: 0.15s;
     }
     .btn-rm-loc:hover { background: #fee2e2; }
+    .btn-open-serials {
+        display: none;
+        align-items: center;
+        padding: 3px 8px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.15s ease-in-out;
+        border: 1px solid #f59e0b;
+        background: #fef3c7;
+        color: #b45309;
+        white-space: nowrap;
+        height: 28px;
+        margin-left: 4px;
+        outline: none;
+    }
+    .btn-open-serials:hover {
+        background: #fde68a;
+        color: #92400e;
+    }
+    .btn-open-serials.serials-completed {
+        border-color: #86efac;
+        background: #dcfce7;
+        color: #15803d;
+    }
+    .btn-open-serials.serials-completed:hover {
+        background: #bbf7d0;
+        color: #166534;
+    }
     .btn-add-loc-link {
         font-size: 11px;
         font-weight: 800;
@@ -721,6 +751,96 @@
         </div>
     </form>
 
+    {{-- ── 5. Serial / IMEI Numbers Entry Modal ── --}}
+    <div class="modal fade" id="serialModal" tabindex="-1" role="dialog" aria-labelledby="serialModalLabel" aria-hidden="true" data-backdrop="static">
+        <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
+            <div class="modal-content" style="border-radius: 12px; border: none; box-shadow: 0 15px 35px rgba(0,0,0,0.2); overflow: hidden;">
+                <div class="modal-header py-2 px-3" style="background: #1e3a5f; color: #fff; border-bottom: 2px solid #0284c7;">
+                    <div class="d-flex align-items-center">
+                        <i class="fas fa-barcode mr-2" style="font-size: 18px; color: #38bdf8;"></i>
+                        <div>
+                            <h6 class="modal-title m-0 font-weight-bold" id="serialModalLabel" style="font-size: 14px; letter-spacing: 0.3px;">
+                                Add Serial / IMEI Numbers
+                            </h6>
+                            <small style="color: #94a3b8; font-size: 11px;">Enter or scan serial numbers for each allocated unit</small>
+                        </div>
+                    </div>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close" style="opacity: 0.85; outline: none;">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+
+                <div class="modal-body p-3" style="background: #f8fafc;">
+                    <!-- Product & Location Summary Banner -->
+                    <div class="d-flex justify-content-between align-items-center p-2 mb-3 rounded" style="background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                        <div>
+                            <div class="font-weight-bold text-dark" id="sm_product_name" style="font-size: 13.5px;">Product Name</div>
+                            <div class="text-muted small" style="font-size: 11px;">
+                                <span id="sm_product_code" class="font-weight-bold text-secondary">SKU: ITEM-0000</span> &bull; 
+                                Location: <span class="font-weight-bold text-primary" id="sm_location_name">Branch / Shop Stock</span>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="badge badge-primary px-2 py-1" style="font-size: 12px; font-weight: 700;" id="sm_qty_badge">
+                                Target: 0 Serials
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Toolbar & Modes -->
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="small font-weight-bold">
+                            <span id="sm_count_label" class="badge badge-warning text-dark font-weight-bold px-2 py-1" style="font-size: 11.5px;">
+                                0 / 0 Entered
+                            </span>
+                        </span>
+                        <div class="btn-group btn-group-sm">
+                            <button type="button" class="btn btn-secondary active font-weight-bold" id="btn_mode_slots" style="font-size: 11px;">
+                                <i class="fas fa-list-ol mr-1"></i> Slots
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary font-weight-bold" id="btn_mode_bulk" style="font-size: 11px;">
+                                <i class="fas fa-paste mr-1"></i> Quick Paste / Scan
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- View 1: Slots (1 to N) -->
+                    <div id="sm_slots_container" style="max-height: 320px; overflow-y: auto; padding-right: 4px;">
+                        <!-- Dynamically generated input fields -->
+                    </div>
+
+                    <!-- View 2: Quick Bulk Paste / Scan Textarea (Hidden by default) -->
+                    <div id="sm_bulk_container" style="display: none;">
+                        <p class="small text-muted mb-1">
+                            <i class="fas fa-info-circle mr-1 text-primary"></i> Paste serial numbers separated by newlines, commas, or scan continuously with a barcode gun:
+                        </p>
+                        <textarea id="sm_bulk_textarea" class="form-control font-monospace" rows="7" placeholder="Scan or paste serial numbers here...
+SN-1001
+SN-1002
+SN-1003" style="font-size: 12px; line-height: 1.5;"></textarea>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button type="button" class="btn btn-sm btn-primary" id="btn_apply_bulk_serials" style="font-size: 11.5px; font-weight: 700;">
+                                <i class="fas fa-check mr-1"></i> Apply to Slots
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Duplicate or Error Alert -->
+                    <div id="sm_alert" class="alert alert-danger py-2 px-3 mt-2 mb-0 small" style="display: none; font-size: 11.5px; font-weight: 600;"></div>
+                </div>
+
+                <div class="modal-footer py-2 px-3" style="background: #ffffff; border-top: 1px solid #e2e8f0;">
+                    <button type="button" class="btn btn-sm btn-light border text-secondary font-weight-bold px-3" data-dismiss="modal" style="font-size: 12px;">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-sm btn-primary px-3 font-weight-bold" id="btn_save_serials" style="font-size: 12px; background: #0284c7; border-color: #0284c7;">
+                        <i class="fas fa-check-circle mr-1"></i> Save Serials
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 @else
@@ -757,6 +877,7 @@ $(document).ready(function() {
     /* Build one clean allocation sub-row (Location + Qty) */
     function buildAllocLine(idx) {
         var unitName = $('#unit_name_' + idx).text() || 'Pcs';
+        var isSerial = (rowProducts[idx] && rowProducts[idx].is_serial);
         return `
             <div class="alloc-single-row">
                 <div class="alloc-loc-select-wrap">
@@ -769,9 +890,13 @@ $(document).ready(function() {
                 <div class="alloc-qty-sub-row">
                     <span class="alloc-qty-tag">Qty</span>
                     <div class="alloc-qty-box">
-                        <input type="number" class="alloc-qty" placeholder="0" step="0.01" min="0" value="" oninput="calcTotal(${idx})">
+                        <input type="number" class="alloc-qty" placeholder="0" step="0.01" min="0" value="" oninput="handleQtyInput(this, ${idx})">
                         <span class="unit-tag alloc-unit-lbl">${unitName}</span>
                     </div>
+                    <button type="button" class="btn-open-serials" onclick="triggerSerialModalForLine(this, ${idx})" style="${isSerial ? 'display:inline-flex;' : 'display:none;'}" title="Add or View Serial Numbers">
+                        <i class="fas fa-barcode mr-1"></i>Serials (<span class="serials-entered-count">0</span>/<span class="serials-required-count">0</span>)
+                    </button>
+                    <input type="hidden" class="alloc-serials-json" value="[]">
                     <button type="button" class="btn-rm-loc" onclick="delAllocLine(this, ${idx})" title="Remove location">
                         <i class="fas fa-times"></i>
                     </button>
@@ -1005,6 +1130,19 @@ $(document).ready(function() {
             } else {
                 $('#thumb_' + idx).html('<i class="fas fa-cube"></i>');
             }
+
+            // If product is serial, show badge in preview
+            $('#preview_' + idx + ' .serial-badge-pill').remove();
+            if (d.is_serial) {
+                $('#preview_' + idx + ' .prod-preview-info').append(`
+                    <div class="serial-badge-pill mt-1">
+                        <span class="badge" style="font-size:10px; font-weight:700; background:#fef3c7; color:#b45309; border:1px solid #fde68a; border-radius:3px; padding:2px 6px;">
+                            <i class="fas fa-barcode mr-1"></i>Serial Tracked
+                        </span>
+                    </div>
+                `);
+            }
+
             $('#preview_' + idx).slideDown(150);
 
             // Ensure single clean allocation row
@@ -1012,6 +1150,7 @@ $(document).ready(function() {
                 $('#alloc_rows_' + idx).append(buildAllocLine(idx));
             }
 
+            updateAllocSerialButtons(idx);
             calcTotal(idx);
             checkRowPriceWarning(idx);
 
@@ -1022,8 +1161,10 @@ $(document).ready(function() {
             $('#prod_id_' + idx).val('');
             $('#row_variant_id_' + idx).val('');
             $('#preview_' + idx).slideUp(150);
+            $('#preview_' + idx + ' .serial-badge-pill').remove();
             $('#unit_line_' + idx).hide();
             rowProducts[idx] = null;
+            updateAllocSerialButtons(idx);
             calcTotal(idx);
         });
     }
@@ -1056,18 +1197,25 @@ $(document).ready(function() {
             var qty  = parseFloat($(this).find('.alloc-qty').val()) || 0;
             total += qty;
 
+            var serials = [];
+            try {
+                serials = JSON.parse($(this).find('.alloc-serials-json').val() || '[]');
+            } catch(e) {}
+
             if (type === 'shop') {
                 data.push({
                     location_type: 'shop',
                     quantity: qty,
-                    variant_id: vId ? parseInt(vId) : null
+                    variant_id: vId ? parseInt(vId) : null,
+                    serials: serials
                 });
             } else if (type && type.indexOf('wh_') === 0) {
                 data.push({
                     location_type: 'warehouse',
                     warehouse_id: parseInt(type.replace('wh_', '')),
                     variant_id: vId ? parseInt(vId) : null,
-                    quantity: qty
+                    quantity: qty,
+                    serials: serials
                 });
             }
         });
@@ -1126,6 +1274,337 @@ $(document).ready(function() {
         });
     }
 
+    // =========================================================================
+    // ── SERIAL / IMEI NUMBERS MANAGEMENT ENGINE ──
+    // =========================================================================
+    var currentActiveAllocLine = null;
+    var currentActiveRowIdx    = null;
+    var currentTargetQty       = 0;
+    var qtySerialDebounceTimer = null;
+
+    /* Update Serials button appearance & counts on allocation lines */
+    window.updateAllocSerialButtons = function(idx) {
+        var isSerial = (rowProducts[idx] && rowProducts[idx].is_serial);
+        $('#alloc_rows_' + idx + ' .alloc-single-row').each(function() {
+            var $line = $(this);
+            var $btn  = $line.find('.btn-open-serials');
+            if (!isSerial) {
+                $btn.hide();
+                return;
+            }
+            var qty = parseInt($line.find('.alloc-qty').val()) || 0;
+            if (qty <= 0) {
+                $btn.hide();
+                return;
+            }
+            var serials = [];
+            try {
+                serials = JSON.parse($line.find('.alloc-serials-json').val() || '[]');
+            } catch(e) {}
+            var enteredCount = serials.filter(function(s) { return String(s).trim().length > 0; }).length;
+
+            $btn.find('.serials-entered-count').text(enteredCount);
+            $btn.find('.serials-required-count').text(qty);
+
+            if (enteredCount === qty && qty > 0) {
+                $btn.addClass('serials-completed').html('<i class="fas fa-check-circle mr-1"></i>Serials (' + enteredCount + '/' + qty + ')');
+            } else {
+                $btn.removeClass('serials-completed').html('<i class="fas fa-barcode mr-1"></i>Serials (' + enteredCount + '/' + qty + ')');
+            }
+            $btn.css('display', 'inline-flex');
+        });
+    };
+
+    /* Handle Qty typing / change on allocation row */
+    window.handleQtyInput = function(input, idx) {
+        calcTotal(idx);
+        updateAllocSerialButtons(idx);
+
+        var isSerial = (rowProducts[idx] && rowProducts[idx].is_serial);
+        if (isSerial) {
+            var $allocLine = $(input).closest('.alloc-single-row');
+            var qty = parseInt($(input).val()) || 0;
+            if (qty > 0) {
+                clearTimeout(qtySerialDebounceTimer);
+                qtySerialDebounceTimer = setTimeout(function() {
+                    if ($('#serialModal').hasClass('show')) return;
+
+                    var currentSerials = [];
+                    try {
+                        currentSerials = JSON.parse($allocLine.find('.alloc-serials-json').val() || '[]');
+                    } catch(e) {}
+                    var validCount = currentSerials.filter(function(s) { return String(s).trim().length > 0; }).length;
+                    if (validCount !== qty) {
+                        openSerialModal(idx, $allocLine, qty);
+                    }
+                }, 600);
+            }
+        }
+    };
+
+    /* Also trigger on change / blur to ensure modal opens without delay */
+    $(document).on('change', '.alloc-qty', function() {
+        var $row = $(this).closest('.osm-row');
+        var idx = $row.data('row');
+        var isSerial = (rowProducts[idx] && rowProducts[idx].is_serial);
+        if (isSerial) {
+            var $allocLine = $(this).closest('.alloc-single-row');
+            var qty = parseInt($(this).val()) || 0;
+            if (qty > 0) {
+                clearTimeout(qtySerialDebounceTimer);
+                if (!$('#serialModal').hasClass('show')) {
+                    var currentSerials = [];
+                    try {
+                        currentSerials = JSON.parse($allocLine.find('.alloc-serials-json').val() || '[]');
+                    } catch(e) {}
+                    var validCount = currentSerials.filter(function(s) { return String(s).trim().length > 0; }).length;
+                    if (validCount !== qty) {
+                        openSerialModal(idx, $allocLine, qty);
+                    }
+                }
+            }
+        }
+    });
+
+    /* Click on Serials button opens modal */
+    window.triggerSerialModalForLine = function(btn, idx) {
+        var $allocLine = $(btn).closest('.alloc-single-row');
+        var qty = parseInt($allocLine.find('.alloc-qty').val()) || 0;
+        if (qty <= 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Quantity Needed',
+                text: 'Please enter a quantity first before adding serial numbers.',
+                confirmButtonColor: '#0284c7'
+            });
+            $allocLine.find('.alloc-qty').focus();
+            return;
+        }
+        openSerialModal(idx, $allocLine, qty);
+    };
+
+    /* Open Serial Modal */
+    window.openSerialModal = function(rowIdx, $allocLine, qty) {
+        currentActiveRowIdx    = rowIdx;
+        currentActiveAllocLine = $allocLine;
+        currentTargetQty       = parseInt(qty) || 0;
+
+        var prod = rowProducts[rowIdx] || {};
+        var prodTitle = prod.display_title || prod.item_name || 'Product';
+        var prodCode  = prod.item_code || '';
+        var locSelect = $allocLine.find('.alloc-type');
+        var locName   = locSelect.find('option:selected').text() || 'Branch / Shop Stock';
+
+        $('#sm_product_name').text(prodTitle);
+        $('#sm_product_code').text('SKU: ' + prodCode);
+        $('#sm_location_name').text(locName);
+        $('#sm_qty_badge').text('Target: ' + currentTargetQty + ' Serials');
+
+        // Existing serials
+        var existing = [];
+        try {
+            existing = JSON.parse($allocLine.find('.alloc-serials-json').val() || '[]');
+        } catch(e) {}
+
+        renderSerialSlots(currentTargetQty, existing);
+
+        // Switch to Slots tab by default
+        $('#sm_slots_container').show();
+        $('#sm_bulk_container').hide();
+        $('#btn_mode_slots').addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        $('#btn_mode_bulk').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+        $('#sm_alert').hide().text('');
+
+        $('#serialModal').modal('show');
+        setTimeout(function() {
+            var firstEmpty = $('#sm_slots_container input.sm-slot-input').filter(function() { return !$(this).val(); }).first();
+            if (firstEmpty.length) {
+                firstEmpty.focus();
+            } else {
+                $('#sm_slots_container input.sm-slot-input').first().focus();
+            }
+        }, 400);
+    };
+
+    /* Render Slot inputs for N serials */
+    function renderSerialSlots(qty, existingValues) {
+        var html = '<div class="row g-2">';
+        existingValues = existingValues || [];
+        for (var i = 0; i < qty; i++) {
+            var val = (existingValues[i] !== undefined && existingValues[i] !== null) ? existingValues[i] : '';
+            html += `
+                <div class="col-md-6 mb-2">
+                    <div class="input-group input-group-sm">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text font-weight-bold" style="background:#f1f5f9; color:#475569; font-size:11.5px; width:40px; justify-content:center;">#${i + 1}</span>
+                        </div>
+                        <input type="text" class="form-control sm-slot-input font-monospace" data-slot="${i}" value="${val}" placeholder="Serial / IMEI #${i + 1}" style="font-size:12px; height:32px;">
+                    </div>
+                </div>
+            `;
+        }
+        html += '</div>';
+        $('#sm_slots_container').html(html);
+        updateModalCounter();
+    }
+
+    /* Modal counter & duplicate validation */
+    function updateModalCounter() {
+        var entered = 0;
+        var seen = {};
+        var hasDup = false;
+        $('.sm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) {
+                entered++;
+                if (seen[v.toLowerCase()]) {
+                    hasDup = true;
+                    $(this).css('border-color', '#ef4444');
+                } else {
+                    seen[v.toLowerCase()] = true;
+                    $(this).css('border-color', '');
+                }
+            } else {
+                $(this).css('border-color', '');
+            }
+        });
+
+        var $badge = $('#sm_count_label');
+        $badge.text(entered + ' / ' + currentTargetQty + ' Entered');
+
+        if (hasDup) {
+            $('#sm_alert').show().text('Duplicate serial numbers detected! Each serial number must be unique.');
+            $badge.removeClass('badge-success badge-warning').addClass('badge-danger');
+        } else {
+            $('#sm_alert').hide().text('');
+            if (entered >= currentTargetQty && currentTargetQty > 0) {
+                $badge.removeClass('badge-danger badge-warning').addClass('badge-success');
+            } else {
+                $badge.removeClass('badge-danger badge-success').addClass('badge-warning');
+            }
+        }
+    }
+
+    $(document).on('input', '.sm-slot-input', function() {
+        updateModalCounter();
+    });
+
+    /* Enter key in slot jumps to next slot */
+    $(document).on('keydown', '.sm-slot-input', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var nextSlot = $(this).closest('.col-md-6').next().find('.sm-slot-input');
+            if (nextSlot.length) {
+                nextSlot.focus();
+            } else {
+                $('#btn_save_serials').focus();
+            }
+        }
+    });
+
+    /* Paste multi-line text into a slot auto-distributes */
+    $(document).on('paste', '.sm-slot-input', function(e) {
+        var clipboardData = e.originalEvent.clipboardData || window.clipboardData;
+        var pastedData = clipboardData ? clipboardData.getData('text') : '';
+        if (pastedData && (pastedData.indexOf('\n') !== -1 || pastedData.indexOf('\r') !== -1 || pastedData.indexOf('\t') !== -1)) {
+            e.preventDefault();
+            var lines = pastedData.split(/[\r\n\t]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+            var startSlot = parseInt($(this).data('slot')) || 0;
+            var $slots = $('.sm-slot-input');
+            for (var i = 0; i < lines.length && (startSlot + i) < $slots.length; i++) {
+                $slots.eq(startSlot + i).val(lines[i]);
+            }
+            updateModalCounter();
+        }
+    });
+
+    /* Tab switching: Slots vs Bulk */
+    $('#btn_mode_slots').on('click', function() {
+        $('#sm_slots_container').show();
+        $('#sm_bulk_container').hide();
+        $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        $('#btn_mode_bulk').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+    });
+
+    $('#btn_mode_bulk').on('click', function() {
+        var lines = [];
+        $('.sm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) lines.push(v);
+        });
+        $('#sm_bulk_textarea').val(lines.join('\n'));
+
+        $('#sm_slots_container').hide();
+        $('#sm_bulk_container').show();
+        $(this).addClass('active btn-secondary').removeClass('btn-outline-secondary');
+        $('#btn_mode_slots').removeClass('active btn-secondary').addClass('btn-outline-secondary');
+        $('#sm_bulk_textarea').focus();
+    });
+
+    $('#btn_apply_bulk_serials').on('click', function() {
+        var text = $('#sm_bulk_textarea').val() || '';
+        var lines = text.split(/[\r\n,]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });
+        var $slots = $('.sm-slot-input');
+        $slots.val('');
+        for (var i = 0; i < lines.length && i < $slots.length; i++) {
+            $slots.eq(i).val(lines[i]);
+        }
+        $('#btn_mode_slots').trigger('click');
+        updateModalCounter();
+    });
+
+    /* Save serials from modal */
+    $('#btn_save_serials').on('click', function() {
+        var serials = [];
+        var duplicates = [];
+        var seen = {};
+
+        $('.sm-slot-input').each(function() {
+            var v = $(this).val().trim();
+            if (v) {
+                if (seen[v.toLowerCase()]) {
+                    duplicates.push(v);
+                } else {
+                    seen[v.toLowerCase()] = true;
+                }
+                serials.push(v);
+            }
+        });
+
+        if (duplicates.length > 0) {
+            $('#sm_alert').show().text('Duplicate serial numbers detected: ' + duplicates.join(', ') + '. Each serial number must be unique.');
+            return;
+        }
+
+        if (serials.length < currentTargetQty) {
+            Swal.fire({
+                title: 'Incomplete Serials',
+                text: 'You have entered ' + serials.length + ' of ' + currentTargetQty + ' serial numbers. Save anyway?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#0284c7',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'Yes, Save',
+                cancelButtonText: 'Back to Edit'
+            }).then(function(res) {
+                if (res.isConfirmed) {
+                    commitSerials(serials);
+                }
+            });
+        } else {
+            commitSerials(serials);
+        }
+    });
+
+    function commitSerials(serials) {
+        if (currentActiveAllocLine) {
+            currentActiveAllocLine.find('.alloc-serials-json').val(JSON.stringify(serials));
+            updateAllocSerialButtons(currentActiveRowIdx);
+            calcTotal(currentActiveRowIdx);
+        }
+        $('#serialModal').modal('hide');
+    }
+
     /* Form Submit via AJAX - Filters out unselected/empty rows cleanly */
     $('#osmForm').on('submit', function(e) {
         e.preventDefault();
@@ -1167,6 +1646,38 @@ $(document).ready(function() {
                 });
                 hasInvalidRow = true;
                 return false;
+            }
+
+            // Serial numbers validation for serial-tracked products
+            var prodObj = rowProducts[idx];
+            if (pid && qty > 0 && prodObj && prodObj.is_serial) {
+                var missingInLine = false;
+                var $rowElem = $(this);
+                $rowElem.find('.alloc-single-row').each(function() {
+                    var lineQty = parseInt($(this).find('.alloc-qty').val()) || 0;
+                    if (lineQty > 0) {
+                        var sArr = [];
+                        try {
+                            sArr = JSON.parse($(this).find('.alloc-serials-json').val() || '[]');
+                        } catch(e) {}
+                        var validCount = sArr.filter(function(s) { return String(s).trim().length > 0; }).length;
+                        if (validCount < lineQty) {
+                            var locName = $(this).find('.alloc-type option:selected').text();
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Serial Numbers Required',
+                                text: 'Product "' + (prodObj.display_title || prodObj.item_name) + '" at location "' + locName + '" requires ' + lineQty + ' serial numbers, but only ' + validCount + ' entered. Please enter all serial numbers.',
+                                confirmButtonColor: '#0284c7'
+                            });
+                            missingInLine = true;
+                            return false;
+                        }
+                    }
+                });
+                if (missingInLine) {
+                    hasInvalidRow = true;
+                    return false;
+                }
             }
 
             validRowsCount++;

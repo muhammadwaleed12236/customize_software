@@ -126,6 +126,16 @@ class SaleController extends Controller
                         $item->warehouse_id = $wid;
                         $item->save();
 
+                        $itemSerials = [];
+                        if (!empty($item->serial_numbers)) {
+                            $decoded = json_decode($item->serial_numbers, true);
+                            if (is_array($decoded)) {
+                                $itemSerials = $decoded;
+                            } else {
+                                $itemSerials = array_filter(array_map('trim', explode(',', $item->serial_numbers)));
+                            }
+                        }
+
                         $items[] = (object) [
                             'product_id'       => $item->product_id,
                             'variant_id'       => $item->variant_id ?? null,
@@ -136,6 +146,7 @@ class SaleController extends Controller
                             'discount_amount'  => (float) ($item->discount_amount ?? 0),
                             'amount'           => (float) $item->amount,
                             'warehouse_id'     => $wid,
+                            'serials'          => $itemSerials,
                         ];
                     }
                 } else {
@@ -187,6 +198,7 @@ class SaleController extends Controller
                     $whInputs = $request->input('warehouse_id') ?? [];
                     $globalWh = $request->input('global_warehouse_id');
                     $saleUnits = $request->input('sale_unit') ?? [];
+                    $serialsInputs = $request->input('item_serials') ?? $request->input('serials') ?? [];
 
                     foreach ($productIds as $i => $rawPId) {
                         $qty = (float) ($salesQtys[$i] ?? 0);
@@ -226,6 +238,21 @@ class SaleController extends Controller
 
                         $sUnit = is_array($saleUnits) ? ($saleUnits[$i] ?? null) : null;
 
+                        $rawRowSerials = is_array($serialsInputs) ? ($serialsInputs[$i] ?? null) : null;
+                        $chosenSerials = [];
+                        if (!empty($rawRowSerials)) {
+                            if (is_array($rawRowSerials)) {
+                                $chosenSerials = $rawRowSerials;
+                            } elseif (is_string($rawRowSerials)) {
+                                $decoded = json_decode($rawRowSerials, true);
+                                if (is_array($decoded)) {
+                                    $chosenSerials = $decoded;
+                                } else {
+                                    $chosenSerials = array_filter(array_map('trim', explode(',', $rawRowSerials)));
+                                }
+                            }
+                        }
+
                         $items[] = (object) [
                             'product_id'       => $pId,
                             'variant_id'       => $vId,
@@ -237,6 +264,7 @@ class SaleController extends Controller
                             'discount_amount'  => (float) ($discAmounts[$i] ?? 0),
                             'amount'           => (float) ($salesAmounts[$i] ?? 0),
                             'warehouse_id'     => $wid,
+                            'serials'          => $chosenSerials,
                         ];
                     }
 
@@ -468,7 +496,8 @@ class SaleController extends Controller
                     ]);
 
                     // Sale Item
-                    SaleItem::create([
+                    $serialString = !empty($it->serials) ? (is_array($it->serials) ? implode(', ', $it->serials) : (string)$it->serials) : null;
+                    $createdSaleItem = SaleItem::create([
                         'invoice_no'       => $sale->invoice_no,
                         'branch_id'        => $sale->branch_id,
                         'sale_id'          => $sale->id,
@@ -483,7 +512,56 @@ class SaleController extends Controller
                         'discount_percent' => (float) ($it->discount_percent ?? 0),
                         'discount_amount'  => (float) ($it->discount_amount ?? 0),
                         'amount'           => $it->amount,
+                        'serial_numbers'   => $serialString,
                     ]);
+
+                    // Update ProductSerial status to sold and link to sale & sale_item
+                    if (!empty($it->serials) && is_array($it->serials)) {
+                        foreach ($it->serials as $serialVal) {
+                            $serialVal = trim((string)$serialVal);
+                            if ($serialVal === '') continue;
+
+                            $psQuery = \App\Models\ProductSerial::where('product_id', $it->product_id)
+                                ->where('status', 'available');
+
+                            if (!empty($it->variant_id)) {
+                                $psQuery->where('variant_id', $it->variant_id);
+                            }
+
+                            if ($wid !== null) {
+                                // If serial has warehouse_id, match it; otherwise allow branch-level match
+                                $hasWhMatch = (clone $psQuery)->where('warehouse_id', $wid)->exists();
+                                if ($hasWhMatch) {
+                                    $psQuery->where('warehouse_id', $wid);
+                                }
+                            }
+
+                            $ps = $psQuery->where(function($q) use ($serialVal) {
+                                if (is_numeric($serialVal)) {
+                                    $q->where('id', (int)$serialVal)->orWhere('serial_number', $serialVal);
+                                } else {
+                                    $q->where('serial_number', $serialVal);
+                                }
+                            })->first();
+
+                            if ($ps) {
+                                $ps->update([
+                                    'status'       => 'sold',
+                                    'sale_id'      => $sale->id,
+                                    'sale_item_id' => $createdSaleItem->id,
+                                    'sale_price'   => $it->retail_price,
+                                    'sold_at'      => $entryDateTime ?? now(),
+                                    'notes'        => 'Sold via Sale Invoice #' . $sale->invoice_no,
+                                ]);
+                                Log::info('ProductSerial marked as sold', [
+                                    'serial_id' => $ps->id,
+                                    'serial_number' => $ps->serial_number,
+                                    'sale_id' => $sale->id,
+                                    'sale_item_id' => $createdSaleItem->id
+                                ]);
+                            }
+                        }
+                    }
 
                     // Stock Movement
                     StockMovement::create([
@@ -1908,6 +1986,17 @@ class SaleController extends Controller
                     }
                 }
 
+                $rawRowSerials = is_array($request->item_serials ?? $request->serials ?? null) ? (($request->item_serials ?? $request->serials)[$i] ?? null) : null;
+                $serialString = null;
+                if (!empty($rawRowSerials)) {
+                    if (is_array($rawRowSerials)) {
+                        $serialString = implode(', ', $rawRowSerials);
+                    } elseif (is_string($rawRowSerials)) {
+                        $decoded = json_decode($rawRowSerials, true);
+                        $serialString = is_array($decoded) ? implode(', ', $decoded) : $rawRowSerials;
+                    }
+                }
+
                 ProductBookingItem::create([
                     'invoice_no'       => $booking->invoice_no,
                     'booking_id'       => $booking->id,
@@ -1922,6 +2011,7 @@ class SaleController extends Controller
                     'discount_type'    => $request->discount_type[$i] ?? 'percent',
                     'amount'           => $request->sales_amount[$i] ?? 0,
                     'warehouse_id'     => $warehouseId,
+                    'serial_numbers'   => $serialString,
                 ]);
             }
 
@@ -2626,25 +2716,44 @@ public function finddc($invoice)
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
                     ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                     ->where('branch_id', $targetBranch)
-                    ->whereNull('warehouse_id')
+                    ->where(fn($q) => $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0))
                     ->sum('quantity');
                 if ($locationStock == 0) {
-                    $locationStock = (float) Stock::where('product_id', $productId)
+                    $hasWhStock = WarehouseStock::where('product_id', $productId)
                         ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                         ->where('branch_id', $targetBranch)
-                        ->sum('qty');
+                        ->whereNotNull('warehouse_id')
+                        ->where('warehouse_id', '>', 0)
+                        ->where('quantity', '>', 0)
+                        ->exists();
+                    if (!$hasWhStock) {
+                        $locationStock = (float) Stock::where('product_id', $productId)
+                            ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
+                            ->where('branch_id', $targetBranch)
+                            ->sum('qty');
+                    }
                 }
             } elseif ($location === 'branch' || $location === 'shop') {
+                $targetBranch = $branchId;
                 $locationStock = (float) WarehouseStock::where('product_id', $productId)
                     ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
-                    ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                    ->whereNull('warehouse_id')
+                    ->when($targetBranch, fn($q) => $q->where('branch_id', $targetBranch))
+                    ->where(fn($q) => $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0))
                     ->sum('quantity');
                 if ($locationStock == 0) {
-                    $locationStock = (float) Stock::where('product_id', $productId)
+                    $hasWhStock = WarehouseStock::where('product_id', $productId)
                         ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
-                        ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-                        ->sum('qty');
+                        ->when($targetBranch, fn($q) => $q->where('branch_id', $targetBranch))
+                        ->whereNotNull('warehouse_id')
+                        ->where('warehouse_id', '>', 0)
+                        ->where('quantity', '>', 0)
+                        ->exists();
+                    if (!$hasWhStock) {
+                        $locationStock = (float) Stock::where('product_id', $productId)
+                            ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
+                            ->when($targetBranch, fn($q) => $q->where('branch_id', $targetBranch))
+                            ->sum('qty');
+                    }
                 }
             } else {
                 $whId = (int) str_replace('warehouse_', '', $location);
@@ -2660,7 +2769,7 @@ public function finddc($invoice)
         if ($productId) {
             $bStocks = WarehouseStock::where('product_id', $productId)
                 ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
-                ->whereNull('warehouse_id')
+                ->where(fn($q) => $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0))
                 ->select('branch_id', DB::raw('SUM(quantity) as total_qty'))
                 ->groupBy('branch_id')
                 ->pluck('total_qty', 'branch_id')
@@ -2672,6 +2781,7 @@ public function finddc($invoice)
             $wStocks = WarehouseStock::where('product_id', $productId)
                 ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
                 ->whereNotNull('warehouse_id')
+                ->where('warehouse_id', '>', 0)
                 ->select('warehouse_id', DB::raw('SUM(quantity) as total_qty'))
                 ->groupBy('warehouse_id')
                 ->pluck('total_qty', 'warehouse_id')
@@ -2679,6 +2789,16 @@ public function finddc($invoice)
             foreach ($wStocks as $wId => $qty) {
                 $locationBreakdown['warehouse_' . $wId] = (float) $qty;
             }
+
+            // Branches that have warehouse stock allocated
+            $branchesWithWhStock = WarehouseStock::where('product_id', $productId)
+                ->when($variantId, fn($q) => $q->where('variant_id', $variantId))
+                ->whereNotNull('warehouse_id')
+                ->where('warehouse_id', '>', 0)
+                ->where('quantity', '>', 0)
+                ->pluck('branch_id')
+                ->unique()
+                ->toArray();
 
             // Also include branches from stocks table if not in warehouse_stocks
             $shopStocks = Stock::where('product_id', $productId)
@@ -2689,7 +2809,11 @@ public function finddc($invoice)
                 ->toArray();
             foreach ($shopStocks as $bId => $qty) {
                 if (!isset($locationBreakdown['branch_' . $bId])) {
-                    $locationBreakdown['branch_' . $bId] = (float) $qty;
+                    if (in_array($bId, $branchesWithWhStock)) {
+                        $locationBreakdown['branch_' . $bId] = 0.0;
+                    } else {
+                        $locationBreakdown['branch_' . $bId] = (float) $qty;
+                    }
                 }
             }
         }
@@ -2709,6 +2833,85 @@ public function finddc($invoice)
             'piece_per_pack'     => (float)($prod->piece_per_pack ?? 1),
             'unit_name'          => $prod->unit->name ?? 'Pcs',
             'price'              => $price,
+            'tracking_type'      => $prod ? ($prod->tracking_type ?? 'standard') : 'standard',
+            'is_serial'          => $prod && method_exists($prod, 'isSerial') ? $prod->isSerial() : (($prod->tracking_type ?? '') === 'serial'),
+        ]);
+    }
+
+    /**
+     * Get available serial numbers for a product/variant in stock (AJAX)
+     */
+    public function getAvailableSerials(Request $request)
+    {
+        $rawPId = $request->get('product_id');
+        $variantId = $request->get('variant_id');
+        $productId = (int)$rawPId;
+        if (is_string($rawPId) && str_contains($rawPId, '_var_')) {
+            [$pPart, $vPart] = explode('_var_', $rawPId);
+            $productId = (int) $pPart;
+            if (!$variantId && !empty($vPart)) {
+                $variantId = (int) $vPart;
+            }
+        }
+
+        $branchId = $request->get('branch_id') ?: (Auth::check() ? Auth::user()->branch_id : null);
+        $location = $request->get('location_id') ?: $request->get('warehouse_id');
+
+        if (!$productId) {
+            return response()->json(['success' => false, 'serials' => []]);
+        }
+
+        $query = \App\Models\ProductSerial::where('product_id', $productId)
+            ->where('status', 'available');
+
+        if ($variantId) {
+            $query->where('variant_id', $variantId);
+        }
+
+        if ($branchId) {
+            $query->where('branch_id', $branchId);
+        }
+
+        if (!empty($location)) {
+            $parsedWid = null;
+            if (is_string($location) && str_starts_with($location, 'warehouse_')) {
+                $parsedWid = (int) str_replace('warehouse_', '', $location);
+            } elseif (is_string($location) && (str_starts_with($location, 'branch_') || $location === 'branch' || $location === 'shop')) {
+                $parsedWid = null;
+            } elseif (is_numeric($location) && (int) $location > 0) {
+                $parsedWid = (int) $location;
+            }
+
+            if ($parsedWid !== null) {
+                // Specific warehouse requested: filter strictly by warehouse_id
+                $query->where('warehouse_id', $parsedWid);
+            } else {
+                // Shop / Counter requested: filter strictly by warehouse_id IS NULL or 0
+                $query->where(fn($q) => $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0));
+            }
+        }
+
+        $serials = $query->with('warehouse')->orderBy('id', 'asc')->get([
+            'id', 'serial_number', 'warehouse_id', 'branch_id', 'variant_id', 'status', 'sale_price', 'purchase_price'
+        ]);
+
+        $serialsData = $serials->map(function ($s) {
+            return [
+                'id'              => $s->id,
+                'serial_number'   => $s->serial_number,
+                'warehouse_id'    => $s->warehouse_id,
+                'warehouse_name'  => $s->warehouse ? ($s->warehouse->warehouse_name ?? $s->warehouse->name ?? ('Warehouse #' . $s->warehouse_id)) : 'Shop / Counter',
+                'branch_id'       => $s->branch_id,
+                'variant_id'      => $s->variant_id,
+                'status'          => $s->status,
+                'sale_price'      => $s->sale_price,
+                'purchase_price'  => $s->purchase_price,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'serials' => $serialsData
         ]);
     }
 
