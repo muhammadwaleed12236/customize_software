@@ -10,6 +10,17 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // 🔒 STRICT SAFETY GUARD FOR MULTI-SOFTWARE / MULTI-CLIENT REPOSITORIES
+        // Ensure this migration ONLY runs on the specific "AL KARAM AUTO" instance
+        // If this codebase is pulled by another client/software, it will silently SKIP and do NOTHING.
+        $isAlKaramInstance = DB::table('branches')->where('id', 4)->where('name', 'like', '%AL KARAM%')->exists()
+            && DB::table('warehouses')->where('id', 3)->where('warehouse_name', 'like', '%ALK-G#2%')->exists();
+
+        if (!$isAlKaramInstance) {
+            // Not Al-Karam database instance -> Safely exit without modifying any data!
+            return;
+        }
+
         DB::transaction(function () {
             $now = now();
 
