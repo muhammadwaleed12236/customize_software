@@ -2092,13 +2092,6 @@ public function searchProductsForSalebypagination(Request $request)
                           ->whereColumn('stock_movements.product_id', 'products.id')
                           ->whereIn('stock_movements.ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
                           ->when($branchId && $branchId !== 'all', fn($sm) => $sm->where('branch_id', (int) $branchId));
-                  })
-                  ->orWhereExists(function ($sub2) use ($branchId) {
-                      $sub2->select(DB::raw(1))
-                          ->from('warehouse_stocks')
-                          ->whereColumn('warehouse_stocks.product_id', 'products.id')
-                          ->where('warehouse_stocks.quantity', '>', 0)
-                          ->when($branchId && $branchId !== 'all', fn($ws) => $ws->where('branch_id', (int) $branchId));
                   });
             });
         } elseif ($status === 'pending') {
@@ -3495,15 +3488,14 @@ public function searchProductsForSalebypagination(Request $request)
                 }
                 $openingMovementQty = (float) $openingMoveQuery->sum('qty');
 
+                // If no opening movement record, check product->initial_stock
+                if ($openingMovementQty <= 0 && (float) ($product->initial_stock ?? 0) > 0) {
+                    $openingMovementQty = (float) $product->initial_stock;
+                }
+
+                // Guard: If this product never had opening stock, abort! Do NOT delete purchase stock!
                 if ($openingMovementQty <= 0) {
-                    $whSumQuery = DB::table('warehouse_stocks')
-                        ->where('product_id', $id)
-                        ->where('branch_id', $branchId);
-                    if ($variantId) {
-                        $whSumQuery->where('variant_id', $variantId);
-                    }
-                    $whSum = (float) $whSumQuery->sum('quantity');
-                    $openingMovementQty = $whSum > 0 ? $whSum : (float) ($product->initial_stock ?? 0);
+                    throw new \Exception("Is product ka koi opening stock nahi hai. Iska stock purchases ya transfers se aya hai aur yahan se delete nahi kiya ja sakta.");
                 }
 
                 // 2. Decrement branch stock in stocks table
@@ -3527,14 +3519,32 @@ public function searchProductsForSalebypagination(Request $request)
                         ]);
                 }
 
-                // 3. Delete warehouse_stocks allocations for this branch (and variant if specified)
-                $delWhQuery = DB::table('warehouse_stocks')
+                // 3. Deduct ONLY opening stock from warehouse_stocks (DO NOT delete purchase stock rows!)
+                $remainingToDeduct = $openingMovementQty;
+                $whStocksQuery = DB::table('warehouse_stocks')
                     ->where('product_id', $id)
                     ->where('branch_id', $branchId);
                 if ($variantId) {
-                    $delWhQuery->where('variant_id', $variantId);
+                    $whStocksQuery->where('variant_id', $variantId);
                 }
-                $delWhQuery->delete();
+                $whStocks = $whStocksQuery->orderBy('quantity', 'desc')->get();
+
+                foreach ($whStocks as $ws) {
+                    if ($remainingToDeduct <= 0) break;
+                    $currentQty = (float) $ws->quantity;
+                    if ($currentQty <= 0) continue;
+
+                    $deduct = min($currentQty, $remainingToDeduct);
+                    $newQty = $currentQty - $deduct;
+                    $remainingToDeduct -= $deduct;
+
+                    DB::table('warehouse_stocks')
+                        ->where('id', $ws->id)
+                        ->update([
+                            'quantity'   => $newQty,
+                            'updated_at' => now(),
+                        ]);
+                }
 
                 // Delete product_serials if serial-tracked
                 $delSerQuery = DB::table('product_serials')
