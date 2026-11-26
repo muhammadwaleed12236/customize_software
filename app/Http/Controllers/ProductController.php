@@ -18,6 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Milon\Barcode\DNS1D;
 use App\Http\Controllers\Concerns\BranchScope;
+use Carbon\Carbon;
 
 
 class ProductController extends Controller
@@ -2168,6 +2169,13 @@ public function searchProductsForSalebypagination(Request $request)
                     $colorLabel = $pv->color ? " ({$pv->color})" : '';
                     $rowTitle = $product->item_name . $colorLabel;
 
+                    $vMov = $movements->firstWhere('variant_id', $pv->id) ?? $movements->first();
+                    $dateObj = $vMov 
+                        ? Carbon::parse($vMov->created_at ?? $vMov->updated_at) 
+                        : ($product->updated_at ? Carbon::parse($product->updated_at) : null);
+                    $formattedDate = $dateObj ? $dateObj->format('d M Y, h:i A') : '-';
+                    $rawDate = $dateObj ? $dateObj->timestamp : 0;
+
                     $variantRows[] = (object) [
                         'id'                 => $product->id,
                         'variant_id'         => $pv->id,
@@ -2191,7 +2199,8 @@ public function searchProductsForSalebypagination(Request $request)
                         'valuation'          => $vValuation,
                         'allocations'        => $vAllocations,
                         'completion_status'  => $product->completion_status,
-                        'updated_at'         => $product->updated_at ? $product->updated_at->format('d M Y, h:i A') : '-',
+                        'updated_at'         => $formattedDate,
+                        'updated_at_raw'     => $rawDate,
                     ];
                 }
 
@@ -2230,6 +2239,13 @@ public function searchProductsForSalebypagination(Request $request)
             $retailPrice    = (float) ($product->price ?? 0);
             $valuation      = $openingQty * $wholesalePrice;
 
+            $firstMov = $movements->first();
+            $dateObj = $firstMov 
+                ? Carbon::parse($firstMov->created_at ?? $firstMov->updated_at) 
+                : ($product->updated_at ? Carbon::parse($product->updated_at) : null);
+            $formattedDate = $dateObj ? $dateObj->format('d M Y, h:i A') : '-';
+            $rawDate = $dateObj ? $dateObj->timestamp : 0;
+
             return [(object) [
                 'id'                 => $product->id,
                 'variant_id'         => null,
@@ -2253,7 +2269,8 @@ public function searchProductsForSalebypagination(Request $request)
                 'valuation'          => $valuation,
                 'allocations'        => $allocations,
                 'completion_status'  => $product->completion_status,
-                'updated_at'         => $product->updated_at ? $product->updated_at->format('d M Y, h:i A') : '-',
+                'updated_at'         => $formattedDate,
+                'updated_at_raw'     => $rawDate,
             ]];
         });
 
@@ -2501,8 +2518,13 @@ public function searchProductsForSalebypagination(Request $request)
             return response()->json(['error' => 'No rows submitted.'], 422);
         }
 
+        $stockDate = $request->input('stock_date');
+        $stockDateTime = $stockDate 
+            ? Carbon::parse($stockDate)->setTime((int)now()->format('H'), (int)now()->format('i'), (int)now()->format('s')) 
+            : now();
+
         try {
-            DB::transaction(function () use ($rows, $branchId) {
+            DB::transaction(function () use ($rows, $branchId, $stockDateTime) {
                 // Group submitted rows by product_id to support multiple variant rows per product
                 $grouped = [];
                 foreach ($rows as $row) {
@@ -2598,7 +2620,9 @@ public function searchProductsForSalebypagination(Request $request)
                         'alert_quantity'    => $alertQty,
                         'initial_stock'     => $openingPieces,
                         'completion_status' => 'complete',
+                        'updated_at'        => $stockDateTime,
                     ]);
+                    DB::table('products')->where('id', $productId)->update(['updated_at' => $stockDateTime]);
 
                     // Single clean OPENING stock movement in base pieces
                     if ($existingOpening) {
@@ -2607,7 +2631,8 @@ public function searchProductsForSalebypagination(Request $request)
                             'type'       => 'in',
                             'ref_type'   => 'OPENING',
                             'note'       => 'Opening stock entry',
-                            'updated_at' => now(),
+                            'created_at' => $stockDateTime,
+                            'updated_at' => $stockDateTime,
                         ]);
                     } else {
                         DB::table('stock_movements')->insert([
@@ -2618,8 +2643,8 @@ public function searchProductsForSalebypagination(Request $request)
                             'ref_type'    => 'OPENING',
                             'ref_id'      => null,
                             'note'        => 'Opening stock entry',
-                            'created_at'  => now(),
-                            'updated_at'  => now(),
+                            'created_at'  => $stockDateTime,
+                            'updated_at'  => $stockDateTime,
                         ]);
                     }
 
@@ -2643,7 +2668,8 @@ public function searchProductsForSalebypagination(Request $request)
                             if ($existingVarOpening) {
                                 $existingVarOpening->update([
                                     'qty'        => $vQty,
-                                    'updated_at' => now(),
+                                    'created_at' => $stockDateTime,
+                                    'updated_at' => $stockDateTime,
                                 ]);
                             } else {
                                 DB::table('stock_movements')->insert([
@@ -2655,8 +2681,8 @@ public function searchProductsForSalebypagination(Request $request)
                                     'ref_type'    => 'OPENING',
                                     'ref_id'      => null,
                                     'note'        => 'Opening stock entry',
-                                    'created_at'  => now(),
-                                    'updated_at'  => now(),
+                                    'created_at'  => $stockDateTime,
+                                    'updated_at'  => $stockDateTime,
                                 ]);
                             }
 
@@ -2719,7 +2745,7 @@ public function searchProductsForSalebypagination(Request $request)
                     }
 
                     // Upsert warehouse_stocks in base pieces
-                    $this->applyWarehouseAllocation($productId, $branchId, $retail, $allocPiecesData, $openingPieces);
+                    $this->applyWarehouseAllocation($productId, $branchId, $retail, $allocPiecesData, $openingPieces, $stockDateTime);
 
                     // Save serial numbers if product is serial tracked
                     if ($product->isSerial() && !empty($group['alloc_items'])) {
@@ -2935,10 +2961,22 @@ public function searchProductsForSalebypagination(Request $request)
             }
         }
 
+        // Fetch existing opening movement to get the recorded stock date
+        $existingOpeningMovement = StockMovement::where('product_id', $id)
+            ->where('branch_id', $selectedBranchId)
+            ->whereIn('ref_type', ['OPENING', 'OPENING_ADJ', 'INITIAL_STOCK'])
+            ->when($selectedVariant, fn($q) => $q->where('variant_id', $selectedVariant->id))
+            ->orderBy('id', 'desc')
+            ->first();
+
+        $existingStockDate = $existingOpeningMovement
+            ? Carbon::parse($existingOpeningMovement->created_at)->format('Y-m-d')
+            : ($product->updated_at ? Carbon::parse($product->updated_at)->format('Y-m-d') : date('Y-m-d'));
+
         return view('admin_panel.product.opening-stock-edit', compact(
             'product', 'selectedVariant', 'isSuperAdmin', 'allBranches', 'availableBranches',
             'warehouses', 'currentAllocs', 'currentStock', 'selectedBranchId',
-            'selectedBranch', 'globalStockSummary', 'existingSerials'
+            'selectedBranch', 'globalStockSummary', 'existingSerials', 'existingStockDate'
         ));
     }
 
@@ -2965,6 +3003,10 @@ public function searchProductsForSalebypagination(Request $request)
         $wholesale = (float) $request->input('wholesale_price', 0);
         $retail    = (float) $request->input('retail_price', 0);
         $allocData = json_decode($request->input('allocation_data', '[]'), true) ?? [];
+        $stockDate = $request->input('stock_date');
+        $stockDateTime = $stockDate 
+            ? Carbon::parse($stockDate)->setTime((int)now()->format('H'), (int)now()->format('i'), (int)now()->format('s')) 
+            : now();
 
         if ($variantId) {
             foreach ($allocData as &$al) {
@@ -2997,11 +3039,12 @@ public function searchProductsForSalebypagination(Request $request)
 
         $delta = $newPieces - $oldOpeningQty;
 
-        DB::transaction(function () use ($product, $id, $branchId, $variantId, $delta, $newPieces, $alertQty, $wholesale, $retail, $allocData, $multiplier) {
+        DB::transaction(function () use ($product, $id, $branchId, $variantId, $delta, $newPieces, $alertQty, $wholesale, $retail, $allocData, $multiplier, $stockDateTime) {
             // Update product master record
             $productUpdates = [
                 'alert_quantity'    => $alertQty,
                 'completion_status' => 'complete',
+                'updated_at'        => $stockDateTime,
             ];
             if (!$variantId) {
                 $productUpdates['wholesale_price'] = $wholesale;
@@ -3009,6 +3052,7 @@ public function searchProductsForSalebypagination(Request $request)
                 $productUpdates['initial_stock']   = $newPieces;
             }
             $product->update($productUpdates);
+            DB::table('products')->where('id', $id)->update(['updated_at' => $stockDateTime]);
 
             // Update variant-specific pricing if variant selected
             if ($variantId) {
@@ -3106,7 +3150,8 @@ public function searchProductsForSalebypagination(Request $request)
                         'qty'        => $newPieces,
                         'type'       => 'in',
                         'note'       => 'Opening stock entry',
-                        'updated_at' => now(),
+                        'created_at' => $stockDateTime,
+                        'updated_at' => $stockDateTime,
                     ]);
                 } else {
                     $existingOpening->delete();
@@ -3121,8 +3166,8 @@ public function searchProductsForSalebypagination(Request $request)
                     'ref_type'   => 'OPENING',
                     'ref_id'     => null,
                     'note'       => 'Opening stock entry',
-                    'created_at' => now(),
-                    'updated_at' => now(),
+                    'created_at' => $stockDateTime,
+                    'updated_at' => $stockDateTime,
                 ]);
             }
 
@@ -3145,7 +3190,7 @@ public function searchProductsForSalebypagination(Request $request)
                     'quantity'      => ((float) ($alloc['quantity'] ?? 0)) * $multiplier,
                 ];
             }
-            $this->applyWarehouseAllocation($id, $branchId, $retail, $allocPieces, $newPieces);
+            $this->applyWarehouseAllocation($id, $branchId, $retail, $allocPieces, $newPieces, $stockDateTime);
 
             // Save serial numbers if product is serial-tracked
             if ($product->isSerial() && !empty($allocData)) {
@@ -3317,9 +3362,9 @@ public function searchProductsForSalebypagination(Request $request)
     /**
      * Helper: Apply warehouse allocation data
      */
-    private function applyWarehouseAllocation(int $productId, int $branchId, float $price, array $allocData, float $totalQty): void
+    private function applyWarehouseAllocation(int $productId, int $branchId, float $price, array $allocData, float $totalQty, ?Carbon $dateTime = null): void
     {
-        $now = now();
+        $now = $dateTime ?: now();
 
         // Group allocations by location and variant to aggregate duplicate entries cleanly
         $grouped = [];

@@ -4013,6 +4013,7 @@ class ReportingController extends Controller
         $retailRate = (float) (($variant && (float)$variant->retail_price > 0) ? $variant->retail_price : ($product->price ?? 0));
         $ppp = (float) ($product->piece_per_pack > 1 ? $product->piece_per_pack : 1);
         $isCartonProd = ($ppp > 1);
+        $unitName = $product->unit?->name ?? 'Pcs';
         $costPerPiece = $isCartonProd ? ($costRate / $ppp) : $costRate;
         $retailPerPiece = $isCartonProd ? ($retailRate / $ppp) : $retailRate;
         $startDt = $startDate . ' 00:00:00';
@@ -4732,9 +4733,9 @@ class ReportingController extends Controller
             $ev['valuation_rate'] = $costPerPiece;
             $ev['balance_value'] = $runningBalance * $costPerPiece;
 
-            $ev['in_qty_display'] = $inQ > 0 ? Product::formatCartonPieces($inQ, $ppp, $product->unit?->name) : '-';
-            $ev['out_qty_display'] = $outQ > 0 ? Product::formatCartonPieces($outQ, $ppp, $product->unit?->name) : '-';
-            $ev['balance_qty_display'] = Product::formatCartonPieces($runningBalance, $ppp, $product->unit?->name);
+            $ev['in_qty_display'] = $inQ > 0 ? Product::formatCartonPieces($inQ, $ppp, $unitName) : '-';
+            $ev['out_qty_display'] = $outQ > 0 ? Product::formatCartonPieces($outQ, $ppp, $unitName) : '-';
+            $ev['balance_qty_display'] = Product::formatCartonPieces($runningBalance, $ppp, $unitName);
 
             $totalInQty += $inQ;
             $totalInValue += (float) $ev['in_total'];
@@ -4768,7 +4769,7 @@ class ReportingController extends Controller
                 'category'          => $product->category_relation->name ?? '-',
                 'subcategory'       => $product->sub_category_relation->name ?? '-',
                 'brand'             => $product->brand->name ?? '-',
-                'unit'              => $product->unit->name ?? 'Pcs',
+                'unit'              => $unitName,
                 'piece_per_pack'    => $ppp,
                 'is_carton'         => $isCartonProd,
                 'cost_per_piece'    => $costPerPiece,
@@ -4787,16 +4788,16 @@ class ReportingController extends Controller
             ],
             'summary'   => [
                 'opening_qty'          => $openingQty,
-                'opening_qty_display'  => Product::formatCartonPieces($openingQty, $ppp, $product->unit?->name),
+                'opening_qty_display'  => Product::formatCartonPieces($openingQty, $ppp, $unitName),
                 'opening_value'        => $openingValue,
                 'total_in_qty'         => $totalInQty,
-                'total_in_qty_display' => Product::formatCartonPieces($totalInQty, $ppp, $product->unit?->name),
+                'total_in_qty_display' => Product::formatCartonPieces($totalInQty, $ppp, $unitName),
                 'total_in_value'       => $totalInValue,
                 'total_out_qty'        => $totalOutQty,
-                'total_out_qty_display'=> Product::formatCartonPieces($totalOutQty, $ppp, $product->unit?->name),
+                'total_out_qty_display'=> Product::formatCartonPieces($totalOutQty, $ppp, $unitName),
                 'total_out_value'      => $totalOutValue,
                 'closing_qty'          => $closingQty,
-                'closing_qty_display'  => Product::formatCartonPieces($closingQty, $ppp, $product->unit?->name),
+                'closing_qty_display'  => Product::formatCartonPieces($closingQty, $ppp, $unitName),
                 'closing_value'        => $closingValue,
             ],
             'events'    => $events,

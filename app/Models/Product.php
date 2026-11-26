@@ -159,9 +159,9 @@ class Product extends Model
      * e.g. 50 pcs with 10 ppp -> "5 Ctn"
      * e.g. 5 pcs with 10 ppp  -> "5 Pcs"
      */
-    public static function formatCartonPieces(float $qty, float $ppp = 1, string $unitName = 'Ctn'): string
+    public static function formatCartonPieces(float $qty, float $ppp = 1, ?string $unitName = 'Ctn'): string
     {
-        $unitClean = trim($unitName ?: 'Ctn');
+        $unitClean = trim($unitName ?? 'Ctn');
         if ($ppp <= 1 || !self::isCartonUnit($unitClean)) {
             return number_format($qty, 2);
         }
@@ -171,7 +171,7 @@ class Product extends Model
         $cartons    = (int) floor($absQty / $ppp);
         $loose      = round($absQty - ($cartons * $ppp), 2);
 
-        $unitClean = trim($unitName ?: 'Ctn');
+        $unitClean = trim($unitName ?? 'Ctn');
         if (preg_match('/carton/i', $unitClean)) {
             $unitClean = 'Ctn';
         }

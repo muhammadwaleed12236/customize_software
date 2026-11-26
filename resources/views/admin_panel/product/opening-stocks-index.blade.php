@@ -817,7 +817,7 @@
                         <td class="val-cell">
                             ₨ {{ number_format($item->valuation, 2) }}
                         </td>
-                        <td style="font-size: 11.5px; color: #64748b; white-space: nowrap;">
+                        <td style="font-size: 11.5px; color: #64748b; white-space: nowrap;" data-order="{{ $item->updated_at_raw ?? 0 }}">
                             {{ $item->updated_at }}
                         </td>
                         <td style="text-align: center; width: 130px; min-width: 130px;">

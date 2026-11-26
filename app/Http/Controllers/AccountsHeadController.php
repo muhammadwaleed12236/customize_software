@@ -751,11 +751,15 @@ class AccountsHeadController extends Controller
         });
         $rvs = $rvQuery->orderBy('id', 'asc')->get();
 
+        $dateSynced = false;
         $unrecordedReceipts = [];
         foreach ($rvs as $rv) {
+            $rvDate = $rv->receipt_date ?: ($rv->entry_date ?: ($rv->created_at ? $rv->created_at->toDateString() : now()->toDateString()));
+            $rvDate = is_string($rvDate) ? explode(' ', $rvDate)[0] : now()->toDateString();
+
             $rowAmt = $getAccountAmount($rv->row_account_id, $rv->amount, $rv->total_amount, $accountId);
             if ($rowAmt > 0) {
-                $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                $rowEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where('voucher_type', 'receipt')
                     ->where(function($q) use ($rv) {
                         $conditions = [];
@@ -777,20 +781,29 @@ class AccountsHeadController extends Controller
                         }
                     })
                     ->where('debit', '>', 0)
-                    ->exists();
+                    ->get();
 
-                if (!$alreadyRecordedRow) {
+                if ($rowEntries->isEmpty()) {
                     $unrecordedReceipts[] = [
                         'rv'     => $rv,
                         'amount' => $rowAmt,
                         'side'   => 'row',
                     ];
+                } else {
+                    foreach ($rowEntries as $re) {
+                        $cDate = substr((string)$re->transaction_date, 0, 10);
+                        if ($cDate !== $rvDate) {
+                            $re->transaction_date = $rvDate;
+                            $re->save();
+                            $dateSynced = true;
+                        }
+                    }
                 }
             }
 
             $partyAmt = $getPartyAccountAmount($rv, $accountId);
             if ($partyAmt > 0) {
-                $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                $partyEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where('voucher_type', 'receipt')
                     ->where(function($q) use ($rv) {
                         $conditions = [];
@@ -812,14 +825,23 @@ class AccountsHeadController extends Controller
                         }
                     })
                     ->where('credit', '>', 0)
-                    ->exists();
+                    ->get();
 
-                if (!$alreadyRecordedParty) {
+                if ($partyEntries->isEmpty()) {
                     $unrecordedReceipts[] = [
                         'rv'     => $rv,
                         'amount' => $partyAmt,
                         'side'   => 'party',
                     ];
+                } else {
+                    foreach ($partyEntries as $pe) {
+                        $cDate = substr((string)$pe->transaction_date, 0, 10);
+                        if ($cDate !== $rvDate) {
+                            $pe->transaction_date = $rvDate;
+                            $pe->save();
+                            $dateSynced = true;
+                        }
+                    }
                 }
             }
         }
@@ -880,9 +902,12 @@ class AccountsHeadController extends Controller
 
         $unrecordedPayments = [];
         foreach ($pvs as $pv) {
+            $pvDate = $pv->receipt_date ?: ($pv->entry_date ?: ($pv->created_at ? $pv->created_at->toDateString() : now()->toDateString()));
+            $pvDate = is_string($pvDate) ? explode(' ', $pvDate)[0] : now()->toDateString();
+
             $rowAmt = $getAccountAmount($pv->row_account_id, $pv->amount, $pv->total_amount, $accountId);
             if ($rowAmt > 0) {
-                $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                $rowEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where('voucher_type', 'payment')
                     ->where(function($q) use ($pv) {
                         $conditions = [];
@@ -904,20 +929,29 @@ class AccountsHeadController extends Controller
                         }
                     })
                     ->where('credit', '>', 0)
-                    ->exists();
+                    ->get();
 
-                if (!$alreadyRecordedRow) {
+                if ($rowEntries->isEmpty()) {
                     $unrecordedPayments[] = [
                         'pv'     => $pv,
                         'amount' => $rowAmt,
                         'side'   => 'row',
                     ];
+                } else {
+                    foreach ($rowEntries as $re) {
+                        $cDate = substr((string)$re->transaction_date, 0, 10);
+                        if ($cDate !== $pvDate) {
+                            $re->transaction_date = $pvDate;
+                            $re->save();
+                            $dateSynced = true;
+                        }
+                    }
                 }
             }
 
             $partyAmt = $getPartyAccountAmount($pv, $accountId);
             if ($partyAmt > 0) {
-                $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                $partyEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where('voucher_type', 'payment')
                     ->where(function($q) use ($pv) {
                         $conditions = [];
@@ -939,14 +973,23 @@ class AccountsHeadController extends Controller
                         }
                     })
                     ->where('debit', '>', 0)
-                    ->exists();
+                    ->get();
 
-                if (!$alreadyRecordedParty) {
+                if ($partyEntries->isEmpty()) {
                     $unrecordedPayments[] = [
                         'pv'     => $pv,
                         'amount' => $partyAmt,
                         'side'   => 'party',
                     ];
+                } else {
+                    foreach ($partyEntries as $pe) {
+                        $cDate = substr((string)$pe->transaction_date, 0, 10);
+                        if ($cDate !== $pvDate) {
+                            $pe->transaction_date = $pvDate;
+                            $pe->save();
+                            $dateSynced = true;
+                        }
+                    }
                 }
             }
         }
@@ -986,10 +1029,13 @@ class AccountsHeadController extends Controller
 
         $unrecordedExpenses = [];
         foreach ($evs as $ev) {
+            $evDate = $ev->entry_date ?: ($ev->created_at ? $ev->created_at->toDateString() : now()->toDateString());
+            $evDate = is_string($evDate) ? explode(' ', $evDate)[0] : now()->toDateString();
+
             $rowAmt = $getAccountAmount($ev->row_account_id, $ev->amount, $ev->total_amount, $accountId);
             if ($rowAmt > 0) {
                 // ✅ Fixed: Match by voucher_type and specific voucher_no to avoid cross-table ID collisions
-                $alreadyRecordedRow = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                $rowEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where('voucher_type', 'expense')
                     ->where(function($q) use ($ev) {
                         if (!empty($ev->evid)) {
@@ -998,21 +1044,30 @@ class AccountsHeadController extends Controller
                             $q->where('voucher_id', $ev->id);
                         }
                     })
-                    ->exists();
+                    ->get();
 
-                if (!$alreadyRecordedRow) {
+                if ($rowEntries->isEmpty()) {
                     $unrecordedExpenses[] = [
                         'ev'     => $ev,
                         'amount' => $rowAmt,
                         'side'   => 'row',
                     ];
+                } else {
+                    foreach ($rowEntries as $re) {
+                        $cDate = substr((string)$re->transaction_date, 0, 10);
+                        if ($cDate !== $evDate) {
+                            $re->transaction_date = $evDate;
+                            $re->save();
+                            $dateSynced = true;
+                        }
+                    }
                 }
             }
 
             $partyAmt = $getPartyAccountAmount($ev, $accountId);
             if ($partyAmt > 0) {
                 // ✅ Fixed: Match by voucher_type and specific voucher_no to avoid cross-table ID collisions
-                $alreadyRecordedParty = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
+                $partyEntries = \App\Models\AccountLedgerEntry::where('account_id', $accountId)
                     ->where('voucher_type', 'expense')
                     ->where(function($q) use ($ev) {
                         if (!empty($ev->evid)) {
@@ -1021,14 +1076,23 @@ class AccountsHeadController extends Controller
                             $q->where('voucher_id', $ev->id);
                         }
                     })
-                    ->exists();
+                    ->get();
 
-                if (!$alreadyRecordedParty) {
+                if ($partyEntries->isEmpty()) {
                     $unrecordedExpenses[] = [
                         'ev'     => $ev,
                         'amount' => $partyAmt,
                         'side'   => 'party',
                     ];
+                } else {
+                    foreach ($partyEntries as $pe) {
+                        $cDate = substr((string)$pe->transaction_date, 0, 10);
+                        if ($cDate !== $evDate) {
+                            $pe->transaction_date = $evDate;
+                            $pe->save();
+                            $dateSynced = true;
+                        }
+                    }
                 }
             }
         }
@@ -1076,6 +1140,9 @@ class AccountsHeadController extends Controller
         // If nothing unrecorded and an OB entry exists, no action needed
         $hasAnyEntry = \App\Models\AccountLedgerEntry::where('account_id', $accountId)->exists();
         if ($hasAnyEntry && empty($unrecordedReceipts) && empty($unrecordedPayments) && empty($unrecordedExpenses) && empty($unrecordedSaleReturns)) {
+            if ($dateSynced) {
+                \App\Models\AccountLedgerEntry::recalculateRunningBalance($accountId);
+            }
             return;
         }
 

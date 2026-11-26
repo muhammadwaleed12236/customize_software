@@ -866,7 +866,12 @@
                         <p class="ose-table-sub">Manage locations, quantities and pricing for this product</p>
                     </div>
                 </div>
-                <div class="ose-card-header-right">
+                <div class="ose-card-header-right" style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
+                    <div style="display: flex; align-items: center; gap: 6px; background: #ffffff; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 4px 10px;">
+                        <i class="fas fa-calendar-alt text-primary" style="font-size: 13px;"></i>
+                        <span style="font-size: 12px; font-weight: 800; color: #334155;">Opening Date:</span>
+                        <input type="date" name="stock_date" id="stock_date_input" value="{{ $existingStockDate ?? date('Y-m-d') }}" style="border: none; outline: none; font-size: 12.5px; font-weight: 700; color: #1e293b; background: transparent; cursor: pointer;">
+                    </div>
                     <button type="button" class="btn-add-location" onclick="addNewLocationRow()">
                         <i class="fas fa-plus"></i> Add Location
                     </button>

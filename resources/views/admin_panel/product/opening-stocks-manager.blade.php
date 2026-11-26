@@ -172,6 +172,36 @@
         font-size: 10px;
         pointer-events: none;
     }
+    .osm-date-box {
+        position: relative;
+        min-width: 175px;
+    }
+    .osm-date-box input[type="date"] {
+        width: 100%;
+        border: 1.5px solid var(--osm-border);
+        border-radius: 8px;
+        padding: 7px 12px 7px 34px;
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--osm-dark);
+        background: #ffffff;
+        outline: none;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .osm-date-box input[type="date"]:focus {
+        border-color: #0284c7;
+        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+    }
+    .osm-date-box .b-icon {
+        position: absolute;
+        left: 11px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #0284c7;
+        font-size: 12.5px;
+        pointer-events: none;
+    }
     .osm-branch-info-pill {
         background: #eff6ff;
         border: 1px solid #bfdbfe;
@@ -677,7 +707,7 @@
         </div>
     </div>
 
-    {{-- ── 2. Target Branch Bar ── --}}
+    {{-- ── 2. Target Branch & Date Bar ── --}}
     <div class="osm-branch-bar">
         <label class="osm-branch-label" for="branch_selector">
             Target Branch <span class="text-danger">*</span>
@@ -698,9 +728,20 @@
             </select>
             <i class="fas fa-chevron-down b-arrow"></i>
         </div>
+
+        <div style="width: 1px; height: 26px; background: #e2e8f0; margin: 0 6px;" class="d-none d-md-block"></div>
+
+        <label class="osm-branch-label" for="stock_date_selector">
+            <i class="fas fa-calendar-alt text-primary"></i> Opening Date <span class="text-danger">*</span>
+        </label>
+        <div class="osm-date-box">
+            <i class="fas fa-calendar-day b-icon"></i>
+            <input type="date" id="stock_date_selector" value="{{ date('Y-m-d') }}">
+        </div>
+
         <div class="osm-branch-info-pill">
             <i class="fas fa-info-circle"></i>
-            Stock allocations will be recorded for the selected branch.
+            Stock allocations will be recorded for the selected branch &amp; date.
         </div>
     </div>
 
@@ -708,6 +749,7 @@
     <form id="osmForm" method="POST" action="{{ route('opening.stocks.store') }}">
         @csrf
         <input type="hidden" name="branch_id" id="form_branch_id" value="{{ $userBranchId }}">
+        <input type="hidden" name="stock_date" id="form_stock_date" value="{{ date('Y-m-d') }}">
 
         <div class="osm-card-wrapper">
             <div class="osm-table-responsive">
@@ -1265,6 +1307,11 @@ $(document).ready(function() {
         $('#osm_rows .product-sel').val(null).trigger('change');
     });
 
+    /* Opening stock date selector change */
+    $('#stock_date_selector').on('change', function() {
+        $('#form_stock_date').val($(this).val());
+    });
+
     function rebuildAllocDropdowns() {
         var newOpts = buildLocOpts();
         $('#osm_rows .alloc-type').each(function() {
@@ -1702,6 +1749,9 @@ $(document).ready(function() {
 
         var $btn = $('#btn_submit_all');
         $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Saving Opening Stocks…');
+
+        // Sync opening stock date to form before submit
+        $('#form_stock_date').val($('#stock_date_selector').val() || '{{ date('Y-m-d') }}');
 
         $.ajax({
             url: $(this).attr('action'),
