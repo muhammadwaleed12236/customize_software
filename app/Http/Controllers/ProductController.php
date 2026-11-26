@@ -3265,11 +3265,17 @@ public function searchProductsForSalebypagination(Request $request)
             $purQ->where(function ($q) use ($warehouseId) {
                 $q->where('purchase_items.warehouse_id', $warehouseId)
                   ->orWhere(function ($sq) use ($warehouseId) {
-                      $sq->whereNull('purchase_items.warehouse_id')->where('purchases.warehouse_id', $warehouseId);
+                      $sq->where(function ($sub) {
+                          $sub->whereNull('purchase_items.warehouse_id')->orWhere('purchase_items.warehouse_id', 0);
+                      })->where('purchases.warehouse_id', $warehouseId);
                   });
             });
         } else {
-            $purQ->whereNull('purchase_items.warehouse_id')->whereNull('purchases.warehouse_id');
+            $purQ->where(function ($q) {
+                $q->whereNull('purchase_items.warehouse_id')->orWhere('purchase_items.warehouse_id', 0);
+            })->where(function ($q) {
+                $q->whereNull('purchases.warehouse_id')->orWhere('purchases.warehouse_id', 0);
+            });
         }
 
         $purchases = 0.0;
@@ -3290,7 +3296,9 @@ public function searchProductsForSalebypagination(Request $request)
         if ($warehouseId !== null) {
             $saleQ->where('sale_items.warehouse_id', $warehouseId);
         } else {
-            $saleQ->whereNull('sale_items.warehouse_id');
+            $saleQ->where(function ($q) {
+                $q->whereNull('sale_items.warehouse_id')->orWhere('sale_items.warehouse_id', 0);
+            });
         }
 
         $sales = 0.0;
@@ -3351,7 +3359,9 @@ public function searchProductsForSalebypagination(Request $request)
             if ($warehouseId !== null) {
                 $dmgQ->where('warehouse_id', $warehouseId);
             } else {
-                $dmgQ->whereNull('warehouse_id');
+                $dmgQ->where(function ($q) {
+                    $q->whereNull('warehouse_id')->orWhere('warehouse_id', 0);
+                });
             }
             $damaged = (float) $dmgQ->sum('quantity');
         }
@@ -3410,7 +3420,9 @@ public function searchProductsForSalebypagination(Request $request)
                 ->where('branch_id', $branchId)
                 ->where('product_id', $productId);
             if ($whId === null) {
-                $q->whereNull('warehouse_id');
+                $q->where(function ($sub) {
+                    $sub->whereNull('warehouse_id')->orWhere('warehouse_id', 0);
+                });
             } else {
                 $q->where('warehouse_id', $whId);
             }

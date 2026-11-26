@@ -526,10 +526,15 @@
             </div>
 
             {{-- Metadata Bar: Invoice No & Date --}}
+            @php
+                $invoiceNoVal = (($settings->invoice_no_format ?? 'full') === 'number') 
+                    ? (preg_replace('/^[^0-9]+/', '', (string)($sale->invoice_no ?? '')) ?: $sale->invoice_no) 
+                    : $sale->invoice_no;
+            @endphp
             <div class="meta-bar">
                 <div>
-                    <span class="inv-num-label">No:</span>
-                    <span class="inv-num-val">{{ $sale->invoice_no }}</span>
+                    <span class="inv-num-label">{{ (($settings->invoice_title_type ?? 'invoice') === 'estimate') ? 'Estimate No:' : 'No:' }}</span>
+                    <span class="inv-num-val">{{ $invoiceNoVal }}</span>
                 </div>
                 <div class="date-box">
                     <span class="date-label">Date:</span>

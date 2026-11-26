@@ -52,6 +52,12 @@ class SaleSettingController extends Controller
             if ($request->has('invoice_customer_name_format')) {
                 $data['invoice_customer_name_format'] = $request->input('invoice_customer_name_format', 'both');
             }
+            if ($request->has('invoice_title_type')) {
+                $data['invoice_title_type'] = $request->input('invoice_title_type', 'invoice');
+            }
+            if ($request->has('invoice_no_format')) {
+                $data['invoice_no_format'] = $request->input('invoice_no_format', 'full');
+            }
         }
 
         // Handle invoice logo upload
@@ -71,13 +77,15 @@ class SaleSettingController extends Controller
     }
 
     /**
-     * Quick AJAX update for invoice customer name format & pcs display format.
+     * Quick AJAX update for invoice display styles (customer name, pcs, invoice title, invoice no format).
      */
     public function updateCustomerNameFormat(Request $request)
     {
         $request->validate([
-            'format'     => 'nullable|in:both,urdu,english',
-            'pcs_format' => 'nullable|in:pcs,number',
+            'format'             => 'nullable|in:both,urdu,english',
+            'pcs_format'         => 'nullable|in:pcs,number',
+            'invoice_title_type' => 'nullable|in:invoice,estimate',
+            'invoice_no_format'  => 'nullable|in:full,number',
         ]);
 
         $settings = SaleSetting::getSettings();
@@ -88,16 +96,24 @@ class SaleSettingController extends Controller
         if ($request->filled('pcs_format')) {
             $updates['invoice_pcs_format'] = $request->input('pcs_format');
         }
+        if ($request->filled('invoice_title_type')) {
+            $updates['invoice_title_type'] = $request->input('invoice_title_type');
+        }
+        if ($request->filled('invoice_no_format')) {
+            $updates['invoice_no_format'] = $request->input('invoice_no_format');
+        }
 
         if (!empty($updates)) {
             $settings->update($updates);
         }
 
         return response()->json([
-            'success'    => true,
-            'message'    => 'Display format updated successfully.',
-            'format'     => $settings->invoice_customer_name_format,
-            'pcs_format' => $settings->invoice_pcs_format,
+            'success'            => true,
+            'message'            => 'Display format updated successfully.',
+            'format'             => $settings->invoice_customer_name_format,
+            'pcs_format'         => $settings->invoice_pcs_format,
+            'invoice_title_type' => $settings->invoice_title_type ?? 'invoice',
+            'invoice_no_format'  => $settings->invoice_no_format ?? 'full',
         ]);
     }
 }

@@ -32,6 +32,8 @@ class SaleSetting extends Model
         'invoice_show_watermark',
         'invoice_customer_name_format',
         'invoice_pcs_format',
+        'invoice_title_type',
+        'invoice_no_format',
         'show_received_account',
         'show_delivery_remaining_qty',
     ];
@@ -49,6 +51,8 @@ class SaleSetting extends Model
         'invoice_min_rows' => 'integer',
         'invoice_customer_name_format' => 'string',
         'invoice_pcs_format' => 'string',
+        'invoice_title_type' => 'string',
+        'invoice_no_format' => 'string',
     ];
 
     /**
@@ -78,6 +82,8 @@ class SaleSetting extends Model
             'invoice_show_watermark' => true,
             'invoice_customer_name_format' => 'both',
             'invoice_pcs_format' => 'pcs',
+            'invoice_title_type' => 'invoice',
+            'invoice_no_format' => 'full',
             'show_received_account' => false,
             'show_delivery_remaining_qty' => true,
         ]);

@@ -455,6 +455,28 @@
                                 <div class="form-text small">Invoice par customer ka naam Urdu, English ya dono mein show karein.</div>
                             </div>
 
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-dark small mb-1">
+                                    <i class="fas fa-file-invoice text-success me-1"></i> Invoice Title
+                                </label>
+                                <select name="invoice_title_type" class="form-select">
+                                    <option value="invoice"  {{ ($settings->invoice_title_type ?? 'invoice') === 'invoice'  ? 'selected' : '' }}>INVOICE (Default)</option>
+                                    <option value="estimate" {{ ($settings->invoice_title_type ?? '') === 'estimate' ? 'selected' : '' }}>ESTIMATE BILL</option>
+                                </select>
+                                <div class="form-text small">Heading: INVOICE ya ESTIMATE BILL</div>
+                            </div>
+
+                            <div class="col-md-3">
+                                <label class="form-label fw-bold text-dark small mb-1">
+                                    <i class="fas fa-hashtag text-primary me-1"></i> Invoice Number Format
+                                </label>
+                                <select name="invoice_no_format" class="form-select">
+                                    <option value="full"   {{ ($settings->invoice_no_format ?? 'full') === 'full'   ? 'selected' : '' }}>With Prefix (e.g. INV #: INV-0372)</option>
+                                    <option value="number" {{ ($settings->invoice_no_format ?? '') === 'number' ? 'selected' : '' }}>Number Only (e.g. 0372)</option>
+                                </select>
+                                <div class="form-text small">بل نمبر: INV #: INV-0372 یا صرف 0372</div>
+                            </div>
+
 <div class="col-md-3">
                                 <label class="form-label fw-bold text-dark small mb-1">Watermark Logo in Table</label>
                                 <div class="form-check form-switch form-switch-md mt-2">

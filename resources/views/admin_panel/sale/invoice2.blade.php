@@ -549,13 +549,28 @@ $balanceDue = $grandTotal - $totalReceived;
 
     <div class="invoice-wrapper" id="invoiceContent">
 
+        @php
+            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
+            $titleType = $settings->invoice_title_type ?? 'invoice';
+            $noFormat = $settings->invoice_no_format ?? 'full';
+
+            $titleDisplay = ($titleType === 'estimate') ? 'ESTIMATE BILL' : 'INVOICE';
+
+            $fullInvDisplay = 'INV #: ' . ($booking->invoice_no ?? '');
+            $numOnlyInv = preg_replace('/^[^0-9]+/', '', (string)($booking->invoice_no ?? ''));
+            if ($numOnlyInv === '') {
+                $numOnlyInv = (string)($booking->invoice_no ?? '');
+            }
+            $invNoDisplay = ($noFormat === 'number') ? $numOnlyInv : $fullInvDisplay;
+        @endphp
+
         {{-- HEADER SECTION (Company details removed) --}}
         <div class="d-flex justify-content-between align-items-center">
             <div class="invoice-badge-title">
-                INVOICE
+                {{ $titleDisplay }}
             </div>
             <div class="invoice-badge-box">
-                <span class="invoice-badge-inv">INV #: {{ $booking->invoice_no }}</span>
+                <span class="invoice-badge-inv">{{ $invNoDisplay }}</span>
                 <span style="border-right: 1px solid #000; height: 14px; display: inline-block;"></span>
                 <span class="invoice-badge-date">DATE: {{ $booking->created_at ? $booking->created_at->format('d M Y') : date('d M Y') }}</span>
             </div>
@@ -566,7 +581,6 @@ $balanceDue = $grandTotal - $totalReceived;
 
         {{-- INFO SECTION (ADDA & CUSTOMER DETAILS IN A SINGLE COMPACT LINE) --}}
         @php
-            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
             $nameFormat = $settings->invoice_customer_name_format ?? 'both';
 
             $custUrdu = $booking->customer->customer_name_ur ?? $booking->customer->name_urdu ?? $booking->customer_name_ur ?? '';

@@ -644,13 +644,32 @@ $balanceDue = $grandTotal - $totalReceived;
 
     <div class="invoice-wrapper" id="invoiceContent">
 
+        @php
+            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
+            $titleType = $settings->invoice_title_type ?? 'invoice';
+            $noFormat = $settings->invoice_no_format ?? 'full';
+
+            $titleDisplay = ($titleType === 'estimate') ? 'ESTIMATE BILL' : 'INVOICE';
+
+            $fullInvDisplay = 'INV #: ' . ($sale->invoice_no ?? '');
+            $numOnlyInv = preg_replace('/^[^0-9]+/', '', (string)($sale->invoice_no ?? ''));
+            if ($numOnlyInv === '') {
+                $numOnlyInv = (string)($sale->invoice_no ?? '');
+            }
+            $invNoDisplay = ($noFormat === 'number') ? $numOnlyInv : $fullInvDisplay;
+        @endphp
+
         {{-- HEADER SECTION (Company details removed) --}}
         <div class="d-flex justify-content-between align-items-center">
-            <div class="invoice-badge-title">
-                INVOICE
+            <div class="invoice-badge-title" id="invoiceTitleDisplay"
+                 data-invoice="INVOICE"
+                 data-estimate="ESTIMATE BILL">
+                {{ $titleDisplay }}
             </div>
             <div class="invoice-badge-box">
-                <span class="invoice-badge-inv">INV #: {{ $sale->invoice_no }}</span>
+                <span class="invoice-badge-inv" id="invoiceNoDisplay"
+                      data-full="{{ $fullInvDisplay }}"
+                      data-number="{{ $numOnlyInv }}">{{ $invNoDisplay }}</span>
                 <span style="border-right: 1px solid #000; height: 14px; display: inline-block;"></span>
                 <span class="invoice-badge-date">DATE: {{ $sale->created_at ? $sale->created_at->format('d M Y') : date('d M Y') }}</span>
             </div>
@@ -661,7 +680,6 @@ $balanceDue = $grandTotal - $totalReceived;
 
         {{-- INFO SECTION (ADDA & CUSTOMER DETAILS IN A SINGLE COMPACT LINE) --}}
         @php
-            $settings = $settings ?? \App\Models\SaleSetting::getSettings();
             $nameFormat = $settings->invoice_customer_name_format ?? 'both';
             $pcsFormat = $settings->invoice_pcs_format ?? 'pcs';
 
@@ -891,43 +909,44 @@ $balanceDue = $grandTotal - $totalReceived;
         <div class="modal-content shadow border-0" style="border-radius: 12px; overflow: hidden;">
             <div class="modal-header bg-dark text-white py-3">
                 <h5 class="modal-title fs-6 fw-bold mb-0" id="nameFormatModalLabel">
-                    <i class="fas fa-sliders-h me-2 text-warning"></i> Customer Name & Pcs Display Style
+                    <i class="fas fa-sliders-h me-2 text-warning"></i> Invoice Display Style Settings
                 </h5>
                 <button type="button" class="btn-close btn-close-white text-white" data-bs-dismiss="modal" data-dismiss="modal" aria-label="Close" style="filter: invert(1); background: none; border: 0; font-size: 20px;">✕</button>
             </div>
-            <div class="modal-body p-4" style="background: #f8fafc;">
-                <p class="text-muted small mb-3">
-                    Invoice par customer ka naam kis andaz mein show karwana chahte hain? Select karein:
+            <div class="modal-body p-4" style="background: #f8fafc; max-height: 75vh; overflow-y: auto;">
+                <p class="text-muted small mb-2 fw-semibold">
+                    <i class="fas fa-user-tag me-1 text-primary"></i> Customer Name Format / خریدار کا نام:
                 </p>
 
-                <div class="d-flex flex-column gap-2">
-                    <label class="d-flex align-items-center gap-3 p-3 bg-white rounded border shadow-sm" style="cursor: pointer;">
-                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="both" {{ ($nameFormat ?? 'both') === 'both' ? 'checked' : '' }} style="transform: scale(1.2);">
+                <div class="d-flex flex-column gap-2 mb-3">
+                    <label class="d-flex align-items-center gap-3 p-2 bg-white rounded border shadow-sm" style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="both" {{ ($nameFormat ?? 'both') === 'both' ? 'checked' : '' }} style="transform: scale(1.15);">
                         <div class="flex-grow-1">
-                            <div class="fw-bold text-dark">Both (Urdu + English)</div>
-                            <div class="text-muted small">Example: <span class="fw-semibold text-primary">{{ $formattedBoth }}</span></div>
+                            <div class="fw-bold text-dark small">Both (Urdu + English)</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">Example: <span class="fw-semibold text-primary">{{ $formattedBoth }}</span></div>
                         </div>
                     </label>
 
-                    <label class="d-flex align-items-center gap-3 p-3 bg-white rounded border shadow-sm" style="cursor: pointer;">
-                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="urdu" {{ ($nameFormat ?? '') === 'urdu' ? 'checked' : '' }} style="transform: scale(1.2);">
+                    <label class="d-flex align-items-center gap-3 p-2 bg-white rounded border shadow-sm" style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="urdu" {{ ($nameFormat ?? '') === 'urdu' ? 'checked' : '' }} style="transform: scale(1.15);">
                         <div class="flex-grow-1">
-                            <div class="fw-bold text-dark">Urdu Only (صرف اردو)</div>
-                            <div class="text-muted small" style="font-family:'Noto Nastaliq Urdu',sans-serif;">Example: <span class="fw-semibold text-primary">{{ $formattedUrdu }}</span></div>
+                            <div class="fw-bold text-dark small">Urdu Only (صرف اردو)</div>
+                            <div class="text-muted" style="font-size: 0.75rem; font-family:'Noto Nastaliq Urdu',sans-serif;">Example: <span class="fw-semibold text-primary">{{ $formattedUrdu }}</span></div>
                         </div>
                     </label>
 
-                    <label class="d-flex align-items-center gap-3 p-3 bg-white rounded border shadow-sm" style="cursor: pointer;">
-                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="english" {{ ($nameFormat ?? '') === 'english' ? 'checked' : '' }} style="transform: scale(1.2);">
+                    <label class="d-flex align-items-center gap-3 p-2 bg-white rounded border shadow-sm" style="cursor: pointer;">
+                        <input class="form-check-input mt-0" type="radio" name="name_format_choice" value="english" {{ ($nameFormat ?? '') === 'english' ? 'checked' : '' }} style="transform: scale(1.15);">
                         <div class="flex-grow-1">
-                            <div class="fw-bold text-dark">English Only</div>
-                            <div class="text-muted small">Example: <span class="fw-semibold text-primary">{{ $formattedEng }}</span></div>
+                            <div class="fw-bold text-dark small">English Only</div>
+                            <div class="text-muted" style="font-size: 0.75rem;">Example: <span class="fw-semibold text-primary">{{ $formattedEng }}</span></div>
                         </div>
                     </label>
                 </div>
 
-                <hr class="my-2">
+                <hr class="my-3">
 
+                {{-- 2. PCS DISPLAY STYLE --}}
                 <div class="d-flex align-items-center justify-content-between mb-1">
                     <h6 class="fw-bold text-dark mb-0" style="font-size: 0.85rem;">
                         <i class="fas fa-boxes me-1 text-primary"></i> Pcs Display Style
@@ -937,7 +956,7 @@ $balanceDue = $grandTotal - $totalReceived;
                     Pcs والی items کے ساتھ "Pcs" لکھا آئے یا صرف Quantity نمبر:
                 </p>
 
-                <div class="row g-2">
+                <div class="row g-2 mb-3">
                     <div class="col-6">
                         <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
                             <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="pcs_format_choice" value="pcs" {{ ($pcsFormat ?? 'pcs') === 'pcs' ? 'checked' : '' }} style="transform: scale(1.1);">
@@ -954,6 +973,74 @@ $balanceDue = $grandTotal - $totalReceived;
                             <div class="flex-grow-1">
                                 <div class="fw-bold text-dark" style="font-size: 0.82rem;">Number Only (1)</div>
                                 <div class="text-muted" style="font-size: 0.73rem;">Ex: <span class="fw-semibold text-primary">1</span> (صرف نمبر)</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                {{-- 3. INVOICE TITLE (INVOICE vs ESTIMATE BILL) --}}
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h6 class="fw-bold text-dark mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-file-invoice text-success me-1"></i> Invoice Title / بل ہیڈنگ
+                    </h6>
+                </div>
+                <p class="text-muted mb-2" style="font-size: 0.78rem;">
+                    انوائس کے اوپر ٹاپ ہیڈنگ "INVOICE" آئے یا "ESTIMATE BILL":
+                </p>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="invoice_title_choice" value="invoice" {{ ($titleType ?? 'invoice') === 'invoice' ? 'checked' : '' }} style="transform: scale(1.1);">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark" style="font-size: 0.82rem;">INVOICE</div>
+                                <div class="text-muted" style="font-size: 0.73rem;">انوائس (Default)</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="col-6">
+                        <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="invoice_title_choice" value="estimate" {{ ($titleType ?? '') === 'estimate' ? 'checked' : '' }} style="transform: scale(1.1);">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark" style="font-size: 0.82rem;">ESTIMATE BILL</div>
+                                <div class="text-muted" style="font-size: 0.73rem;">تخمینہ بل (Estimate)</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="my-3">
+
+                {{-- 4. INVOICE NUMBER FORMAT --}}
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <h6 class="fw-bold text-dark mb-0" style="font-size: 0.85rem;">
+                        <i class="fas fa-hashtag text-info me-1"></i> Invoice Number Format / بل نمبر
+                    </h6>
+                </div>
+                <p class="text-muted mb-2" style="font-size: 0.78rem;">
+                    بل نمبر مکمل کوڈ کے ساتھ آئے یا صرف نمبر:
+                </p>
+
+                <div class="row g-2">
+                    <div class="col-6">
+                        <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="invoice_no_format_choice" value="full" {{ ($noFormat ?? 'full') === 'full' ? 'checked' : '' }} style="transform: scale(1.1);">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark" style="font-size: 0.82rem;">INV #: {{ $sale->invoice_no }}</div>
+                                <div class="text-muted" style="font-size: 0.73rem;">With Prefix (Default)</div>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="col-6">
+                        <label class="d-flex align-items-center gap-2 p-2 bg-white rounded border shadow-sm h-100 mb-0" style="cursor: pointer;">
+                            <input class="form-check-input mt-0 flex-shrink-0" type="radio" name="invoice_no_format_choice" value="number" {{ ($noFormat ?? '') === 'number' ? 'checked' : '' }} style="transform: scale(1.1);">
+                            <div class="flex-grow-1">
+                                <div class="fw-bold text-dark" style="font-size: 0.82rem;">{{ $numOnlyInv }}</div>
+                                <div class="text-muted" style="font-size: 0.73rem;">Number Only (صرف نمبر)</div>
                             </div>
                         </label>
                     </div>
@@ -1102,6 +1189,8 @@ $('#btnSaveNameFormat').on('click', function() {
     var $btn = $(this);
     var selectedFormat = $('input[name="name_format_choice"]:checked').val() || 'both';
     var selectedPcsFormat = $('input[name="pcs_format_choice"]:checked').val() || 'pcs';
+    var selectedTitleType = $('input[name="invoice_title_choice"]:checked').val() || 'invoice';
+    var selectedNoFormat = $('input[name="invoice_no_format_choice"]:checked').val() || 'full';
     var originalHtml = $btn.html();
 
     $btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin me-1"></i> Saving...');
@@ -1112,6 +1201,8 @@ $('#btnSaveNameFormat').on('click', function() {
         data: {
             format: selectedFormat,
             pcs_format: selectedPcsFormat,
+            invoice_title_type: selectedTitleType,
+            invoice_no_format: selectedNoFormat,
             _token: "{{ csrf_token() }}"
         },
         dataType: 'json',
@@ -1134,6 +1225,18 @@ $('#btnSaveNameFormat').on('click', function() {
                     $(this).text(baseNum + ' Pcs');
                 }
             });
+
+            // Update DOM immediately on invoice for Title (INVOICE vs ESTIMATE BILL)
+            var $titleTarget = $('#invoiceTitleDisplay');
+            var newTitle = $titleTarget.attr('data-' + selectedTitleType) || (selectedTitleType === 'estimate' ? 'ESTIMATE BILL' : 'INVOICE');
+            $titleTarget.text(newTitle);
+
+            // Update DOM immediately on invoice for Invoice No (INV #: ... vs Number Only)
+            var $invNoTarget = $('#invoiceNoDisplay');
+            var newInvNo = $invNoTarget.attr('data-' + selectedNoFormat);
+            if (newInvNo) {
+                $invNoTarget.text(newInvNo);
+            }
 
             // Close modal safely (supports BS4 & BS5)
             if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
