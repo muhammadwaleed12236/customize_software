@@ -4105,19 +4105,37 @@ class ReportingController extends Controller
 
         // D. Stock Transfers In before start_date
         $transInBefore = 0;
-        if ($branchId !== 'all' && !empty($branchId)) {
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $transInBefore = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where(function ($q) use ($warehouseId) {
+                    $q->where('to_warehouse_id', $warehouseId);
+                    if ($warehouseId == 1) {
+                        $q->orWhere('to_shop', 1);
+                    }
+                })
+                ->whereIn('status', ['approved', 'completed'])
+                ->where(function ($q) use ($startDt) {
+                    $q->where('transfer_date', '<', $startDt)
+                      ->orWhere(function ($sub) use ($startDt) {
+                          $sub->whereNull('transfer_date')->where('created_at', '<', $startDt);
+                      });
+                })
+                ->sum('quantity');
+        } elseif ($branchId !== 'all' && !empty($branchId)) {
             $transInBefore = (float) DB::table('stock_transfers')
                 ->where('product_id', $productId)
                 ->where('to_branch_id', $branchId)
-                ->where('status', 'approved')
-                ->where('created_at', '<', $startDt)
-                ->sum('quantity');
-        } elseif ($warehouseId !== 'all' && !empty($warehouseId)) {
-            $transInBefore = (float) DB::table('stock_transfers')
-                ->where('product_id', $productId)
-                ->where('to_warehouse_id', $warehouseId)
-                ->where('status', 'approved')
-                ->where('created_at', '<', $startDt)
+                ->where(function ($q) use ($branchId) {
+                    $q->where('from_branch_id', '!=', $branchId)->orWhereNull('from_branch_id');
+                })
+                ->whereIn('status', ['approved', 'completed'])
+                ->where(function ($q) use ($startDt) {
+                    $q->where('transfer_date', '<', $startDt)
+                      ->orWhere(function ($sub) use ($startDt) {
+                          $sub->whereNull('transfer_date')->where('created_at', '<', $startDt);
+                      });
+                })
                 ->sum('quantity');
         }
 
@@ -4206,19 +4224,32 @@ class ReportingController extends Controller
 
         // G. Stock Transfers Out before start_date
         $transOutBefore = 0;
-        if ($branchId !== 'all' && !empty($branchId)) {
-            $transOutBefore = (float) DB::table('stock_transfers')
-                ->where('product_id', $productId)
-                ->where('from_branch_id', $branchId)
-                ->where('status', 'approved')
-                ->where('created_at', '<', $startDt)
-                ->sum('quantity');
-        } elseif ($warehouseId !== 'all' && !empty($warehouseId)) {
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
             $transOutBefore = (float) DB::table('stock_transfers')
                 ->where('product_id', $productId)
                 ->where('from_warehouse_id', $warehouseId)
-                ->where('status', 'approved')
-                ->where('created_at', '<', $startDt)
+                ->whereIn('status', ['approved', 'completed'])
+                ->where(function ($q) use ($startDt) {
+                    $q->where('transfer_date', '<', $startDt)
+                      ->orWhere(function ($sub) use ($startDt) {
+                          $sub->whereNull('transfer_date')->where('created_at', '<', $startDt);
+                      });
+                })
+                ->sum('quantity');
+        } elseif ($branchId !== 'all' && !empty($branchId)) {
+            $transOutBefore = (float) DB::table('stock_transfers')
+                ->where('product_id', $productId)
+                ->where('from_branch_id', $branchId)
+                ->where(function ($q) use ($branchId) {
+                    $q->where('to_branch_id', '!=', $branchId)->orWhereNull('to_branch_id');
+                })
+                ->whereIn('status', ['approved', 'completed'])
+                ->where(function ($q) use ($startDt) {
+                    $q->where('transfer_date', '<', $startDt)
+                      ->orWhere(function ($sub) use ($startDt) {
+                          $sub->whereNull('transfer_date')->where('created_at', '<', $startDt);
+                      });
+                })
                 ->sum('quantity');
         }
 
@@ -4606,8 +4637,14 @@ class ReportingController extends Controller
             ->leftJoin('warehouses as fw', 'stock_transfers.from_warehouse_id', '=', 'fw.id')
             ->leftJoin('warehouses as tw', 'stock_transfers.to_warehouse_id', '=', 'tw.id')
             ->where('stock_transfers.product_id', $productId)
-            ->where('stock_transfers.status', 'approved')
-            ->whereBetween('stock_transfers.created_at', [$startDt, $endDt])
+            ->whereIn('stock_transfers.status', ['approved', 'completed'])
+            ->where(function ($q) use ($startDt, $endDt) {
+                $q->whereBetween('stock_transfers.transfer_date', [$startDt, $endDt])
+                  ->orWhere(function ($sub) use ($startDt, $endDt) {
+                      $sub->whereNull('stock_transfers.transfer_date')
+                          ->whereBetween('stock_transfers.created_at', [$startDt, $endDt]);
+                  });
+            })
             ->select(
                 'stock_transfers.*',
                 'fb.name as from_branch_name',
@@ -4617,14 +4654,18 @@ class ReportingController extends Controller
             );
         foreach ($transQuery->get() as $st) {
             $qty = (float) $st->quantity;
-            $fromName = ($st->from_branch_name ? $st->from_branch_name . ' - ' : '') . ($st->from_wh_name ?? 'Shop/Branch');
-            $toName = ($st->to_branch_name ? $st->to_branch_name . ' - ' : '') . ($st->to_wh_name ?? 'Shop/Branch');
+            $fromName = ($st->from_branch_name ? $st->from_branch_name . ' - ' : '') . ($st->from_wh_name ?? ($st->from_warehouse_id ? 'Warehouse #' . $st->from_warehouse_id : 'Shop/Branch'));
+            $toName = ($st->to_branch_name ? $st->to_branch_name . ' - ' : '') . ($st->to_wh_name ?? ($st->to_warehouse_id ? 'Warehouse #' . $st->to_warehouse_id : ($st->to_shop ? 'Shop' : 'Shop/Branch')));
+            $eventDateTime = !empty($st->transfer_date) ? $st->transfer_date : $st->created_at;
 
-            if ($branchId !== 'all' && !empty($branchId)) {
-                if ($st->from_branch_id == $branchId) {
+            if ($warehouseId !== 'all' && !empty($warehouseId)) {
+                $isTransferOut = ($st->from_warehouse_id == $warehouseId);
+                $isTransferIn  = ($st->to_warehouse_id == $warehouseId || ($st->to_shop && $warehouseId == 1));
+
+                if ($isTransferOut) {
                     $events[] = [
-                        'datetime'      => $st->created_at,
-                        'date'          => date('d-M-Y H:i', strtotime($st->created_at)),
+                        'datetime'      => $eventDateTime,
+                        'date'          => date('d-M-Y H:i', strtotime($eventDateTime)),
                         'type'          => 'Transfer Out',
                         'badge'         => 'badge-secondary',
                         'icon'          => 'fa-arrow-right',
@@ -4639,10 +4680,10 @@ class ReportingController extends Controller
                         'out_total'     => $qty * $costPerPiece,
                         'remarks'       => $st->remarks ?? 'Transferred Out',
                     ];
-                } elseif ($st->to_branch_id == $branchId) {
+                } elseif ($isTransferIn) {
                     $events[] = [
-                        'datetime'      => $st->created_at,
-                        'date'          => date('d-M-Y H:i', strtotime($st->created_at)),
+                        'datetime'      => $eventDateTime,
+                        'date'          => date('d-M-Y H:i', strtotime($eventDateTime)),
                         'type'          => 'Transfer In',
                         'badge'         => 'badge-primary',
                         'icon'          => 'fa-arrow-left',
@@ -4658,10 +4699,66 @@ class ReportingController extends Controller
                         'remarks'       => $st->remarks ?? 'Transferred In',
                     ];
                 }
+            } elseif ($branchId !== 'all' && !empty($branchId)) {
+                if ($st->from_branch_id == $branchId && $st->to_branch_id != $branchId) {
+                    $events[] = [
+                        'datetime'      => $eventDateTime,
+                        'date'          => date('d-M-Y H:i', strtotime($eventDateTime)),
+                        'type'          => 'Transfer Out',
+                        'badge'         => 'badge-secondary',
+                        'icon'          => 'fa-arrow-right',
+                        'ref_no'        => 'TRF-' . $st->id,
+                        'party'         => 'To: ' . $toName,
+                        'warehouse'     => $fromName,
+                        'in_qty'        => 0,
+                        'in_price'      => 0,
+                        'in_total'      => 0,
+                        'out_qty'       => $qty,
+                        'out_price'     => $costPerPiece,
+                        'out_total'     => $qty * $costPerPiece,
+                        'remarks'       => $st->remarks ?? 'Transferred Out of Branch',
+                    ];
+                } elseif ($st->to_branch_id == $branchId && $st->from_branch_id != $branchId) {
+                    $events[] = [
+                        'datetime'      => $eventDateTime,
+                        'date'          => date('d-M-Y H:i', strtotime($eventDateTime)),
+                        'type'          => 'Transfer In',
+                        'badge'         => 'badge-primary',
+                        'icon'          => 'fa-arrow-left',
+                        'ref_no'        => 'TRF-' . $st->id,
+                        'party'         => 'From: ' . $fromName,
+                        'warehouse'     => $toName,
+                        'in_qty'        => $qty,
+                        'in_price'      => $costPerPiece,
+                        'in_total'      => $qty * $costPerPiece,
+                        'out_qty'       => 0,
+                        'out_price'     => 0,
+                        'out_total'     => 0,
+                        'remarks'       => $st->remarks ?? 'Transferred Into Branch',
+                    ];
+                } else {
+                    $events[] = [
+                        'datetime'      => $eventDateTime,
+                        'date'          => date('d-M-Y H:i', strtotime($eventDateTime)),
+                        'type'          => 'Internal Transfer',
+                        'badge'         => 'badge-secondary',
+                        'icon'          => 'fa-exchange-alt',
+                        'ref_no'        => 'TRF-' . $st->id,
+                        'party'         => "From: {$fromName} → To: {$toName}",
+                        'warehouse'     => $fromName,
+                        'in_qty'        => 0,
+                        'in_price'      => 0,
+                        'in_total'      => 0,
+                        'out_qty'       => 0,
+                        'out_price'     => 0,
+                        'out_total'     => 0,
+                        'remarks'       => ($st->remarks ?? '') . " [Transfer Qty: {$qty}]",
+                    ];
+                }
             } else {
                 $events[] = [
-                    'datetime'      => $st->created_at,
-                    'date'          => date('d-M-Y H:i', strtotime($st->created_at)),
+                    'datetime'      => $eventDateTime,
+                    'date'          => date('d-M-Y H:i', strtotime($eventDateTime)),
                     'type'          => 'Internal Transfer',
                     'badge'         => 'badge-secondary',
                     'icon'          => 'fa-exchange-alt',
