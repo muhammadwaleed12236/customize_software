@@ -219,9 +219,6 @@
                 <a href="{{ route('sale.add') }}" class="btn btn-primary btn-sm me-1">Add Sale</a>
                 <a href="{{ url('bookings') }}" class="btn btn-primary btn-sm me-1">All Sale Orders</a>
                 <a href="{{ route('sale.returns.index') }}" class="btn btn-secondary btn-sm">Sale Returns</a>
-                @can('sale.return.create')
-                <a href="{{ route('sales.direct_return.create') }}" class="btn btn-danger btn-sm"><i class="fas fa-undo me-1"></i> Direct Return</a>
-                @endcan
             </div>
         </div>
 

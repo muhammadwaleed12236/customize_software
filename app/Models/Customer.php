@@ -41,10 +41,15 @@ class Customer extends Model
         return $this->hasMany(CustomerOpeningBalanceHistory::class, 'customer_id')->latest();
     }
 
-    // Accessor for closing balance (gets latest ledger closing balance)
+    // Accessor for closing balance (computes dynamic live balance matching Customer Ledger Report)
     public function getClosingBalanceAttribute()
     {
-        return $this->latestLedger()->value('closing_balance') ?? $this->opening_balance ?? 0;
+        try {
+            return (float) app(\App\Http\Controllers\ReportingController::class)
+                ->getCustomerOpeningBalance((int)$this->id, date('Y-m-d', strtotime('+1 day')));
+        } catch (\Exception $e) {
+            return (float) ($this->latestLedger()->value('closing_balance') ?? $this->opening_balance ?? 0);
+        }
     }
 
     // Accessor for previous balance (synonym for latest closing balance before current invoice)

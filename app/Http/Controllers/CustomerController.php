@@ -86,21 +86,26 @@ class CustomerController extends Controller
     {
         $customer = Customer::findOrFail($id);
 
-        // Get latest closing balance from ledger chronologically
-        $latestLedger = CustomerLedger::where("customer_id", $id)
-            ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
-            ->orderBy('id', 'desc')
-            ->first();
-        if ($latestLedger) {
-            $closingBalance = (float) $latestLedger->closing_balance;
-        } else {
-            // Safety fallback: if no ledger row exists yet, check prior sales & receipts
-            $priorSales = (float) \Illuminate\Support\Facades\DB::table("sales")->where("customer_id", $id)->sum("total_net");
-            $priorReceipts = (float) \Illuminate\Support\Facades\DB::table("receipts_vouchers")->where("party_id", (string)$id)->where(function($q){
-                $q->whereNull("status")->orWhere("status", "!=", "voided");
-            })->sum("amount");
-            $calc = (float) ($customer->opening_balance ?? 0) + $priorSales - $priorReceipts;
-            $closingBalance = ($calc != 0) ? $calc : (float) ($customer->opening_balance ?? 0);
+        try {
+            $closingBalance = (float) app(\App\Http\Controllers\ReportingController::class)
+                ->getCustomerOpeningBalance((int)$id, date('Y-m-d', strtotime('+1 day')));
+        } catch (\Exception $e) {
+            // Get latest closing balance from ledger chronologically as fallback
+            $latestLedger = CustomerLedger::where("customer_id", $id)
+                ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                ->orderBy('id', 'desc')
+                ->first();
+            if ($latestLedger) {
+                $closingBalance = (float) $latestLedger->closing_balance;
+            } else {
+                // Safety fallback: if no ledger row exists yet, check prior sales & receipts
+                $priorSales = (float) \Illuminate\Support\Facades\DB::table("sales")->where("customer_id", $id)->sum("total_net");
+                $priorReceipts = (float) \Illuminate\Support\Facades\DB::table("receipts_vouchers")->where("party_id", (string)$id)->where(function($q){
+                    $q->whereNull("status")->orWhere("status", "!=", "voided");
+                })->sum("amount");
+                $calc = (float) ($customer->opening_balance ?? 0) + $priorSales - $priorReceipts;
+                $closingBalance = ($calc != 0) ? $calc : (float) ($customer->opening_balance ?? 0);
+            }
         }
 
         return response()->json([
@@ -202,9 +207,15 @@ class CustomerController extends Controller
     // Add this in CustomerController
     public function getCustomerLedger($id)
     {
-        $ledger = CustomerLedger::where('customer_id', $id)->latest()->first();
+        try {
+            $closing = (float) app(\App\Http\Controllers\ReportingController::class)
+                ->getCustomerOpeningBalance((int)$id, date('Y-m-d', strtotime('+1 day')));
+        } catch (\Exception $e) {
+            $ledger = CustomerLedger::where('customer_id', $id)->latest()->first();
+            $closing = $ledger ? (float)$ledger->closing_balance : 0;
+        }
         return response()->json([
-            'closing_balance' => $ledger->closing_balance
+            'closing_balance' => $closing
         ]);
     }
 

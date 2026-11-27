@@ -2136,20 +2136,25 @@ class SaleController extends Controller
             return response()->json(['error' => 'Customer not found'], 404);
         }
 
-        // Retrieve the latest ledger entry for the customer (chronologically by created_at, then id)
-        $latestLedger = CustomerLedger::where("customer_id", $id)
-            ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
-            ->orderBy('id', 'desc')
-            ->first();
-        if ($latestLedger) {
-            $previous_balance = (float) $latestLedger->closing_balance;
-        } else {
-            $priorSales = (float) DB::table("sales")->where("customer_id", $id)->sum("total_net");
-            $priorReceipts = (float) DB::table("receipts_vouchers")->where("party_id", (string)$id)->where(function($q){
-                $q->whereNull("status")->orWhere("status", "!=", "voided");
-            })->sum("amount");
-            $calc = (float) ($c->opening_balance ?? 0) + $priorSales - $priorReceipts;
-            $previous_balance = ($calc != 0) ? $calc : (float) ($c->opening_balance ?? 0);
+        // Retrieve the latest dynamic balance for the customer (matching Customer Ledger Report)
+        try {
+            $previous_balance = (float) app(\App\Http\Controllers\ReportingController::class)
+                ->getCustomerOpeningBalance((int)$id, date('Y-m-d', strtotime('+1 day')));
+        } catch (\Exception $e) {
+            $latestLedger = CustomerLedger::where("customer_id", $id)
+                ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                ->orderBy('id', 'desc')
+                ->first();
+            if ($latestLedger) {
+                $previous_balance = (float) $latestLedger->closing_balance;
+            } else {
+                $priorSales = (float) DB::table("sales")->where("customer_id", $id)->sum("total_net");
+                $priorReceipts = (float) DB::table("receipts_vouchers")->where("party_id", (string)$id)->where(function($q){
+                    $q->whereNull("status")->orWhere("status", "!=", "voided");
+                })->sum("amount");
+                $calc = (float) ($c->opening_balance ?? 0) + $priorSales - $priorReceipts;
+                $previous_balance = ($calc != 0) ? $calc : (float) ($c->opening_balance ?? 0);
+            }
         }
 
         return response()->json([
@@ -2320,10 +2325,14 @@ public function finddc($invoice)
             }
 
             foreach ($customerIds as $cid) {
-                if (isset($latestLedgerBalances[$cid])) {
-                    $customerCumulativeBalances[$cid] = round((float)$latestLedgerBalances[$cid], 2);
-                } else {
-                    $customerCumulativeBalances[$cid] = round((float)($custOpenings[$cid] ?? 0), 2);
+                try {
+                    $customerCumulativeBalances[$cid] = round((float) app(\App\Http\Controllers\ReportingController::class)->getCustomerOpeningBalance((int)$cid, date('Y-m-d', strtotime('+1 day'))), 2);
+                } catch (\Exception $e) {
+                    if (isset($latestLedgerBalances[$cid])) {
+                        $customerCumulativeBalances[$cid] = round((float)$latestLedgerBalances[$cid], 2);
+                    } else {
+                        $customerCumulativeBalances[$cid] = round((float)($custOpenings[$cid] ?? 0), 2);
+                    }
                 }
             }
         }
@@ -3123,11 +3132,16 @@ public function finddc($invoice)
             if ($customerId) {
                 $customer = Customer::find($customerId);
                 $saleAmount = (float)($request->subTotal1 ?? 0) - (float)($request->discountAmount ?? 0);
-                $latestLedger = CustomerLedger::where('customer_id', $customerId)
-                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
-                    ->orderBy('id', 'desc')
-                    ->first();
-                $currentBalance = $latestLedger ? $latestLedger->closing_balance : $customer->opening_balance;
+                try {
+                    $currentBalance = (float) app(\App\Http\Controllers\ReportingController::class)
+                        ->getCustomerOpeningBalance((int)$customerId, date('Y-m-d', strtotime('+1 day')));
+                } catch (\Exception $e) {
+                    $latestLedger = CustomerLedger::where('customer_id', $customerId)
+                        ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    $currentBalance = $latestLedger ? $latestLedger->closing_balance : $customer->opening_balance;
+                }
 
                 // Total credit = current balance + new sale
                 $totalCredit = $currentBalance + $saleAmount;
@@ -3469,12 +3483,16 @@ public function finddc($invoice)
             // ✅ UPDATE CUSTOMER LEDGER WITH SALE AMOUNT
             if ($customerId) {
                 $saleAmount = (float)($request->subTotal1 ?? 0) - (float)($request->discountAmount ?? 0);
-                $latestLedger = CustomerLedger::where('customer_id', $customerId)
-                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
-                    ->orderBy('id', 'desc')
-                    ->first();
-
-                $previousBalance = $latestLedger ? $latestLedger->closing_balance : 0;
+                try {
+                    $previousBalance = (float) app(\App\Http\Controllers\ReportingController::class)
+                        ->getCustomerOpeningBalance((int)$customerId, date('Y-m-d', strtotime('+1 day')));
+                } catch (\Exception $e) {
+                    $latestLedger = CustomerLedger::where('customer_id', $customerId)
+                        ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    $previousBalance = $latestLedger ? $latestLedger->closing_balance : 0;
+                }
 
                 // Ledger already adjusted by any direct-sale receipts applied above.
                 $newClosingBalance = $previousBalance + $saleAmount;
