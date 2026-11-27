@@ -10,7 +10,7 @@
                     <span class="badge bg-secondary ms-2">#{{ $saleReturn->reference ?? $saleReturn->id }}</span>
                 </h5>
                 <small class="text-muted">
-                    Original Invoice: <strong>{{ $saleReturn->sale->invoice_no ?? 'N/A' }}</strong>
+                    Original Invoice: <strong>{{ $saleReturn->sale?->invoice_no ?? 'N/A' }}</strong>
                 </small>
             </div>
             <div>
@@ -70,12 +70,12 @@
 
                     <div class="col-md-3">
                         <label class="form-label text-muted small fw-bold">Original Invoice No</label>
-                        <input type="text" class="form-control bg-light" value="{{ $saleReturn->sale->invoice_no ?? 'N/A' }}" readonly>
+                        <input type="text" class="form-control bg-light" value="{{ $saleReturn->sale?->invoice_no ?? 'N/A' }}" readonly>
                     </div>
 
                     <div class="col-md-3">
                         <label class="form-label text-muted small fw-bold">Customer</label>
-                        <input type="text" class="form-control bg-light" value="{{ optional($saleReturn->sale->customer)->customer_name ?? $saleReturn->sale->sub_customer ?? $saleReturn->customer ?? 'Walk-in Customer' }}" readonly>
+                        <input type="text" class="form-control bg-light" value="{{ $saleReturn->sale?->customer?->customer_name ?? $saleReturn->customerRelation?->customer_name ?? $saleReturn->customer ?? 'Walk-in Customer' }}" readonly>
                     </div>
 
                     <div class="col-md-3">

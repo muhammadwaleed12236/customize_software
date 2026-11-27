@@ -10,6 +10,11 @@ class SalesReturn extends Model
 
     protected $fillable = [
         'sale_id',
+        'branch_id',
+        'warehouse_id',
+        'customer_id',
+        'is_direct',
+        'refund_type',
         'customer', 'reference', 'product', 'product_code', 'brand',
         'unit', 'per_price', 'per_discount', 'qty', 'per_total',
         'total_amount_Words', 'total_bill_amount', 'total_extradiscount',
@@ -20,5 +25,20 @@ class SalesReturn extends Model
     public function sale()
     {
         return $this->belongsTo(Sale::class);
+    }
+
+    public function customerRelation()
+    {
+        return $this->belongsTo(Customer::class, 'customer_id');
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class, 'branch_id');
+    }
+
+    public function warehouse()
+    {
+        return $this->belongsTo(Warehouse::class, 'warehouse_id');
     }
 }

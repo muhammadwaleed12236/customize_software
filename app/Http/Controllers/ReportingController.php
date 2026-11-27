@@ -4089,17 +4089,31 @@ class ReportingController extends Controller
             ->where('product_code', $product->item_code)
             ->where('created_at', '<', $startDt);
         if ($branchId !== 'all' && !empty($branchId)) {
-            $saleReturnBeforeQuery->whereExists(function ($sub) use ($branchId) {
-                $sub->select(DB::raw(1))
-                    ->from('sales')
-                    ->whereColumn('sales.id', 'sales_returns.sale_id')
-                    ->where('sales.branch_id', $branchId);
+            $saleReturnBeforeQuery->where(function ($q) use ($branchId) {
+                $q->where('sales_returns.branch_id', $branchId)
+                  ->orWhereExists(function ($sub) use ($branchId) {
+                      $sub->select(DB::raw(1))
+                          ->from('sales')
+                          ->whereColumn('sales.id', 'sales_returns.sale_id')
+                          ->where('sales.branch_id', $branchId);
+                  });
+            });
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $saleReturnBeforeQuery->where(function ($q) use ($warehouseId) {
+                $q->where('sales_returns.warehouse_id', $warehouseId)
+                  ->orWhereExists(function ($sub) use ($warehouseId) {
+                      $sub->select(DB::raw(1))
+                          ->from('sale_items')
+                          ->whereColumn('sale_items.sale_id', 'sales_returns.sale_id')
+                          ->where('sale_items.warehouse_id', $warehouseId);
+                  });
             });
         }
         $saleReturnsBefore = 0;
-        foreach ($saleReturnBeforeQuery->select('sales_returns.qty', 'sales_returns.sale_id')->get() as $srb) {
-            $origSaleItem = DB::table('sale_items')->where('sale_id', $srb->sale_id)->where('product_id', $productId)->first();
-            $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
+        foreach ($saleReturnBeforeQuery->select('sales_returns.qty', 'sales_returns.sale_id', 'sales_returns.unit')->get() as $srb) {
+            $origSaleItem = !empty($srb->sale_id) ? DB::table('sale_items')->where('sale_id', $srb->sale_id)->where('product_id', $productId)->first() : null;
+            $isPcsReturn = $origSaleItem ? (strtolower($origSaleItem->sale_unit ?? '') === 'pcs') : (strtolower($srb->unit ?? '') === 'pcs');
             $saleReturnsBefore += Product::parseCartonQtyToPieces($srb->qty, $ppp, $isPcsReturn ? 'pcs' : 'ctn');
         }
 
@@ -4538,24 +4552,44 @@ class ReportingController extends Controller
             ->where('product_code', $product->item_code)
             ->whereBetween('created_at', [$startDt, $endDt]);
         if ($branchId !== 'all' && !empty($branchId)) {
-            $saleReturnQuery->whereExists(function ($sub) use ($branchId) {
-                $sub->select(DB::raw(1))
-                    ->from('sales')
-                    ->whereColumn('sales.id', 'sales_returns.sale_id')
-                    ->where('sales.branch_id', $branchId);
+            $saleReturnQuery->where(function ($q) use ($branchId) {
+                $q->where('sales_returns.branch_id', $branchId)
+                  ->orWhereExists(function ($sub) use ($branchId) {
+                      $sub->select(DB::raw(1))
+                          ->from('sales')
+                          ->whereColumn('sales.id', 'sales_returns.sale_id')
+                          ->where('sales.branch_id', $branchId);
+                  });
+            });
+        }
+        if ($warehouseId !== 'all' && !empty($warehouseId)) {
+            $saleReturnQuery->where(function ($q) use ($warehouseId) {
+                $q->where('sales_returns.warehouse_id', $warehouseId)
+                  ->orWhereExists(function ($sub) use ($warehouseId) {
+                      $sub->select(DB::raw(1))
+                          ->from('sale_items')
+                          ->whereColumn('sale_items.sale_id', 'sales_returns.sale_id')
+                          ->where('sale_items.warehouse_id', $warehouseId);
+                  });
             });
         }
         foreach ($saleReturnQuery->get() as $sr) {
             $rawSrQty = (float) $sr->qty;
-            $origSaleItem = DB::table('sale_items')->where('sale_id', $sr->sale_id)->where('product_id', $productId)->first();
-            $isPcsReturn = $origSaleItem && strtolower($origSaleItem->sale_unit ?? '') === 'pcs';
+            $origSaleItem = !empty($sr->sale_id) ? DB::table('sale_items')->where('sale_id', $sr->sale_id)->where('product_id', $productId)->first() : null;
+            $isPcsReturn = $origSaleItem ? (strtolower($origSaleItem->sale_unit ?? '') === 'pcs') : (strtolower($sr->unit ?? '') === 'pcs');
             $srPieces = Product::parseCartonQtyToPieces($rawSrQty, $ppp, $isPcsReturn ? 'pcs' : 'ctn');
             $srTotal = (float) ($sr->per_total > 0 ? $sr->per_total : ($rawSrQty * (float)$sr->per_price));
             $srPrice = $srPieces > 0 ? ($srTotal / $srPieces) : $costPerPiece;
 
             // Resolve actual warehouse or shop name
             $srWhName = 'Shop';
-            if (!empty($sr->sale_id)) {
+            if (!empty($sr->warehouse_id)) {
+                $wh = DB::table('warehouses')->where('id', $sr->warehouse_id)->value('warehouse_name');
+                if ($wh) $srWhName = $wh;
+            } elseif (!empty($sr->branch_id)) {
+                $br = DB::table('branches')->where('id', $sr->branch_id)->value('name');
+                if ($br) $srWhName = "{$br} (Shop)";
+            } elseif (!empty($sr->sale_id)) {
                 $srItem = DB::table('sale_items')
                     ->leftJoin('warehouses', 'sale_items.warehouse_id', '=', 'warehouses.id')
                     ->leftJoin('branches', 'sale_items.branch_id', '=', 'branches.id')
@@ -4571,7 +4605,7 @@ class ReportingController extends Controller
             $events[] = [
                 'datetime'      => $sr->created_at,
                 'date'          => date('d-M-Y H:i', strtotime($sr->created_at)),
-                'type'          => 'Sale Return',
+                'type'          => !empty($sr->is_direct) ? 'Sale Return (Direct)' : 'Sale Return',
                 'badge'         => 'badge-info',
                 'icon'          => 'fa-undo',
                 'ref_no'        => $sr->reference ?? 'SR',
@@ -4583,7 +4617,7 @@ class ReportingController extends Controller
                 'out_qty'       => 0,
                 'out_price'     => 0,
                 'out_total'     => 0,
-                'remarks'       => $sr->return_note ?? 'Goods returned by Customer',
+                'remarks'       => $sr->return_note ?? (!empty($sr->is_direct) ? 'Direct sale return by Customer' : 'Goods returned by Customer'),
             ];
         }
 
@@ -5149,10 +5183,13 @@ class ReportingController extends Controller
             // 3. Sales Returns (Debit - matching Sales Return Report & Income Statement)
             $saleReturnTotal = (float) DB::table('sales_returns')
                 ->when($branchId, function ($q) use ($branchId) {
-                    $q->whereExists(function ($sq) use ($branchId) {
-                        $sq->select(DB::raw(1))->from('sales')
-                           ->whereColumn('sales.id', 'sales_returns.sale_id')
-                           ->where('sales.branch_id', $branchId);
+                    $q->where(function ($subQ) use ($branchId) {
+                        $subQ->where('sales_returns.branch_id', $branchId)
+                             ->orWhereExists(function ($sq) use ($branchId) {
+                                 $sq->select(DB::raw(1))->from('sales')
+                                    ->whereColumn('sales.id', 'sales_returns.sale_id')
+                                    ->where('sales.branch_id', $branchId);
+                             });
                     });
                 })
                 ->when($dateFrom, fn($q) => $q->whereDate('created_at', '>=', $dateFrom))
@@ -5499,10 +5536,13 @@ class ReportingController extends Controller
         // Sales Returns
         $returnsQ = DB::table('sales_returns');
         if ($branchId) {
-            $returnsQ->whereExists(function ($q) use ($branchId) {
-                $q->select(DB::raw(1))->from('sales')
-                  ->whereColumn('sales.id', 'sales_returns.sale_id')
-                  ->where('sales.branch_id', $branchId);
+            $returnsQ->where(function ($subQ) use ($branchId) {
+                $subQ->where('sales_returns.branch_id', $branchId)
+                     ->orWhereExists(function ($q) use ($branchId) {
+                         $q->select(DB::raw(1))->from('sales')
+                           ->whereColumn('sales.id', 'sales_returns.sale_id')
+                           ->where('sales.branch_id', $branchId);
+                     });
             });
         }
         if ($dateFrom) {

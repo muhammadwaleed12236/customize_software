@@ -21,6 +21,9 @@
         <div class="card-header bg-light text-dark d-flex justify-content-between align-items-center">
             <h5 class="mb-0 fw-bold">Sale Returns</h5>
             <div>
+                <a href="{{ route('sales.direct_return.create') }}" class="btn btn-danger btn-sm me-1">
+                    <i class="fa fa-undo me-1"></i> + Direct Sale Return
+                </a>
                 <a href="{{ url('sale') }}" class="btn btn-secondary btn-sm me-1">
                     <i class="fa fa-arrow-left me-1"></i> Back to Sales
                 </a>
@@ -51,12 +54,19 @@
                         <tr>
                             <td>{{ $return->id }}</td>
                             <td>
-                                <strong>{{ $return->sale->invoice_no ?? 'N/A' }}</strong>
-                                @if(!empty($return->reference))
-                                    <br><small class="text-muted">{{ $return->reference }}</small>
+                                @if($return->sale)
+                                    <strong>{{ $return->sale->invoice_no }}</strong>
+                                    @if(!empty($return->reference))
+                                        <br><small class="text-muted">{{ $return->reference }}</small>
+                                    @endif
+                                @else
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle"><i class="fas fa-undo me-1"></i>Direct Return</span>
+                                    @if(!empty($return->reference))
+                                        <br><strong>{{ $return->reference }}</strong>
+                                    @endif
                                 @endif
                             </td>
-                            <td>{{ optional($return->sale->customer)->customer_name ?? $return->sale->sub_customer ?? $return->customer ?? 'Walk-in Customer' }}</td>
+                            <td>{{ $return->sale?->customer?->customer_name ?? $return->customerRelation?->customer_name ?? $return->customer ?? 'Walk-in Customer' }}</td>
                             <td>{{ $return->total_items }}</td>
                             <td>{{ number_format((float)$return->total_net, 2) }}</td>
                             <td>{{ $return->return_note }}</td>

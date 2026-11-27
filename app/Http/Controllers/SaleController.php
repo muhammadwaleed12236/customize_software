@@ -4279,14 +4279,360 @@ public function finddc($invoice)
         ]);
     }
 
+    public function createDirectReturn()
+    {
+        $isSuper = Auth::check() && Auth::user()->hasRole('super admin');
+        $branchId = Auth::check() ? Auth::user()->branch_id : null;
+
+        $branches = Branch::with('warehouses')->get();
+        $defaultBranchId = null;
+        if (Auth::check() && !Auth::user()->hasRole('super admin')) {
+            $defaultBranchId = Auth::user()->branch_id ?? null;
+        } else {
+            $defaultBranchId = optional($branches->first())->id ?? null;
+        }
+
+        $branchWarehouseMap = [];
+        foreach ($branches as $b) {
+            $branchWarehouseMap[$b->id] = $b->warehouses->map(function ($w) {
+                return [
+                    'id'             => $w->id,
+                    'name'           => $w->warehouse_name ?? $w->name,
+                    'warehouse_name' => $w->warehouse_name ?? $w->name,
+                ];
+            })->values()->toArray();
+        }
+
+        $activeBranch = $branches->firstWhere('id', $defaultBranchId) ?? $branches->first();
+        $warehouse = ($activeBranch && $activeBranch->warehouses) ? $activeBranch->warehouses : collect();
+        $allWarehouses = $warehouse;
+
+        $customer = Customer::when(!$isSuper && $defaultBranchId, function ($q) use ($defaultBranchId) {
+            $q->where('branch_id', $defaultBranchId);
+        })->get();
+
+        $accounts = self::getCashBankAccountsQuery($defaultBranchId)->get();
+
+        $nextReturnNumber = 'RET-' . date('YmdHis');
+
+        $warehouseStocks = WarehouseStock::all()->toArray();
+        $saleSettings = SaleSetting::getSettings();
+
+        return view('admin_panel.sale.return.direct_return', compact(
+            'branches',
+            'defaultBranchId',
+            'branchWarehouseMap',
+            'warehouse',
+            'allWarehouses',
+            'customer',
+            'accounts',
+            'nextReturnNumber',
+            'warehouseStocks',
+            'saleSettings'
+        ));
+    }
+
+    public function storeDirectReturn(Request $request)
+    {
+        DB::beginTransaction();
+
+        try {
+            $branchId    = (int) ($request->input('branch_id', Auth::user()->branch_id ?? 1));
+            $globalWhId  = $request->input('warehouse_id') ?: null;
+            if ($globalWhId && str_starts_with($globalWhId, 'warehouse_')) {
+                $globalWhId = (int) str_replace('warehouse_', '', $globalWhId);
+            } elseif ($globalWhId && str_starts_with($globalWhId, 'branch_')) {
+                $globalWhId = null; // Shop stock
+            } else {
+                $globalWhId = $globalWhId ? (int) $globalWhId : null;
+            }
+
+            $returnDateInput = $request->input('return_date');
+            if ($returnDateInput) {
+                $parsedDate = \Carbon\Carbon::parse($returnDateInput);
+                $returnTimestamp = $parsedDate->isToday() ? now() : $parsedDate->setTime(12, 0, 0);
+            } else {
+                $returnTimestamp = now();
+            }
+
+            $product_ids   = $request->product_id   ?? [];
+            $product_names = $request->product       ?? [];
+            $product_codes = $request->item_code     ?? [];
+            $brands        = $request->brand         ?? $request->uom ?? [];
+            $units         = $request->unit          ?? [];
+            $prices        = $request->price         ?? [];
+            $discounts     = $request->item_disc     ?? [];
+            $quantities    = $request->qty           ?? [];
+            $totals        = $request->total         ?? [];
+            $rowWarehouses = $request->row_warehouse ?? [];
+
+            $combined_products = $combined_codes = $combined_brands = $combined_units = [];
+            $combined_prices = $combined_discounts = $combined_qtys = $combined_totals = [];
+
+            $total_items = 0;
+            $movements = [];
+
+            foreach ($product_ids as $index => $product_id) {
+                $qty   = max(0.0, (float) ($quantities[$index] ?? 0));
+                $price = max(0.0, (float) ($prices[$index]    ?? 0));
+
+                if (! $product_id || $qty <= 0) {
+                    continue;
+                }
+
+                $combined_products[]  = $product_names[$index] ?? '';
+                $combined_codes[]     = $product_codes[$index] ?? '';
+                $combined_brands[]    = $brands[$index]        ?? '';
+                $combined_units[]     = $units[$index]         ?? '';
+                $combined_prices[]    = $price;
+                $combined_discounts[] = $discounts[$index]     ?? 0;
+                $combined_qtys[]      = $qty;
+                $lineTotal            = (float) ($totals[$index] ?? ($qty * $price));
+                $combined_totals[]    = $lineTotal;
+
+                $total_items += $qty;
+
+                // Target warehouse
+                $rowWh = $rowWarehouses[$index] ?? null;
+                $targetWhId = null;
+                if ($rowWh && str_starts_with($rowWh, 'warehouse_')) {
+                    $targetWhId = (int) str_replace('warehouse_', '', $rowWh);
+                } elseif ($rowWh && is_numeric($rowWh) && (int)$rowWh > 0) {
+                    $targetWhId = (int) $rowWh;
+                } else {
+                    $targetWhId = $globalWhId;
+                }
+
+                $prod = Product::find($product_id);
+                $isPiece = strtolower($units[$index] ?? '') === 'pcs';
+                $multiplier = (!$isPiece && $prod && $prod->piece_per_pack > 1) ? (float)$prod->piece_per_pack : 1;
+                $retPieces = $qty * $multiplier;
+
+                // 1. Restore physical stock in stocks table (branch-level)
+                $affected = DB::table('stocks')
+                    ->where('product_id', $product_id)
+                    ->where('branch_id', $branchId)
+                    ->update([
+                        'qty'        => DB::raw('qty + ' . (float)$retPieces),
+                        'updated_at' => now(),
+                    ]);
+                if ($affected === 0) {
+                    DB::table('stocks')->insert([
+                        'product_id'   => $product_id,
+                        'branch_id'    => $branchId,
+                        'warehouse_id' => $targetWhId,
+                        'qty'          => (float)$retPieces,
+                        'reserved_qty' => 0,
+                        'created_at'   => now(),
+                        'updated_at'   => now(),
+                    ]);
+                }
+
+                // 2. Restore warehouse_stocks
+                $wsQry = DB::table('warehouse_stocks')
+                    ->where('product_id', $product_id)
+                    ->where('branch_id', $branchId);
+                if ($targetWhId) {
+                    $wsQry->where('warehouse_id', $targetWhId);
+                } else {
+                    $wsQry->whereNull('warehouse_id');
+                }
+
+                if ($wsQry->update(['quantity' => DB::raw('quantity + ' . (float)$retPieces), 'updated_at' => now()]) === 0) {
+                    DB::table('warehouse_stocks')->insert([
+                        'product_id'   => $product_id,
+                        'branch_id'    => $branchId,
+                        'warehouse_id' => $targetWhId,
+                        'quantity'     => (float)$retPieces,
+                        'created_at'   => now(),
+                        'updated_at'   => now(),
+                    ]);
+                }
+
+                // 3. Movement entry
+                $movements[] = [
+                    'product_id' => $product_id,
+                    'branch_id'  => $branchId,
+                    'type'       => 'in',
+                    'qty'        => $retPieces,
+                    'ref_type'   => 'DIRECT_SALE_RETURN',
+                    'ref_id'     => null,
+                    'note'       => 'Direct Sale Return' . ($multiplier > 1 ? " ({$qty} Ctn × {$multiplier} = {$retPieces} Pcs)" : "") . ($targetWhId ? " (Warehouse: {$targetWhId})" : " (Shop Stock)"),
+                    'created_at' => $returnTimestamp,
+                    'updated_at' => $returnTimestamp,
+                ];
+            }
+
+            if ($total_items <= 0) {
+                throw new \Exception('No items were entered for return.');
+            }
+
+            $customer_id = $request->customer_id ? (int)$request->customer_id : null;
+            $customerName = 'Walk-in Customer';
+            if ($customer_id) {
+                $cObj = Customer::find($customer_id);
+                if ($cObj) {
+                    $customerName = $cObj->customer_name;
+                }
+            } elseif ($request->customer) {
+                $customerName = $request->customer;
+            }
+
+            $reference = $request->reference;
+            if (empty($reference)) {
+                $reference = 'RET-' . date('YmdHis');
+            }
+
+            $totalNet = (float) ($request->total_net ?? 0);
+            $refundType = $request->input('refund_type', 'credit');
+
+            // Create SalesReturn record
+            $saleReturn = new SalesReturn;
+            $saleReturn->sale_id             = null;
+            $saleReturn->branch_id           = $branchId;
+            $saleReturn->warehouse_id        = $globalWhId;
+            $saleReturn->customer_id         = $customer_id;
+            $saleReturn->is_direct           = 1;
+            $saleReturn->refund_type         = $refundType;
+            $saleReturn->customer            = $customerName;
+            $saleReturn->reference           = $reference;
+            $saleReturn->product             = implode(',', $combined_products);
+            $saleReturn->product_code        = implode(',', $combined_codes);
+            $saleReturn->brand               = implode(',', $combined_brands);
+            $saleReturn->unit                = implode(',', $combined_units);
+            $saleReturn->per_price           = implode(',', $combined_prices);
+            $saleReturn->per_discount        = implode(',', $combined_discounts);
+            $saleReturn->qty                 = implode(',', $combined_qtys);
+            $saleReturn->per_total           = implode(',', $combined_totals);
+            $saleReturn->color               = json_encode([]);
+            $saleReturn->total_amount_Words  = $request->total_amount_Words ?? '';
+            $saleReturn->total_bill_amount   = $request->total_subtotal ?? $totalNet;
+            $saleReturn->total_extradiscount = $request->total_extra_discount ?? 0;
+            $saleReturn->total_net           = $totalNet;
+            $saleReturn->cash                = ($refundType === 'cash') ? ($request->cash_refund_amount ?? $totalNet) : 0;
+            $saleReturn->card                = 0;
+            $saleReturn->change              = 0;
+            $saleReturn->total_items         = $total_items;
+            $saleReturn->return_note         = $request->return_note;
+            $saleReturn->created_at          = $returnTimestamp;
+            $saleReturn->updated_at          = $returnTimestamp;
+            $saleReturn->save();
+
+            // Update movements ref_id and insert
+            if (! empty($movements)) {
+                foreach ($movements as &$mv) {
+                    $mv['ref_id'] = $saleReturn->id;
+                }
+                unset($mv);
+                DB::table('stock_movements')->insert($movements);
+            }
+
+            // Customer Ledger: Credit Note
+            if ($customer_id) {
+                $latestLedger = CustomerLedger::where('customer_id', $customer_id)
+                    ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                    ->orderBy('id', 'desc')
+                    ->first();
+                $prevBal      = $latestLedger ? (float)$latestLedger->closing_balance : 0;
+                $newClosing   = $prevBal - $totalNet;
+
+                CustomerLedger::create([
+                    'customer_id'      => $customer_id,
+                    'transaction_type' => 'Direct Sale Return',
+                    'reference_id'     => $saleReturn->id,
+                    'description'      => 'Direct Sale Return #' . ($saleReturn->reference ?? $saleReturn->id),
+                    'admin_or_user_id' => auth()->id() ?? 1,
+                    'previous_balance' => $prevBal,
+                    'total_credit'     => $totalNet,
+                    'closing_balance'  => $newClosing,
+                    'opening_balance'  => 0,
+                    'created_at'       => $returnTimestamp,
+                ]);
+            }
+
+            // Cash Refund handling if refund_type == 'cash'
+            if ($refundType === 'cash') {
+                $refundAccountIds = $request->input('refund_account_id', []);
+                $refundAmounts    = $request->input('refund_amount', []);
+                $totalRefundPaid  = 0;
+
+                foreach ($refundAccountIds as $i => $accountId) {
+                    $refAmt = (float)($refundAmounts[$i] ?? 0);
+                    if (! $accountId || $refAmt <= 0) continue;
+
+                    $totalRefundPaid += $refAmt;
+
+                    \App\Services\VoucherService::postLedgerEntry(
+                        (int)$accountId,
+                        'payment',
+                        $saleReturn->reference ?? ('DSR-' . $saleReturn->id),
+                        $saleReturn->id,
+                        $returnTimestamp->toDateString(),
+                        'Direct Sale Return Cash Refund — ' . ($saleReturn->reference ?? ('#' . $saleReturn->id)),
+                        0,
+                        $refAmt,
+                        auth()->id() ?? 1
+                    );
+                }
+
+                if ($customer_id && $totalRefundPaid > 0) {
+                    $latestLedger = CustomerLedger::where('customer_id', $customer_id)
+                        ->orderByRaw("COALESCE(created_at, '1970-01-01') DESC")
+                        ->orderBy('id', 'desc')
+                        ->first();
+                    $prevBal    = $latestLedger ? (float)$latestLedger->closing_balance : 0;
+                    $newClosing = $prevBal + $totalRefundPaid;
+
+                    CustomerLedger::create([
+                        'customer_id'      => $customer_id,
+                        'transaction_type' => 'Sale Return Cash Refund',
+                        'reference_id'     => $saleReturn->id,
+                        'description'      => 'Direct Sale Return Cash Refund #' . ($saleReturn->reference ?? $saleReturn->id),
+                        'admin_or_user_id' => auth()->id() ?? 1,
+                        'previous_balance' => $prevBal,
+                        'total_debit'      => $totalRefundPaid,
+                        'closing_balance'  => $newClosing,
+                        'opening_balance'  => 0,
+                        'created_at'       => $returnTimestamp,
+                    ]);
+                }
+            }
+
+            DB::commit();
+
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success'   => true,
+                    'message'   => 'Direct Sale Return successfully recorded!',
+                    'return_id' => $saleReturn->id,
+                    'redirect'  => route('sale.returns.index'),
+                ]);
+            }
+
+            return redirect()->route('sale.returns.index')->with('success', 'Direct Sale Return successfully recorded!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            if ($request->ajax() || $request->wantsJson()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+            return back()->with('error', $e->getMessage())->withInput();
+        }
+    }
+
     public function salereturnview()
     {
-        $query = SalesReturn::with('sale.customer')->orderBy('created_at', 'desc');
+        $query = SalesReturn::with(['sale.customer', 'customerRelation', 'branch', 'warehouse'])->orderBy('created_at', 'desc');
 
         if (Auth::check() && !Auth::user()->hasRole('super admin')) {
             $branchId = (int) (Auth::user()->branch_id ?? 0);
-            $query->whereHas('sale', function ($q) use ($branchId) {
-                $q->where('branch_id', $branchId);
+            $query->where(function ($q) use ($branchId) {
+                $q->whereHas('sale', function ($sq) use ($branchId) {
+                    $sq->where('branch_id', $branchId);
+                })->orWhere('branch_id', $branchId);
             });
         }
 

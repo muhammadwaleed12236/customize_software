@@ -526,6 +526,8 @@ Route::get('/dc-find/{invoice}', [SaleController::class, 'finddc'])
     Route::post('/sales/store', [SaleController::class, 'store'])->middleware('permission:sale.create|sale.edit')->name('sales.store');
     Route::get('/sales/{id}/return', [SaleController::class, 'saleretun'])->middleware('permission:sale.return.view|sale.return.create')->name('sales.return.create');
     Route::post('/sales-return/store', [SaleController::class, 'storeSaleReturn'])->middleware('permission:sale.return.create|sale.return.edit')->name('sales.return.store');
+    Route::get('/direct-sale-return/create', [SaleController::class, 'createDirectReturn'])->middleware('permission:sale.return.view|sale.return.create')->name('sales.direct_return.create');
+    Route::post('/direct-sale-return/store', [SaleController::class, 'storeDirectReturn'])->middleware('permission:sale.return.create|sale.return.edit')->name('sales.direct_return.store');
     Route::get('/sale-returns', [App\Http\Controllers\SaleController::class, 'salereturnview'])->middleware('permission:sale.return.view')->name('sale.returns.index');
     Route::get('/sale-returns/{id}/edit', [App\Http\Controllers\SaleController::class, 'editSaleReturn'])->middleware('permission:sale.return.edit|sale.edit')->name('sale.returns.edit');
     Route::put('/sale-returns/{id}', [App\Http\Controllers\SaleController::class, 'updateSaleReturn'])->middleware('permission:sale.return.edit|sale.edit')->name('sale.returns.update');

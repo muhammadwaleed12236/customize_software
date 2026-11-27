@@ -905,6 +905,12 @@
                                     @can('sale.create')
                                     <li><a href="{{ route('sale.settings.index') }}"><i class="fas fa-cog text-warning"></i> Sale Screen Settings</a></li>
                                     @endcan
+                                    @can('sale.return.view')
+                                    <li><a href="{{ route('sale.returns.index') }}"><i class="fas fa-undo"></i> Sale Returns</a></li>
+                                    @endcan
+                                    @can('sale.return.create')
+                                    <li><a href="{{ route('sales.direct_return.create') }}"><i class="fas fa-exchange-alt text-danger"></i> Direct Sale Return</a></li>
+                                    @endcan
 
                                     <li style="border-top: 1px solid #eee; margin: 4px 0; padding: 0;"></li>
 
