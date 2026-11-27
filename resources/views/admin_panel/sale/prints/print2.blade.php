@@ -12,7 +12,7 @@
     @endphp
 
     <style>
-        /* Reset & Base Styles - Pure Black High-Contrast POS Thermal */
+        /* Reset & Base Styles - Clean Arial Thermal POS */
         *, *::before, *::after {
             margin: 0;
             padding: 0;
@@ -23,10 +23,10 @@
         }
 
         body {
-            font-family: 'Segoe UI', 'Courier New', Courier, Arial, monospace;
+            font-family: Arial, Helvetica, sans-serif;
             background: #eef2f5;
             font-size: 11px;
-            line-height: 1.25;
+            line-height: 1.3;
             color: #000000 !important;
             -webkit-font-smoothing: antialiased;
         }
@@ -37,9 +37,9 @@
             max-width: 80mm;
             margin: 20px auto 40px auto;
             background: #ffffff;
-            padding: 4mm 4mm;
-            border: 2px solid #000000;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+            padding: 5mm 5mm;
+            border: 1px solid #333333;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
             font-size: 11px;
         }
 
@@ -57,10 +57,10 @@
         .btn-thermal-print {
             background: #000000 !important;
             color: #ffffff !important;
-            border: 2px solid #000000 !important;
-            font-weight: 800 !important;
-            font-size: 13px !important;
-            padding: 8px 16px !important;
+            border: 1px solid #000000 !important;
+            font-weight: bold !important;
+            font-size: 12px !important;
+            padding: 7px 14px !important;
             border-radius: 4px;
             cursor: pointer;
             display: inline-flex;
@@ -69,6 +69,7 @@
             text-transform: uppercase;
             flex: 1;
             justify-content: center;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
         .btn-thermal-print * {
@@ -78,13 +79,14 @@
         .btn-thermal-close {
             background: #ffffff !important;
             color: #000000 !important;
-            border: 2px solid #000000 !important;
-            font-weight: 800 !important;
-            font-size: 13px !important;
-            padding: 8px 16px !important;
+            border: 1px solid #000000 !important;
+            font-weight: bold !important;
+            font-size: 12px !important;
+            padding: 7px 14px !important;
             border-radius: 4px;
             cursor: pointer;
             text-transform: uppercase;
+            font-family: Arial, Helvetica, sans-serif;
         }
 
         /* Header styling */
@@ -94,41 +96,39 @@
         }
 
         .receipt-logo-wrap {
-            max-height: 48px;
+            max-height: 50px;
             max-width: 140px;
             margin: 0 auto 3px auto;
         }
 
         .receipt-logo-wrap img {
-            max-height: 48px;
+            max-height: 50px;
             max-width: 140px;
             object-fit: contain;
         }
 
-        .receipt-logo-badge {
-            display: inline-block;
-            border: 2px solid #000000;
-            border-radius: 20px;
-            padding: 2px 14px;
-            font-weight: 900;
-            font-size: 20px;
-            letter-spacing: 1px;
-            line-height: 1.1;
+        .receipt-company-title {
+            font-size: 19px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.2;
+            text-align: center;
         }
 
         .receipt-tagline {
             font-size: 11px;
-            font-weight: 800;
+            font-weight: normal;
             margin-top: 2px;
-            text-transform: capitalize;
+            text-align: center;
         }
 
         .receipt-sub-desc {
-            font-size: 8.5px;
-            font-weight: 600;
-            line-height: 1.25;
-            max-width: 260px;
+            font-size: 11px;
+            font-weight: normal;
+            line-height: 1.3;
             margin: 2px auto 0 auto;
+            text-align: center;
             white-space: pre-line;
         }
 
@@ -138,8 +138,8 @@
             justify-content: space-between;
             align-items: flex-start;
             margin-top: 6px;
-            font-size: 9px;
-            line-height: 1.3;
+            font-size: 11px;
+            line-height: 1.35;
         }
 
         .contacts-col-left {
@@ -157,11 +157,11 @@
             background: #000000 !important;
             color: #ffffff !important;
             padding: 3.5px 4px;
-            margin: 6px 0 5px 0;
+            margin: 6px 0 6px 0;
             text-align: center;
-            font-weight: 900;
-            font-size: 9.5px;
-            letter-spacing: 0.3px;
+            font-weight: bold;
+            font-size: 10.5px;
+            letter-spacing: 0.5px;
             text-transform: uppercase;
         }
 
@@ -169,7 +169,7 @@
             color: #ffffff !important;
         }
 
-        /* Strong Overrides against global table styles */
+        /* Table Resets */
         .thermal-receipt table {
             border-collapse: collapse !important;
             margin: 2px 0 !important;
@@ -192,40 +192,40 @@
             vertical-align: top !important;
             height: auto !important;
             min-height: 0 !important;
-            line-height: 1.25 !important;
+            line-height: 1.3 !important;
         }
 
         /* Metadata table */
         .receipt-meta-table {
             width: 100% !important;
             border-collapse: collapse !important;
-            margin: 2px 0 !important;
-            font-size: 10.5px;
+            margin: 3px 0 !important;
+            font-size: 11px;
         }
 
         .receipt-meta-table tr td,
         .receipt-meta-table td {
             padding: 1.5px 0 !important;
             vertical-align: top !important;
-            line-height: 1.25 !important;
+            line-height: 1.3 !important;
         }
 
         .meta-lbl {
-            font-weight: 800;
-            width: 32%;
+            font-weight: normal;
+            width: 30%;
             text-align: left;
         }
 
         .meta-val {
-            font-weight: 700;
-            width: 68%;
+            font-weight: normal;
+            width: 70%;
             text-align: right;
         }
 
         /* Dashed separator */
         .dashed-line {
             border-top: 1px dashed #000000 !important;
-            margin: 3px 0 !important;
+            margin: 4px 0 !important;
         }
 
         /* Items table */
@@ -238,27 +238,28 @@
 
         .receipt-items-table tr th,
         .receipt-items-table th {
-            font-size: 9.5px;
-            font-weight: 900;
-            padding: 2.5px 0 !important;
+            font-size: 10.5px;
+            font-weight: bold;
+            padding: 3px 0 !important;
             border-top: 1px dashed #000000 !important;
             border-bottom: 1px dashed #000000 !important;
-            line-height: 1.2 !important;
+            line-height: 1.25 !important;
         }
 
         .receipt-items-table tr td,
         .receipt-items-table td {
-            padding: 2px 0 !important;
-            font-size: 10px;
+            padding: 2.5px 0 !important;
+            font-size: 11px;
+            font-weight: normal;
             vertical-align: top !important;
-            line-height: 1.2 !important;
+            line-height: 1.25 !important;
         }
 
-        .col-sr { width: 7%; text-align: left; font-weight: 800; }
-        .col-desc { width: 45%; text-align: left; font-weight: 800; padding-right: 2px; word-break: break-word; }
-        .col-qty { width: 16%; text-align: right; font-weight: 700; }
-        .col-rate { width: 14%; text-align: right; font-weight: 700; }
-        .col-amt { width: 18%; text-align: right; font-weight: 800; }
+        .col-sr { width: 6%; text-align: left; }
+        .col-desc { width: 48%; text-align: left; padding-right: 2px; word-break: break-word; }
+        .col-qty { width: 16%; text-align: right; white-space: nowrap; }
+        .col-rate { width: 14%; text-align: right; }
+        .col-amt { width: 16%; text-align: right; }
 
         /* Totals */
         .receipt-totals-table {
@@ -270,17 +271,17 @@
 
         .receipt-totals-table tr td,
         .receipt-totals-table td {
-            padding: 1.5px 0 !important;
-            line-height: 1.25 !important;
+            padding: 2px 0 !important;
+            line-height: 1.3 !important;
         }
 
         .tot-lbl {
-            font-weight: 800;
+            font-weight: bold;
             text-align: left;
         }
 
         .tot-val {
-            font-weight: 800;
+            font-weight: bold;
             text-align: right;
             white-space: nowrap;
         }
@@ -288,45 +289,40 @@
         .payable-box-row td {
             border-top: 1.5px solid #000000 !important;
             border-bottom: 1.5px solid #000000 !important;
-            padding: 3px 0 !important;
-            font-size: 12.5px !important;
-            font-weight: 900 !important;
+            padding: 3.5px 0 !important;
+            font-size: 11.5px !important;
+            font-weight: bold !important;
         }
 
         .closing-box-row td {
             border: 1.5px solid #000000 !important;
-            padding: 2px 3px !important;
-            font-size: 12px !important;
-            font-weight: 900 !important;
+            padding: 2.5px 4px !important;
+            font-size: 11.5px !important;
+            font-weight: bold !important;
         }
 
         /* Footer */
         .receipt-footer {
             text-align: center;
-            margin-top: 6px !important;
-            padding-top: 3px !important;
-            border-top: 1px dashed #000000 !important;
-            font-size: 9.5px;
-            line-height: 1.25;
+            margin-top: 8px !important;
+            padding-top: 4px !important;
+            font-size: 11px;
+            line-height: 1.3;
         }
 
         .footer-branch {
-            font-weight: 700;
-            font-size: 8.5px;
+            font-size: 10px;
             margin-bottom: 2px;
-            line-height: 1.2;
+            line-height: 1.25;
         }
 
         .footer-thanks {
-            font-weight: 800;
-            font-size: 10px;
-            margin: 3px 0 2px 0;
-            text-transform: capitalize;
+            font-size: 11px;
+            margin: 4px 0 2px 0;
         }
 
         .footer-credit {
-            font-size: 8px;
-            font-weight: 700;
+            font-size: 9px;
             color: #000000;
             margin-top: 2px;
         }
@@ -389,7 +385,7 @@
                     <img src="{{ asset($settings->invoice_logo) }}" alt="Logo">
                 </div>
             @elseif(!empty($settings->invoice_company_name))
-                <div class="receipt-logo-badge">
+                <div class="receipt-company-title">
                     {{ $settings->invoice_company_name }}
                 </div>
             @endif
@@ -422,8 +418,8 @@
             {{-- Left Contacts --}}
             <div class="contacts-col-left">
                 @for($k = 0; $k < count($cLeft); $k += 2)
-                    <div style="font-weight: 800;">{{ $cLeft[$k] ?? '' }}</div>
-                    <div style="font-weight: 700; margin-bottom: 2px;">{{ $cLeft[$k+1] ?? '' }}</div>
+                    <div style="font-weight: 600;">{{ $cLeft[$k] ?? '' }}</div>
+                    <div style="margin-bottom: 2px;">{{ $cLeft[$k+1] ?? '' }}</div>
                 @endfor
             </div>
 
@@ -431,11 +427,11 @@
             <div class="contacts-col-right">
                 @foreach($cRight as $line)
                     @if(str_contains(strtolower($line), 'ptcl'))
-                        <div style="font-weight: 800; margin-top: 2px;">{{ $line }}</div>
+                        <div style="font-weight: 600; margin-top: 2px;">{{ $line }}</div>
                     @elseif(preg_match('/[a-zA-Z]/', $line))
-                        <div style="font-weight: 800;">{{ $line }}</div>
+                        <div style="font-weight: 600;">{{ $line }}</div>
                     @else
-                        <div style="font-weight: 700; margin-bottom: 2px;">{{ $line }}</div>
+                        <div style="margin-bottom: 2px;">{{ $line }}</div>
                     @endif
                 @endforeach
             </div>
@@ -459,7 +455,7 @@
         <table class="receipt-meta-table">
             <tr>
                 <td class="meta-lbl">Invoice #:</td>
-                <td class="meta-val" style="font-weight: 900;">{{ $sale->invoice_no }}</td>
+                <td class="meta-val">{{ $sale->invoice_no }}</td>
             </tr>
             <tr>
                 <td class="meta-lbl">Date:</td>
@@ -471,7 +467,7 @@
                     @php
                         $custName = optional($sale->customer)->customer_name ?? $sale->sub_customer ?? 'Walk-in Customer';
                     @endphp
-                    <strong>{{ strtoupper($custName) }}</strong>
+                    {{ $custName }}
                 </td>
             </tr>
             @php
@@ -515,27 +511,20 @@
                             $isPcsUnit = (isset($item->sale_unit) && strtolower($item->sale_unit) === 'pcs');
                             if ($isPcsUnit) {
                                 $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
-                                $unitDisplay = 'Pcs';
+                                $unitDisplay = '';
                             } elseif ($isCartonProd) {
                                 $totalPieces = $qty * $ppp;
                                 $qtyDisplay = \App\Models\Product::formatCartonPieces($totalPieces, $ppp, $unit);
                                 $unitDisplay = '';
                             } else {
                                 $qtyDisplay = ((int)$qty == $qty ? (int)$qty : number_format($qty, 2));
-                                $unitDisplay = $unit;
+                                $unitDisplay = (strtolower($unit) === 'pcs') ? '' : $unit;
                             }
                         @endphp
                         <tr>
                             <td class="col-sr">{{ $sr++ }}</td>
-                            <td class="col-desc">
-                                <div style="font-weight: 800; line-height: 1.15;">{{ $pName }}</div>
-                            </td>
-                            <td class="col-qty">
-                                <div style="font-weight: 800; white-space: nowrap;">{{ $qtyDisplay }}</div>
-                                @if(!empty($unitDisplay))
-                                    <div style="font-size: 8.5px; font-weight: 600;">{{ $unitDisplay }}</div>
-                                @endif
-                            </td>
+                            <td class="col-desc">{{ $pName }}</td>
+                            <td class="col-qty">{{ $qtyDisplay }}@if(!empty($unitDisplay) && strtolower($unitDisplay) !== 'pcs') {{ $unitDisplay }}@endif</td>
                             @php
                                 $hasDec = (round($rate, 2) != round($rate, 0)) || (round($amt, 2) != round($amt, 0));
                             @endphp
@@ -647,25 +636,13 @@
                 <td class="tot-val">{{ round($totalPayable, 2) == round($totalPayable, 0) ? number_format($totalPayable, 0) : number_format($totalPayable, 2) }}</td>
             </tr>
             <tr>
-                <td class="tot-lbl" style="padding-top: 4px;">Prev Balance:</td>
-                <td class="tot-val" style="padding-top: 4px;">{{ round($prevBalance, 2) == round($prevBalance, 0) ? number_format($prevBalance, 0) : number_format($prevBalance, 2) }} Dr</td>
+                <td style="font-weight: normal; padding-top: 3px;">Prev Balance:</td>
+                <td style="font-weight: normal; text-align: right; padding-top: 3px;">{{ round($prevBalance, 2) == round($prevBalance, 0) ? number_format($prevBalance, 0) : number_format($prevBalance, 2) }} Dr</td>
             </tr>
             <tr>
-                <td class="tot-lbl">Paid / Received:</td>
-                <td class="tot-val">{{ round($paidAmount, 2) == round($paidAmount, 0) ? number_format($paidAmount, 0) : number_format($paidAmount, 2) }}</td>
+                <td style="font-weight: normal;">Paid Amount:</td>
+                <td style="font-weight: normal; text-align: right;">{{ round($paidAmount, 2) == round($paidAmount, 0) ? number_format($paidAmount, 0) : number_format($paidAmount, 2) }}</td>
             </tr>
-            @if(isset($receipts) && $receipts->count() > 0)
-                @foreach($receipts as $rc)
-                    @php 
-                        $acTitle = optional($rc->Account)->title ?? 'Cash / Bank'; 
-                        $rcVal = (float)($rc->total_amount ?? $rc->amount ?? 0);
-                    @endphp
-                    <tr>
-                        <td class="tot-lbl" style="font-size: 8px; padding-left: 6px; color: #555;">└ {{ $acTitle }}:</td>
-                        <td class="tot-val" style="font-size: 8px; color: #555;">{{ round($rcVal, 2) == round($rcVal, 0) ? number_format($rcVal, 0) : number_format($rcVal, 2) }}</td>
-                    </tr>
-                @endforeach
-            @endif
             <tr class="closing-box-row">
                 <td class="tot-lbl">CLOSING BALANCE:</td>
                 <td class="tot-val">{{ round($closingBalance, 2) == round($closingBalance, 0) ? number_format($closingBalance, 0) : number_format($closingBalance, 2) }} Dr</td>
